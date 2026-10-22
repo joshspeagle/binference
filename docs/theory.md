@@ -136,6 +136,23 @@ MAP update adds $\alpha_k-1$ pseudo-counts. EM is slow when likelihoods are
 broad (a large fraction of missing information), so pastry accelerates it
 with SQUAREM (Varadhan & Roland 2008).
 
+For $\alpha_k\ge1$ the log posterior is concave on the simplex, and pastry
+uses mix-SQP instead (Kim et al. 2020). Each iteration solves a quadratic
+model of the objective under $\rho\ge0$ as a non-negative least-squares
+problem, so it converges in a handful of iterations however broad the
+likelihoods are. A selection function makes the likelihood non-concave in
+$\rho$, but not in the fractions of the *observed* population,
+$\phi_k=S_k\rho_k/S\cdot\rho$:
+
+$$
+p(x_i\mid\text{observed},\rho)=\frac{\sum_kL_{ik}\rho_k}{S\cdot\rho}=\sum_k\frac{L_{ik}}{S_k}\,\phi_k
+$$
+
+in `"observed"` mode, and $\sum_kL_{ik}\phi_k$ in `"true"` mode. The
+maximum-likelihood estimate is invariant under this change of variables, so
+with a flat prior pastry solves for $\phi$ and maps back,
+$\rho_k\propto\phi_k/S_k$.
+
 ## Likelihoods versus posteriors
 
 Many codes report **posteriors** $p_i(z)\propto\ell_i(z)\pi(z)$ computed
@@ -265,9 +282,13 @@ $$
 \eta=\mu+B\,(s(\theta)\odot\xi),\qquad\xi\sim\mathcal N(0,I).
 $$
 
-Here $B$ is a fixed basis, $s(\theta)$ are scales set by hyperparameters
-$\theta$ (amplitude, length scale), and $\mu$ is an optional mean, for example
-the log of a reference distribution.
+Here $B$ is a fixed basis and $s(\theta)$ are scales set by hyperparameters
+$\theta$ (amplitude, length scale). The mean $\mu$ defaults to the log bin
+volumes, $\mu_k=\log v_k$ up to a constant, which is a flat density. Then
+$\eta_k-\mu_k=\log(\rho_k/v_k)+\text{const}$ is the log-density, so the
+smoothness penalty does not depend on the binning. Passing the log of
+reference fractions as $\mu$ centres the prior on a reference distribution
+instead.
 
 - **`LogisticRandomWalk(order)`.** The order-$r$ differences of $\eta$
   between adjacent bins are $\mathcal N(0,\tau^2)$.
@@ -351,9 +372,10 @@ as the likelihood itself.
   selection. It is exact but mixes slowly when likelihoods are broader than
   the bins: the autocorrelation time grows with the fraction of missing
   information.
-- **MAP / EM** gives a SQUAREM-accelerated EM on the simplex, or L-BFGS in
-  unconstrained coordinates (for non-conjugate priors and the Laplace centre),
-  with the KKT gap as a certificate.
+- **MAP** uses mix-SQP (Dirichlet priors with $\alpha_k\ge1$) or
+  SQUAREM-accelerated EM on the simplex, or L-BFGS in unconstrained
+  coordinates (non-conjugate priors, densities unbounded at the edge of the
+  simplex, and the Laplace centre), with the KKT gap as a certificate.
 - **Laplace** fits a Gaussian at the unconstrained mode, using a
   finite-difference Hessian.
   - It is corrected by importance sampling from a Student-$t$ proposal with
@@ -408,6 +430,7 @@ the same conclusion for unfolding.
 - Gorinova, Moore & Hoffman (2020), *ICML*: automatic reparameterisation.
 - Hoffman & Gelman (2014), *JMLR* 15, 1593: the No-U-Turn Sampler.
 - Hogg, Myers & Bovy (2010), *ApJ* 725, 2166: population inference from per-object samples.
+- Kim, Carbonetto, Stephens & Anitescu (2020), *Journal of Computational and Graphical Statistics* 29, 261: mix-SQP.
 - Lavine (1992), *Annals of Statistics* 20, 1222: Pólya trees.
 - Leistedt, Mortlock & Peiris (2016), *MNRAS* 460, 4258: hierarchical $n(z)$.
 - Mandel, Farr & Gair (2019), *MNRAS* 486, 1086: selection effects.

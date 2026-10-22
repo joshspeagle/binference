@@ -569,6 +569,17 @@ class PopulationResult(_IndividualMixin):
         self._cache["diagnostics"] = out
         return out
 
+    def _missing_information(self) -> float | None:
+        """Fraction of missing information at the posterior mean (cached in ``info``)."""
+        if "missing_information" not in self.info and self.model is not None and self.K <= 500:
+            value = self._draws.reshape(-1, self.K).mean(axis=0)
+            try:
+                self.info["missing_information"] = self.model.missing_information(value)
+            except (np.linalg.LinAlgError, ValueError):
+                return None
+            self._cache.pop("diagnostics", None)
+        return self.info.get("missing_information")
+
     def check(self, strict: bool = False, rhat_max: float = 1.01, ess_min: float = 100.0):
         """Check diagnostics and warn (or raise with ``strict=True``) about problems.
 
@@ -587,10 +598,13 @@ class PopulationResult(_IndividualMixin):
                     f"({per_chain:.0f} per chain < {ess_min:.0f})"
                 )
         if msgs and self.method == "gibbs":
-            hints.append(
-                "Gibbs mixes slowly when likelihoods are broad compared with the bins; "
-                "run longer or use method='nuts'"
-            )
+            hint = "Gibbs mixes slowly when likelihoods are broad compared with the bins"
+            f = self._missing_information()
+            if f is not None:
+                tau = (1.0 + f) / max(1.0 - f, 1e-12)
+                tau_text = f"~{tau:.0f}" if tau < 1000 else "over 1000"
+                hint += f" (missing information {f:.2f}: autocorrelation time {tau_text})"
+            hints.append(hint + "; run longer or use method='nuts'")
         if d.get("n_divergent", 0):
             msgs.append(f"{d['n_divergent']} divergent transitions")
             hints.append("try a higher target_accept, e.g. 0.95")

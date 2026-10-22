@@ -357,15 +357,38 @@ def test_mixsqp_low_rank_path_and_fallbacks():
     m = PopulationModel(mock.likelihoods)  # tall and dense: low-rank Hessian
     est = MAP(m).run()
     assert est.info["algorithm"] == "mixsqp" and est.kkt_gap < 1e-7
-    # selection or tree priors fall back to EM; asking for mix-SQP there is an error
+    # informative priors with selection fall back to EM; asking for mix-SQP there is an error
     sel = PopulationModel(
-        mock.likelihoods, selection=np.linspace(1, 0.5, 30), selection_mode="true"
+        mock.likelihoods,
+        P.Dirichlet(2.0),
+        selection=np.linspace(1, 0.5, 30),
+        selection_mode="true",
     )
     assert MAP(sel).run().info["algorithm"] == "squarem"
     with pytest.raises(ValueError, match="mix-SQP"):
         MAP(sel, algorithm="mixsqp").run()
     with pytest.raises(ValueError):
         MAP(m, algorithm="newton")
+
+
+def test_mixsqp_stops_at_the_round_off_floor():
+    # the KKT gap of this optimum cannot be pushed much below 1e-8 in floating point
+    mock = pastry.simulate.mock_1d(800, Bins.linear(0, 3, 15), rng=6)
+    est = MAP(PopulationModel(mock.likelihoods)).run()  # warnings are errors here
+    assert est.converged and est.n_iter < 50 and est.kkt_gap < 1e-6
+
+
+@pytest.mark.parametrize("mode", ["true", "observed"])
+def test_mixsqp_with_selection_solves_for_observed_fractions(mode):
+    mock = pastry.simulate.mock_1d(3000, Bins.linear(0, 3, 20), noise=(0.1, 0.3), rng=2)
+    S = np.linspace(0.2, 1.0, 20) ** 2
+    m = PopulationModel(mock.likelihoods, selection=3.0 * S, selection_mode=mode)
+    sqp = MAP(m).run()
+    assert sqp.info["algorithm"] == "mixsqp"
+    assert sqp.converged and sqp.n_iter < 50 and sqp.kkt_gap < 1e-7
+    em = MAP(m, algorithm="em", max_iter=200000, tol=1e-14).run()
+    np.testing.assert_allclose(sqp.rho, em.rho, atol=1e-4)
+    assert sqp.log_posterior >= em.log_posterior - 1e-8
 
 
 def test_map_is_em_fixed_point(k3_problem):

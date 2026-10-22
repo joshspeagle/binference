@@ -239,3 +239,22 @@ def test_parallel_chains_fall_back_when_the_model_cannot_be_pickled():
     assert res.chains.shape == (2, 10, 8)
     assert eng.n_jobs == 1
     assert eng.run(5).chains.shape == (2, 15, 8)  # still usable
+
+
+# ------------------------------------------------ missing information (other observations)
+def test_check_reports_missing_information_when_gibbs_mixes_slowly():
+    mock = pastry.simulate.mock_1d(500, Bins.linear(0, 3, 15), noise=(0.4, 0.6), rng=1)
+    res = pastry.infer(
+        mock.likelihoods, method="gibbs", n_chains=2, n_warmup=20, n_samples=60, rng=0, check=False
+    )
+    with pytest.warns(pastry.ConvergenceWarning, match=r"missing information [01]\.\d\d"):
+        res.check()
+    assert 0.5 < res.diagnostics["missing_information"] <= 1.0
+
+
+def test_em_convergence_warning_reports_missing_information():
+    mock = pastry.simulate.mock_1d(500, Bins.linear(0, 3, 15), noise=(0.4, 0.6), rng=1)
+    S = np.linspace(1.0, 0.5, 15)
+    m = PopulationModel(mock.likelihoods, P.Dirichlet(2.0), selection=S, selection_mode="true")
+    with pytest.warns(pastry.ConvergenceWarning, match="missing information"):
+        MAP(m, max_iter=5).run()

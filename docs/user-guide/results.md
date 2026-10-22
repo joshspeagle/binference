@@ -45,7 +45,8 @@ print(coarse.mean(axis=0).round(3), coarse.std(axis=0).round(3))
 
 For rate models, `result.rates` holds draws of the expected counts and
 `result.samples` the implied fractions. Pass `which="rates"` to `quantile`,
-`interval` and `summary`.
+`interval` and `summary`. Convergence diagnostics for rate models are
+computed on the rates, so they also cover the total.
 
 ## Individual objects
 
@@ -61,7 +62,18 @@ print(p.round(2)[0], labels.shape, values.mean().round(3), mock.truth.values[0].
 ```
 
 `sample_assignments` gives exact joint draws of $(\rho, z)$, whatever engine
-produced $\rho$.
+produced $\rho$. `sample_values` then draws a true value inside the drawn
+bin from the object's own likelihood, since the population is flat within a
+bin:
+
+- exactly, for likelihoods built with `Likelihoods.from_gaussian`;
+- for other 1-D likelihoods, pass `loglike(z, i)` (the log-likelihood of
+  object `i` at points `z`) to sample on a fine sub-grid of each bin;
+- otherwise uniformly within the bin, which is accurate only when the
+  likelihoods are nearly flat across a bin.
+
+Both methods treat each row of the likelihoods as one object, so use unit
+weights (uncompressed rows) when you need draws for individual objects.
 
 For **new** objects that were not used in the fit:
 
@@ -97,9 +109,14 @@ problems = result.check()                  # warns (ConvergenceWarning) and retu
 print(problems)
 ```
 
-`check()` flags $\hat R>1.01$, bulk or tail ESS below 100, NUTS divergences
-and saturated trees. `check(strict=True)` raises instead. A result from an
-approximate engine is marked `result.approximate`, and its summary says so.
+`check()` flags $\hat R>1.01$, bulk ESS below 100 per chain, NUTS
+divergences, saturated trees and unreliable importance weights.
+`check(strict=True)` raises instead. Where it can, the warning ends with a
+hint: a higher `target_accept` after divergences, `method="gibbs"` for
+conjugate priors with very small concentrations, and, when Gibbs mixes
+slowly, the fraction of missing information that explains why. A result
+from an approximate engine is marked `result.approximate`, and its summary
+says so.
 
 ## Plots
 

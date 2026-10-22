@@ -66,7 +66,10 @@ print(pastry.infer(lk, polya, method="map").rho[:3].round(4))
 With broad likelihoods, neighbouring bins trade mass and a Dirichlet
 posterior is jagged. That is honest, since the data really cannot separate
 them, but it is rarely what the population looks like. Logistic priors put a
-Gaussian prior on the log-density and infer how smooth it is:
+Gaussian prior on the log-density and infer how smooth it is. By default they
+are centred on a flat density (log-fractions equal to the log bin volumes),
+so the penalty acts on the density whatever the binning, `Bins.log`
+included:
 
 ```python
 rw = priors.LogisticRandomWalk(order=2)        # penalise curvature of log rho
@@ -89,9 +92,10 @@ print(pastry.infer(lk, gp, method="map").rho[:3].round(4))
   gp_fixed = priors.LogisticGP(amplitude=1.5, length_scale=priors.LogNormal(np.log(0.5), 0.5))
   rw_tight = priors.LogisticRandomWalk(order=2, scale=priors.HalfNormal(0.3))
   ```
-- **Reference means.** `mean=np.log(reference)` centres the prior on a
-  reference distribution, and the amplitude or scale then says how far the
-  population may depart from it.
+- **Reference means.** `mean=np.log(reference)`, with `reference` the
+  fraction of a reference population in each bin, centres the prior on that
+  distribution; the amplitude or scale then says how far the population may
+  depart from it.
 - **Engines.** Logistic priors are not conjugate. Use NUTS (the default),
   MAP or Laplace; Gibbs and VB need conjugate priors.
 

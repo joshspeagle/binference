@@ -9,6 +9,7 @@ import numpy as np
 from scipy import optimize
 
 from .._utils import RNGLike
+from ..likelihoods import _scale_columns
 from ..model import PopulationModel
 from ..results import PointEstimate
 from ..warnings import ConvergenceWarning, InputWarning
@@ -109,8 +110,13 @@ def _mixsqp(
                 break
             t *= 0.5
         else:
+            converged = bool(np.min(g) >= -1e3 * tol)
             break
+        stalled = f - fc <= 1e-15 * max(abs(f), 1.0)
         x, f = cand, fc
+        if stalled:  # the objective no longer resolves the remaining KKT violation
+            converged = bool(np.min(g) >= -1e3 * tol)
+            break
     x = np.maximum(x, 0.0)
     return x / x.sum(), it, converged
 
@@ -122,9 +128,12 @@ class MAP(Engine):
     the posterior mode on the simplex is found by EM -- "iterated stacking",
     :math:`\rho_k \leftarrow \sum_i w_i r_{ik}(\rho)/W` plus prior pseudo-counts --
     accelerated with SQUAREM (Varadhan & Roland 2008). For a ``Dirichlet``
-    prior with all concentrations >= 1 and no selection, the default uses
-    mix-SQP (Kim et al. 2020) instead, a second-order method that converges in
-    tens of iterations where EM can need thousands (broad likelihoods). The
+    prior with all concentrations >= 1 (exactly 1 with a selection function),
+    the default uses mix-SQP (Kim et al. 2020) instead, a second-order method
+    that converges in tens of iterations where EM can need thousands (broad
+    likelihoods). With selection it solves for the fractions of the observed
+    population, :math:`\phi_k \propto S_k\rho_k`, in which the likelihood
+    is concave, and maps the mode back. The
     default ``Dirichlet(1)`` prior gives the maximum-likelihood estimate (the
     NPMLE on the grid). Other priors, or ``space="unconstrained"``, maximise
     the density in the unconstrained coordinates with L-BFGS.
@@ -146,8 +155,8 @@ class MAP(Engine):
         Use SQUAREM acceleration (EM only).
     algorithm : {"auto", "mixsqp", "em"}
         Simplex-space algorithm: ``"auto"`` uses mix-SQP where it applies
-        (Dirichlet prior with concentrations >= 1, no selection) and EM
-        otherwise.
+        (Dirichlet prior with concentrations >= 1, or exactly 1 with
+        selection) and EM otherwise.
     init : array_like (K,), optional
         Starting fractions (or rates).
     """
@@ -208,7 +217,8 @@ class MAP(Engine):
                 return self._run_mixsqp(weights)
             if self.algorithm == "mixsqp":
                 raise ValueError(
-                    "mix-SQP needs a Dirichlet prior with concentrations >= 1 and no selection."
+                    "mix-SQP needs a Dirichlet prior with concentrations >= 1 (exactly 1 with "
+                    "a selection function)."
                 )
             return self._run_em(weights)
         return self._run_lbfgs(weights)
@@ -216,14 +226,20 @@ class MAP(Engine):
     def _mixsqp_applies(self) -> bool:
         m = self.model
         prior = m.prior
-        return (
+        alpha = getattr(prior, "alpha", None)
+        if not (
             self.algorithm in ("auto", "mixsqp")
             and m.kind == "fractions"
-            and m.selection is None
             and not hasattr(prior, "tree")
-            and np.ndim(getattr(prior, "alpha", None)) == 1
-            and bool(np.all(prior.alpha >= 1.0))
-        )
+            and np.ndim(alpha) == 1
+            and bool(np.all(alpha >= 1.0))
+        ):
+            return False
+        if m.selection is None:
+            return True
+        # with selection the likelihood is concave in the observed fractions
+        # phi = S rho / (S . rho); a flat prior keeps the mode under that map
+        return bool(np.all(alpha == 1.0) and np.all(m._detect > 0))
 
     def _run_mixsqp(self, weights) -> PointEstimate:
         m = self.model
@@ -231,7 +247,15 @@ class MAP(Engine):
         x0 = interior_start(m) if self.init is None else self.init.copy()
         a = np.asarray(m.prior.alpha, dtype=float) - 1.0
         tol = max(self.tol, 1e-12) * 100.0  # tolerance on the (relative) KKT conditions
-        x, n_iter, converged = _mixsqp(m._L, w, a, x0, tol=tol, max_iter=self.max_iter)
+        L = m._L
+        if m.selection is not None:
+            # p(x_i | observed) = sum_k (L_ik / S_k) phi_k: solve for phi, then map back
+            L = _scale_columns(L, 1.0 / m._detect)
+            x0 = x0 * m._detect / float(x0 @ m._detect)
+        x, n_iter, converged = _mixsqp(L, w, a, x0, tol=tol, max_iter=self.max_iter)
+        if m.selection is not None:
+            x = x / m._detect
+            x /= x.sum()
         if not converged:
             warnings.warn(
                 f"mix-SQP did not converge in {n_iter} iterations.",
@@ -295,8 +319,11 @@ class MAP(Engine):
                 converged = True
                 break
         if not converged:
+            msg = f"EM did not converge in {self.max_iter} iterations"
+            if weights is None and m.K <= 500:  # EM is slow when information is missing
+                msg += f" (missing information {m.missing_information(v):.3f})"
             warnings.warn(
-                f"EM did not converge in {self.max_iter} iterations.",
+                msg + "; raise max_iter.",
                 ConvergenceWarning,
                 stacklevel=3,
             )

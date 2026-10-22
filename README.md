@@ -123,7 +123,7 @@ result.save("fit.npz"); result.to_datatree()       # round-trip to disk; ArviZ-c
 |---|---|---|
 | `"nuts"` (default) | exact posterior draws | any prior; mixes well even when likelihoods are broader than the bins |
 | `"gibbs"` | exact draws and latent bin labels | conjugate priors; fast when likelihoods are narrow |
-| `"map"` / `"em"` | point estimate with an optimality certificate | quick looks, initialisation |
+| `"map"` / `"em"` | point estimate (maximum likelihood by default) with an optimality certificate | quick looks, initialisation; seconds for 10⁵ objects |
 | `"laplace"` | Gaussian approximation, importance-corrected (PSIS) | very large N, checked by Pareto k̂ |
 | `"vb"` | mean-field variational fit | speed only: it is over-confident and flagged as approximate |
 | `"bootstrap"` | sampling distribution of the MAP | frequentist comparisons |

@@ -90,8 +90,10 @@ print("Gibbs bulk ESS:", gib.diagnostics["ess_bulk"].min().round(0),
       "from", gib.n_draws, "draws")
 ```
 
-A missing-information fraction near one means Gibbs will mix slowly. Use
-NUTS. `store_labels=True` keeps the latent labels for joint inference on
+A missing-information fraction near one means Gibbs will mix slowly: its
+autocorrelation time is roughly $(1+f)/(1-f)$ iterations. Use NUTS. When a
+Gibbs run fails its checks, {meth}`~pastry.PopulationResult.check` reports
+this number in its hint. `store_labels=True` keeps the latent labels for joint inference on
 individual objects, although {meth}`~pastry.PopulationResult.sample_assignments`
 gives exact joint draws from any engine's output.
 
@@ -99,10 +101,22 @@ gives exact joint draws from any engine's output.
 
 `method="map"` returns a {class}`~pastry.PointEstimate`.
 
-- **Conjugate priors** use SQUAREM-accelerated EM on the simplex. EM is
-  "iterated stacking", and its fixed point is the maximum-likelihood or MAP
-  population.
-- **Other priors** use L-BFGS in unconstrained coordinates.
+- **Dirichlet priors with concentrations of at least one** (including the
+  default flat prior, which gives the maximum-likelihood estimate) use
+  mix-SQP (Kim et al. 2020), a second-order method for mixture proportions.
+  It converges in a handful of iterations even when likelihoods are much
+  broader than the bins, where EM needs thousands. With a selection function
+  it applies to the flat prior only: it solves for the fractions of the
+  *observed* population, $\phi_k\propto S_k\rho_k$, in which the likelihood
+  is concave, and maps the mode back.
+- **Other conjugate priors** (small concentrations, trees, `GammaRates`,
+  informative priors with selection) use SQUAREM-accelerated EM on the
+  simplex. EM is "iterated stacking", and its fixed point is the
+  maximum-likelihood or MAP population. If it stops before converging, the
+  warning reports the fraction of missing information, which sets its speed.
+- **Priors whose density is unbounded at the edge of the simplex**
+  (concentrations below one, Pólya trees) and all non-conjugate priors use
+  L-BFGS in unconstrained coordinates, which keeps the mode in the interior.
 - **The certificate** is the KKT optimality gap, which should be about zero.
 
 ```python
@@ -123,8 +137,11 @@ print(lap.approximate, round(lap.info["k_hat"], 2))
   often by a factor of several when likelihoods are broad. It always warns
   and is flagged `approximate`.
 - **`"bootstrap"`** resamples objects (`kind="nonparametric"`) or reweights
-  them (`kind="bayesian"`) and refits the MAP. It gives the sampling
-  distribution of an estimator, not a posterior.
+  them (`kind="bayesian"`) and refits the MAP. Integer weights count
+  objects, so a compressed row of weight 5 stands for five objects that are
+  resampled one by one. For rate models the number of objects varies between
+  replicates (Poisson resampling), so the total rate does too. The result is
+  the sampling distribution of an estimator, not a posterior.
 
 ## Scikit-learn style
 

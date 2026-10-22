@@ -92,12 +92,15 @@ np.testing.assert_allclose(lk_post.toarray(), pastry.Likelihoods(L, bins).toarra
 
 `interim_prior` can be:
 - `"flat"`, a uniform density in the bin coordinate;
-- an array of bin masses (or densities, with `interim_representation="density"`);
+- an array with one value per bin;
 - a callable density, integrated over each bin.
 
-Posteriors themselves can be masses per bin (the default) or densities at
-bin centres (`representation="density"`). pastry warns if the rows do not
-look like the representation you declared.
+Posteriors can be masses per bin (the default) or densities at bin centres
+(`representation="density"`). An array-valued interim prior is read in the
+same representation as the posteriors; pass `interim_representation` if it
+differs. pastry warns if the rows do not look like the representation you
+declared. The distinction matters for unequal bins: a mass and a density
+differ by the bin volume.
 
 ## Posterior samples
 
@@ -141,11 +144,16 @@ print(lk_t.N, lk_d.N)
 
 Two adapters cover the other common data products.
 
-- **Unfolding.** `from_response(counts, response, bins=bins)` takes observed counts
-  in reconstructed bins and a response matrix $R_{bk}=p(\text{reco }b\mid\text{true }k)$.
-  It builds one weighted likelihood row per reconstructed bin, and attaches
-  the efficiency $\sum_bR_{bk}$ as a selection function with mode
-  `"observed"`.
+- **Unfolding.** `from_response(counts, response, bins=bins)` takes observed
+  counts in reconstructed bins and a response matrix
+  $R_{bk}=p(\text{reco }b,\text{ observed}\mid\text{true }k)$. It builds one
+  weighted likelihood row per reconstructed bin, and attaches the efficiency
+  $\epsilon_k=\sum_bR_{bk}$ as a selection function with mode `"observed"`.
+  If your response is a *migration* matrix, $p(\text{reco }b\mid\text{true
+  }k,\text{ observed})$ with columns that sum to one, pass the efficiency
+  separately: `from_response(counts, migration, bins=bins, efficiency=eps)`.
+  Columns that sum to more than one are rejected, since they cannot be
+  probabilities.
 - **Quantification.** `from_classifier(probs, train_prior)` turns classifier
   probabilities $p(k\mid x_i)$ into likelihoods by dividing out the training
   class prevalence.

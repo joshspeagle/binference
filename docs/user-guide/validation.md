@@ -55,7 +55,8 @@ fig = result.plot()
 
 - **`simulate(rng)`** returns `(likelihoods, true_rho)`.
   `simulate.prior_predictive` builds one from a prior, and you can write your
-  own to include your real selection or noise model.
+  own to include your real selection or noise model. For rate models, return
+  the true rates: ranks and coverage are then computed on the rates.
 - **`fit(likelihoods, rng)`** returns a result. Use the settings you will use
   in production.
 - **`loglike`.** Besides each bin, SBC ranks the joint log-likelihood of the
