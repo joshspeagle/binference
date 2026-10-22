@@ -541,7 +541,7 @@ The mocks can include:
 | Gradient evaluation | ≈ the cost of two BLAS matrix–vector products (dense) or two sparse ones |
 | NUTS | ≥ 5 min-ESS/s on the N = 2×10⁴, K = 30 benchmark (prototype ≈ 11) |
 | Gibbs | ≥ 200 iterations/s at N = 2×10⁴, K = 30 |
-| MAP | < 1 s at N = 10⁵, K = 100 (mix-SQP: 2–6 s, 5–10 iterations; SQUAREM-EM did not converge in 10 min on the broad-PDF benchmark) |
+| MAP | < 1 s at N = 10⁵, K = 100 (mix-SQP: 0.9 s, 4 iterations, on an idle core; a few seconds with broader PDFs; SQUAREM-EM had not converged after 2000 iterations, 39 s) |
 | Laplace | < 30 s at N = 10⁶, K = 100 (dense float64 needs ~800 MB, so the documentation recommends sparse storage or compression) |
 
 All $N\times K$ temporaries are chunked (configurable `chunk_size`), so peak extra memory is $O(\text{chunk}\times K)$.
