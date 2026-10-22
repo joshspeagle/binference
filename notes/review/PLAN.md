@@ -1,6 +1,6 @@
 # Walkthrough plan
 
-**Current position:** Phase 0 (agree on the plan). Nothing reviewed yet.
+**Current position:** Phase 1, step 1.3 (architecture), level L2. Order agreed: phases in the proposed order, starting with 1.3, then 1.1, 1.2, 1.4.
 
 ## How each step works
 
@@ -86,4 +86,5 @@ Order is a proposal: Josh may jump around. Rough default levels in brackets.
 
 | Step | Level | Status | Briefing | Notes |
 |---|---|---|---|---|
-| 0 Plan | – | in progress | – | |
+| 0 Plan | – | done | – | Josh: follow the proposed order |
+| 1.3 Architecture | L2 | briefing ready | `briefings/1.3-architecture.md` | |
