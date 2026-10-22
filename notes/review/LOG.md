@@ -124,3 +124,15 @@ Append-only. One entry per working session (or per step within a long session).
   N_obs / (S·ρ̂). Checked with pastry that the correct-mode MLE error
   (total variation 0.07–0.14 over 8 mocks; posterior s.d. up to 0.03 per bin)
   is statistical noise, and said so on the page.
+
+## 2026-10-22: Josh on §3–4
+
+- #5 clarified: B-splines are for every prior family; the goal is no
+  flat-within-bin assumption anywhere (#5 updated).
+- Selection: decided names on_measurement / on_truth (#7) and combined
+  selection with a worked example (#8). Input form (arrays vs callables)
+  parked with a proposal.
+- Rates: currently opt-in via the `GammaRates` prior (separate "kind").
+  Derived that fractions-with-selection equals the rates model with the
+  total marginalised under 1/Λ, so rates can be drawn exactly after any
+  fractions fit; options A/B/C parked for the API discussion.
