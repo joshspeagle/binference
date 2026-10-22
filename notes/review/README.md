@@ -23,3 +23,14 @@ future session (after a context reset) can pick up exactly where we left off.
 2. Read the briefing of the current step, if one exists.
 3. Do not re-open a decision recorded in `DECISIONS.md` unless Josh does.
 4. Record as you go: a log entry per working session, a decision entry per decision, a commit per settled change.
+
+## Briefing pages: requirements
+
+- **Phone first.** Josh reads on a phone. Every page must work at ~375 px:
+  single column, sticky swipeable section chips, display equations short
+  enough to fit (split long ones), no multi-column tables (use stacked
+  cards), chart labels that thin out, heavy recomputation on slider release.
+- Check at phone width before publishing: render inside a 375 px iframe with
+  headless Chromium (`/opt/pw-browsers/chromium-*/chrome-linux/chrome
+  --headless=new --screenshot`); a bare `--window-size=375` is not enough
+  (headless enforces a ~485 px minimum layout width).

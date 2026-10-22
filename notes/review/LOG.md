@@ -86,3 +86,13 @@ Append-only. One entry per working session (or per step within a long session).
   `tests/test_priors.py`), no autodiff (D1).
 - Audit reports received and committed: gibbs-vb-validation (12 findings),
   inputs (23, one major), outputs-api (21, one major).
+
+## 2026-10-22: phone-friendly briefing pages
+
+- Josh is reading on mobile. Reworked `2.1-core-math.html` (version 2): sticky
+  swipeable section chips, split equations, selection modes as stacked cards,
+  thinned chart labels, ratios listed as text, two sliders per row, EM
+  re-simulation on slider release. Checked at 375 px in a headless-Chromium
+  iframe. Requirements recorded in README.md.
+- Audit report received and committed: model-map (14 findings, one major:
+  zero-weight rows make EM reset or collapse under bootstrap weights).
