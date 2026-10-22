@@ -99,3 +99,14 @@ Append-only. One entry per working session (or per step within a long session).
 
 - Audit report received and committed: nuts-laplace (15 findings, no bug-major; NUTS matches Stan; main item: results of logistic-prior fits expose the internal centred coordinates in `x`, `log_prob`, `model`).
 - Audit report received and committed: priors (22 findings; core math correct; LogisticGP defaults misbehave on log bins (P-1), K > 48 (P-2), long length scales (P-3); DirichletTree per-node alpha crash (P-4)). Note: this OpenBLAS is pathologically slow multi-threaded for eigh; use OPENBLAS_NUM_THREADS=1 for experiments.
+
+## 2026-10-22: decisions on weights, correlated errors, gradients; continuous field
+
+- Recorded DECISIONS #1 (weights: multiplicities public, bootstrap internal,
+  non-integer opt-in with warning), #2 (correlated Gaussian constructor with
+  per-object covariances), #3 (NumPy gradients for now; autodiff backend on
+  roadmap).
+- Josh asked why the continuous field cannot be evaluated inside bins.
+  Answer: it can; it amounts to separating the model's internal resolution
+  from the reporting bins. Analysis parked in QUESTIONS for the Phase 3/7
+  design discussion.
