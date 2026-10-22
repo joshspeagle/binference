@@ -136,3 +136,7 @@ Append-only. One entry per working session (or per step within a long session).
   Derived that fractions-with-selection equals the rates model with the
   total marginalised under 1/Λ, so rates can be drawn exactly after any
   fractions fit; options A/B/C parked for the API discussion.
+
+## 2026-10-22: selection from samples; rates afterburner
+
+- Josh proposed selection inputs as arrays / callables / samples, with pastry fitting selection functions from injection samples. Agreed design recorded as DECISIONS #10 (incl. joint vs cut marginalisation); rates option B + C as #9. Open: default marginalisation.
