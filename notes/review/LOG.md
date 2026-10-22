@@ -140,3 +140,8 @@ Append-only. One entry per working session (or per step within a long session).
 ## 2026-10-22: selection from samples; rates afterburner
 
 - Josh proposed selection inputs as arrays / callables / samples, with pastry fitting selection functions from injection samples. Agreed design recorded as DECISIONS #10 (incl. joint vs cut marginalisation); rates option B + C as #9. Open: default marginalisation.
+
+## 2026-10-22: step 2.1 §5–6 (gradient, EM, stacking, KKT)
+
+- Josh confirmed joint marginalisation as the default (DECISIONS #10).
+- Page version 4: §3–4 marked discussed; §5 gains the softmax gradient derivation and cost; §6 gains why self-consistency is not optimality, the KKT code, SQUAREM / mix-SQP pointers, and the relevant audit findings (M-1–M-4, M-6). EM explorer now reports EM's measured asymptotic rate (≈ missing information) and the implied Gibbs autocorrelation time (0.998 → ~1000 iterations at the defaults).

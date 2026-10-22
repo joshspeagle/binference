@@ -128,10 +128,10 @@ section { scroll-margin-top: 16px; }
   <ol>
     <li><a href="#s1" class="done"><span class="n">1</span>Generative model</a></li>
     <li><a href="#s2" class="done"><span class="n">2</span>Marginal posterior</a></li>
-    <li><a href="#s3" class="now"><span class="n">3</span>Selection</a></li>
-    <li><a href="#s4" class="now"><span class="n">4</span>Rates</a></li>
-    <li><a href="#s5"><span class="n">5</span>Gradient</a></li>
-    <li><a href="#s6"><span class="n">6</span>EM and stacking</a></li>
+    <li><a href="#s3" class="done"><span class="n">3</span>Selection</a></li>
+    <li><a href="#s4" class="done"><span class="n">4</span>Rates</a></li>
+    <li><a href="#s5" class="now"><span class="n">5</span>Gradient</a></li>
+    <li><a href="#s6" class="now"><span class="n">6</span>EM and stacking</a></li>
     <li><a href="#s7"><span class="n">7</span>Coordinates</a></li>
     <li><a href="#s8"><span class="n">8</span>Population vs sample</a></li>
     <li><a href="#s9"><span class="n">9</span>To discuss</a></li>
@@ -272,7 +272,10 @@ flowchart TD
   <div class="sec-head"><span class="n">§5</span><h2>Gradient: expected counts</h2></div>
   <div class="eq">$$r_{ik}=\frac{L_{ik}\rho_k}{L_i\cdot\rho},\qquad \hat n_k=\sum_i w_i r_{ik}$$</div>
   <div class="eq">$$\frac{\partial\ell}{\partial\eta_k}=\begin{cases}\hat n_k-W\rho_k & \text{fractions}\\[2pt] \hat n_k-W\rho_k\,\dfrac{S_k}{S\cdot\rho} & \text{with selection}\\[2pt] \hat n_k-S_k\lambda_k & \text{rates}\end{cases}$$</div>
-  <p>$r_{ik}$ is object $i$'s posterior over bins given $\rho$ (its "responsibility"); $\hat n_k$ is EM's E-step. The gradient vanishes when the expected counts match $W\rho$: the population is self-consistent with the objects' own posteriors.</p>
+  <p>$r_{ik}$ is object $i$'s posterior over bins given $\rho$ (its "responsibility"); $\hat n_k$ is EM's E-step. The derivation is two lines. With $\rho=\mathrm{softmax}(\eta)$, $\partial\rho_j/\partial\eta_k=\rho_j(\delta_{jk}-\rho_k)$, so</p>
+  <div class="eq">$$\frac{\partial}{\partial\eta_k}\log(L_i\cdot\rho)=\frac{\sum_j L_{ij}\rho_j(\delta_{jk}-\rho_k)}{L_i\cdot\rho}=r_{ik}-\rho_k .$$</div>
+  <p>Summing with weights gives $\hat n_k-W\rho_k$. The gradient vanishes when the expected counts match $W\rho$: the population is self-consistent with the objects' own posteriors. The selection term $-W\log(S\cdot\rho)$ contributes $-W\rho_kS_k/(S\cdot\rho)$ in the same way.</p>
+  <p><strong>Cost.</strong> One gradient is the two passes of §2: $s=L\rho$ and $L^\top(w/s)$, then an elementwise product with $\rho$. No $N\times K$ temporary is formed; sparse $L$ costs $O(\text{nnz})$. The prior then only adds its own (cheap) term through the chain rule.</p>
 </section>
 
 <!-- ============================================================ 6 -->
@@ -287,6 +290,19 @@ flowchart TD
     <li><strong>Certificate.</strong> At the MLE, $g_k=\frac1W\sum_i w_iL_{ik}/s_i\le1$ with equality where $\hat\rho_k>0$; <code>kkt_gap</code> reports $\max_k g_k-1$.</li>
     <li><strong>Speed</strong> is set by the fraction of missing information $f$: EM's linear rate → $f$, Gibbs autocorrelation time ≈ $(1+f)/(1-f)$.</li>
   </ul>
+  <h3>Why "self-consistent" is not enough</h3>
+  <p>Every fixed point of EM satisfies $\hat\rho_k=\hat n_k/W$, but so does any point with some $\rho_k=0$: EM can never revive a component it has driven to zero, and a stack started from a sparse interim prior stays sparse. The KKT condition adds the missing half: for a zero component, $g_k\le1$ must hold too, meaning no empty bin could increase the likelihood if given a little mass. In the explorer, compare the KKT gap of the stack (large) with EM after a few hundred steps.</p>
+  <details class="code"><summary><b>model.py:258</b> · the certificate (fractions, with prior and selection)</summary>
+<pre>s = L @ v;  G = L.T @ (w / s)                    <span class="cm"># G_k = Σ w_i L_ik / s_i = W g_k</span>
+if selection: G -= W * S / (S @ v)               <span class="cm"># normaliser term</span>
+if include_prior and prior.has_density:
+    G += prior.grad_log_density(v)               <span class="cm"># (α−1)/ρ for a Dirichlet</span>
+mu = v[pos] @ G[pos]                             <span class="cm"># Lagrange multiplier of Σρ = 1</span>
+return max(0, max(G − mu)) / W                    <span class="cm"># largest violation, per object</span></pre>
+  </details>
+  <h3>Making EM fast</h3>
+  <p>When $f\to1$ EM needs thousands of passes. pastry uses two remedies (Phase 4 covers them): <strong>SQUAREM</strong> (Varadhan &amp; Roland 2008) extrapolates along the last two EM steps, then takes a stabilising EM step so the likelihood still never decreases; <strong>mix-SQP</strong> (Kim et al. 2020) replaces EM by second-order steps on the concave objective and converges in a handful of iterations. It is the default for Dirichlet priors with α ≥ 1.</p>
+  <div class="callout approx"><strong>Audit notes for this section.</strong> M-2: <code>missing_information</code> is wrong with selection (0.50 where EM's actual rate is 0.85) and ignores the prior; a corrected formula is in the audit. M-3: <code>kkt_gap</code> returns 0 at a point whose likelihood is −∞ (a NaN is swallowed). M-4: for rates the gap scales with the units of the exposure. M-6: EM's stopping rule is not tied to the KKT gap. M-1: zero-weight rows make EM reset under bootstrap weights.</div>
 
   <div class="explorer" id="em-explorer">
     <h3>Explore: stacking, EM iterations, and the maximum-likelihood solution</h3>
@@ -520,7 +536,13 @@ def log_prior_and_grad(self, x, cache, value, d_eta):
     document.getElementById("e-t-v").textContent = E.t;
     document.getElementById("e-seed-v").textContent = E.seed;
     const key = E.s + ":" + E.seed;
-    if (key !== E.cacheKey) { E.data = simulate(); E.cacheKey = key; }
+    if (key !== E.cacheKey) {
+      E.data = simulate(); E.cacheKey = key;
+      // asymptotic linear rate of EM: ratio of successive step lengths, median over iterations 300-400
+      const it = E.data.iters, step = (t) => Math.sqrt(it[t].reduce((a, v, k) => a + (v - it[t - 1][k]) ** 2, 0));
+      const r = []; for (let t = 300; t <= 400; t++) { const d0 = step(t - 1); if (d0 > 0) r.push(step(t) / d0); }
+      r.sort((a, b) => a - b); E.rate = r.length ? r[Math.floor(r.length / 2)] : NaN;
+    }
     const { iters, gaps, lls } = E.data, stack = iters[1], cur = iters[E.t];
     // main panel
     let { ctx, w, h } = setup(document.getElementById("e-main"));
@@ -550,7 +572,8 @@ def log_prior_and_grad(self, x, cache, value, d_eta):
     document.getElementById("e-stats").innerHTML =
       `<span>KKT gap at t = ${E.t}: <b>${gaps[E.t].toExponential(1)}</b></span>` +
       `<span>log-likelihood gain over the stack: <b>${(lls[E.t] - lls[1]).toFixed(1)}</b> nats</span>` +
-      `<span>distance to true ρ (total variation): stack <b>${tvs(stack).toFixed(3)}</b>, EM <b>${tvs(cur).toFixed(3)}</b></span>`;
+      `<span>distance to true ρ (total variation): stack <b>${tvs(stack).toFixed(3)}</b>, EM <b>${tvs(cur).toFixed(3)}</b></span>` +
+      `<span>EM's measured convergence rate ≈ missing information f = <b>${E.rate.toFixed(3)}</b>, so Gibbs autocorrelation time ≈ <b>${E.rate < 0.999 ? Math.round((1 + E.rate) / (1 - E.rate)) : "&gt;2000"}</b> iterations</span>`;
   }
   document.getElementById("e-t").addEventListener("input", drawEM);
   ["e-s", "e-seed"].forEach(id => {
