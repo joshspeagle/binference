@@ -69,3 +69,20 @@ Append-only. One entry per working session (or per step within a long session).
   vs exact bin likelihood (sliders: population slope, K, σ, d; shows per-bin
   ratios and the effect on the object's bin posterior), (2) stacking vs EM on a
   2000-object mock (iteration slider, KKT gap curve, distance to truth).
+
+## 2026-10-22: Josh's questions on §1–2
+
+- Flat-within-bin applies to all priors, including smooth ones (they put a
+  smooth prior on per-bin log-fractions, but the likelihood is still built
+  from flat-in-bin L). Key observation: the engines only need p(d_i|ρ) to be
+  linear in ρ, so any fixed mixture basis works unchanged; ran an experiment
+  showing linear B-splines cut the systematic bias from up to 14 s.e. to ≤ 3
+  s.e. (parked in QUESTIONS).
+- N-D independence: only `from_gaussian` assumes per-axis independent errors;
+  other constructors accept correlated likelihoods (parked).
+- Weights: Josh questions the rationale (parked with options).
+- Gradients: hand-derived NumPy, verified by finite-difference tests
+  (`tests/test_model.py::test_gradients_match_finite_differences`,
+  `tests/test_priors.py`), no autodiff (D1).
+- Audit reports received and committed: gibbs-vb-validation (12 findings),
+  inputs (23, one major), outputs-api (21, one major).
