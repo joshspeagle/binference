@@ -328,6 +328,14 @@ Hessian of the log posterior in whitened coordinates, so pastry estimates it
 from finite differences of the gradient early in warm-up. The posterior is
 unchanged; only the coordinates the sampler moves in change.
 
+Centring is safe only if the scales $s_j$ stay in a range where the data
+dominate; otherwise the centred coordinates have a funnel of their own. With
+few basis coefficients per hyperparameter (a handful of bins), the field
+constrains the hyperparameters weakly, so pastry keeps the non-centred form
+when the median spread of $\log s_j$ given the field exceeds 0.28. That
+spread comes from the curvature of the log posterior in the hyperparameters
+at fixed field.
+
 ### Hyperpriors
 
 Hyperparameters are sampled on the log scale, with `HalfNormal`, `LogNormal`,

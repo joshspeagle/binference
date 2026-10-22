@@ -29,25 +29,35 @@ __all__ = ["NUTS"]
 # Dimension limits for the warm-up geometry adaptation (see NUTS docstring).
 _DENSE_MAX_DIM = 200
 _HESSIAN_MAX_DIM = 500
-# Partial centring re-creates a funnel when the scale hyperparameters are poorly
-# constrained: modes whose log-scale has a larger posterior sd stay non-centred.
-# 0.35 removed the divergences of small problems (K <= 6, N <= 40) in validation
-# runs while keeping the gains (5-8x ESS/s) for K >= 20, N >= 500.
-_CENTRING_MAX_SD = 0.35
+# Partial centring re-creates a funnel when the field itself pins the scale
+# hyperparameters down poorly (few modes per hyperparameter). The prior then stays
+# non-centred unless the median spread of the modes' log-scales given the field is
+# below this. In validation runs 0.28 separated K <= 6, N <= 40 (0.33-0.62; divergences
+# when centred) from K >= 10 (0.11-0.25; 3-20x more ESS/s when centred).
+_CENTRING_MAX_SD = 0.28
 
 
-def _log_scale_sd(prior, H: np.ndarray, pts: list[np.ndarray]) -> np.ndarray:
-    """Posterior sd of each mode's log-scale implied by the hyperparameter curvature."""
+def _conditional_log_scale_sd(model, prior, pts: list[np.ndarray]) -> np.ndarray:
+    """Spread of each mode's log-scale given the field, from the hyperparameter curvature.
+
+    In the centred form the field stays put while the hyperparameters move, so the
+    curvature of the hyperparameter block alone says how well the field pins them.
+    (The marginal spread from the full Hessian is unreliable: weakly identified
+    length scales can make it arbitrarily large.) Modes with fixed scales get 0.
+    """
     n_act = prior.n_active
     if prior.n_free == 0:
         return np.zeros(n_act)
+    zeros = np.zeros(n_act)
+    fn = model._with_bound_prior(prior.with_centering(zeros)).log_prob_and_grad
+    cols = range(n_act, model.dim)
+    H = np.mean([fd_hessian(fn, prior.recentre(x, zeros), cols=cols)[n_act:] for x in pts], axis=0)
     cov = covariance_from_hessian(H)
     if cov is None:
         return np.full(n_act, np.inf)
-    Suu = cov[n_act:, n_act:]
     _, dlogs = prior.scales(prior.theta_from_x(np.mean(pts, axis=0)))
     G = dlogs[prior.free]  # (n_free, n_active): d log s_j / d log theta
-    return np.sqrt(np.maximum(np.einsum("aj,ab,bj->j", G, Suu, G), 0.0))
+    return np.sqrt(np.maximum(np.einsum("aj,ab,bj->j", G, cov, G), 0.0))
 
 
 class _Chain:
@@ -209,8 +219,9 @@ class NUTS(Engine):
         For logistic priors, switch each basis coefficient between the
         non-centred and centred forms according to how strongly the data
         constrain it (partial non-centring with weights ``1 / -H_jj`` from the
-        curvature at the chains' positions early in warm-up). Coefficients
-        whose scale depends on poorly constrained hyperparameters stay
+        curvature at the chains' positions early in warm-up). If the field
+        pins the hyperparameters down poorly (few basis coefficients per
+        hyperparameter, e.g. a handful of bins), the coefficients stay
         non-centred, which avoids funnels. This changes the sampling
         coordinates, not the posterior.
     init : array_like (dim,) or (n_chains, dim), optional
@@ -357,14 +368,17 @@ class NUTS(Engine):
             if d <= _HESSIAN_MAX_DIM:
                 H0 = np.mean([fd_hessian(fn0, x) for x in pts[:n_pts]], axis=0)
                 diag = np.diag(H0)[:n_act]
-                sd_log_scale = _log_scale_sd(prior0, H0, pts)
             else:
                 diag = np.mean(
                     [np.diag(fd_hessian(fn0, x, cols=range(n_act))) for x in pts[:n_pts]], axis=0
                 )
-                sd_log_scale = np.zeros(n_act)
             lam = np.clip(1.0 / np.maximum(-diag, 1.0), 0.0, 1.0)
-            lam = np.where(sd_log_scale > _CENTRING_MAX_SD, 1.0, lam)
+            # one decision for all modes that share the hyperparameters: mixing centred
+            # and non-centred modes under one length scale mixed worst in validation
+            sd_c = _conditional_log_scale_sd(base, prior0, pts)
+            scaled = sd_c > 0.0
+            if np.any(scaled) and np.median(sd_c[scaled]) > _CENTRING_MAX_SD:
+                lam[scaled] = 1.0
             model = base._with_bound_prior(prior0.with_centering(lam))
             pts = [prior0.recentre(x, lam) for x in pts]
         self.model = model

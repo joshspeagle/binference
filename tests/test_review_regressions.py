@@ -270,3 +270,12 @@ def test_parallel_chain_workers_share_blas_threads():
     with ProcessPoolExecutor(1, initializer=_limit_threads, initargs=(1,)) as ex:
         info = ex.submit(threadpool_info).result()
     assert all(lib["num_threads"] == 1 for lib in info)
+
+
+def test_data_rich_gp_fits_are_partially_centred():
+    """A weakly identified length scale must not switch centring off (20x slower)."""
+    bins = Bins.linear(0.0, 3.0, 40)
+    lk = pastry.simulate.mock_1d(400, bins, noise=(0.05, 0.15), rng=21).likelihoods[:300]
+    eng = NUTS(PopulationModel(lk, P.LogisticGP()), rng=2, n_warmup=40)
+    eng.run(1)
+    assert np.mean(eng.model.prior.lam < 0.5) > 0.1
