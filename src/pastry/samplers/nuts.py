@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import warnings
 from collections.abc import Iterator
 from typing import Any
@@ -116,6 +117,35 @@ class _Chain:
             self.eps = float(np.exp(self.log_eps_bar))
 
 
+_STAT_KEYS = ("accept_stat", "tree_depth", "diverging", "n_leapfrog", "energy")
+
+
+def _advance_chain(chain: _Chain, n_iter: int, adapt: bool, max_depth: int, record: bool):
+    """Advance one chain; returns ``(draws, log_probs, stats, n_divergent)``."""
+    d = chain.x.size
+    xs = np.empty((n_iter, d)) if record else None
+    lps = np.empty(n_iter) if record else None
+    st = np.empty((len(_STAT_KEYS), n_iter)) if record else None
+    n_div = 0
+    for i in range(n_iter):
+        acc, depth, div, nl, energy = chain.step(max_depth, adapt)
+        n_div += int(div)
+        if record:
+            xs[i] = chain.x
+            lps[i] = chain.lp
+            st[:, i] = (acc, depth, div, nl, energy)
+    return xs, lps, st, n_div
+
+
+def _chain_worker(payload):
+    """Run in a worker process: advance one chain and send it back without the model."""
+    chain, model, n_iter, adapt, max_depth, record = payload
+    chain.fn = model.log_prob_and_grad
+    out = _advance_chain(chain, n_iter, adapt, max_depth, record)
+    chain.fn = None
+    return chain, out
+
+
 class NUTS(Engine):
     """No-U-Turn Sampler on the exact posterior (the default engine).
 
@@ -155,6 +185,10 @@ class NUTS(Engine):
         at the posterior mode (in unconstrained coordinates) plus ``jitter``.
     jitter : float
         Standard deviation of the Gaussian jitter around the mode.
+    n_jobs : int
+        Number of worker processes for the chains (``-1``: one per CPU). The
+        default ``1`` runs the chains in this process. Parallel and serial runs
+        give identical draws for the same ``rng``.
     rng : int, Generator or None
         Random number generator (SPEC 7); each chain gets an independent child.
     progress : bool
@@ -162,12 +196,13 @@ class NUTS(Engine):
 
     Notes
     -----
-    At the start of the first slow adaptation window (iteration 75 of the
-    default warm-up) the engine optionally reparametrises logistic priors
-    (``reparametrize``) and, for at most 500 dimensions, initialises the metric
-    from the finite-difference curvature of the log posterior at the chains'
-    positions. Later windows refine the metric from the warm-up draws,
-    shrinking toward that curvature-based starting point.
+    For logistic (smoothness) priors, after 25 warm-up iterations the engine
+    reparametrises the prior (``reparametrize``) and, for at most 500
+    dimensions, initialises the metric from the finite-difference curvature of
+    the log posterior at the chains' positions. Later adaptation windows
+    refine the metric from the warm-up draws, shrinking toward that
+    curvature-based start. Simplex and rate priors use Stan's windowed
+    adaptation unchanged.
     """
 
     name = "nuts"
@@ -184,12 +219,18 @@ class NUTS(Engine):
         reparametrize: bool = True,
         init: Any = None,
         jitter: float = 0.1,
+        n_jobs: int = 1,
         rng: RNGLike = None,
         progress: bool = False,
     ) -> None:
         super().__init__(model, rng=rng, progress=progress)
         if n_chains < 1:
             raise ValueError("n_chains must be at least 1.")
+        if n_jobs == -1:
+            n_jobs = os.cpu_count() or 1
+        if n_jobs < 1:
+            raise ValueError("n_jobs must be a positive integer or -1.")
+        self.n_jobs = int(n_jobs)
         if metric not in ("auto", "diag", "dense"):
             raise ValueError("metric must be 'auto', 'diag' or 'dense'.")
         logistic = hasattr(model.prior, "with_centering")
@@ -213,9 +254,7 @@ class NUTS(Engine):
         self._warm = False
         self._x: list[np.ndarray] = []
         self._lp: list[np.ndarray] = []
-        self._stats: dict[str, list[np.ndarray]] = {
-            k: [] for k in ("accept_stat", "tree_depth", "diverging", "n_leapfrog", "energy")
-        }
+        self._stats: dict[str, list[np.ndarray]] = {k: [] for k in _STAT_KEYS}
         self.warmup_divergences = 0
 
     # ---------------------------------------------------------- set-up
@@ -298,6 +337,56 @@ class NUTS(Engine):
             ch.reset_geometry(fn, x, inv_m)
 
     # ---------------------------------------------------------- running
+    def _parallel(self, n_iter: int, adapt: bool, record: bool):
+        """Advance every chain ``n_iter`` iterations in worker processes.
+
+        Returns per-chain outputs, or ``None`` if no worker pool could be started
+        (the caller then runs serially; the chains are untouched).
+        """
+        from concurrent.futures import ProcessPoolExecutor
+        from concurrent.futures.process import BrokenProcessPool
+
+        assert self._chains is not None
+        chains = self._chains
+        for ch in chains:
+            ch.fn = None  # the model is sent once per chain, not twice
+        payloads = [(ch, self.model, n_iter, adapt, self.max_depth, record) for ch in chains]
+        try:
+            with ProcessPoolExecutor(max_workers=min(self.n_jobs, len(chains))) as ex:
+                results = list(ex.map(_chain_worker, payloads))
+        except (OSError, BrokenProcessPool, NotImplementedError) as err:
+            for ch in chains:
+                ch.fn = self.model.log_prob_and_grad
+            warnings.warn(
+                f"Could not run chains in parallel ({err}); running them serially.",
+                RuntimeWarning,
+                stacklevel=4,
+            )
+            return None
+        fn = self.model.log_prob_and_grad
+        self._chains = []
+        outs = []
+        for ch, out in results:
+            ch.fn = fn
+            self._chains.append(ch)
+            outs.append(out)
+        return outs
+
+    def _advance(self, n_iter: int, adapt: bool, desc: str) -> None:
+        """Warm-up iterations for every chain (parallel or interleaved serial)."""
+        if n_iter <= 0:
+            return
+        assert self._chains is not None
+        if self.n_jobs > 1 and len(self._chains) > 1:
+            outs = self._parallel(n_iter, adapt, record=False)
+            if outs is not None:
+                self.warmup_divergences += sum(o[3] for o in outs)
+                return
+        for _ in progress(range(n_iter), n_iter, desc, self.progress):
+            for ch in self._chains:
+                _, _, div, _, _ = ch.step(self.max_depth, adapt=adapt)
+                self.warmup_divergences += int(div)
+
     def warmup(self) -> None:
         """Run warm-up (adaptation) if it has not been run yet."""
         self._setup()
@@ -305,28 +394,45 @@ class NUTS(Engine):
             return
         assert self._chains is not None
         windows = self._chains[0].windows
+        logistic = hasattr(self._base_model.prior, "with_centering")
         # adapt the geometry once the chains have left the mode for the typical set
-        switch = min(self._geometry_iter, windows[0][0]) if windows else -1
-        for it in progress(range(self.n_warmup), self.n_warmup, "NUTS warm-up", self.progress):
-            if it == switch:
-                self._adapt_geometry()
-            for ch in self._chains:
-                _, _, div, _, _ = ch.step(self.max_depth, adapt=True)
-                self.warmup_divergences += int(div)
+        switch = min(self._geometry_iter, windows[0][0]) if (windows and logistic) else 0
+        self._advance(switch, adapt=True, desc="NUTS warm-up")
+        if switch > 0:
+            self._adapt_geometry()
+        self._advance(self.n_warmup - switch, adapt=True, desc="NUTS warm-up")
         self._warm = True
+
+    def _record(self, xs, lps, st, n_done: int) -> None:
+        if n_done:
+            self._x.append(xs[:, :n_done])
+            self._lp.append(lps[:, :n_done])
+            for j, k in enumerate(_STAT_KEYS):
+                self._stats[k].append(st[:, j, :n_done])
 
     def sample(self, n_samples: int) -> Iterator[np.ndarray]:
         """Generator over post-warm-up iterations, yielding ``(n_chains, dim)`` positions.
 
         Draws are also recorded and included in the next :meth:`run` /
-        :attr:`result`.
+        :attr:`result`. With ``n_jobs > 1`` the chains advance in worker
+        processes and the positions are yielded once all have finished.
         """
         self.warmup()
         assert self._chains is not None
         C, d = self.n_chains, self.model.dim
+        n_samples = int(n_samples)
+        if self.n_jobs > 1 and C > 1 and n_samples > 0:
+            outs = self._parallel(n_samples, adapt=False, record=True)
+            if outs is not None:
+                xs = np.stack([o[0] for o in outs])
+                lps = np.stack([o[1] for o in outs])
+                st = np.stack([o[2] for o in outs])
+                self._record(xs, lps, st, n_samples)
+                yield from (xs[:, i] for i in range(n_samples))
+                return
         xs = np.empty((C, n_samples, d))
         lps = np.empty((C, n_samples))
-        st = {k: np.empty((C, n_samples)) for k in self._stats}
+        st = np.empty((C, len(_STAT_KEYS), n_samples))
         n_done = 0
         try:
             for i in progress(range(n_samples), n_samples, "NUTS sampling", self.progress):
@@ -334,19 +440,11 @@ class NUTS(Engine):
                     acc, depth, div, nl, energy = ch.step(self.max_depth, adapt=False)
                     xs[c, i] = ch.x
                     lps[c, i] = ch.lp
-                    st["accept_stat"][c, i] = acc
-                    st["tree_depth"][c, i] = depth
-                    st["diverging"][c, i] = div
-                    st["n_leapfrog"][c, i] = nl
-                    st["energy"][c, i] = energy
+                    st[c, :, i] = (acc, depth, div, nl, energy)
                 n_done = i + 1
                 yield xs[:, i]
         finally:
-            if n_done:
-                self._x.append(xs[:, :n_done])
-                self._lp.append(lps[:, :n_done])
-                for k in st:
-                    self._stats[k].append(st[k][:, :n_done])
+            self._record(xs, lps, st, n_done)
 
     def run(self, n_samples: int = 1000) -> PopulationResult:
         """Warm up (first call only), draw ``n_samples`` per chain, and return all draws so far."""

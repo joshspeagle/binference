@@ -106,6 +106,18 @@ def test_resuming_is_bitwise_identical_to_one_long_run(engine, onehot):
     np.testing.assert_array_equal(split.chains, whole.chains)
 
 
+def test_parallel_chains_match_serial(onehot):
+    m = PopulationModel(onehot[0], P.LogisticRandomWalk(order=1))
+    serial = NUTS(m, n_chains=2, n_warmup=40, rng=5).run(15)
+    eng = NUTS(m, n_chains=2, n_warmup=40, rng=5, n_jobs=2)
+    parallel = eng.run(15)
+    np.testing.assert_array_equal(serial.chains, parallel.chains)
+    np.testing.assert_array_equal(serial.info["n_leapfrog"], parallel.info["n_leapfrog"])
+    assert eng.run(5).chains.shape == (2, 20, 4)  # resuming works across processes
+    with pytest.raises(ValueError):
+        NUTS(m, n_jobs=0)
+
+
 def test_hessian_helpers():
     from pastry.samplers._nuts_core import covariance_from_hessian, fd_hessian
 

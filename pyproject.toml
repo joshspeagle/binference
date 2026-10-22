@@ -41,7 +41,7 @@ classifiers = [
 [project.optional-dependencies]
 plot = ["matplotlib>=3.7"]
 xarray = ["xarray>=2024.10"]
-test = ["pytest>=7.4", "pytest-cov>=4", "hypothesis>=6.80", "matplotlib>=3.7"]
+test = ["pytest>=7.4", "pytest-cov>=4", "matplotlib>=3.7"]
 docs = [
     "sphinx>=7.2",
     "myst-nb>=1.1",

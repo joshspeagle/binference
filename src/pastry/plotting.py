@@ -9,6 +9,18 @@ import numpy as np
 
 __all__ = ["plot_corner", "plot_individual", "plot_population", "plot_sbc", "plot_trace"]
 
+# Colour-vision-deficiency-checked categorical colours (first slots of a validated
+# palette) and ink colours for reference lines.
+POSTERIOR_COLOR = "#2a78d6"
+STACK_COLOR = "#eb6834"
+INK = "#0b0b0b"
+
+
+def _tidy(ax) -> None:
+    """Recessive axes: no top/right spines."""
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
 
 def _plt():
     try:
@@ -54,7 +66,7 @@ def plot_population(
     levels: Sequence[float] = (0.68, 0.95),
     truth: Any = None,
     stack: Any = None,
-    color: str = "C0",
+    color: str = POSTERIOR_COLOR,
     label: str | None = None,
     alpha: float = 0.25,
     step: bool = True,
@@ -87,18 +99,25 @@ def plot_population(
         lo, hi = np.quantile(X, [0.5 - levels[0] / 2, 0.5 + levels[0] / 2], axis=0)
         ax.bar(x, med, color=color, alpha=0.6, label=label or "posterior median")
         if X.shape[0] > 1:
-            ax.errorbar(x, med, yerr=[med - lo, hi - med], fmt="none", ecolor="k", capsize=3)
+            ax.errorbar(x, med, yerr=[med - lo, hi - med], fmt="none", ecolor=INK, capsize=3)
         if truth is not None:
-            ax.plot(x, _to_which(truth, bins, which), "D", color="k", label="truth")
+            ax.plot(x, _to_which(truth, bins, which), "D", color=INK, ms=6, label="truth")
         if stack is not None:
-            ax.plot(x, _to_which(stack, bins, which), "s", color="C1", label="stacked")
+            ax.plot(
+                x, _to_which(stack, bins, which), "s", color=STACK_COLOR, ms=6, label="stacked"
+            )
         ax.set_xticks(x, [str(lab) for lab in bins.labels], rotation=45, ha="right")
     else:
         edges = bins.edges[0]
         centers = bins.centers
-        for lev in sorted(levels, reverse=True):
+        band_handles = []
+        for n_layers, lev in enumerate(sorted(levels, reverse=True), start=1):
             if X.shape[0] < 2:
                 break
+            # the region inside this band is covered by n_layers translucent fills
+            band_handles.append(
+                _band_patch(color, 1.0 - (1.0 - alpha) ** n_layers, f"{lev:.0%} interval")
+            )
             lo, hi = np.quantile(X, [0.5 - lev / 2, 0.5 + lev / 2], axis=0)
             if step:
                 ax.fill_between(
@@ -112,28 +131,49 @@ def plot_population(
                 )
             else:
                 ax.fill_between(centers, lo, hi, color=color, alpha=alpha, lw=0)
+        lab = label or "posterior median"
         if step:
-            ax.step(
-                edges,
-                np.append(med, med[-1]),
-                where="post",
-                color=color,
-                label=label or "posterior median",
-            )
+            ax.step(edges, np.append(med, med[-1]), where="post", color=color, lw=1.5, label=lab)
         else:
-            ax.plot(centers, med, color=color, label=label or "posterior median")
+            ax.plot(centers, med, color=color, lw=1.5, label=lab)
         if truth is not None:
             t = _to_which(truth, bins, which)
-            ax.step(edges, np.append(t, t[-1]), where="post", color="k", ls="--", label="truth")
+            ax.step(
+                edges, np.append(t, t[-1]), where="post", color=INK, lw=1.5, ls="--", label="truth"
+            )
         if stack is not None:
             s = _to_which(stack, bins, which)
-            ax.step(edges, np.append(s, s[-1]), where="post", color="C1", ls=":", label="stacked")
+            ax.step(
+                edges,
+                np.append(s, s[-1]),
+                where="post",
+                color=STACK_COLOR,
+                lw=1.5,
+                ls=":",
+                label="stacked",
+            )
         ax.set_xlim(edges[0], edges[-1])
         ax.set_xlabel("bin coordinate")
+        handles, labels = ax.get_legend_handles_labels()
+        # median first, then bands (innermost first), then reference lines
+        handles = handles[:1] + band_handles[::-1] + handles[1:]
+        labels = labels[:1] + [h.get_label() for h in band_handles[::-1]] + labels[1:]
+        ax.set_ylabel(ylabel)
+        ax.set_ylim(bottom=0)
+        _tidy(ax)
+        ax.legend(handles, labels, frameon=False)
+        return ax
     ax.set_ylabel(ylabel)
     ax.set_ylim(bottom=0)
+    _tidy(ax)
     ax.legend(frameon=False)
     return ax
+
+
+def _band_patch(color: str, alpha: float, label: str):
+    from matplotlib.patches import Patch
+
+    return Patch(facecolor=color, alpha=alpha, lw=0, label=label)
 
 
 def _plot_2d(result, X, plt, ax):
@@ -165,7 +205,7 @@ def plot_corner(
     *,
     max_bins: int = 4,
     n_hist: int = 30,
-    color: str = "C0",
+    color: str = POSTERIOR_COLOR,
     fig: Any = None,
 ):
     """Corner plot of the fractions in selected bins (default: the most populated)."""
@@ -283,7 +323,7 @@ def plot_sbc(sbc_result: Any, n_bins: int | None = None, max_panels: int = 12, f
             a.set_visible(False)
             continue
         a.axhspan(lo, hi, color="0.85")
-        a.bar(np.arange(nb), H[j], width=1.0, color="C0", alpha=0.8)
+        a.bar(np.arange(nb), H[j], width=1.0, color=POSTERIOR_COLOR, alpha=0.8)
         a.set_title(names[j], fontsize=9)
         a.set_yticks([])
     fig.tight_layout()
