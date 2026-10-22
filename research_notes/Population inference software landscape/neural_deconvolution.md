@@ -1,48 +1,288 @@
-# Neural density deconvolution and hierarchical population inference (status: IN PROGRESS, 2026-10-22)
+# Neural density deconvolution and hierarchical population inference from noisy per-object data (census as of 2026-10-22)
 
-Scope: neural density models (normalising flows, diffusion/score models, flow matching, neural empirical Bayes) used to learn a smooth population density from noisy, heteroscedastic per-object likelihoods or posteriors; marginalised (IWAE-style) vs joint/hierarchical training; uncertainty on the learned density; software backends. HEP unfolding and GW population flows are mentioned only briefly (covered elsewhere).
+Scope: neural density models (normalising flows, diffusion/score models, flow matching, neural empirical Bayes) that learn a population density from noisy, heteroscedastic per-object likelihoods, grids or posterior samples; marginalised (IWAE-style) versus EM/joint training; uncertainty on the learned density; software backends for `pastry`. HEP neural unfolding and gravitational-wave (GW) flow population models are covered by other researchers and appear here only briefly.
 
-## Methods and code (2020-2026)
+How things were verified: repository stars, creation/push dates and licences come from the GitHub search API on 2026-10-22; "last commit" is the HEAD commit date of a shallow, no-checkout clone (files were read with `git show`, nothing was executed); PyPI versions, dates and licence fields come from the pypi.org JSON API on 2026-10-22. Paper claims come from arXiv full text (PDF text extracted earlier, or arXiv/ar5iv HTML). Anything not checked against a primary source is marked "(unverified)".
 
-### Takeaway
-(in progress)
-
-### Cited Findings
-(in progress)
-
-### Inferences
-
-### Gaps
-
-## Training objectives
+## Methods and code: which neural approaches learn a population density from noisy, heteroscedastic per-object data, and what code exists (2020–2026)?
 
 ### Takeaway
-(in progress)
+By October 2026 there are four families of methods. (A) Maximum marginal likelihood for a normalising flow, where each object's convolution integral is estimated by Monte Carlo or importance sampling: Dockhorn et al. 2020 (amortised VI/IWAE), Vandegar et al. 2021 (direct MC, plus a de-biased Russian-roulette variant) and Yan & Sanders 2025 (MC sampling from each star's likelihood, on Gaia). (B) Neural empirical Bayes on a fixed grid: Neural-g 2024 trains on exactly pastry's binned likelihood Σ_i log Σ_k L_ik ρ_k, with ρ given by a neural network. (C) Diffusion and flow-matching priors learned from corrupted observations, either by EM (DiEM 2024, EMDiffusion, DiffEM 2025, Barco et al. 2025) or by corruption-aware objectives (Ambient Diffusion, NR-CFM 2026). These target high-dimensional images. (D) Likelihood-free population fitting: pop-cosmos (optimal transport), PopSED (Wasserstein), convMMD (2026) and hierarchical neural posterior estimation (NPE). All of the deconvolution code is single-paper research code: none of it is packaged, none has a real test suite, and several repositories have no licence. No maintained, general-purpose neural deconvolution library exists, so pastry would be the first.
 
 ### Cited Findings
 
+#### A. Normalising-flow deconvolution by marginal likelihood
+- **Dockhorn, Ritchie, Yu & Murray 2020**, "Density Deconvolution with Normalizing Flows" (ICML 2020 INNF+ workshop; arXiv:2006.09396).
+  - Model and objective: p(v) is a masked autoregressive flow (MAF), with observations w_i = v_i + n_i and known noise. Because the marginal likelihood is intractable, they use amortised VI. A recognition IAF q_φ(v | w_i, S_i), conditioned on w_i and the flattened Cholesky factor of each object's noise covariance S_i ("so that our implementation could handle the Extreme Deconvolution case where each observation w_i has its own associated noise covariance S_i"), gives the ELBO and the importance-weighted bound L_IW(K) — [arXiv:2006.09396](https://arxiv.org/abs/2006.09396)
+  - Experiments: they used a fixed Gaussian noise covariance, calling it a "proof of concept". On a 2-D three-Gaussian toy the XD-GMM (the true model class) wins: −log p(v) is 2.667 versus 2.85–3.07 for flows. Flows trained with L_IW(50) have high run-to-run variance. Their conclusion: "variational inference with an inaccurate posterior can prevent the model prior from learning the underlying noise-free density" — [arXiv:2006.09396](https://arxiv.org/abs/2006.09396)
+  - Real data: on the UCI white- and red-wine datasets with added noise Σ_ii = 0.1, flows beat XD-GMM (test NLL 8.685 vs 9.903 and 8.083 vs 8.775). Flows fitted to the noisy data without deconvolution score worse than deconvolved flows (9.544, 8.611) — [arXiv:2006.09396](https://arxiv.org/abs/2006.09396)
+- **Code: bayesiains/density-deconvolution.**
+  - Repository facts: Python/PyTorch; GitHub reports no licence and the tree has no LICENSE file; a single commit on 2020-06-10; 12 stars; not on PyPI; README only, with no tests or CI. It requires the authors' fork of nflows (`JamesRitchie/nflows`, not found by the GitHub search, which excludes forks — unverified).
+  - API: an sklearn-like class `SVIFlow(dimensions, flow_steps, lr, epochs, context_size=64, hidden_features=128, batch_size=256, kl_warmup=0.2, kl_init_factor=0.5, n_samples=50, grad_clip_norm=None, use_iwae=False, device=None)` with `.fit(data, val_data)`. It hard-codes `torch.cuda.FloatTensor`, and the likelihood is Gaussian only (`DeconvGaussian`) — [GitHub](https://github.com/bayesiains/density-deconvolution) (deconv/flow/svi.py)
+- **Vandegar, Kagan, Wehenkel & Louppe 2021**, "Neural Empirical Bayes: Source Distribution Estimation and its Applications to Simulation-Based Inference" (AISTATS 2021, PMLR 130:2107–2115; arXiv:2011.05836).
+  - Method: the source density is a flow (UMNN-MAF, or coupling flows for very small N). It is fitted by directly maximising a Monte Carlo log-marginal likelihood that draws K samples from the source model itself (a log-sum-exp of log p(y | G_θ(ε_k))), and a de-biased Russian-roulette estimator (SUMO-type) is also given. When the simulator likelihood is intractable, it is replaced by a learned NLE surrogate (a coupling flow) — [ar5iv](https://ar5iv.labs.arxiv.org/html/2011.05836); [PMLR](https://proceedings.mlr.press/v130/vandegar21a.html)
+  - Results: direct MC (K=1024) beats the ELBO and IWAE (K=128, limited by GPU memory). Source-space classifier ROC AUC (lower is better) is 0.75 vs 1.00 (ELBO) and 0.82 (IW-128) on SLCP, and 0.55 vs 0.75/0.75 on two-moons. The bias of L_K is O(1/K) and its variance is O(1/K). The authors "recommend using the de-biased estimator when K is constrained to be low": SLCP y-space AUC is 0.82 biased vs 0.65 de-biased at K=10, and roughly equal at K=1024. The Dirac-like likelihood of the inverse-kinematics (IK) task "makes Monte Carlo integration hard" — [ar5iv](https://ar5iv.labs.arxiv.org/html/2011.05836)
+  - Failure modes: "distinct source distributions may result in the same distribution over observations", so the source is recovered only "up to symmetries". UMNN-MAFs can collapse to point masses with N = 1–2 observations. A poor recognition network blocks the variational methods — [ar5iv](https://ar5iv.labs.arxiv.org/html/2011.05836)
+- **Code: MaximeVandegar/NEB.**
+  - Repository facts: MIT licence, 10 stars, last commit 2022-04-28; notebooks with no tests.
+  - API: a one-line estimator interface, `from inference.neb import McBiasedEstimator, McUnbiasedEstimator, ElboEstimator, IwEstimator; McBiasedEstimator().infer(observations, source_model, optimizer, log_likelihood_fct)`. Each estimator is self-contained in one file. The unbiased version draws a geometric truncation J (success rate 3/4) shared across the minibatch and combines `logcumsumexp` partial sums with 1/P(J ≥ j) weights — [GitHub](https://github.com/MaximeVandegar/NEB) (inference/neb/mc_biased.py, mc_unbiased.py)
+- **Yan & Sanders 2025**, "Denoising Milky Way stellar survey data with normalizing flow models" (MNRAS, doi:10.1093/mnras/staf852; arXiv:2505.16553).
+  - Method: they maximise Σ_i ln[(1/K_i) Σ_j P_NF(v_ij | Θ)], drawing v_ij from each star's Gaussian noise distribution around its observation and then transforming the draws to Galactocentric coordinates. In effect this is importance sampling with the likelihood as proposal (an implicit flat interim prior). They contrast it with Dockhorn et al.: "We adopt a different approach that estimates p(w_i) through importance sampling... more limited... but in practice the noise distribution of most observational data is from easy to sample distributions" — [arXiv:2505.16553](https://arxiv.org/abs/2505.16553)
+  - Training recipe: fresh noise samples are drawn every epoch ("we avoid fitting features that might arise in a fixed sample"). Training has two stages: pre-training on the noisy points, then deconvolution. Non-physical samples, such as negative parallax, get p = 0. The model is an autoregressive rational-quadratic spline flow with L=6, h=128 and B=32 bins, built with zuko and soft-clipped to |v| < 5 in z-scored units — [arXiv:2505.16553](https://arxiv.org/abs/2505.16553)
+  - Results: on 761,500 stars, test loss improves with K up to 128 and then plateaus. With smaller samples (η = 0.3 and 0.1, i.e. 229,761 and 76,587 stars) the plateau comes at K ≥ 8 and K ≥ 4, because "the Poisson error arising from sampling the uncertainty distributions is smaller than the Poisson error arising from the sampling of the underlying distribution function" — [arXiv:2505.16553](https://arxiv.org/abs/2505.16553)
+  - Regularisation: with 1% of the data (7,659 stars) the spline flow shows gridded artefacts. Lowering the number of bins B is the most effective regulariser; L2 regularisation, depth and width were less effective. The authors conclude that "the only robust way to use the models in this generalised sense is to perform detailed cross-validation" — [arXiv:2505.16553](https://arxiv.org/abs/2505.16553)
+  - Comparison with XD: the flow (545,628 parameters) beats XDGMM with up to 2048 components (57,344 parameters). Training time is linear in K: 4 h at K=32 and 16 h at K=128 on one T4 GPU, versus about 1 h for GPU XD (Ritchie & Murray 2019). A selection function applied to noisy data "may not be possible to separate" from denoising — [arXiv:2505.16553](https://arxiv.org/abs/2505.16553)
+- **Code: Ziyang-Yan/Denoising-Milky-Way-with-NF.**
+  - Repository facts: MIT licence, 1 star, last commit 2026-02-27; 3 .py files and an example notebook, no tests.
+  - Implementation: `RQS_Flow(zuko.flows.Flow)` plus training loops. The loss is `-logsumexp` over the K samples plus a log(samples-per-star) term. A selection function is applied inside the MC sum by setting log-prob to −∞ for samples outside the selection — [GitHub](https://github.com/Ziyang-Yan/Denoising-Milky-Way-with-NF) (dmw_nf/flow.py)
+- **Cranmer, Galvez, Anderson, Spergel & Ho 2019**, "Modeling the Gaia Color-Magnitude Diagram with Bayesian Neural Flows to Constrain Distance Estimates" (arXiv:1908.08045).
+  - Method: a MAF colour–magnitude-diagram (CMD) density learned "from noisy parallax and photometry measurements" on all of Gaia DR2 (dec > −30°), producing 640M photometric-distance posteriors. They note that autoregressive ordering allows exact marginalisation over missing photometry, and that very noisy measurements can have "a large effect on the CMD" — [arXiv:1908.08045](https://arxiv.org/abs/1908.08045)
+  - Code: MilesCranmer/xd_vs_flow (2020 demo notebook, 2 stars, no licence) and public_CMD_normalizing_flow (README only); neither is maintained — [GitHub](https://github.com/MilesCranmer/xd_vs_flow)
+- **Kang, Hennawi, Schindler, Tamanas & Nanni 2024**, CondXD, "Extreme Deconvolution Reimagined: Conditional Densities via Neural Networks and an Application in Quasar Classification" (MNRAS, arXiv:2412.03029).
+  - Method: a neural network outputs GMM parameters conditioned on noise-free features and is trained with the XD Gaussian-convolution likelihood. It matches per-bin XD and is "approximately ten times faster" — [arXiv:2412.03029](https://arxiv.org/abs/2412.03029)
+  - Code: enigma-igm/CondXD (PyTorch, no licence, 2 stars, last push 2025-06-30, not on PyPI; its only "tests" are deprecated scripts) — [GitHub](https://github.com/enigma-igm/CondXD)
+- **Jing & Li 2025**, "Regression for Astronomical Data with Realistic Distributions, Errors and Non-linearity" (arXiv:2411.08747).
+  - Method: a normalising flow estimates the intrinsic distribution of the independent variable, and the correlation between error level and value, "in a variational inference based empirical Bayes approach" — [arXiv:2411.08747](https://arxiv.org/abs/2411.08747)
+  - Code: astro-jingtao/raddest (no licence, 3 stars, last push 2026-04-01) — [GitHub](https://github.com/astro-jingtao/raddest)
+
+#### B. Neural empirical Bayes on a grid (the pastry-shaped case)
+- **Wang, Chakraborty, Qin & Bai 2024**, "Neural-g: A Deep Learning Framework for Mixing Density Estimation" (arXiv:2406.05986).
+  - Model: an MLP maps the m fixed grid points θ_j to logits, and a softmax output layer turns them into a PMF g_φ(θ_j). It is trained on exactly the discretised nonparametric maximum-likelihood (NPMLE) objective −Σ_i log Σ_j f(y_i | θ_j) g_φ(θ_j). This is the binned/Dirichlet–multinomial marginal likelihood with a neural parameterisation of the bin fractions — [arXiv:2406.05986](https://arxiv.org/abs/2406.05986)
+  - Motivation: the NPMLE is discrete, with about O(√n) atoms empirically and an O(log n) bound for exponential families, and "under a discrete prior with only a few atoms, posterior credible intervals... are often too narrow". Efron's g is sensitive to its tuning parameters (λ, p) — [arXiv:2406.05986](https://arxiv.org/abs/2406.05986)
+  - Contributions: a universal-approximation theorem for softmax-output MLPs, a weighted-average gradient method to speed up SGD, and a multivariate extension. The experiments use m = 100 equispaced grid points — [arXiv:2406.05986](https://arxiv.org/abs/2406.05986)
+- **Code: shijiew97/neuralG.**
+  - Repository facts: an "R package for neural-g" whose main functions are Python/PyTorch called through `reticulate`; "We strongly recommend using CUDA". The DESCRIPTION file says GPL-3 but the repo has no LICENSE file. 2 stars, last commit 2024-06-09, no tests — [GitHub](https://github.com/shijiew97/neuralG)
+- **Wang, Shin & Bai 2024**, GB-NPMLE, "Fast Bootstrapping Nonparametric Maximum Likelihood for Latent Mixture Models" (arXiv:2402.18748; reported as IEEE Signal Processing Letters 2024 in a search snippet, unverified).
+  - A generator network produces NPMLE bootstrap estimates from a single two-stage optimisation, and is reported to handle about 10^5 observations at "little computational cost". The arXiv page gives no code URL — [arXiv:2402.18748](https://arxiv.org/abs/2402.18748)
+  - A February 2026 colloquium abstract by Ray Bai covers both neural-g and GB-NPMLE — [UMBC event](https://my3.my.umbc.edu/groups/mathweb/events/147112)
+
+#### C. Diffusion priors learned from corrupted observations (EM and ambient approaches)
+- **Rozet, Andry, Lanusse & Louppe 2024**, "Learning Diffusion Priors from Observations by Expectation Maximization" (DiEM; NeurIPS 2024; arXiv:2405.13712; DOI 10.52202/079017-2783).
+  - EM loop: the E-step samples x ~ q_θk(x | y, A) with a new moment-matching posterior sampler (MMPS: Tweedie covariance plus truncated conjugate gradient). The M-step retrains the denoiser by denoising score matching, "start[ing] each iteration with the previous parameters". They run K=32 EM laps (16 for MRI), starting from a Gaussian prior fitted by closed-form EM — [arXiv HTML v5](https://arxiv.org/html/2405.13712v5); [NeurIPS](https://proceedings.neurips.cc/paper_files/paper/2024/hash/9f94298bac4668db4dc77ddb0a244301-Abstract.html)
+  - Forward model: linear Gaussian y = A x + noise, with A varying per observation. Σ_y is isotropic and fixed in each experiment; heteroscedastic noise is not discussed — [arXiv HTML v5](https://arxiv.org/html/2405.13712v5)
+  - Results and limits: CIFAR-10 with 75% of pixels deleted reaches FID 13.18, versus 28.88 for AmbientDiffusion at 60% corruption. "Any initial prior leads to a local optimum", so a conservative initial prior "is therefore preferable for scientific applications"; "empirical Bayes is an ill-posed problem". Each EM iteration takes about 4 h on 4 A100s for CIFAR-10. There is no UQ on the learned prior — [arXiv HTML v5](https://arxiv.org/html/2405.13712v5)
+- **Code: francois-rozet/diem.**
+  - Repository facts: MIT licence, 38 stars, last commit 2026-03-19; written in JAX with Inox; no tests.
+  - Usability: the README says experiments need "access to a Slurm cluster" and a Weights & Biases login; it is experiment code, not a library — [GitHub](https://github.com/francois-rozet/diem)
+- **Bai et al. 2024**, "Learning Diffusion Model from Noisy Measurement using Principled Expectation-Maximization Method" (arXiv:2410.11241): an EM framework with plug-and-play Monte Carlo posterior estimation for "arbitrary corruption types" — [arXiv:2410.11241](https://arxiv.org/abs/2410.11241). The earlier EMDiffusion starts from a diffusion prior trained on "a minimal set of clean images" — [arXiv:2407.01014](https://arxiv.org/abs/2407.01014)
+- **Hosseintabar, Chen, Daras, Torralba & Daskalakis 2025**, "DiffEM" (arXiv:2510.12691): a conditional diffusion model acts as the E-step reconstructor, with "monotonic convergence guarantees... assuming appropriate statistical conditions" — [arXiv:2510.12691](https://arxiv.org/abs/2510.12691)
+- **Barco, Adam, Stone, Hezaveh & Perreault-Levasseur 2025**, "Tackling the Problem of Distributional Shifts: Correcting Misspecified, High-Dimensional Data-Driven Priors for Inverse Problems" (arXiv:2407.17667).
+  - A score-based population prior for strong-lensing sources is retrained iteratively on posterior samples from many observations. Starting from a misspecified prior, "the updated distribution becomes progressively closer to the underlying population-level distribution" and posterior bias falls — [arXiv:2407.17667](https://arxiv.org/abs/2407.17667)
+  - It uses AlexandreAdam/score_models (MIT, 66 stars, GitHub push 2025-12-10; PyPI `score_models` 0.5.11, 2023-11-30) — [GitHub](https://github.com/AlexandreAdam/score_models); [PyPI](https://pypi.org/project/score_models/)
+- **Wagner-Carena, Akhmetzhanova & Erickson 2025**, "A Data-Driven Prism: Multi-View Source Separation with Diffusion Model Priors" (arXiv:2510.05205): learns diffusion source priors from noisy, incomplete, multi-resolution views and is demonstrated on galaxy observations. Code: swagnercarena/ddprism (no licence, 2 stars, last push 2026-05-07) — [arXiv:2510.05205](https://arxiv.org/abs/2510.05205); [GitHub](https://github.com/swagnercarena/ddprism)
+- **Ambient diffusion family**, which modifies the training objective to handle the corruption rather than using EM:
+  - Daras et al., "Ambient Diffusion: Learning Clean Distributions from Corrupted Data" (NeurIPS 2023). Code giannisdaras/ambient-diffusion: 92 stars, no licence, last push 2023-10-23 — [paper](https://proceedings.neurips.cc/paper_files/paper/2023/file/012af729c5d14d279581fc8a5db975a1-Paper-Conference.pdf); [GitHub](https://github.com/giannisdaras/ambient-diffusion)
+  - "Consistent Diffusion Meets Tweedie" (ICML 2024). Code giannisdaras/ambient-tweedie: GPL-3.0 — [GitHub](https://github.com/giannisdaras/ambient-tweedie)
+  - "Ambient-o: Training Good models with Bad Data" (NeurIPS 2025 spotlight). Code giannisdaras/ambient-omni: no licence, last push 2026-07-02 — [GitHub](https://github.com/giannisdaras/ambient-omni)
+  - Helper library giannisdaras/ambient-utils (MIT) — [GitHub](https://github.com/giannisdaras/ambient-utils)
+
+#### D. Flow matching from noisy data
+- **Urbański, della Maggiora & Yakimovich 2026**, "Noise-Robust Conditional Flow Matching: Generating Clean Samples from Noisy Datasets" (NR-CFM; arXiv:2608.00064, v2 2026-08-04).
+  - Method: an unconditional generator trained from "one corrupted observation per image". It has a closed-form clean-endpoint correction for additive white Gaussian noise and a learned correction for general Gaussian corruptions whose "covariance may vary across samples" — [arXiv:2608.00064](https://arxiv.org/abs/2608.00064)
+  - Results: competitive with Ambient Diffusion at high noise, and works at SNR as low as 0.001 — [arXiv:2608.00064](https://arxiv.org/abs/2608.00064)
+- **Hagemann, Gruhlke, Stankewitz, Schillings & Steidl 2025**, "Provable Mixed-Noise Learning with Flow-Matching" (arXiv:2508.18122): conditional flow matching inside EM jointly learns posterior samplers and unknown additive-plus-multiplicative Gaussian noise parameters, with convergence guarantees in the population limit. No code URL was found — [arXiv:2508.18122](https://arxiv.org/abs/2508.18122)
+- A targeted search found no flow-matching method for low-dimensional, heteroscedastic deconvolution of catalogue data. The search tool's summary stated that "Flow matching itself, applied to this problem, appears absent" — [search results incl. arXiv:2006.09396, 2412.03029, 2505.16553](https://arxiv.org/abs/2505.16553)
+
+#### E. Discrepancy-based and forward-model population fitting (no per-object likelihoods needed)
+- **Vashistha, Phillips, Sarkar & Farahi 2026**, "Convolutional Maximum Mean Discrepancy for Inference in Noisy Data" (arXiv:2604.12022, April 2026): convMMD compares distributions after convolving with known, "potentially heteroscedastic" noise. It comes with consistency and asymptotic-normality results and an SGD implementation. No code URL is given — [arXiv:2604.12022](https://arxiv.org/abs/2604.12022)
+- **Vashistha, Sarkar & Farahi 2026**, "Nonparametric Deconvolution and Denoising using Simulation Based Inference" (arXiv:2606.21907).
+  - Method: a convMMD loss over sieve classes "such as Gaussian mixtures and normalizing flows", for homoscedastic or heteroscedastic noise. The learned density then "serves as an empirical prior for posterior denoising" — [arXiv:2606.21907](https://arxiv.org/abs/2606.21907)
+  - Theory: L2 convergence rates under Sobolev smoothness, "polynomial for ordinary-smooth and logarithmic for super-smooth noises" — [arXiv:2606.21907](https://arxiv.org/abs/2606.21907)
+- **pop-cosmos.**
+  - Alsing et al. 2024 (arXiv:2402.00935; published in ApJS per search result): the galaxy population over 16 SPS parameters is "parameterized by a flexible score-based diffusion model". It is fitted jointly with a data model (noise, calibration, selection) by "minimizing the optimal transport distance between synthetic and real data" for 140,938 COSMOS galaxies with r < 25 — [arXiv:2402.00935](https://arxiv.org/abs/2402.00935)
+  - Thorp et al. 2024 (arXiv:2406.19437) use it as a per-galaxy prior via a GPU affine sampler and the Speculator emulator, at about 15 GPU-seconds per galaxy for 292,300 galaxies. Redshift bias is about 10^-4, σ_MAD = 7×10^-3 and the outlier rate is 1.6% — [arXiv:2406.19437](https://arxiv.org/abs/2406.19437)
+  - Thorp et al. 2025 (arXiv:2506.12122) extend the model to z ≈ 6 on about 420,000 galaxies, with diffusion models "for both the 16 SPS parameters and the photometric uncertainty" (per search summary) — [arXiv:2506.12122](https://arxiv.org/abs/2506.12122)
+  - Leistedt et al. 2026 (arXiv:2602.03935) forward-model KiDS-1000 tomographic n(z) with pop-cosmos (per search summary) — [arXiv:2602.03935](https://arxiv.org/abs/2602.03935)
+  - Supporting code: justinalsing/speculator (MIT, 23 stars, push 2026-06-05) and justinalsing/affine (MIT, TensorFlow ensemble sampler). I did not find a public repository for the pop-cosmos diffusion population model itself (unverified) — [GitHub speculator](https://github.com/justinalsing/speculator); [GitHub affine](https://github.com/justinalsing/affine)
+- **Li, Melchior, Hahn & Huang 2024**, "PopSED: Population-Level Inference for Galaxy Properties from Broadband Photometry with Neural Density Estimation" (AJ 2024; arXiv:2309.16958).
+  - Method and results: normalising flows for the population are trained by minimising the Wasserstein distance between synthetic and observed photometry. They recover the redshift and stellar-mass distribution of 10^5 galaxies in under 1 GPU hour, "10^5-6 times faster" than per-galaxy SED fitting — [arXiv:2309.16958](https://arxiv.org/abs/2309.16958)
+  - Code: AstroJacobLi/popsed (MIT, 1 star, last push 2023-11-27; Read the Docs sources but no tests); Zenodo v0.0.2 — [GitHub](https://github.com/AstroJacobLi/popsed); [Zenodo](https://zenodo.org/records/10094367)
+
+#### F. Hierarchical NPE and SBI for population-level parameters
+- **Rodrigues, Moreau, Louppe & Gramfort 2021**, "HNPE: Leveraging Global Parameters for Neural Posterior Estimation" (NeurIPS 2021, per the repo README; arXiv:2102.06477). It extends flow-based NPE to hierarchical models, using "an auxiliary set of observations sharing global parameters" to break indeterminacies — [arXiv:2102.06477](https://arxiv.org/abs/2102.06477)
+  - Code: plcrodrigues/HNPE (BSD-3-Clause, 14 stars, last commit 2021-11-16, built on sbi; an install CI workflow but no tests) — [GitHub](https://github.com/plcrodrigues/HNPE)
+- **Heinrich, Mishra-Sharma, Pollard & Windischhofer 2024**, "Hierarchical Neural Simulation-Based Inference Over Event Ensembles" (TMLR 02/2024; arXiv:2306.12584). Neural likelihood(-ratio) and posterior estimators that exploit local/global structure give "significantly tighter parameter constraints" — [arXiv:2306.12584](https://arxiv.org/abs/2306.12584)
+  - Code: smsharma/hierarchical-inference (MIT, 15 stars, last push 2023-06-24, notebooks) — [GitHub](https://github.com/smsharma/hierarchical-inference)
+- **Habermann, Schmitt, Kühmichel, Bulling, Radev & Bürkner**, "Amortized Bayesian Multilevel Models" (arXiv:2408.13230, v3 June 2025). Architectures that follow the multilevel factorisation are compared with Stan and implemented in BayesFlow — [arXiv:2408.13230](https://arxiv.org/abs/2408.13230)
+  - BayesFlow: MIT licence, 781 stars, v2.0.14 released 2026-09-01. It runs on JAX, PyTorch or TensorFlow through Keras 3 ("will not run without a backend") and requires Python ≥3.12,<3.14 — [GitHub](https://github.com/bayesflow-org/bayesflow); [PyPI](https://pypi.org/project/bayesflow/)
+- **Compositional score methods for many i.i.d. objects**: Geffner, Papamakarios & Mnih, "Compositional Score Modeling for Simulation-based Inference" (ICML 2023, arXiv:2209.14249), combine per-observation diffused-posterior scores — [arXiv:2209.14249](https://arxiv.org/abs/2209.14249). The "tall data" follow-up (arXiv:2404.07593) removes the Langevin steps — [arXiv:2404.07593](https://arxiv.org/abs/2404.07593)
+  - sbi 0.27 exposes these for vector-field posteriors (NPSE/FMPE) through `iid_method` ∈ {"fnpe", "gauss", "auto_gauss", "jac_gauss"}, with default "auto_gauss" — [GitHub sbi](https://github.com/sbi-dev/sbi) (sbi/inference/posteriors/vector_field_posterior.py)
+
+#### G. Brief notes: GW flow population models (covered elsewhere)
+- **Ruhe, Wong, Cranmer & Forré 2022** (arXiv:2211.09008): a flow population model trained through the hierarchical likelihood using event posterior samples reweighted by the sampling prior. Selection effects were omitted because "Optimization was highly unstable when including the selection function". Code: DavidRuhe/hba_flows (4 notebooks, no licence) — [arXiv HTML](https://arxiv.org/html/2211.09008v3); [GitHub](https://github.com/DavidRuhe/hba_flows)
+- Later GW work trains flows "directly through the hierarchical likelihood" with injections for selection (arXiv:2609.11885) — [arXiv:2609.11885](https://arxiv.org/html/2609.11885). Another paper samples per-event latents jointly with population parameters by HMC in NumPyro (arXiv:2502.12156) — [arXiv:2502.12156](https://arxiv.org/html/2502.12156v3)
+
 ### Inferences
+- The closest prior art to pastry's core problem (N objects, K-bin likelihood grids L_ik, smooth ρ) is Neural-g. It is the Dirichlet–multinomial likelihood with ρ = softmax(MLP(grid)), fitted as a point estimate with no uncertainty. Pastry can generalise it: any smooth parameterisation ρ(θ) (spline, GP-logistic, monotone-flow CDF differences, softmax-MLP) plugs into the same exact likelihood Π_i Σ_k L_ik ρ_k(θ).
+- On a grid, a flexible density needs only K evaluations per step (the bin masses), followed by an N×K matrix–vector product. No IWAE or Monte Carlo is needed, so the bias and variance issues of families A and C disappear for gridded inputs. This is the main design simplification for pastry's v1.
+- Flows add value over bins when the latent space is ≥3-D or continuous output is needed (Gaia 6-D, SED parameters). Diffusion and flow-matching priors are aimed at very high-dimensional images. They make exact density evaluation expensive (an ODE solve) and are best trained by EM with posterior sampling (DiEM), which is overkill for 1–3-D population densities.
+- Likelihood-free discrepancy methods (OT, Wasserstein, convMMD) need a forward noise simulator rather than per-object likelihoods, and give no likelihood-based uncertainty. They are complementary to, not substitutes for, pastry's likelihood-based core.
+- Every surveyed code base is either research code with no tests (Dockhorn, NEB, Yan & Sanders, CondXD, neuralG, DiEM, HNPE) or has no licence (density-deconvolution, CondXD, raddest, ddprism, ambient-diffusion, hba_flows). Pastry should reimplement rather than depend on them. MIT-licensed NEB, DiEM and the Yan & Sanders code can be studied and cited.
 
 ### Gaps
+- I found no method or code for flow matching applied to low-dimensional heteroscedastic catalogue deconvolution, and no flow-based method that takes per-object likelihood grids directly (Neural-g uses a softmax MLP, not a flow).
+- I could not verify the nflows fork (JamesRitchie/nflows), whether the pop-cosmos population-model code is public, the AmbientFlow (flow-based learning from corrupted data) code, the GB-NPMLE journal version, or the training details of the Leja et al. star-forming-sequence flow (jrleja/sfs_leja_trained_flow: no licence, "trained using code from Green & Ting 2020") — [GitHub](https://github.com/jrleja/sfs_leja_trained_flow).
+- The full texts of 2506.12122, 2602.03935, 2609.11885 and 2502.12156 were not read; their claims come from search summaries or abstracts.
 
-## Uncertainty on the learned density
+## Training objectives: marginal likelihood (IS/IWAE/SUMO), stochastic EM with posterior samples, joint sampling, VI; analytic likelihoods vs grids vs posterior samples
 
 ### Takeaway
-(in progress)
+How the marginal likelihood is estimated depends on the input type. Grids give an exact finite sum (Neural-g). Analytic, easily sampled likelihoods give a simple Monte Carlo average of the density at likelihood draws (Yan & Sanders). Posterior samples under an interim prior give an importance-weighted average of p_θ(z)/π_0(z) (Ruhe et al.). Simulators give an average over draws from the source model, or need a recognition network (Vandegar; Dockhorn). All non-grid estimators of log p are biased by O(1/K); de-biasing (SUMO/Russian roulette) helps at small K but adds variance. Amortised VI and IWAE were empirically worse than direct MC. EM-style "sample posteriors, refit the prior" is the standard route for diffusion priors. Joint HMC over per-object latents and population parameters is practical only for low-dimensional population parameterisations.
+
+### Cited Findings
+- **Exact gridded objective.** Neural-g minimises −Σ_i log Σ_{j=1..m} f(y_i | θ_j) g_φ(θ_j) over a fixed grid Θ_m. This is the discretised NPMLE problem (3), which can also be solved as a convex problem (Koenker & Mizera 2014 interior point) when g is unconstrained on the simplex — [arXiv:2406.05986](https://arxiv.org/abs/2406.05986)
+- **ELBO and IWAE with a learned proposal.**
+  - Dockhorn et al. use the ELBO and L_IW(K) = log (1/K) Σ_k p_n(w − v_k) p_θ(v_k)/q_φ(v_k). L_IW is consistent as K→∞. They cite the SUMO Russian-roulette estimator as unbiased but warn "there is no guarantee that the variance of the estimator is finite" — [arXiv:2006.09396](https://arxiv.org/abs/2006.09396)
+  - The IWAE bound is from Burda, Grosse & Salakhutdinov 2015 — [arXiv:1509.00519](https://arxiv.org/abs/1509.00519)
+  - Dockhorn et al. find that "the variational bound is not tight, and biases us towards worse prior models". Even a GMM fitted with L(50) using flow-posterior samples showed "a similar bias" — [arXiv:2006.09396](https://arxiv.org/abs/2006.09396)
+- **SUMO.** Luo, Beatson, Norouzi, Zhu, Duvenaud, Adams & Chen, "SUMO: Unbiased Estimation of Log Marginal Probability for Latent Variable Models" (ICLR 2020, arXiv:2004.00353), give unbiased estimates of log p and its gradients by randomised truncation of an infinite series. Models trained with SUMO reach better test likelihoods than importance sampling at equal average cost — [ar5iv](https://ar5iv.arxiv.org/html/2004.00353); [ICLR](https://iclr.cc/virtual/2020/poster/1705)
+- **Direct MC with prior samples.** Vandegar et al. show that the bias of L_K is O(1/K) with O(1/K) variance, and that it is non-decreasing in K in expectation. They use K=1024 for direct MC and only K=128 for IWAE because of GPU memory. The de-biased estimator is recommended at low K. Narrow (Dirac-like) likelihoods make prior-sampled MC hard — [ar5iv](https://ar5iv.labs.arxiv.org/html/2011.05836)
+- **Likelihood-sampled MC.** Yan & Sanders use p(w_i) ≈ (1/K_i) Σ_j P_NF(v_ij) with v_ij ~ p_n(w_i − v), and redraw samples each epoch.
+  - Choosing K: K_i "could be different for each star... (which presents complications in vectorizing calculations)", so they use a fixed K. The useful K is set by when MC error falls below the population's Poisson error (K ≈ 4–8 for 10^5 stars, about 128 for 7.6×10^5) — [arXiv:2505.16553](https://arxiv.org/abs/2505.16553)
+  - Selection and support: the selection function is applied by zeroing samples outside the selection, and non-physical samples get zero density — [GitHub](https://github.com/Ziyang-Yan/Denoising-Milky-Way-with-NF)
+- **Posterior samples under an interim prior.** Ruhe et al. train with Π_i (1/M_i) Σ_j p(θ_ij | w)/q(θ_ij), where the θ_ij are posterior samples under the sampling prior q, using minibatches of 76 events × 32 samples. They note that "q(x_i) is a constant with respect to our model parameters" — [arXiv HTML](https://arxiv.org/html/2211.09008v3)
+- **Retraining on posterior samples (stochastic EM).**
+  - DiEM alternates exact-as-possible posterior sampling under the current prior with refitting by denoising score matching, warm-started. They found convergence "sensitive to posterior sample quality", with earlier posterior samplers giving "disappointing results" — [arXiv HTML v5](https://arxiv.org/html/2405.13712v5)
+  - Barco et al. retrain a score-based prior on posterior samples from many lenses and show convergence toward the true population from a misspecified start — [arXiv:2407.17667](https://arxiv.org/abs/2407.17667)
+  - DiffEM proves monotone improvement under conditions — [arXiv:2510.12691](https://arxiv.org/abs/2510.12691)
+- **Discrepancy objectives.** Optimal transport (pop-cosmos), Wasserstein (PopSED) and convMMD (Vashistha et al.) fit a population by matching simulated noisy data to observed data. convMMD has "finite-sample deviation bounds unaffected by measurement error" — [arXiv:2402.00935](https://arxiv.org/abs/2402.00935); [arXiv:2309.16958](https://arxiv.org/abs/2309.16958); [arXiv:2604.12022](https://arxiv.org/abs/2604.12022)
+- **Joint and MCMC sampling over flow weights.**
+  - Ruhe et al. take a MAP estimate and then run HMC (L = 10,000 samples) over the 90 parameters of a 10-layer planar flow, while per-event latents stay marginalised by MC. They state that HMC "is not scalable when the number of weights increases" — [arXiv HTML](https://arxiv.org/html/2211.09008v3)
+  - A 2025 GW paper samples per-event latents and population parameters jointly in NumPyro, motivated by the cost and inaccuracy of per-event Monte Carlo integrals (per search summary) — [arXiv:2502.12156](https://arxiv.org/html/2502.12156v3)
+- **Noise augmentation is not deconvolution.** pzflow's `train(..., convolve_errs=True)` draws "new data from the error distributions during each epoch of training", and the default loss is −mean(log_prob). This trains on extra-noisy draws; it is not the log-mean-exp marginal likelihood. Its `log_prob(inputs, err_samples=K)`, however, averages the flow density over K Gaussian error draws (an MC convolution) — [GitHub pzflow](https://github.com/jfcrenshaw/pzflow) (pzflow/flow.py)
+- **Two-stage training is common.** Yan & Sanders pre-train on noisy data ignoring errors, which is cheaper by about a factor ⟨K_i⟩ — [arXiv:2505.16553](https://arxiv.org/abs/2505.16553). DiEM initialises from a Gaussian fitted by EM — [arXiv HTML v5](https://arxiv.org/html/2405.13712v5). Dockhorn et al. warm-start from pretrained prior and posterior in ablations — [arXiv:2006.09396](https://arxiv.org/abs/2006.09396)
+
+### Inferences
+- Pastry should dispatch on the input type:
+  - Grids L_ik: an exact sum, with no Monte Carlo.
+  - Analytic or sampleable likelihoods: the log-mean-exp of p_θ over likelihood draws (Yan & Sanders), with draws refreshed each epoch.
+  - Posterior samples under an interim prior π_0: log-mean-exp of p_θ(z_is) − log π_0(z_is) (the Ruhe et al. or Hogg et al. form), with the number of samples per object S user-set and an effective-sample-size diagnostic per object.
+  - Simulator-only inputs: delegate to SBI tools, out of scope for v1.
+- The O(1/K) bias of log-mean-exp estimators argues for reporting per-object importance-sampling effective sample sizes. It also argues for re-scoring the final model at much larger K, or with SUMO-style de-biasing, before comparing models. SUMO-style de-biasing is a cheap optional add-on (about 20 lines in NEB).
+- Training on stacked posterior samples with −mean(log p_θ) and no 1/π_0 reweighting (pzflow-style augmentation, or "fit a flow to all posterior samples") learns the interim-prior-weighted, noise-broadened density, not the population. Pastry's documentation should warn against it explicitly.
+- The EM route (sample z_i from the current-prior posterior, then refit the density on the samples) is natural for pastry's Gibbs/Dirichlet baseline. It generalises to flows as Monte Carlo EM: refit by maximum likelihood on samples drawn each iteration. Warm-starting and a conservative initial density (the Dirichlet or histogram solution) follow DiEM's advice.
+- Selection effects with a grid are exact (normalise by Σ_k S_k ρ_k(θ)). With samples they need MC normalisation, which made optimisation unstable in Ruhe et al. Pastry should implement selection first for grids and test the sample-based version carefully.
+
+### Gaps
+- I did not find studies comparing likelihood-sampled, posterior-sampled and prior-sampled proposals on the same deconvolution task, or adaptive per-object K_i schemes.
+- I did not retrieve Monte Carlo precision criteria for posterior-sample population inference (GW literature, e.g. effective-sample-size thresholds); unverified here.
+
+## Uncertainty on the learned density: Bayesian or ensembled flows, bootstrap, Laplace/SWAG, function-space priors; calibration; failure modes
+
+### Takeaway
+Uncertainty on a learned neural population density is almost never quantified. Dockhorn, Vandegar, Yan & Sanders, Neural-g, DiEM, NR-CFM and PopSED all report point estimates, at most with run-to-run scatter over 5 seeds. The exceptions are MAP-then-HMC over a tiny flow (90 weights; Ruhe et al. 2022, GW, no calibration check), Bayesian-NN flows with calibration curves in emulation settings (Ray 2025; a 2020 MLST reionization paper), generative bootstrap for NPMLE mixing densities (GB-NPMLE 2024), and ensembles (pzflow's FlowEnsemble). I found no coverage study of a neural deconvolution density against histogram/Dirichlet or XD baselines. Documented failure modes are run-to-run variance, gridded and spiky artefacts at small N, collapse to point masses, smoothing of hard edges, non-identifiability, and logarithmic convergence rates under Gaussian noise.
+
+### Cited Findings
+- **Point estimates only.**
+  - DiEM "does not make explicit uncertainty-quantification claims about the learned prior" (per fetched summary) — [arXiv HTML v5](https://arxiv.org/html/2405.13712v5)
+  - Vandegar et al. report only means and standard deviations over 5 retrainings, plus an SBC-style KS test of posteriors (about 0.09–0.14 for L-1024), which "is necessary but not sufficient for good calibration" — [ar5iv](https://ar5iv.labs.arxiv.org/html/2011.05836)
+  - Yan & Sanders report means and standard deviations over five runs per K and choose B by cross-validation, while noting "we are interested in the range of p(v) consistent with the observations" and "there is a range of models consistent with the Poisson sampling of the underlying distribution" — [arXiv:2505.16553](https://arxiv.org/abs/2505.16553)
+  - Dockhorn et al. report averages over five runs; Table 1 shows −log p(v) varying by up to ±0.499 across runs for L_IW(50) — [arXiv:2006.09396](https://arxiv.org/abs/2006.09396)
+- **MCMC over flow weights.** Ruhe et al. compute the posterior predictive "assuming a prior over the parameters of the flow": MAP, then HMC from w* with L = 10,000 draws. The checks are visual only, with no coverage tests. "HMC is not scalable when the number of weights increases", and the smoothness of the flow prevented recovery of an expected sharp cutoff at q=1 — [arXiv HTML](https://arxiv.org/html/2211.09008v3)
+- **Bayesian normalising flows.**
+  - Ray 2025 (arXiv:2506.05657) builds flows from Bayesian neural networks and samples the posterior over flow parameters. The search summary reports calibration curves and that this "outperform[s] an ensemble of flows trained on resampled data or with different initializations". The setting is emulation of compact-binary population synthesis, i.e. density estimation from clean simulations, not deconvolution — [arXiv:2506.05657](https://arxiv.org/html/2506.05657)
+  - A 2020 MLST paper, "Constraining the Reionization History using Bayesian Normalizing Flows" (authors not verified), checked 68/95/99% interval coverage; the IAF variant was closer to nominal (per search summary) — [IOPscience](https://iopscience.iop.org/article/10.1088/2632-2153/aba6f1)
+- **Bootstrap for mixing densities.** GB-NPMLE amortises the bootstrap with a generator that takes bootstrap weights and noise, needing "only a single evaluation of a novel two-stage optimization algorithm" for about 10^5 observations. Coverage results were not visible on the abstract page — [arXiv:2402.18748](https://arxiv.org/abs/2402.18748)
+- **Ensembles.** pzflow ships a `FlowEnsemble` class ("An ensemble of normalizing flows") with the same error-model interface as `Flow` — [GitHub pzflow](https://github.com/jfcrenshaw/pzflow) (pzflow/flowEnsemble.py)
+- **Laplace and SWAG tooling.**
+  - laplace-torch (aleximmer/Laplace): "Laplace approximations for Deep Learning"; MIT licence; v0.3 released 2026-10-13; 550 stars — [GitHub](https://github.com/aleximmer/Laplace); [PyPI](https://pypi.org/project/laplace-torch/)
+  - SWAG reference code wjmaddox/swa_gaussian: BSD-2, last push 2023-07-06 — [GitHub](https://github.com/wjmaddox/swa_gaussian)
+  - I found no published application of either to deconvolution flows (see Gaps).
+- **Coverage tooling.** TARP (Ciela-Institute/tarp; MIT; PyPI 0.1.1, 2023-11-21; 33 stars) is cited by Jing & Li for coverage tests — [GitHub](https://github.com/Ciela-Institute/tarp); [arXiv:2411.08747](https://arxiv.org/abs/2411.08747)
+- **Failure modes in the literature.**
+  - (i) Flows struggle with well-separated modes. Dockhorn et al. cite Jaini et al. 2019 for this, and their flow posteriors failed to isolate modes — [arXiv:2006.09396](https://arxiv.org/abs/2006.09396)
+  - (ii) Spiky or gridded artefacts at small N with spline flows, controlled mainly by the number of bins B — [arXiv:2505.16553](https://arxiv.org/abs/2505.16553)
+  - (iii) Collapse to point masses with very few observations — [ar5iv](https://ar5iv.labs.arxiv.org/html/2011.05836)
+  - (iv) NPMLE-type maximum-likelihood solutions are discrete, and few-atom priors give credible intervals that are too narrow — [arXiv:2406.05986](https://arxiv.org/abs/2406.05986)
+  - (v) Non-identifiability: "distinct source distributions may result in the same distribution over observations" — [ar5iv](https://ar5iv.labs.arxiv.org/html/2011.05836); "empirical Bayes is an ill-posed problem" — [arXiv HTML v5](https://arxiv.org/html/2405.13712v5)
+  - (vi) Slow, logarithmic rates under Gaussian (super-smooth) noise — [arXiv:2505.16553](https://arxiv.org/abs/2505.16553) (citing Carroll & Hall 1988); [arXiv:2606.21907](https://arxiv.org/abs/2606.21907)
+  - (vii) Support and boundaries. Yan & Sanders give non-physical samples zero density and soft-clip to |v| < 5 because spline flows need a bounded domain — [arXiv:2505.16553](https://arxiv.org/abs/2505.16553). Ruhe et al. note the flow could not represent a sharp edge — [arXiv HTML](https://arxiv.org/html/2211.09008v3)
+  - (viii) Selection terms destabilised flow optimisation — [arXiv HTML](https://arxiv.org/html/2211.09008v3)
+- **Comparisons against XD and GMMs** use held-out log-likelihood only, not calibration: Dockhorn et al. (UCI) and Yan & Sanders (XDGMM with N ≤ 2048, plus visual comparisons) — [arXiv:2006.09396](https://arxiv.org/abs/2006.09396); [arXiv:2505.16553](https://arxiv.org/abs/2505.16553)
+
+### Inferences
+- For pastry, the most defensible uncertainty route for smooth densities is a low-dimensional parameterisation ρ(θ) with full Bayesian inference over θ: splines, GP-logistic, or a small flow or MLP with tens to a few hundred parameters, sampled by HMC/NUTS on the exact gridded likelihood. This follows Ruhe's MAP-then-HMC, but on an exact (not MC) likelihood, and it keeps the Dirichlet–multinomial baseline as the calibration reference.
+- For large flows, ensembles and bootstrap are the practical options. Pastry should state clearly that they capture optimisation and sampling variability, not a Bayesian posterior, and should validate them with simulation-based coverage tests (TARP or SBC-style) on ρ or on derived functionals (bin fractions, means, quantiles). The literature does not do this.
+- Maximum-likelihood fits of flexible densities drift toward NPMLE-like spiky solutions as flexibility grows. Pastry's smooth-density API should therefore have explicit regularisation (a smoothness or GP prior, number of knots/bins, early stopping with a held-out marginal likelihood) and should default to the Bayesian path rather than a bare maximum-likelihood flow.
+- Bounded supports (redshift ≥ 0, finite CMD box) favour parameterisations that live on the K-bin grid or use bounded spline flows with explicit intervals, rather than unbounded flows truncated after the fact.
+
+### Gaps
+- I found no coverage or calibration study of any neural deconvolution or population density against Dirichlet/histogram (Leistedt-style) or XD baselines. This is the most important open evaluation for pastry to run itself.
+- I found no application of Laplace or SWAG to density-deconvolution flows, and no function-space prior for flows used in deconvolution.
+- Ray 2025 and the 2020 MLST reionization paper were assessed from search summaries only, and their calibration numbers were not checked.
+
+## Software infrastructure and 2026 status: flows, flow matching, diffusion, SBI and PPL backends (JAX vs PyTorch)
+
+### Takeaway
+As of October 2026 the healthy JAX stack for pastry's neural extension is flowjax, numpyro and pzflow. flowjax is MIT, released 2026-10-16, supports custom losses through `fit_to_key_based_loss` and has NumPyro interop; NumPyro (0.22.0, 2026-09-18) provides HMC/NUTS for joint sampling; pzflow (4.0.0, 2026-05) offers tabular flows with error convolution, grid posteriors and ensembles. The PyTorch equivalent is zuko (MIT, 1.6.0, 2026-03), with sbi 0.27 for SBI-style population work and azula for diffusion. nflows, normflows, flowtorch, lampe, swyft and score_models are stale on PyPI (no release since 2020–2024). Meta's `flow_matching` is CC BY-NC 4.0, which makes it unsuitable as a dependency of an open-source scientific package. distrax provides bijectors without training loops. NumPyro's own flows are limited to IAF and BNAF.
 
 ### Cited Findings
 
+#### Package records (GitHub search API and PyPI JSON, 2026-10-22; tests and CI counted from clone file trees)
+- **flowjax (JAX/Equinox).**
+  - Status: [GitHub](https://github.com/danielward27/flowjax) · [docs](https://danielward27.github.io/flowjax/index.html) · [PyPI](https://pypi.org/project/flowjax/). MIT; latest release 19.1.2 on 2026-10-16; 54 releases, 5 in the last 12 months; 244 stars; Python ≥3.11. The repo has 16 test files, 3 CI workflows and Sphinx docs.
+  - Features: coupling, MAF, BNAF, planar and triangular-spline flows with arbitrary transformers such as `RationalQuadraticSpline`. Training covers maximum likelihood (`fit_to_data`), the ELBO (`ElboLoss`), contrastive SNPE (`ContrastiveLoss`), and `fit_to_key_based_loss(key, tree, *, loss_fn, steps, learning_rate, optimizer)` for arbitrary custom losses — [GitHub](https://github.com/danielward27/flowjax) (flowjax/train/loops.py, losses.py)
+  - NumPyro interop: `flowjax.experimental.numpyro` provides `sample`, `register_params` and `distribution_to_numpyro` — [GitHub](https://github.com/danielward27/flowjax) (flowjax/experimental/numpyro.py)
+  - Stability: the README warns "may undergo significant changes, including breaking changes, between major releases" — [GitHub](https://github.com/danielward27/flowjax)
+  - Snippet (README):
+    ```python
+    flow = block_neural_autoregressive_flow(key=flow_key, base_dist=Normal(jnp.zeros(x.shape[1])))
+    flow, losses = fit_to_data(key=train_key, dist=flow, data=x, learning_rate=5e-3, max_epochs=200)
+    log_probs = flow.log_prob(x); samples = flow.sample(sample_key, (1000,))
+    ```
+  - Related JAX helpers: equinox 0.13.8 (2026-05-05) and paramax 0.0.5 (2026-01-23) — [PyPI equinox](https://pypi.org/project/equinox/); [PyPI paramax](https://pypi.org/project/paramax/)
+- **zuko (PyTorch).**
+  - Status: [GitHub](https://github.com/probabilists/zuko) · [docs](https://zuko.readthedocs.io) · [PyPI](https://pypi.org/project/zuko/). MIT; 1.6.0 on 2026-03-10, which is also the last commit; 30 releases, 1 in the last 12 months; 466 stars; Python ≥3.10. 8 test files, 2 CI workflows.
+  - Design: "lazy" distributions and transforms, i.e. modules whose forward pass returns a `Distribution`, which makes conditional flows natural. Flows: GMM, NICE, RealNVP, MAF, NSF, NCSF, SOSPF, NAF, UNAF, CNF, GF, BPF. Yan & Sanders used it — [GitHub](https://github.com/probabilists/zuko); [arXiv:2505.16553](https://arxiv.org/abs/2505.16553)
+  - Snippet: `flow = zuko.flows.NSF(3, 5, transforms=3, hidden_features=[128]*3); loss = -flow(c).log_prob(x)` — [GitHub](https://github.com/probabilists/zuko)
+- **pzflow (JAX).**
+  - Status: [GitHub](https://github.com/jfcrenshaw/pzflow) · [docs](https://jfcrenshaw.github.io/pzflow/) · [PyPI](https://pypi.org/project/pzflow/). MIT; 4.0.0 on 2026-05-06; 33 releases; 64 stars; Python 3.10–<4. 6 test files, 2 CI workflows. Paper: Crenshaw et al. 2024, AJ 168, 80 (arXiv:2405.04740).
+  - Features: pandas-DataFrame API (`Flow`, `train`, `log_prob`, `posterior`, `sample`); `posterior(inputs, column, grid, ..., err_samples=...)` evaluates per-object posteriors on a grid; Gaussian `*_err` columns; `FlowEnsemble`; custom `loss_fn(params, x, c, w)`. Its `convolve_errs` training option is noise augmentation, not deconvolution (see Training objectives) — [GitHub](https://github.com/jfcrenshaw/pzflow) (pzflow/flow.py)
+- **NumPyro.**
+  - Status: [GitHub](https://github.com/pyro-ppl/numpyro) · [PyPI](https://pypi.org/project/numpyro/). Apache-2.0; 0.22.0 on 2026-09-18; 4 releases in 12 months; 2,770 stars. 57 test files, 6 CI workflows.
+  - Flows: `numpyro.distributions.flows` contains only `InverseAutoregressiveTransform` and `BlockNeuralAutoregressiveTransform`; richer flows come from flowjax interop — [GitHub](https://github.com/pyro-ppl/numpyro) (numpyro/distributions/flows.py)
+- **Pyro (PyTorch).**
+  - Status: [GitHub](https://github.com/pyro-ppl/pyro) · [PyPI](https://pypi.org/project/pyro-ppl/). Apache-2.0; pyro-ppl 1.9.2 on 2026-10-03; 1 release in 12 months; 9,068 stars.
+  - Flows: `pyro.distributions.transforms` includes spline, spline_coupling, spline_autoregressive, affine_coupling, affine_autoregressive, neural_autoregressive, block_autoregressive, planar, radial, sylvester, polynomial and householder transforms — [GitHub](https://github.com/pyro-ppl/pyro) (file listing)
+- **distrax (JAX).** [GitHub](https://github.com/google-deepmind/distrax) · [PyPI](https://pypi.org/project/distrax/). Apache-2.0; 0.1.9 on 2026-06-12; 2 releases in 12 months; 657 stars; 81 open issues; 68 test files. Distributions and bijectors only, with no training utilities (inferred from the repo, which has no train module).
+- **sbi (PyTorch).**
+  - Status: [GitHub](https://github.com/sbi-dev/sbi) · [PyPI](https://pypi.org/project/sbi/). Apache-2.0; 0.27.0 on 2026-08-04; last commit 2026-10-22; 876 stars. 136 test files, 10 CI workflows.
+  - Trainers: NPE A/B/C, NPE-PFN, MNPE, NLE, MNLE, NRE A/B/C, BNRE, FMPE, NPSE and marginal estimation, with i.i.d. score composition for NPSE/FMPE — [GitHub](https://github.com/sbi-dev/sbi) (sbi/inference/trainers/)
+- **lampe (PyTorch).** [GitHub](https://github.com/probabilists/lampe) · [PyPI](https://pypi.org/project/lampe/). MIT; 0.9.0 on 2024-07-20; last commit 2024-08-21; 137 stars. Provides NPE, NRE variants, FMPE and Metropolis-Hastings. Dormant since 2024.
+- **azula (PyTorch diffusion).**
+  - Status: [GitHub](https://github.com/probabilists/azula) · [PyPI](https://pypi.org/project/azula/). MIT; 0.11.1 on 2026-04-16; 12 releases in 12 months; 134 stars. 10 test files, docs.
+  - Snippet: `denoiser = KarrasDenoiser(backbone=..., schedule=VPSchedule()); loss = denoiser.loss(x, t); sampler = DDPMSampler(denoiser.eval(), steps=1000)` — [GitHub](https://github.com/probabilists/azula)
+- **torchcfm (PyTorch flow matching).**
+  - Status: [GitHub](https://github.com/atong01/conditional-flow-matching) · [PyPI](https://pypi.org/project/torchcfm/). MIT; 1.0.7 on 2025-03-11, with no PyPI release in the last 12 months but repo pushed 2026-07-20; 2,602 stars. 15 test files.
+  - API: classes `ConditionalFlowMatcher`, `ExactOptimalTransportConditionalFlowMatcher`, `TargetConditionalFlowMatcher`, `SchrodingerBridgeConditionalFlowMatcher` and `VariancePreservingConditionalFlowMatcher`, each with `sample_location_and_conditional_flow(x0, x1, t=None)` — [GitHub](https://github.com/atong01/conditional-flow-matching) (torchcfm/conditional_flow_matching.py)
+- **flow_matching (Meta, PyTorch).** [GitHub](https://github.com/facebookresearch/flow_matching) · [PyPI](https://pypi.org/project/flow_matching/). The LICENSE is "Attribution-NonCommercial 4.0 International" (README badge "CC BY-NC 4.0"). 1.0.10 on 2024-12-18; last commit 2026-01-05; 4,814 stars. Continuous and discrete flow matching; accompanying guide arXiv:2412.06264 — [LICENSE](https://github.com/facebookresearch/flow_matching/blob/main/LICENSE)
+- **diffusers (PyTorch).** [GitHub](https://github.com/huggingface/diffusers) · [PyPI](https://pypi.org/project/diffusers/). Apache-2.0; 0.41.0 on 2026-10-06; 34,773 stars. Focused on image, video and audio generation.
+- **flowMC (JAX).** [GitHub](https://github.com/kazewong/flowMC) · [PyPI](https://pypi.org/project/flowMC/). MIT; 0.6.4 on 2026-10-12; 7 releases in 12 months; 265 stars. A "normalizing-flow-enhanced MCMC sampler", useful for pastry's joint sampler rather than as a density model.
+- **Stale or legacy packages (PyPI release dates):**
+  - nflows 0.14 (2020-12-02; 1,021 stars) — [PyPI](https://pypi.org/project/nflows/); [GitHub](https://github.com/bayesiains/nflows)
+  - normflows 1.7.3 (2023-11-16; last commit 2024-08-25; 962 stars; 24 test files) — [PyPI](https://pypi.org/project/normflows/); [GitHub](https://github.com/VincentStimper/normalizing-flows)
+  - flowtorch 0.8 (2022-04-27; GitHub reports no licence, PyPI says MIT) — [PyPI](https://pypi.org/project/flowtorch/); [GitHub](https://github.com/facebookincubator/flowtorch)
+  - swyft 0.4.5 (2023-09-15) — [PyPI](https://pypi.org/project/swyft/); [GitHub](https://github.com/undark-lab/swyft)
+  - torchflows 1.2.0 (2025-08-20; 13 stars) — [PyPI](https://pypi.org/project/torchflows/); [GitHub](https://github.com/davidnabergoj/torchflows)
+  - score_models 0.5.11 (2023-11-30) — [PyPI](https://pypi.org/project/score_models/)
+- **Research-code records.** Repository facts for density-deconvolution, NEB, Denoising-Milky-Way-with-NF, CondXD, neuralG, diem, HNPE, hierarchical-inference, PopSED, ddprism and the ambient-* repositories are given under the Methods question above, each linked to its GitHub page.
+
 ### Inferences
+- **Backend recommendation: JAX first, with an optional PyTorch adapter.**
+  - (i) Pastry needs joint hierarchical sampling, which favours NumPyro and BlackJAX-style HMC. flowjax distributions plug into NumPyro models, and flowMC is available.
+  - (ii) flowjax is the most actively released MIT flow library (5 releases in 12 months) and accepts arbitrary losses, so the gridded, MC or IW marginal likelihood is a few lines.
+  - (iii) The astronomy-facing tools pzflow, flowMC and DiEM are JAX-based.
+  - Risks: flowjax's major-version API churn (now at v19) and JAX install weight. Pin versions, and keep all neural code behind an optional extra such as `pip install pastry[flows]` so the core installs like emcee.
+- If a PyTorch path is wanted, zuko is the only actively maintained general flow library. Its release cadence slowed to one release in the last 12 months.
+- Avoid depending on facebookresearch/flow_matching (non-commercial licence), nflows and normflows (unmaintained), and on research repositories without licences. torchcfm (MIT) or azula (MIT) are acceptable if a flow-matching or diffusion backend is ever needed. For pastry's low-dimensional problems, flow matching's lack of cheap exact densities is a poor fit for marginal-likelihood training.
+- **API patterns worth copying:**
+  - NEB's one-line `Estimator().infer(observations, source_model, optimizer, log_likelihood_fct)`, which separates the estimator from the density model.
+  - Dockhorn's sklearn-like `.fit(data)`.
+  - zuko/flowjax's "distribution object with `log_prob` and `sample`" contract.
+  - pzflow's grid-posterior method.
+  - A natural pastry design is a density-model protocol (`bin_masses(θ)` or `log_prob(z)`), an estimator protocol (`fit`, `sample`), and input adapters (grid, analytic, samples plus interim prior).
 
 ### Gaps
-
-## Software infrastructure and 2026 status
-
-### Takeaway
-(in progress)
-
-### Cited Findings
-
-### Inferences
-
-### Gaps
+- I did not install or run any package (shared machine constraints), so performance, GPU scaling and API ergonomics are from documentation and source only.
+- I did not verify BlackJAX's 2026 status, or whether docs pages render correctly.
+- I found no maintained JAX diffusion library comparable to azula. DiEM uses its own Inox-based code.
