@@ -14,7 +14,8 @@ future session (after a context reset) can pick up exactly where we left off.
 | `LOG.md` | Dated session log: what we covered, what was discussed, what changed (with commits) | Append only |
 | `DECISIONS.md` | Every decision made during the walkthrough (keep / change / defer), with rationale | Append; edit only the status column |
 | `QUESTIONS.md` | Parking lot: open questions, ideas, proposed changes not yet decided | Items move to `DECISIONS.md` when settled |
-| `briefings/` | One briefing per step, prepared before we discuss it (summary, key decisions, things to challenge) | Written per step; amended with what we learned |
+| `briefings/` | One briefing per step: `<step>.html` is the interactive page Josh reads (equations, diagrams, live explorers, code excerpts; also published as a private artifact), `<step>.md` the plain-text record for future sessions | Written per step; amended with what we learned |
+| `ARTIFACTS.md` | Links to the published briefing pages | Append when a page is published |
 
 ## Rules for a new session
 

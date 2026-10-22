@@ -57,3 +57,15 @@ Append-only. One entry per working session (or per step within a long session).
   changes by ×2 across a bin.
 - Raised for discussion: flat in which coordinate (log bins are flat in z,
   not log z); correction options; non-integer weights.
+
+## 2026-10-22: briefings become interactive pages
+
+- Josh asked for briefings as interactive HTML so equations, text, diagrams and
+  figures can be explored together. Convention from now on: each step gets
+  `briefings/<step>.html` (published as a private artifact, links in
+  `ARTIFACTS.md`) plus the `.md` record.
+- Built `2.1-core-math.html`: MathJax equations, collapsible code excerpts with
+  file:line, a mermaid data-flow diagram, and two explorers: (1) flat-within-bin
+  vs exact bin likelihood (sliders: population slope, K, σ, d; shows per-bin
+  ratios and the effect on the object's bin posterior), (2) stacking vs EM on a
+  2000-object mock (iteration slider, KKT gap curve, distance to truth).
