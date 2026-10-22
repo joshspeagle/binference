@@ -111,3 +111,16 @@ Append-only. One entry per working session (or per step within a long session).
   from the reporting bins. Analysis parked in QUESTIONS for the Phase 3/7
   design discussion.
 - Audit report received and committed: tests-docs (20 findings; slow statistical tests too weak: pass an ~18%-too-narrow posterior at the shipped seed (T-1); SBC never covers hyperparameters, GP, selection, rates, trees, Laplace (T-2); mix-SQP RuntimeWarning with mixed alpha=1/alpha>1 (T-4); several docs-vs-code contradictions). All seven audit reports are in (135 findings in total).
+
+## 2026-10-22: step 2.1 §3–4 (selection, rates) and design decisions
+
+- Recorded DECISIONS #4 (separate reporting bins from internal model
+  resolution; continuous field evaluated inside bins), #5 (B-spline mixture
+  basis), #6 (binning-bias diagnostic), at Josh's request.
+- Added a selection explorer to the 2.1 page (version 3): 6000 objects,
+  selection by true bin (logistic detection curve) or by a cut on the measured
+  value; MLE fits with the correct mode, the other mode, and selection ignored;
+  readout of distances to truth and the rates-view population size
+  N_obs / (S·ρ̂). Checked with pastry that the correct-mode MLE error
+  (total variation 0.07–0.14 over 8 mocks; posterior s.d. up to 0.03 per bin)
+  is statistical noise, and said so on the page.

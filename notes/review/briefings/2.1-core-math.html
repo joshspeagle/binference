@@ -22,6 +22,7 @@
   --accent: #1f5fa8;      /* ink blue: the model, exact quantities */
   --warm: #b4691f;        /* amber: approximations, the flat-within-bin assumption */
   --good: #2e7d4f;
+  --alt: #8a3b8f;         /* purple: ignoring selection */
   --code-bg: #eef1f5;
   --font-display: "Literata", Georgia, serif;
   --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
@@ -30,12 +31,12 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
-    --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --code-bg: #1e242d; color-scheme: dark;
+    --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
-  --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --code-bg: #1e242d; color-scheme: dark;
+  --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body {
@@ -51,6 +52,7 @@ nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 nav.toc a { color: var(--muted); text-decoration: none; display: flex; gap: 8px; padding: 4px 8px; border-radius: 4px; }
 nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink); background: var(--code-bg); outline: none; }
 nav.toc .n { font-family: var(--font-mono); width: 1.6em; color: var(--muted); }
+nav.toc .now { color: var(--accent); font-weight: 600; }
 nav.toc .done::after { content: "discussed"; margin-left: auto; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--good); }
 main { min-width: 0; padding-top: 40px; }
 header.top { border-bottom: 1px solid var(--rule); padding-bottom: 24px; margin-bottom: 8px; }
@@ -126,8 +128,8 @@ section { scroll-margin-top: 16px; }
   <ol>
     <li><a href="#s1" class="done"><span class="n">1</span>Generative model</a></li>
     <li><a href="#s2" class="done"><span class="n">2</span>Marginal posterior</a></li>
-    <li><a href="#s3"><span class="n">3</span>Selection</a></li>
-    <li><a href="#s4"><span class="n">4</span>Rates</a></li>
+    <li><a href="#s3" class="now"><span class="n">3</span>Selection</a></li>
+    <li><a href="#s4" class="now"><span class="n">4</span>Rates</a></li>
     <li><a href="#s5"><span class="n">5</span>Gradient</a></li>
     <li><a href="#s6"><span class="n">6</span>EM and stacking</a></li>
     <li><a href="#s7"><span class="n">7</span>Coordinates</a></li>
@@ -237,6 +239,24 @@ flowchart TD
   <p>Both give one formula with $\tilde L=L$ or $L\,\mathrm{diag}(S)$:</p>
   <div class="eq">$$\log p(\rho\mid D)=\log p(\rho)+\sum_i w_i\log(\tilde L_i\cdot\rho)\;-\;W\log(S\cdot\rho).$$</div>
   <p>The columns of $L$ are scaled by $S$ once, at model construction (<code>self._L</code>); the normaliser is added in <code>_ll_and_deta</code>. Only ratios of $S$ matter for fractions, so <code>_detect = S / max(S)</code> is used where an absolute probability is needed (imputing missed objects). An array <code>selection</code> requires <code>selection_mode</code>: on a three-bin test the wrong mode gave $(0.23, 0.31, 0.46)$ for a truth of $(0.40, 0.35, 0.25)$.</p>
+
+  <div class="explorer" id="sel-explorer">
+    <h3>Explore: what each selection treatment does to ρ</h3>
+    <p class="note">6000 objects are drawn from a two-peaked population on $[0,3]$ (6 bins) and measured with error $\sigma$. Then a selection is applied, and the survivors are fitted by maximum likelihood three ways: with the correct mode, with the other mode, and ignoring selection. Sliders that re-simulate act on release.</p>
+    <div class="controls" role="group" aria-label="Selection scenario">
+      <label for="s-scn" style="grid-column:1/-1">how objects are selected <select id="s-scn" style="font:inherit;width:100%;max-width:420px;padding:6px;border:1px solid var(--rule);border-radius:4px;background:var(--surface);color:var(--ink)"><option value="true">by true bin (detection probability per bin)</option><option value="observed">by a cut on the measured value d &lt; cut</option></select></label>
+      <label for="s-sig">measurement σ <span class="val" id="s-sig-v"></span><input id="s-sig" type="range" min="0.05" max="0.8" step="0.01" value="0.3"></label>
+      <label for="s-a" id="s-a-lab">detection midpoint <span class="val" id="s-a-v"></span><input id="s-a" type="range" min="0.3" max="2.7" step="0.05" value="1.5"></label>
+      <label for="s-b" id="s-b-lab">detection steepness <span class="val" id="s-b-v"></span><input id="s-b" type="range" min="0.5" max="8" step="0.1" value="2.5"></label>
+      <label for="s-seed">mock seed <span class="val" id="s-seed-v"></span><input id="s-seed" type="range" min="1" max="20" step="1" value="1"></label>
+    </div>
+    <canvas id="s-S" height="80" aria-label="Selection per bin"></canvas>
+    <div class="legend"><span><i style="background:var(--muted)"></i>S<sub>k</sub>: probability that an object in bin k is kept (0 to 1)</span></div>
+    <canvas id="s-main" height="220" aria-label="Estimated fractions"></canvas>
+    <div class="legend"><span><i style="background:var(--muted)"></i>true ρ</span><span><i style="background:var(--accent)"></i>correct mode</span><span><i style="background:var(--warm)"></i>the other mode</span><span><i style="background:var(--alt)"></i>selection ignored</span></div>
+    <div class="stats" id="s-stats"></div>
+  </div>
+  <p class="note">Try: a steep detection edge in the middle (true mode), where ignoring selection removes most of the far peak; then switch to the cut on $d$ and widen σ: the true-mode treatment now double-counts the selection. The correct fit is not exact either: with 6 bins and a few thousand survivors the maximum-likelihood solution is noisy (posterior s.d. up to ≈0.03 per bin, largest where few objects survive), so its distance to the truth is typically 0.07–0.14. Change the seed: that error changes direction from mock to mock, while the errors from the wrong treatments stay put. In observed mode there is also a small systematic part, because $S_k$ is itself a bin average computed under the flat-within-bin assumption of §1.</p>
 </section>
 
 <!-- ============================================================ 4 -->
@@ -244,7 +264,7 @@ flowchart TD
   <div class="sec-head"><span class="n">§4</span><h2>Rates</h2></div>
   <p>A Poisson process with expected numbers $\lambda_k$ and exposure $S_k$: the observed count is Poisson$(S\cdot\lambda)$ and</p>
   <div class="eq">$$p(\lambda\mid D)\propto p(\lambda)\prod_i(\tilde L_i\cdot\lambda)^{w_i}\,e^{-S\cdot\lambda}.$$</div>
-  <p>With $\lambda=\Lambda\rho$ this factorises into the fraction likelihood times a Poisson likelihood for the total $\Lambda$; fractions are the "conditional on $N$" version. Selected by the prior (<code>GammaRates</code>), handled in the <code>kind == "rates"</code> branch of <code>_ll_and_deta</code>.</p>
+  <p>With $\lambda=\Lambda\rho$ this factorises into the fraction likelihood times a Poisson likelihood for the total $\Lambda$; fractions are the "conditional on $N$" version. In the explorer above, the last line of the readout is this rates view: with a flat prior, $\hat\Lambda=N_{\rm obs}/(S\cdot\hat\rho)$, the number of objects in the population before selection, with Poisson error $\sqrt{N_{\rm obs}}/(S\cdot\hat\rho)$. Ignoring selection gives $\hat\Lambda=N_{\rm obs}$. Selected by the prior (<code>GammaRates</code>), handled in the <code>kind == "rates"</code> branch of <code>_ll_and_deta</code>.</p>
 </section>
 
 <!-- ============================================================ 5 -->
@@ -539,8 +559,85 @@ def log_prior_and_grad(self, x, cache, value, d_eta):
     el.addEventListener("change", drawEM);   // full re-simulation only on release (slow on phones)
   });
 
+  // ---------- §3 selection explorer
+  const SK = 6, SE = Array.from({ length: SK + 1 }, (_, k) => 3 * k / SK), SH = 0.5, NTOT = 6000;
+  const scomps = [[0.55, 0.8, 0.35], [0.45, 2.1, 0.4]];
+  const SRHO = (() => { const m = SE.slice(0, SK).map((a, k) => scomps.reduce((acc, [w, mu, sd]) => acc + w * (Phi((SE[k + 1] - mu) / sd) - Phi((a - mu) / sd)), 0)); const t = m.reduce((a, b) => a + b, 0); return m.map(v => v / t); })();
+  const SS = { key: "", res: null };
+  function selS(scn, sig, a, b) {
+    if (scn === "true") return SE.slice(0, SK).map((e) => 1 / (1 + Math.exp(-b * (a - (e + SH / 2)))));
+    // observed mode: S_k = (1/v_k) ∫_{B_k} P(d < cut | z) dz  (flat within the bin)
+    return SE.slice(0, SK).map((e) => { let acc = 0; for (let j = 0; j <= 100; j++) { const z = e + SH * j / 100, wgt = (j === 0 || j === 100) ? 1 : (j % 2 ? 4 : 2); acc += wgt * Phi((a - z) / sig); } return acc / 300; });
+  }
+  function emSel(L, n, S, how) {
+    const Lt = how === "true" ? L.map((v, i) => v * S[i % SK]) : L, use = how !== "none";
+    const smax = Math.max(...S), Sp = S.map(v => v / smax);
+    const rho = new Float64Array(SK).fill(1 / SK);
+    for (let it = 0; it < 1500; it++) {
+      const nh = new Float64Array(SK);
+      for (let i = 0; i < n; i++) { let s = 0; for (let k = 0; k < SK; k++) s += Lt[i * SK + k] * rho[k]; for (let k = 0; k < SK; k++) nh[k] += Lt[i * SK + k] * rho[k] / s; }
+      if (use) { const sr = Sp.reduce((a, v, k) => a + v * rho[k], 0); for (let k = 0; k < SK; k++) nh[k] += n * rho[k] * (1 - Sp[k]) / sr; }
+      const t = nh.reduce((a, b) => a + b, 0); let dmax = 0;
+      for (let k = 0; k < SK; k++) { const v = nh[k] / t; dmax = Math.max(dmax, Math.abs(v - rho[k])); rho[k] = v; }
+      if (dmax < 1e-9) break;
+    }
+    return Array.from(rho);
+  }
+  function selSim(scn, sig, a, b, seed) {
+    const rnd = mulberry32(seed * 104729 + 17);
+    const gauss = () => { let u = 0; while (u === 0) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); };
+    const S = selS(scn, sig, a, b), rows = [];
+    for (let i = 0; i < NTOT; i++) {
+      let z; do { const c = rnd() < scomps[0][0] ? scomps[0] : scomps[1]; z = c[1] + c[2] * gauss(); } while (z < 0 || z > 3);
+      const d = z + sig * gauss(), k = Math.min(SK - 1, Math.floor(z / SH));
+      const kept = scn === "true" ? rnd() < S[k] : d < a;
+      if (!kept) continue;
+      for (let j = 0; j < SK; j++) rows.push((Phi((SE[j + 1] - d) / sig) - Phi((SE[j] - d) / sig)) / SH);
+    }
+    const n = rows.length / SK, L = new Float64Array(rows);
+    const other = scn === "true" ? "observed" : "true";
+    return { S, n, fits: { correct: emSel(L, n, S, scn), other: emSel(L, n, S, other), none: emSel(L, n, S, "none") } };
+  }
+  function drawSel() {
+    const scn = document.getElementById("s-scn").value;
+    const v = (id) => +document.getElementById(id).value;
+    const sig = v("s-sig"), a = v("s-a"), b = v("s-b"), seed = v("s-seed");
+    document.getElementById("s-a-lab").firstChild.textContent = scn === "true" ? "detection midpoint " : "cut on d ";
+    document.getElementById("s-b-lab").hidden = scn !== "true";
+    [["s-sig", 2], ["s-a", 2], ["s-b", 1], ["s-seed", 0]].forEach(([id, dp]) => document.getElementById(id + "-v").textContent = v(id).toFixed(dp));
+    const key = [scn, sig, a, b, seed].join(":");
+    if (key !== SS.key) { SS.res = selSim(scn, sig, a, b, seed); SS.key = key; }
+    const { S, n, fits } = SS.res;
+    let { ctx, w, h } = setup(document.getElementById("s-S"));
+    const L0 = 36, R0 = w - 10, T0 = 8, B0 = h - 18, bw = (R0 - L0) / SK, Y = (q) => B0 - (B0 - T0) * q;
+    axes(ctx, L0, T0, R0, B0, SE.map((e) => [e, L0 + (R0 - L0) * e / 3]));
+    ctx.fillStyle = tok("--muted"); ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillText("1", L0 - 4, Y(1)); ctx.fillText("0", L0 - 4, Y(0));
+    S.forEach((q, k) => { ctx.globalAlpha = 0.4; ctx.fillStyle = tok("--muted"); ctx.fillRect(L0 + bw * k + 2, Y(q), bw - 4, B0 - Y(q)); ctx.globalAlpha = 1; });
+    ({ ctx, w, h } = setup(document.getElementById("s-main")));
+    const L1 = 36, R1 = w - 10, T1 = 10, B1 = h - 20, bw1 = (R1 - L1) / SK;
+    const series = [[SRHO, "--muted"], [fits.correct, "--accent"], [fits.other, "--warm"], [fits.none, "--alt"]];
+    const ym = Math.max(...series.flatMap(([arr]) => arr)) * 1.1, Y1 = (q) => B1 - (B1 - T1) * q / ym;
+    axes(ctx, L1, T1, R1, B1, SE.slice(0, SK).map((e, k) => ["B" + (k + 1), L1 + bw1 * (k + .5)]));
+    ctx.fillStyle = tok("--muted"); ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillText(ym.toFixed(2), L1 - 4, T1 + 4);
+    const gw = (bw1 - 8) / 4;
+    for (let k = 0; k < SK; k++) series.forEach(([arr, col], j) => { ctx.fillStyle = tok(col); ctx.fillRect(L1 + bw1 * k + 4 + j * gw, Y1(arr[k]), Math.max(1, gw - 1.5), B1 - Y1(arr[k])); });
+    const tv = (arr) => (0.5 * arr.reduce((acc, q, k) => acc + Math.abs(q - SRHO[k]), 0)).toFixed(3);
+    const Sdot = (arr) => S.reduce((acc, q, k) => acc + q * arr[k], 0);
+    const lam = n / Sdot(fits.correct), lamErr = Math.sqrt(n) / Sdot(fits.correct);
+    document.getElementById("s-stats").innerHTML =
+      `<span>kept <b>${n}</b> of <b>${NTOT}</b> objects</span>` +
+      `<span>distance to true ρ (total variation): correct <b>${tv(fits.correct)}</b>, other mode <b>${tv(fits.other)}</b>, ignored <b>${tv(fits.none)}</b></span>` +
+      `<span>rates view, population size before selection: <b>${Math.round(lam)} ± ${Math.round(lamErr)}</b> (truth ${NTOT}; ignoring selection: ${n})</span>`;
+  }
+  document.getElementById("s-scn").addEventListener("change", drawSel);
+  ["s-sig", "s-a", "s-b", "s-seed"].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener("input", () => { document.getElementById(id + "-v").textContent = (+el.value).toFixed(id === "s-seed" ? 0 : id === "s-b" ? 1 : 2); });
+    el.addEventListener("change", drawSel);
+  });
+
   // ---------- redraw on resize and theme change
-  function drawAll() { drawBins(); drawEM(); }
+  function drawAll() { drawBins(); drawEM(); drawSel(); }
   let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(drawAll, 120); });
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawAll);
   new MutationObserver(drawAll).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
