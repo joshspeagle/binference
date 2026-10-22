@@ -27,8 +27,9 @@ The problems are around the edges:
   The main simplification is a single "model with these weights" helper, which would also
   fix M-1.
 
-Counts: bug-major 1, bug-minor 3, statistical 1, numerical 2, efficiency 1, consistency 2,
-simplify 3, docs 0, design 1 (14 findings).
+Counts: bug-major 1, bug-minor 4 (one out of slice), statistical 1, numerical 2 (M-6 is
+also a design point), efficiency 1, consistency 2, simplify 3, docs 0 (docstring mismatches
+are filed under consistency/simplify): 14 findings.
 
 ---
 
@@ -223,9 +224,19 @@ the problem reduces exactly to mix-SQP.
 
 **Evidence.** `$A/m09_em_false_convergence.py`. Rates `GammaRates(1, 1e-12)` (default
 algorithm SQUAREM) are compared against the exact answer W·ρ̂ (mix-SQP fractions MLE, KKT
-7e-10). See the output table in the script header (copied below).
+7e-10):
 
-RESULTS_M6
+```
+N=2000 K=40 sig=0.1 squarem=True : n_iter=2327  converged=True  kkt=1.1e-05 loglik deficit=5.7e-06 max|lam-lam_ref|/N=1.4e-04
+N=2000 K=40 sig=0.1 squarem=False: n_iter=20000 converged=False kkt=1.1e-05 loglik deficit=2.1e-02 max|lam-lam_ref|/N=5.3e-02
+(reference: mix-SQP fractions MLE x N, kkt 7e-10, 4 iterations)
+```
+
+So SQUAREM declares convergence after 2327 iterations, with a log-likelihood deficit of 6e-6
+and per-bin errors of 1.4e-4·N. This is small statistically, but mix-SQP reaches 7e-10 in 4
+iterations. Plain EM (`accelerate=False`) is far off after 20000 iterations, and it does
+report non-convergence. Both runs show the same rates KKT gap (M-4). The larger N = 20000
+cases were stopped because they took too long.
 
 **Suggested fix.**
 1. Make the stopping rule (or at least `converged`) require `kkt_gap ≤ tol_kkt`, with M-4
