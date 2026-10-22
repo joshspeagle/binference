@@ -1,0 +1,89 @@
+# Walkthrough plan
+
+**Current position:** Phase 0 (agree on the plan). Nothing reviewed yet.
+
+## How each step works
+
+1. **Briefing.** Claude writes `briefings/<step>.md`: what the code does, the
+   statistics or algorithm behind it, every non-obvious decision with its
+   motivation and the alternatives, known weaknesses, and questions worth
+   challenging. Short enough to read in a few minutes.
+2. **Discussion at the depth Josh chooses** (see levels below). Questions,
+   derivations, small experiments, reading code together.
+3. **Outcome.** Each point ends as *keep*, *change now*, *change later* or
+   *open question*, recorded in `DECISIONS.md` / `QUESTIONS.md`.
+4. **Changes.** Small changes are made and committed during the step (code,
+   tests and docs together). Large or cross-cutting ones, especially API and
+   layout changes, are collected and done in Phase 7 so we restructure once.
+5. **Close.** Log entry, plan status updated, commit.
+
+### Levels of engagement (chosen per step, can change mid-step)
+
+- **L1, overview.** The briefing plus discussion of the decisions. Good for
+  infrastructure and parts Josh is happy to trust.
+- **L2, guided tour.** Walk through the code file by file, function by function,
+  with the reasoning behind each piece.
+- **L3, deep dive.** Derivations, line-by-line reading, experiments to test a
+  choice (e.g. re-running a validation with an alternative), comparison with
+  the literature or with frankenz.
+
+## Phases
+
+Order is a proposal: Josh may jump around. Rough default levels in brackets.
+
+### Phase 1. Big picture [L1–L2]
+- 1.1 The problem, scope and design principles: spec §1–2, README, `docs/index.md`.
+- 1.2 The landscape census and what it implied for the design: `reports/`, `docs/design/landscape.md`.
+- 1.3 Architecture: module map, data flow from inputs to results, the layers of the API (spec §8.1), `docs/design/implementation-plan.md`.
+- 1.4 The autonomous decision log D1–D16 (spec §13), one by one: keep, change, or revisit later.
+
+### Phase 2. The statistical model [L3]
+- 2.1 Notation and the core model: Dirichlet–multinomial hierarchy, marginal vs augmented form, EM as iterated stacking, KKT certificate (spec §3, `docs/theory.md`).
+- 2.2 Bins, masses vs densities, bin-averaged likelihoods, binning bias: `bins.py`.
+- 2.3 Inputs: likelihoods vs posteriors and interim priors, samples, functions, unfolding, classifiers: `likelihoods.py`, `selection.py`.
+- 2.4 Selection effects: "observed" vs "true" modes, the normaliser, rates with exposure.
+- 2.5 Population vs realised sample; individual-object posteriors; value draws.
+- 2.6 The model object and numerical kernels: `model.py`, `_kernels.py`, `_simplex.py` (ILR coordinates, Jacobians).
+
+### Phase 3. Priors [L2–L3]
+- 3.1 Dirichlet family: Dirichlet, generalised Dirichlet, Dirichlet trees, Pólya trees; conjugacy; unbounded densities: `priors/dirichlet.py`, `priors/base.py`.
+- 3.2 Logistic (smoothness) family: whitened form, random-walk and HSGP bases, default mean, partial non-centring: `priors/logistic.py`.
+- 3.3 Hyperpriors and defaults (e.g. GP length-scale prior): `priors/hyper.py`.
+- 3.4 Rates: `priors/rates.py`.
+- 3.5 Default prior choice (α = 1 vs 1/K) and prior guidance.
+
+### Phase 4. Inference engines [L3]
+- 4.1 NUTS core: multinomial NUTS, U-turn criteria, dual averaging, windowed adaptation: `samplers/_nuts_core.py`.
+- 4.2 NUTS engine: initialisation, geometry adaptation and the centring rule, metric choice, resuming, parallel chains: `samplers/nuts.py`.
+- 4.3 Gibbs and data augmentation (incl. selection via negative-binomial augmentation): `samplers/gibbs.py`, `samplers/base.py`.
+- 4.4 Point estimates: EM/SQUAREM, mix-SQP, L-BFGS, the KKT gap: `samplers/optimize.py`.
+- 4.5 Approximations: Laplace + PSIS, mean-field VB, bootstrap: `samplers/laplace.py`, `vb.py`, `bootstrap.py`.
+- 4.6 Choosing a method; `method="auto"`; the evidence behind the defaults (spec §6.9–6.10).
+
+### Phase 5. Outputs and diagnostics [L2]
+- 5.1 `PopulationResult` and `PointEstimate`: `results.py`.
+- 5.2 Diagnostics and `check()` hints: `diagnostics.py`.
+- 5.3 Validation tools and simulators: `validation.py`, `simulate.py`.
+- 5.4 Plotting and I/O: `plotting.py`, `io.py`.
+
+### Phase 6. Testing and evidence [L1–L2]
+- 6.1 Test strategy: `docs/design/test-plan.md`, fast vs slow suites, exact-posterior and SBC tests, review regressions.
+- 6.2 Performance: benchmarks, targets (spec §10), known limitations.
+
+### Phase 7. API, UX and organisation [L2, Josh-led]
+- 7.1 Entry points: `pastry.infer`, `PopulationEstimator`, engine classes: `inference.py`, `estimator.py`, `__init__.py`.
+- 7.2 Naming, defaults, warnings and error messages; package layout.
+- 7.3 Implement the restructuring collected in earlier phases (one coherent change).
+
+### Phase 8. Docs, tutorials and infrastructure [L1–L2]
+- 8.1 User guide, theory page, tutorials: what they teach and in what order.
+- 8.2 Packaging, dependencies, CI, contributing, citation, release plan (name, Python floor, publicity, JOSS).
+
+### Phase 9. Roadmap
+- 9.1 Priorities beyond v0.1: flows / continuous densities, JAX backend, hierarchical models, others (spec §12).
+
+## Status
+
+| Step | Level | Status | Briefing | Notes |
+|---|---|---|---|---|
+| 0 Plan | – | in progress | – | |
