@@ -96,3 +96,5 @@ Append-only. One entry per working session (or per step within a long session).
   iframe. Requirements recorded in README.md.
 - Audit report received and committed: model-map (14 findings, one major:
   zero-weight rows make EM reset or collapse under bootstrap weights).
+
+- Audit report received and committed: nuts-laplace (15 findings, no bug-major; NUTS matches Stan; main item: results of logistic-prior fits expose the internal centred coordinates in `x`, `log_prob`, `model`).
