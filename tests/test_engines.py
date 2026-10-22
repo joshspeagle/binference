@@ -212,6 +212,26 @@ def test_gibbs_selection_matches_exact(k3_selection_problem):
     assert_matches_reference(nuts, exact.mean, exact.std)
 
 
+@pytest.mark.parametrize("mode", ["true", "observed"])
+def test_fraction_selection_only_depends_on_ratios(k3_selection_problem, mode):
+    """S and 3 S (values above one) give the same posterior for fractions."""
+    mock, _ = k3_selection_problem
+    lk = mock.likelihoods.with_selection(None)
+    S = np.array([0.9, 0.5, 0.25])
+    fits = {}
+    for scale in (1.0, 3.0):
+        m = PopulationModel(lk, selection=scale * S, selection_mode=mode)
+        est = MAP(m).run()
+        gibbs = Gibbs(m, n_chains=2, n_warmup=200, rng=3).run(1500)
+        fits[scale] = (est.rho, gibbs.mean, gibbs.std)
+        assert np.all(gibbs.samples > 0)
+    np.testing.assert_allclose(fits[3.0][0], fits[1.0][0], rtol=1e-6)
+    np.testing.assert_allclose(fits[3.0][1], fits[1.0][1], atol=0.02)
+    exact_m = PopulationModel(lk, selection=S, selection_mode=mode)
+    nuts = NUTS(exact_m, n_chains=2, n_warmup=300, rng=4).run(800)
+    np.testing.assert_allclose(fits[3.0][1], nuts.mean, atol=0.02)
+
+
 def test_gibbs_rates_agree_with_nuts(k3_selection_problem):
     mock, _ = k3_selection_problem
     prior = P.GammaRates(1.0, 1e-3)

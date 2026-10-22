@@ -98,6 +98,10 @@ class PopulationModel:
         #: per-bin selection values (or ``None``)
         self.selection = None if sel is None else sel.values
         self.selection_mode = None if sel is None else sel.mode
+        # For fractions only ratios of S matter. Data-augmentation steps (Gibbs, EM,
+        # VB) impute missed objects with probability 1 - S, so they use S rescaled
+        # to a maximum of one, which leaves the posterior unchanged.
+        self._detect = None if sel is None else sel.values / sel.values.max()
         L = likelihoods.values
         if sel is not None and sel.mode == "true":
             L = _scale_columns(L, sel.values)

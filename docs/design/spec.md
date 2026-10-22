@@ -158,17 +158,23 @@ With equal-volume bins the representation cannot change the inference, because i
 
 ### 3.6 Selection effects
 
-Let $S_k = P(\text{detected}\mid z\in B_k)\in(0,1]$ be the bin-averaged detection probability. $L_{ik}$ must be the ordinary likelihood $p(d_i\mid z)$ evaluated at the observed data. It must **not** be renormalised over the detectable data space.
+Let $S_k\in(0,1]$ be the probability that an object whose true value lies in bin $k$ is detected (bin-averaged). How $S$ enters depends on what the selection acts on, so the API requires an explicit **selection mode**:
 
-- **Fractions.** Marginalising the unknown total number of objects $\Lambda$ under $p(\Lambda)\propto 1/\Lambda$ gives
-  $$p(\rho\mid D)\propto p(\rho)\,\frac{\prod_i (L_i\cdot\rho)^{w_i}}{(S\cdot\rho)^{W}},\qquad W=\textstyle\sum_i w_i. \tag{S}$$
-  - Gibbs sampling stays conjugate if we also impute the number of missed objects: $M\mid\rho\sim\mathrm{NegBin}(W, S\cdot\rho)$, with their bins distributed $\mathrm{Mult}(M, \rho\odot(1-S)/(1-S\cdot\rho))$.
+- **`"observed"`**: selection acts on the *measured* data, e.g. a flux limit applied to measured fluxes, or a reconstruction efficiency. For a detected object the selection indicator is 1, so its likelihood row $L_i$ is the ordinary likelihood $p(d_i\mid z)$ at the observed data; it must **not** be renormalised over the detectable data space. Here $S_k=\int_{\rm det}p(d\mid z\in B_k)\,dd$.
+- **`"true"`**: selection acts on the *true* value, or independently of the measurement noise, e.g. a completeness map in the true parameter. Then $p(d_i,\mathrm{det}\mid z)=S(z)\,\ell_i(z)$, and the effective likelihood is $\tilde L_{ik}=S_kL_{ik}$, assuming $S$ is roughly constant within bins.
+
+Write $\tilde L_{ik}=L_{ik}$ in the first case and $S_kL_{ik}$ in the second.
+
+- **Fractions.** Marginalising the unknown total number of objects $\Lambda$ under $p(\Lambda)\propto 1/\Lambda$ gives, for both modes,
+  $$p(\rho\mid D)\propto p(\rho)\,\frac{\prod_i (\tilde L_i\cdot\rho)^{w_i}}{(S\cdot\rho)^{W}},\qquad W=\textstyle\sum_i w_i. \tag{S}$$
+  - Gibbs sampling stays conjugate if we also impute the number of missed objects: $M\mid\rho\sim\mathrm{NegBin}(W, S\cdot\rho)$, with their bins distributed $\mathrm{Mult}(M, \rho\odot(1-S)/(1-S\cdot\rho))$. Detected objects' labels are drawn from responsibilities computed with $\tilde L$.
   - EM uses the expected missed counts $W\rho_k(1-S_k)/(S\cdot\rho)$.
-  - Both were verified against (S) using NUTS.
+  - Both are verified against (S) using NUTS, exact quadrature and Geweke tests.
 - **Rates.** For an inhomogeneous Poisson process with expected counts $\lambda_k$ (exposure absorbed into $S$),
-  $$p(\lambda\mid D)\propto p(\lambda)\,e^{-S\cdot\lambda}\prod_i (L_i\cdot\lambda)^{w_i}.$$
+  $$p(\lambda\mid D)\propto p(\lambda)\,e^{-S\cdot\lambda}\prod_i (\tilde L_i\cdot\lambda)^{w_i}.$$
   Gamma priors on $\lambda_k$ stay conjugate given the labels: $\lambda_k\mid z\sim\mathrm{Gamma}(a_k+n_k,\,b_k+S_k)$.
 - **Fractions and rates are not equivalent priors.** Independent $\mathrm{Gamma}(\alpha_k,b)$ rates imply $\rho\sim\mathrm{Dir}(\alpha)$ only when there is no selection (or as $b\to 0$ with an extra $(S\cdot\rho)^{-\sum\alpha}$ factor). The documentation must say so.
+- **Choosing the wrong mode biases $\rho$.** On a three-bin test with true $\rho=(0.40,0.35,0.25)$ and selection in the true bin, the correct mode gives $(0.37,0.37,0.26)$; the wrong mode gives $(0.23,0.31,0.46)$; ignoring selection gives $(0.58,0.32,0.09)$. Arrays passed as `selection` therefore require `selection_mode`; mocks and adapters attach the right mode themselves.
 - **R-THEORY-2:** the documentation must cover the two ways of getting this wrong (Mandel, Farr & Gair 2019): renormalising $L$ by $S$ and then also dividing by $S\cdot\rho$, or omitting the normaliser.
 
 ### 3.7 Population quantities versus realised-sample quantities
@@ -243,7 +249,7 @@ R-BINS-1: smoothness priors require ordered grids and raise a clear error on cat
 | `Likelihoods(values, bins=None, representation="density", weights=None)` | likelihoods (bin-averaged values, or masses) | §3.5; `bins=None` gives `Bins.categories(K)` |
 | `Likelihoods.from_log(log_values, ...)` | log-likelihoods | stable exponentiation |
 | `Likelihoods.from_posteriors(P, bins, interim_prior, representation="mass", interim_representation="mass")` | posteriors on the bins | $L\propto P/\Pi$ (§3.4–3.5) |
-| `Likelihoods.from_samples(samples, bins, interim_prior="flat", sample_weights=None)` | per-object posterior samples (list of arrays, or `(N, S[, ndim])`) | histogram masses divided by interim masses; out-of-range mass reported; per-object effective sample counts stored in `meta` |
+| `Likelihoods.from_samples(samples, bins, interim_prior, sample_weights=None)` (no default interim prior, per R-INPUT-1) | per-object posterior samples (list of arrays, or `(N, S[, ndim])`) | histogram masses divided by interim masses; out-of-range mass reported; per-object effective sample counts stored in `meta` |
 | `Likelihoods.from_gaussian(mean, sigma, bins)` | Gaussian measurement model, 1-D or N-D with diagonal $\sigma$ | exact CDF differences divided by volume |
 | `Likelihoods.from_distributions(dists, bins)` | objects with `.cdf` (1-D) or `.logpdf` | CDF differences, or sub-bin quadrature (`n_sub`) |
 | `Likelihoods.from_function(loglike, bins, n_sub=5)` | callable on sub-bin points | quadrature |
@@ -598,7 +604,13 @@ These were decided without the user's input so that work could proceed. Each is 
 | D5 | Distribution name `pastry-inference`, import name `pastry` | `pastry` is taken on PyPI (2018 project) | another name |
 | D6 | Python ≥ 3.11 | astronomy users lag SPEC 0 | ≥ 3.12 (SPEC 0) |
 | D7 | Flows deferred to the roadmap, with a concrete design | the census found no evidence flows beat grid models for binned inputs, and no tool calibrates them; doing the discrete core well comes first | ship an experimental flows module now |
-| D8 | Research notes and the report are kept in the repository under `docs/design/` | traceability | separate repository or wiki |
+| D8 | Research notes (`research_notes/`) and the landscape report (`reports/`) are kept in the repository; the report is also included in the documentation | traceability | separate repository or wiki |
+| D9 | Arrays passed as `selection` require an explicit `selection_mode` (`"observed"` or `"true"`) | the two modes give different likelihoods, and the wrong one biases $\rho$ badly (§3.6) | a silent default |
+| D10 | Laplace importance sampling uses a Student-t (df = 5) proposal, and flags results with Pareto $\hat k\ge0.7$ as approximate | Gaussian proposals gave borderline $\hat k$ even for K = 3; for K ≳ 10, near-empty bins have one-sided tails and $\hat k\approx1$ | Gaussian proposal; no flag |
+| D11 | MAP for tree priors is the mode of the density on the simplex (branch probabilities proportional to their coefficients) | matches the Dirichlet convention; the unconstrained-space mode remains available via `space="unconstrained"` | unconstrained mode everywhere |
+| D12 | For logistic priors, NUTS reparametrises (partial non-centring, weights $1/(-H_{jj})$ from the curvature after 25 warm-up iterations), starts a dense metric from the Hessian, and targets acceptance 0.9 | 3–10× more effective samples per second than the whitened form, and far fewer divergences (measured on 1-D mocks); the user's model object is not modified | non-centred field with a diagonal metric (Stan's default advice) |
+| D13 | `LogisticGP`'s default length-scale prior is an inverse gamma with 1% mass below two bin widths and 1% above the range | removes length scales the grid cannot resolve, which caused divergences, and follows Betancourt's robust-GP advice | log-normal centred on 0.2 × range |
+| D14 | NUTS chains can run in worker processes (`n_jobs`), defaulting to serial | identical draws either way; process pools have pitfalls in notebooks and on platforms that spawn | parallel by default |
 
 **Open questions** (they do not block v0.1):
 1. Package and distribution name (D5).

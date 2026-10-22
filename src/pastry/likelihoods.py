@@ -516,7 +516,7 @@ class Likelihoods:
         cls,
         samples: Any,
         bins: Bins,
-        interim_prior: InterimPrior = "flat",
+        interim_prior: InterimPrior,
         *,
         sample_weights: Any = None,
         interim_representation: Representation = "mass",
@@ -543,8 +543,10 @@ class Likelihoods:
         bins : Bins
             Target bins (grids only).
         interim_prior : "flat", array_like (K,), or callable
-            Prior under which the samples were drawn (default ``"flat"``,
-            i.e. uniform density in the bin coordinate).
+            Prior under which the samples were drawn. ``"flat"`` means a
+            uniform density in the bin coordinate. There is deliberately no
+            default: samples drawn under an informative prior must have it
+            divided out.
         sample_weights : array_like or sequence of arrays, optional
             Importance weights for the samples (same layout as ``samples``).
         sparse : bool, optional

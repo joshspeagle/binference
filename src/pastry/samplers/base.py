@@ -51,7 +51,7 @@ def em_update(model: PopulationModel, value: np.ndarray, weights: np.ndarray | N
     if model.kind == "rates":
         return prior.map_from_counts(nhat, exposure=model._exposure())
     if model.selection is not None:
-        S = model.selection
+        S = model._detect
         rho = value / value.sum()
         nhat = nhat + W * rho * (1.0 - S) / float(S @ rho)
     return prior.map_from_counts(nhat)
@@ -68,7 +68,7 @@ def interior_start(model: PopulationModel, n_iter: int = 50) -> np.ndarray:
     for _ in range(n_iter):
         nhat = model.expected_counts(rho)
         if model.selection is not None and model.kind == "fractions":
-            S = model.selection
+            S = model._detect
             nhat = nhat + model.W * rho * (1.0 - S) / float(S @ rho)
         new = (nhat + 0.5) / (nhat.sum() + 0.5 * K)
         if np.max(np.abs(new - rho)) < 1e-6:
