@@ -184,6 +184,12 @@ class Gibbs(Engine):
         D = np.concatenate(self._draws, axis=1)
         labels = np.concatenate(self._labels, axis=1) if self._labels else None
         info = {"thin": self.thin, "n_warmup": self.n_warmup}
-        return PopulationResult(self.model, D, method="gibbs", kind=self.model.kind,
-                                labels=labels, label_index=self.label_index,
-                                info=info)  # fmt: skip
+        return PopulationResult(
+            self.model,
+            D,
+            method="gibbs",
+            kind=self.model.kind,
+            labels=labels,
+            label_index=self.label_index,
+            info=info,
+        )

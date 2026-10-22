@@ -281,7 +281,10 @@ class Likelihoods:
 
     @property
     def selection(self) -> Selection | None:
-        """Selection function attached to the data, if any (see :class:`~pastry.selection.Selection`)."""
+        """Selection function attached to the data, if any.
+
+        See :class:`~pastry.Selection`.
+        """
         return self._selection
 
     @property
@@ -497,11 +500,15 @@ class Likelihoods:
                 )
         inv = np.where(zero, 0.0, 1.0 / np.where(zero, 1.0, Pi))
         L = _scale_columns(P, inv)
-        lk = cls(L, bins, weights=weights, selection=selection,
-                 selection_mode=selection_mode, drop_empty=drop_empty)
-        lk.meta.update(
-            source="posteriors", representation=representation, interim_prior_masses=Pi
+        lk = cls(
+            L,
+            bins,
+            weights=weights,
+            selection=selection,
+            selection_mode=selection_mode,
+            drop_empty=drop_empty,
         )
+        lk.meta.update(source="posteriors", representation=representation, interim_prior_masses=Pi)
         return lk
 
     @classmethod
@@ -572,8 +579,14 @@ class Likelihoods:
                 InputWarning,
                 stacklevel=2,
             )
-        lk = cls(values, bins, weights=weights, selection=selection,
-                 selection_mode=selection_mode, drop_empty=drop_empty)
+        lk = cls(
+            values,
+            bins,
+            weights=weights,
+            selection=selection,
+            selection_mode=selection_mode,
+            drop_empty=drop_empty,
+        )
         lk.meta.update(
             source="samples",
             n_eff=n_eff,
@@ -634,14 +647,23 @@ class Likelihoods:
             raise ValueError("sigma must be finite and strictly positive.")
         logL = None
         for d, e in enumerate(bins.edges):
-            lm = _log_gauss_bin_mass(e[None, :-1], e[None, 1:], mu[:, d : d + 1], sig[:, d : d + 1])
+            lm = _log_gauss_bin_mass(
+                e[None, :-1], e[None, 1:], mu[:, d : d + 1], sig[:, d : d + 1]
+            )
             lm = lm - np.log(np.diff(e))[None, :]  # mass -> bin-averaged density
             if logL is None:
                 logL = lm
             else:
                 logL = (logL[:, :, None] + lm[:, None, :]).reshape(mu.shape[0], -1)
-        lk = cls(logL, bins, log=True, weights=weights, selection=selection,
-                 selection_mode=selection_mode, drop_empty=drop_empty)
+        lk = cls(
+            logL,
+            bins,
+            log=True,
+            weights=weights,
+            selection=selection,
+            selection_mode=selection_mode,
+            drop_empty=drop_empty,
+        )
         lk.meta.update(source="gaussian")
         return lk
 
@@ -701,13 +723,26 @@ class Likelihoods:
                 raise TypeError("Each distribution needs a cdf, logpdf or pdf method.")
             masses[i] = (dens.reshape(bins.K, -1) @ wq) * bins.volumes
         if kind == "likelihood":
-            lk = cls(masses, bins, representation="mass", weights=weights, selection=selection,
-                     selection_mode=selection_mode, drop_empty=drop_empty)  # fmt: skip
+            lk = cls(
+                masses,
+                bins,
+                representation="mass",
+                weights=weights,
+                selection=selection,
+                selection_mode=selection_mode,
+                drop_empty=drop_empty,
+            )
         else:
-            lk = cls.from_posteriors(masses, bins, interim_prior, representation="mass",
-                                     weights=weights, selection=selection,
-                                     selection_mode=selection_mode,
-                                     drop_empty=drop_empty)  # fmt: skip
+            lk = cls.from_posteriors(
+                masses,
+                bins,
+                interim_prior,
+                representation="mass",
+                weights=weights,
+                selection=selection,
+                selection_mode=selection_mode,
+                drop_empty=drop_empty,
+            )
         lk.meta["source"] = "distributions"
         return lk
 
@@ -749,14 +784,27 @@ class Likelihoods:
         else:
             avg = vals @ wq
         if kind == "likelihood":
-            lk = cls(avg, bins, log=log, weights=weights, selection=selection,
-                     selection_mode=selection_mode, drop_empty=drop_empty)  # fmt: skip
+            lk = cls(
+                avg,
+                bins,
+                log=log,
+                weights=weights,
+                selection=selection,
+                selection_mode=selection_mode,
+                drop_empty=drop_empty,
+            )
         else:
             dens = np.exp(avg - avg.max(axis=1, keepdims=True)) if log else avg
-            lk = cls.from_posteriors(dens, bins, interim_prior, representation="density",
-                                     weights=weights, selection=selection,
-                                     selection_mode=selection_mode,
-                                     drop_empty=drop_empty)  # fmt: skip
+            lk = cls.from_posteriors(
+                dens,
+                bins,
+                interim_prior,
+                representation="density",
+                weights=weights,
+                selection=selection,
+                selection_mode=selection_mode,
+                drop_empty=drop_empty,
+            )
         lk.meta["source"] = "function"
         return lk
 
@@ -913,7 +961,8 @@ def _check_posterior_representation(P, vol: np.ndarray, representation: str) -> 
     if np.mean(mismatched & looks_other) > 0.5:
         warnings.warn(
             f"Most posterior rows integrate to one only if interpreted as '{other}' values; "
-            f"did you mean representation='{other}'? (Bins have unequal volumes, so this matters.)",
+            f"did you mean representation='{other}'? "
+            "(Bins have unequal volumes, so this matters.)",
             InputWarning,
             stacklevel=3,
         )
@@ -944,8 +993,12 @@ def _bin_samples(samples: Any, bins: Bins, sample_weights: Any):
     else:
         seq = list(samples)
         n_obj = len(seq)
-        arrays = [np.asarray(s, dtype=float).reshape(-1) if ndim == 1 else
-                  np.asarray(s, dtype=float).reshape(-1, ndim) for s in seq]  # fmt: skip
+        arrays = [
+            np.asarray(s, dtype=float).reshape(-1)
+            if ndim == 1
+            else np.asarray(s, dtype=float).reshape(-1, ndim)
+            for s in seq
+        ]
         sizes = np.array([a.shape[0] for a in arrays])
         if np.any(sizes == 0):
             raise ValueError("Every object needs at least one sample.")

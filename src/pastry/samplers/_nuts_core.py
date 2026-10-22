@@ -37,8 +37,24 @@ class Metric:
 
 
 class _Tree:
-    __slots__ = ("diverging", "g_m", "g_p", "g_prop", "log_w", "lp_prop", "n_leaf", "p_m",
-                 "p_p", "p_prop", "rho", "sum_acc", "turning", "x_m", "x_p", "x_prop")  # fmt: skip
+    __slots__ = (
+        "diverging",
+        "g_m",
+        "g_p",
+        "g_prop",
+        "log_w",
+        "lp_prop",
+        "n_leaf",
+        "p_m",
+        "p_p",
+        "p_prop",
+        "rho",
+        "sum_acc",
+        "turning",
+        "x_m",
+        "x_p",
+        "x_prop",
+    )
 
 
 def leapfrog(x, p, g, eps, metric: Metric, fn: LogpGrad):
@@ -189,8 +205,9 @@ def find_reasonable_eps(x, lp, g, metric: Metric, fn: LogpGrad, rng) -> float:
     return float(eps)
 
 
-def adaptation_windows(n_warmup: int, init_buffer: int = 75, term_buffer: int = 50,
-                       base_window: int = 25) -> list[tuple[int, int]]:  # fmt: skip
+def adaptation_windows(
+    n_warmup: int, init_buffer: int = 75, term_buffer: int = 50, base_window: int = 25
+) -> list[tuple[int, int]]:
     """Stan-style slow adaptation windows ``[(start, end), ...]``."""
     if n_warmup < 20:
         return []

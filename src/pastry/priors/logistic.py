@@ -86,7 +86,7 @@ def _rw_eigen(n: int, order: int) -> tuple[np.ndarray, np.ndarray]:
         raise ValueError(f"A random walk of order {order} needs more than {order} bins per axis.")
     D = np.diff(np.eye(n), n=order, axis=0)
     Q = D.T @ D
-    lam, U = np.linalg.eigh(Q)
+    _, U = np.linalg.eigh(Q)
     null = _orthonormal_polys(n, order)
     # project the non-null eigenvectors off the polynomial null space for safety
     U_rest = U[:, order:]
@@ -225,7 +225,9 @@ def _resolve_mean(mean: Any, K: int) -> np.ndarray:
 # LogisticNormal
 # ----------------------------------------------------------------------------
 class LogisticNormal(Prior):
-    r"""Logistic-normal prior: :math:`\eta \sim \mathcal N(\mu, \Sigma)`, :math:`\rho = \mathrm{softmax}(\eta)`.
+    r"""Logistic-normal prior on the population fractions.
+
+    :math:`\eta \sim \mathcal N(\mu, \Sigma)` and :math:`\rho = \mathrm{softmax}(\eta)`.
 
     Parameters
     ----------
@@ -267,8 +269,9 @@ class LogisticNormal(Prior):
             B = U[:, keep]
             s0 = np.sqrt(lam[keep])
         basis = _KronBasis([np.asarray(B)])
-        return _BoundLogisticNormal(self, bins, basis, np.arange(B.shape[1]), mu,
-                                    [("scale", self.scale)], s0)  # fmt: skip
+        return _BoundLogisticNormal(
+            self, bins, basis, np.arange(B.shape[1]), mu, [("scale", self.scale)], s0
+        )
 
 
 class _BoundLogisticNormal(_BoundLogistic):
@@ -343,8 +346,17 @@ class LogisticRandomWalk(Prior):
         # drop the global constant mode (index 0: product of constants)
         active = np.arange(1, basis.J)
         mu = _resolve_mean(self.mean, bins.K)
-        return _BoundRandomWalk(self, bins, basis, active, mu, [("scale", self.scale)],
-                                lam[active], null[active], self.trend_scale)  # fmt: skip
+        return _BoundRandomWalk(
+            self,
+            bins,
+            basis,
+            active,
+            mu,
+            [("scale", self.scale)],
+            lam[active],
+            null[active],
+            self.trend_scale,
+        )
 
 
 class _BoundRandomWalk(_BoundLogistic):
@@ -415,8 +427,11 @@ class LogisticGP(Prior):
         self.boundary_factor = float(boundary_factor)
 
     def _params(self):
-        return {"kernel": self.kernel, "amplitude": self.amplitude,
-                "length_scale": self.length_scale}  # fmt: skip
+        return {
+            "kernel": self.kernel,
+            "amplitude": self.amplitude,
+            "length_scale": self.length_scale,
+        }
 
     def bind(self, bins: Bins) -> _BoundGP:
         if bins.is_categorical:
@@ -433,7 +448,9 @@ class LogisticGP(Prior):
             c, L = 0.5 * (lo + hi), self.boundary_factor * 0.5 * (hi - lo)
             x = 0.5 * (e[1:] + e[:-1])
             j = np.arange(1, nb[d] + 1)
-            factors.append(np.sin(np.pi * j[None, :] * (x[:, None] - c + L) / (2 * L)) / np.sqrt(L))
+            factors.append(
+                np.sin(np.pi * j[None, :] * (x[:, None] - c + L) / (2 * L)) / np.sqrt(L)
+            )
             omegas.append(np.pi * j / (2 * L))
         basis = _KronBasis(factors)
         grids = np.meshgrid(*omegas, indexing="ij")
@@ -451,8 +468,9 @@ class LogisticGP(Prior):
             (f"length_scale_{d}" if D > 1 else "length_scale", h) for d, h in enumerate(ls_h)
         ]
         mu = _resolve_mean(self.mean, bins.K)
-        return _BoundGP(self, bins, basis, np.arange(basis.J), mu, hypers, omega,
-                        _KERNELS[self.kernel])  # fmt: skip
+        return _BoundGP(
+            self, bins, basis, np.arange(basis.J), mu, hypers, omega, _KERNELS[self.kernel]
+        )
 
 
 class _BoundGP(_BoundLogistic):
@@ -465,8 +483,13 @@ class _BoundGP(_BoundLogistic):
         if nu is None:
             self._logc = 0.5 * D * np.log(2 * np.pi)
         else:
-            self._logc = (D * np.log(2.0) + 0.5 * D * np.log(np.pi) + special.gammaln(nu + D / 2)
-                          - special.gammaln(nu) + nu * np.log(2 * nu))  # fmt: skip
+            self._logc = (
+                D * np.log(2.0)
+                + 0.5 * D * np.log(np.pi)
+                + special.gammaln(nu + D / 2)
+                - special.gammaln(nu)
+                + nu * np.log(2 * nu)
+            )
 
     def scales(self, theta):
         amp = theta[0]

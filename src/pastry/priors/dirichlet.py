@@ -395,8 +395,9 @@ class _BoundTree(_SimplexBound):
         tot = np.add.reduceat(x, t.ptr[:-1])
         n_ch = np.diff(t.ptr)
         tot_rep = np.repeat(tot, n_ch)
-        theta = np.where(tot_rep > 0, x / np.where(tot_rep > 0, tot_rep, 1.0),
-                         1.0 / np.repeat(n_ch, n_ch))  # fmt: skip
+        theta = np.where(
+            tot_rep > 0, x / np.where(tot_rep > 0, tot_rep, 1.0), 1.0 / np.repeat(n_ch, n_ch)
+        )
         return t.compose(theta)
 
     def vb_update(self, counts, exposure=None):

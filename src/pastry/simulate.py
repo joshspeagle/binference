@@ -147,13 +147,15 @@ def _draw_values(bins: Bins, density: Any, n: int, rng: np.random.Generator):
         rho = population(bins, density)
         labels = rng.choice(bins.K, size=n, p=rho)
         multi = np.unravel_index(labels, bins.shape)
-        vals = [e[j] + np.diff(e)[j] * rng.random(n) for e, j in zip(bins.edges, multi, strict=True)]
+        vals = [
+            e[j] + np.diff(e)[j] * rng.random(n) for e, j in zip(bins.edges, multi, strict=True)
+        ]
         values = vals[0] if bins.ndim == 1 else np.stack(vals, axis=1)
         return values, labels
     # fine grid inverse-CDF (piecewise-constant) sampling
     fine = [np.linspace(e[0], e[-1], 20 * (len(e) - 1) + 1) for e in bins.edges]
     fb = Bins.grid(*fine)
-    pts = fb.centers if fb.ndim > 1 else fb.centers
+    pts = fb.centers
     dens = np.clip(np.asarray(f(pts), dtype=float).ravel(), 0.0, None) * fb.volumes
     cell = rng.choice(fb.K, size=n, p=dens / dens.sum())
     multi = np.unravel_index(cell, fb.shape)
@@ -234,8 +236,9 @@ def mock_1d(
         lo, hi = bins.range[0]
         bad = gen.random(n_objects) < outlier_fraction
         obs[bad] = gen.uniform(lo, hi, size=int(bad.sum()))
-    lk = Likelihoods.from_gaussian(obs, sigma, bins, selection=selection,
-                                   selection_mode=None if selection is None else "true")
+    lk = Likelihoods.from_gaussian(
+        obs, sigma, bins, selection=selection, selection_mode=None if selection is None else "true"
+    )
     counts = np.bincount(labels, minlength=bins.K).astype(float)
     truth = Truth(rho=rho, labels=labels, values=values, counts=counts, n_drawn=n_drawn)
     mock = Mock(bins, lk, truth, {"mean": obs, "sigma": sigma})
@@ -256,8 +259,9 @@ def mock_1d(
         mock.posteriors = P / P.sum(axis=1, keepdims=True)
         mock.interim_prior = Pi
     if n_samples > 0:
-        mock.samples = _posterior_samples_1d(obs, sigma, bins, pi_dens, mock.interim_prior,
-                                             n_samples, gen)  # fmt: skip
+        mock.samples = _posterior_samples_1d(
+            obs, sigma, bins, pi_dens, mock.interim_prior, n_samples, gen
+        )
         if mock.interim_prior is None:
             mock.interim_prior = population(bins, "uniform")
     return mock
@@ -329,8 +333,9 @@ def mock_2d(
     values, labels, n_drawn = _draw_selected(bins, density, n_objects, selection, gen)
     sigma = _noise(noise, n_objects, gen, shape=(2,))
     obs = values + sigma * gen.standard_normal(values.shape)
-    lk = Likelihoods.from_gaussian(obs, sigma, bins, selection=selection,
-                                   selection_mode=None if selection is None else "true")
+    lk = Likelihoods.from_gaussian(
+        obs, sigma, bins, selection=selection, selection_mode=None if selection is None else "true"
+    )
     counts = np.bincount(labels, minlength=bins.K).astype(float)
     truth = Truth(rho=rho, labels=labels, values=values, counts=counts, n_drawn=n_drawn)
     return Mock(bins, lk, truth, {"mean": obs, "sigma": sigma})
@@ -357,8 +362,11 @@ def mock_categorical(
     """
     gen = as_generator(rng)
     C = int(n_classes)
-    prev = (np.arange(1, C + 1, dtype=float) ** 2) if prevalence is None else np.asarray(
-        prevalence, dtype=float)  # fmt: skip
+    prev = (
+        (np.arange(1, C + 1, dtype=float) ** 2)
+        if prevalence is None
+        else np.asarray(prevalence, dtype=float)
+    )
     prev = prev / prev.sum()
     pi = np.full(C, 1.0 / C) if train_prior is None else np.asarray(train_prior, dtype=float)
     pi = pi / pi.sum()
@@ -417,9 +425,14 @@ def mock_unfolding(
     counts = np.histogram(reco[observed], bins=re)[0].astype(float)
     lk = Likelihoods.from_response(counts, R, bins=tb)
     true_lab = tb.index(z[observed])
-    truth = Truth(rho=rho, labels=true_lab, values=z[observed],
-                  counts=np.bincount(true_lab, minlength=n_true).astype(float),
-                  n_drawn=n_events, extra={"response": R, "reco_edges": re})  # fmt: skip
+    truth = Truth(
+        rho=rho,
+        labels=true_lab,
+        values=z[observed],
+        counts=np.bincount(true_lab, minlength=n_true).astype(float),
+        n_drawn=n_events,
+        extra={"response": R, "reco_edges": re},
+    )
     return Mock(tb, lk, truth, {"reco_counts": counts})
 
 

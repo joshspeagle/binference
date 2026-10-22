@@ -71,7 +71,9 @@ def loglike_and_counts(L, w: np.ndarray, rho: np.ndarray) -> tuple[float, np.nda
     return ll, n_hat, s
 
 
-def responsibilities(L, rho: np.ndarray, idx=None, chunk: int | None = DEFAULT_CHUNK) -> np.ndarray:
+def responsibilities(
+    L, rho: np.ndarray, idx=None, chunk: int | None = DEFAULT_CHUNK
+) -> np.ndarray:
     """Per-object posterior over bins given ``rho``: ``r_ik = L_ik rho_k / (L_i . rho)``.
 
     Returns a dense ``(n, K)`` array for the selected objects ``idx`` (all by

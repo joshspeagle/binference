@@ -71,5 +71,11 @@ class Bootstrap(Engine):
             ApproximationWarning,
             stacklevel=2,
         )
-        return PopulationResult(m, out[None], method="bootstrap", kind=m.kind, approximate=True,
-                                info={"kind": self.kind, "estimate": base.value})  # fmt: skip
+        return PopulationResult(
+            m,
+            out[None],
+            method="bootstrap",
+            kind=m.kind,
+            approximate=True,
+            info={"kind": self.kind, "estimate": base.value},
+        )

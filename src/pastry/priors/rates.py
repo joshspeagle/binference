@@ -4,7 +4,10 @@ With rates :math:`\lambda_k` (expected number of objects in bin ``k``) the
 data form an inhomogeneous Poisson process and selection enters as an exposure
 :math:`S_k`:
 
-.. math:: p(\lambda \mid D) \propto p(\lambda)\, e^{-S\cdot\lambda} \prod_i (L_i\cdot\lambda)^{w_i}.
+.. math::
+
+    p(\lambda \mid D) \propto p(\lambda)\, e^{-S\cdot\lambda}
+    \prod_i (L_i\cdot\lambda)^{w_i}.
 
 Independent Gamma priors stay conjugate given latent bin labels.
 """

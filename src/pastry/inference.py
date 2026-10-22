@@ -105,8 +105,9 @@ def infer(
             raise ValueError("Pass prior/selection/bins when building the model, not to infer().")
         model = likelihoods
     else:
-        model = PopulationModel(likelihoods, prior, selection=selection,
-                                selection_mode=selection_mode, bins=bins)  # fmt: skip
+        model = PopulationModel(
+            likelihoods, prior, selection=selection, selection_mode=selection_mode, bins=bins
+        )
     key = str(method).lower()
     if key == "auto":
         key = _auto_method(model)

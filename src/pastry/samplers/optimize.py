@@ -137,7 +137,7 @@ class MAP(Engine):
         f_old = self._objective(v, weights)
         converged = False
         n_iter = 0
-        for n_iter in range(1, self.max_iter + 1):
+        for n_iter in range(1, self.max_iter + 1):  # noqa: B007 (used after the loop)
             if self.accelerate:
                 v_new, f_new = self._squarem_step(F, v, weights, fractions)
             else:

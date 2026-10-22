@@ -109,8 +109,9 @@ class InverseGamma(Hyperprior):
         self.b = float(b)
 
     def logpdf_u(self, u: float) -> float:
-        return float(self.a * np.log(self.b) - special.gammaln(self.a) - self.a * u
-                     - self.b * np.exp(-u))  # fmt: skip
+        return float(
+            self.a * np.log(self.b) - special.gammaln(self.a) - self.a * u - self.b * np.exp(-u)
+        )
 
     def dlogpdf_u(self, u: float) -> float:
         return float(-self.a + self.b * np.exp(-u))
@@ -132,8 +133,9 @@ class Gamma(Hyperprior):
         self.b = float(b)
 
     def logpdf_u(self, u: float) -> float:
-        return float(self.a * np.log(self.b) - special.gammaln(self.a) + self.a * u
-                     - self.b * np.exp(u))  # fmt: skip
+        return float(
+            self.a * np.log(self.b) - special.gammaln(self.a) + self.a * u - self.b * np.exp(u)
+        )
 
     def dlogpdf_u(self, u: float) -> float:
         return float(self.a - self.b * np.exp(u))

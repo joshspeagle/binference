@@ -58,7 +58,7 @@ class MeanFieldVB(Engine):
         mean_old = prior.vb_mean(state)
         converged = False
         it = 0
-        for it in range(1, self.max_iter + 1):
+        for it in range(1, self.max_iter + 1):  # noqa: B007 (used after the loop)
             elog = prior.vb_expected_log(state)
             t = np.exp(elog - np.max(elog))
             _, nhat, _ = kern.loglike_and_counts(m._L, m._w, t)
@@ -87,5 +87,6 @@ class MeanFieldVB(Engine):
             stacklevel=2,
         )
         info = {"n_iter": it, "converged": converged, "state": state}
-        return PopulationResult(self.model, draws[None], method="vb", kind=self.model.kind,
-                                approximate=True, info=info)  # fmt: skip
+        return PopulationResult(
+            self.model, draws[None], method="vb", kind=self.model.kind, approximate=True, info=info
+        )

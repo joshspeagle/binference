@@ -108,10 +108,11 @@ ignore = [
     "RUF003",
     "PERF203", # try/except in loops is fine where used
     "SIM108",
+    "SIM300",  # flags comparisons with upper-case (matrix) names as Yoda conditions
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["PT011", "B011"]
+"tests/**" = ["PT011", "B011", "PT018"]
 "docs/**" = ["E402", "B018"]
 
 [tool.ruff.format]

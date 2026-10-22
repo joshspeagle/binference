@@ -73,8 +73,9 @@ def test_gradients_match_finite_differences(prior, mode, lk6, rng):
         lp, g = m.log_prob_and_grad(x)
         assert np.isfinite(lp)
         h = 1e-6
-        fd = np.array([(m.log_prob(x + h * e) - m.log_prob(x - h * e)) / (2 * h)
-                       for e in np.eye(m.dim)])  # fmt: skip
+        fd = np.array(
+            [(m.log_prob(x + h * e) - m.log_prob(x - h * e)) / (2 * h) for e in np.eye(m.dim)]
+        )
         np.testing.assert_allclose(g, fd, rtol=1e-4, atol=1e-4 * max(1.0, np.abs(fd).max()))
 
 
@@ -128,8 +129,9 @@ def test_selection_attached_to_likelihoods_is_used(lk6):
     assert m.selection_mode == "true"
     np.testing.assert_allclose(m.selection, S)
     # explicit selection overrides
-    m2 = PopulationModel(lk6.with_selection(S, "true"), selection=np.ones(6),
-                         selection_mode="observed")  # fmt: skip
+    m2 = PopulationModel(
+        lk6.with_selection(S, "true"), selection=np.ones(6), selection_mode="observed"
+    )
     assert m2.selection_mode == "observed"
 
 

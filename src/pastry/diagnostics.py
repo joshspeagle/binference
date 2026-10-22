@@ -278,10 +278,16 @@ def psis(log_weights: Any) -> tuple[np.ndarray, float]:
 # model-specific diagnostics
 # ----------------------------------------------------------------------------
 def kkt_gap(model: Any, value: Any, include_prior: bool = True) -> float:
-    """First-order optimality violation of a point estimate (see :meth:`PopulationModel.kkt_gap`)."""
+    """First-order optimality violation of a point estimate.
+
+    See :meth:`pastry.PopulationModel.kkt_gap`.
+    """
     return model.kkt_gap(np.asarray(value, dtype=float), include_prior=include_prior)
 
 
 def missing_information(model: Any, value: Any, **kwargs: Any) -> float:
-    """Largest fraction of missing information (see :meth:`PopulationModel.missing_information`)."""
+    """Largest fraction of missing information.
+
+    See :meth:`pastry.PopulationModel.missing_information`.
+    """
     return model.missing_information(np.asarray(value, dtype=float), **kwargs)

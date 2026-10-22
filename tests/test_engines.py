@@ -34,8 +34,9 @@ def dirichlet_moments(a):
 # --------------------------------------------------------------------- NUTS
 def test_nuts_matches_exact(k3_problem):
     mock, exact = k3_problem
-    res = pastry.infer(mock.likelihoods, rng=1, n_chains=2, n_warmup=400, n_samples=1500,
-                       check=False)  # fmt: skip
+    res = pastry.infer(
+        mock.likelihoods, rng=1, n_chains=2, n_warmup=400, n_samples=1500, check=False
+    )
     assert res.method == "nuts" and not res.approximate
     assert_matches_reference(res, exact.mean, exact.std)
     for k in range(3):
@@ -47,8 +48,16 @@ def test_nuts_matches_exact(k3_problem):
 def test_nuts_onehot_is_conjugate(onehot, metric):
     lk, counts = onehot
     alpha = np.array([1.0, 2.0, 0.5, 1.5])
-    res = pastry.infer(lk, P.Dirichlet(alpha), rng=2, n_chains=2, n_warmup=300,
-                       n_samples=1500, metric=metric, check=False)  # fmt: skip
+    res = pastry.infer(
+        lk,
+        P.Dirichlet(alpha),
+        rng=2,
+        n_chains=2,
+        n_warmup=300,
+        n_samples=1500,
+        metric=metric,
+        check=False,
+    )
     mean, sd = dirichlet_moments(alpha + counts)
     assert_matches_reference(res, mean, sd)
 
@@ -89,8 +98,15 @@ def test_nuts_validation():
 
 def test_nuts_logistic_prior_runs():
     mock = pastry.simulate.mock_1d(300, Bins.linear(0, 3, 8), rng=4)
-    res = pastry.infer(mock.likelihoods, P.LogisticRandomWalk(order=2), rng=1, n_chains=2,
-                       n_warmup=200, n_samples=200, check=False)  # fmt: skip
+    res = pastry.infer(
+        mock.likelihoods,
+        P.LogisticRandomWalk(order=2),
+        rng=1,
+        n_chains=2,
+        n_warmup=200,
+        n_samples=200,
+        check=False,
+    )
     assert res.samples.shape == (400, 8)
     assert "scale" in res.info["hyperparameters"]
 
@@ -98,8 +114,9 @@ def test_nuts_logistic_prior_runs():
 # -------------------------------------------------------------------- Gibbs
 def test_gibbs_matches_exact(k3_problem):
     mock, exact = k3_problem
-    res = pastry.infer(mock.likelihoods, method="gibbs", rng=3, n_samples=3000, n_warmup=200,
-                       check=False)  # fmt: skip
+    res = pastry.infer(
+        mock.likelihoods, method="gibbs", rng=3, n_samples=3000, n_warmup=200, check=False
+    )
     assert_matches_reference(res, exact.mean, exact.std)
 
 
@@ -112,11 +129,13 @@ def test_gibbs_onehot_is_conjugate(onehot):
 
 def test_gibbs_selection_matches_exact(k3_selection_problem):
     mock, exact = k3_selection_problem
-    res = pastry.infer(mock.likelihoods, method="gibbs", rng=5, n_samples=3000, n_warmup=200,
-                       check=False)  # fmt: skip
+    res = pastry.infer(
+        mock.likelihoods, method="gibbs", rng=5, n_samples=3000, n_warmup=200, check=False
+    )
     assert_matches_reference(res, exact.mean, exact.std)
-    nuts = pastry.infer(mock.likelihoods, rng=5, n_chains=2, n_warmup=300, n_samples=1500,
-                        check=False)  # fmt: skip
+    nuts = pastry.infer(
+        mock.likelihoods, rng=5, n_chains=2, n_warmup=300, n_samples=1500, check=False
+    )
     assert_matches_reference(nuts, exact.mean, exact.std)
 
 
@@ -124,8 +143,9 @@ def test_gibbs_rates_agree_with_nuts(k3_selection_problem):
     mock, _ = k3_selection_problem
     prior = P.GammaRates(1.0, 1e-3)
     g = pastry.infer(mock.likelihoods, prior, method="gibbs", rng=6, n_samples=3000, check=False)
-    n = pastry.infer(mock.likelihoods, prior, rng=6, n_chains=2, n_warmup=300, n_samples=1500,
-                     check=False)  # fmt: skip
+    n = pastry.infer(
+        mock.likelihoods, prior, rng=6, n_chains=2, n_warmup=300, n_samples=1500, check=False
+    )
     assert g.rates is not None and n.rates is not None
     np.testing.assert_allclose(g.rates.mean(0), n.rates.mean(0), rtol=0.06)
     np.testing.assert_allclose(g.rates.std(0), n.rates.std(0), rtol=0.15)
@@ -136,8 +156,9 @@ def test_gibbs_rates_agree_with_nuts(k3_selection_problem):
 def test_gibbs_tree_priors_agree_with_nuts(prior):
     mock = pastry.simulate.mock_1d(200, Bins.linear(0, 3, 4), noise=(0.2, 0.6), rng=9)
     g = pastry.infer(mock.likelihoods, prior, method="gibbs", rng=7, n_samples=3000, check=False)
-    n = pastry.infer(mock.likelihoods, prior, rng=7, n_chains=2, n_warmup=300, n_samples=1500,
-                     check=False)  # fmt: skip
+    n = pastry.infer(
+        mock.likelihoods, prior, rng=7, n_chains=2, n_warmup=300, n_samples=1500, check=False
+    )
     assert_matches_reference(g, n.mean, n.std, z=6, sd_rtol=0.2)
 
 
@@ -193,8 +214,12 @@ def test_map_mle_matches_scipy(k3_problem):
         r /= r.sum()
         return -np.log(L @ r).sum()
 
-    ref = optimize.minimize(nll, np.zeros(3), method="Nelder-Mead",
-                            options={"xatol": 1e-10, "fatol": 1e-12, "maxiter": 20000})  # fmt: skip
+    ref = optimize.minimize(
+        nll,
+        np.zeros(3),
+        method="Nelder-Mead",
+        options={"xatol": 1e-10, "fatol": 1e-12, "maxiter": 20000},
+    )
     r_ref = np.exp(ref.x - ref.x.max())
     np.testing.assert_allclose(est.rho, r_ref / r_ref.sum(), atol=1e-5)
 

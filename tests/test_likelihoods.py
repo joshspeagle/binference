@@ -36,8 +36,13 @@ def test_sparse_input_matches_dense():
 
 @pytest.mark.parametrize(
     "bad",
-    [np.array([[1.0, -1.0]]), np.array([[1.0, np.nan]]), np.array([[1.0, np.inf]]),
-     np.array([1.0, 2.0]), np.array([[1.0]])],  # fmt: skip
+    [
+        np.array([[1.0, -1.0]]),
+        np.array([[1.0, np.nan]]),
+        np.array([[1.0, np.inf]]),
+        np.array([1.0, 2.0]),
+        np.array([[1.0]]),
+    ],
 )
 def test_invalid_values(bad):
     with pytest.raises(ValueError):
@@ -87,7 +92,7 @@ def test_mass_vs_density_representation():
 def test_from_posteriors_requires_interim_prior():
     bins = Bins.linear(0, 1, 3)
     with pytest.raises(TypeError):
-        Likelihoods.from_posteriors(np.ones((2, 3)), bins)  # noqa: missing argument
+        Likelihoods.from_posteriors(np.ones((2, 3)), bins)  # missing interim prior
 
 
 def test_from_posteriors_removes_interim_prior(rng):
@@ -101,9 +106,12 @@ def test_from_posteriors_removes_interim_prior(rng):
     np.testing.assert_allclose(ratio / ratio[:, :1], 1.0, rtol=1e-12)
     # density representations give the same result
     lk2 = Likelihoods.from_posteriors(
-        P / bins.volumes, bins, pi / bins.volumes, representation="density",
+        P / bins.volumes,
+        bins,
+        pi / bins.volumes,
+        representation="density",
         interim_representation="density",
-    )  # fmt: skip
+    )
     np.testing.assert_allclose(lk2.toarray(), lk.toarray(), rtol=1e-12)
     # a callable density that is constant within bins gives the same masses
     dens = pi / bins.volumes
@@ -131,7 +139,7 @@ def test_representation_warning_on_unequal_bins():
 
 
 def test_unequal_bins_representation_matters():
-    """With unequal bins the right representation recovers the population; the wrong one biases it."""
+    """Unequal bins: the right representation recovers the population, the wrong one biases it."""
     rng = np.random.default_rng(0)
     bins = Bins([0.0, 0.2, 0.4, 1.0, 2.0])
     rho = np.array([0.1, 0.2, 0.3, 0.4])
@@ -220,7 +228,9 @@ def test_from_distributions_matches_gaussian():
     bins = Bins([0.0, 0.3, 1.0, 1.2])
     mu, sig = np.array([0.5, 0.1]), np.array([0.2, 0.05])
     a = Likelihoods.from_gaussian(mu, sig, bins)
-    b = Likelihoods.from_distributions([stats.norm(m, s) for m, s in zip(mu, sig)], bins)
+    b = Likelihoods.from_distributions(
+        [stats.norm(m, s) for m, s in zip(mu, sig, strict=True)], bins
+    )
     np.testing.assert_allclose(b.toarray(), a.toarray(), rtol=1e-9, atol=1e-60)
 
     class OnlyLogpdf:
@@ -231,7 +241,7 @@ def test_from_distributions_matches_gaussian():
             return self.d.logpdf(x)
 
     c = Likelihoods.from_distributions(
-        [OnlyLogpdf(stats.norm(m, s)) for m, s in zip(mu, sig)], bins, n_sub=12
+        [OnlyLogpdf(stats.norm(m, s)) for m, s in zip(mu, sig, strict=True)], bins, n_sub=12
     )
     np.testing.assert_allclose(c.toarray(), a.toarray(), rtol=2e-3, atol=1e-6)
     with pytest.raises(ValueError):
@@ -261,7 +271,10 @@ def test_from_response():
     np.testing.assert_allclose(lk.toarray(), R[[0, 2]] / R[[0, 2]].max(1, keepdims=True))
     assert lk.selection.mode == "observed"
     np.testing.assert_allclose(lk.selection.values, R.sum(0))
-    assert Likelihoods.from_response(counts, R / R.sum(0), efficiency="from_response").selection is None
+    assert (
+        Likelihoods.from_response(counts, R / R.sum(0), efficiency="from_response").selection
+        is None
+    )
     assert Likelihoods.from_response(counts, R, efficiency=None).selection is None
 
 

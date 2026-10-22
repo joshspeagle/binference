@@ -112,8 +112,9 @@ def test_vb_expected_log(prior, rng):
 def test_dirichlet_constructors():
     assert np.allclose(P.Dirichlet.reference().resolve_alpha(B4), 0.25)
     assert np.allclose(P.Dirichlet.reference(4).resolve_alpha(B4), 0.25)
-    np.testing.assert_allclose(P.Dirichlet.from_counts([1, 0, 3], strength=0.5).resolve_alpha(B3),
-                               [1.5, 1.0, 2.5])  # fmt: skip
+    np.testing.assert_allclose(
+        P.Dirichlet.from_counts([1, 0, 3], strength=0.5).resolve_alpha(B3), [1.5, 1.0, 2.5]
+    )
     b = Bins([0.0, 1.0, 3.0])
     np.testing.assert_allclose(P.Dirichlet.from_base_measure(3.0).resolve_alpha(b), [1.0, 2.0])
     with pytest.raises(ValueError):
@@ -191,8 +192,9 @@ def test_gamma_rates(rng):
     counts, S = np.array([4.0, 0.0, 10.0]), np.array([1.0, 2.0, 0.5])
     post = np.array([b.posterior_sample(counts, rng, exposure=S) for _ in range(40000)])
     np.testing.assert_allclose(post.mean(0), (a + counts) / (bb + S), rtol=0.02)
-    np.testing.assert_allclose(b.map_from_counts(counts, S),
-                               np.maximum(a + counts - 1, 0) / (bb + S))  # fmt: skip
+    np.testing.assert_allclose(
+        b.map_from_counts(counts, S), np.maximum(a + counts - 1, 0) / (bb + S)
+    )
     lam = np.array([1.0, 2.0, 0.3])
     lp = b.log_density(lam)
     assert lp == pytest.approx(stats.gamma.logpdf(lam, a, scale=1 / bb).sum())
@@ -204,7 +206,8 @@ def test_gamma_rates(rng):
 
 
 @pytest.mark.parametrize(
-    "h", [P.HalfNormal(1.5), P.LogNormal(0.3, 0.7), P.InverseGamma(3.0, 2.0), P.Gamma(2.0, 3.0)],
+    "h",
+    [P.HalfNormal(1.5), P.LogNormal(0.3, 0.7), P.InverseGamma(3.0, 2.0), P.Gamma(2.0, 3.0)],
     ids=repr,
 )
 def test_hyperpriors(h, rng):
@@ -248,7 +251,7 @@ def test_logistic_gradients(prior, rng):
         d_eta = rng.normal(size=6)
         d_eta -= d_eta.mean()  # likelihood gradients w.r.t. softmax logits sum to zero
 
-        def f(xx):
+        def f(xx, d_eta=d_eta):
             eta, cache = b.forward(xx)
             lp, _ = b.log_prior_and_grad(xx, cache, softmax(eta), d_eta)
             return lp + float(d_eta @ eta)

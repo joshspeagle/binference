@@ -101,13 +101,25 @@ def plot_population(
                 break
             lo, hi = np.quantile(X, [0.5 - lev / 2, 0.5 + lev / 2], axis=0)
             if step:
-                ax.fill_between(edges, np.append(lo, lo[-1]), np.append(hi, hi[-1]),
-                                step="post", color=color, alpha=alpha, lw=0)  # fmt: skip
+                ax.fill_between(
+                    edges,
+                    np.append(lo, lo[-1]),
+                    np.append(hi, hi[-1]),
+                    step="post",
+                    color=color,
+                    alpha=alpha,
+                    lw=0,
+                )
             else:
                 ax.fill_between(centers, lo, hi, color=color, alpha=alpha, lw=0)
         if step:
-            ax.step(edges, np.append(med, med[-1]), where="post", color=color,
-                    label=label or "posterior median")  # fmt: skip
+            ax.step(
+                edges,
+                np.append(med, med[-1]),
+                where="post",
+                color=color,
+                label=label or "posterior median",
+            )
         else:
             ax.plot(centers, med, color=color, label=label or "posterior median")
         if truth is not None:
@@ -186,7 +198,9 @@ def plot_corner(
     return fig
 
 
-def plot_trace(result: Any, idx: Sequence[int] | None = None, *, max_bins: int = 4, fig: Any = None):
+def plot_trace(
+    result: Any, idx: Sequence[int] | None = None, *, max_bins: int = 4, fig: Any = None
+):
     """Trace plots of the fractions in selected bins, one line per chain."""
     plt = _plt()
     C = result.chains
@@ -194,8 +208,9 @@ def plot_trace(result: Any, idx: Sequence[int] | None = None, *, max_bins: int =
         idx = np.sort(np.argsort(-C.reshape(-1, C.shape[-1]).mean(axis=0))[:max_bins])
     idx = list(idx)
     if fig is None:
-        fig, axes = plt.subplots(len(idx), 1, figsize=(8, 1.8 * len(idx)), sharex=True,
-                                 squeeze=False)  # fmt: skip
+        fig, axes = plt.subplots(
+            len(idx), 1, figsize=(8, 1.8 * len(idx)), sharex=True, squeeze=False
+        )
     else:
         axes = np.asarray(fig.subplots(len(idx), 1, sharex=True, squeeze=False))
     for a, k in zip(axes[:, 0], idx, strict=True):
@@ -225,10 +240,20 @@ def plot_individual(result: Any, i: int, ax: Any = None, n_draws: int = 200):
     else:
         edges = bins.edges[0]
         vol = bins.volumes
-        ax.step(edges, np.append(own / vol, own[-1] / vol[-1]), where="post", color="0.5",
-                label="own likelihood (flat prior)")  # fmt: skip
-        ax.step(edges, np.append(shrunk / vol, shrunk[-1] / vol[-1]), where="post", color="C3",
-                label="hierarchical posterior")  # fmt: skip
+        ax.step(
+            edges,
+            np.append(own / vol, own[-1] / vol[-1]),
+            where="post",
+            color="0.5",
+            label="own likelihood (flat prior)",
+        )
+        ax.step(
+            edges,
+            np.append(shrunk / vol, shrunk[-1] / vol[-1]),
+            where="post",
+            color="C3",
+            label="hierarchical posterior",
+        )
         ax.set_xlabel("bin coordinate")
     ax.set_ylabel("posterior density")
     ax.legend(frameon=False)

@@ -161,5 +161,12 @@ class Laplace(Engine):
                 stacklevel=2,
             )
         vals = m.transform(X)
-        return PopulationResult(m, vals[None], method="laplace", kind=m.kind, x=X[None],
-                                approximate=approximate, info=info)  # fmt: skip
+        return PopulationResult(
+            m,
+            vals[None],
+            method="laplace",
+            kind=m.kind,
+            x=X[None],
+            approximate=approximate,
+            info=info,
+        )

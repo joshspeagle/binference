@@ -72,9 +72,8 @@ class Summary:
         lines = [self.title] if self.title else []
         lines.append("  ".join(n.rjust(w) for n, w in zip(names, widths, strict=True)))
         max_rows = 40
-        shown = rows if len(rows) <= max_rows else rows[:20] + [["..."] * len(names)] + rows[-19:]
-        for r in shown:
-            lines.append("  ".join(c.rjust(w) for c, w in zip(r, widths, strict=True)))
+        shown = rows if len(rows) <= max_rows else [*rows[:20], ["..."] * len(names), *rows[-19:]]
+        lines.extend("  ".join(c.rjust(w) for c, w in zip(r, widths, strict=True)) for r in shown)
         return "\n".join(lines)
 
     _repr_html_ = None
@@ -222,8 +221,11 @@ class _IndividualMixin:
         from .likelihoods import Likelihoods
 
         model = self._require_model()
-        lk = likelihoods if isinstance(likelihoods, Likelihoods) else Likelihoods(
-            likelihoods, model.bins)  # fmt: skip
+        lk = (
+            likelihoods
+            if isinstance(likelihoods, Likelihoods)
+            else Likelihoods(likelihoods, model.bins)
+        )
         if lk.K != model.K:
             raise ValueError("New likelihoods must use the same bins.")
         R = self._select_draws(n_draws)
@@ -244,8 +246,11 @@ class _IndividualMixin:
         from .likelihoods import Likelihoods
 
         model = self._require_model()
-        lk = likelihoods if isinstance(likelihoods, Likelihoods) else Likelihoods(
-            likelihoods, model.bins)  # fmt: skip
+        lk = (
+            likelihoods
+            if isinstance(likelihoods, Likelihoods)
+            else Likelihoods(likelihoods, model.bins)
+        )
         R = self._select_draws(n_draws)
         S = np.asarray(model.effective_likelihoods(lk) @ R.T)  # (N_new, n_draws)
         if model.selection is not None and model.kind == "fractions":
@@ -324,8 +329,14 @@ class PopulationResult(_IndividualMixin):
         info: dict[str, Any] | None = None,
     ) -> PopulationResult:
         """Wrap draws from an external sampler (fractions or rates, per chain or flat)."""
-        return cls(model, np.asarray(samples, dtype=float), method=method, kind=model.kind,
-                   approximate=approximate, info=info)  # fmt: skip
+        return cls(
+            model,
+            np.asarray(samples, dtype=float),
+            method=method,
+            kind=model.kind,
+            approximate=approximate,
+            info=info,
+        )
 
     def attach(self, likelihoods_or_model: Any) -> PopulationResult:
         """Attach likelihoods (or a model) to a loaded result to enable per-object methods."""
@@ -492,8 +503,15 @@ class PopulationResult(_IndividualMixin):
             out["ess_tail"] = np.array([diag.ess(C[:, :, k], "tail") for k in range(self.K)])
             if self.n_chains >= 2:
                 out["rhat"] = np.array([diag.rhat(C[:, :, k]) for k in range(self.K)])
-        for key in ("n_divergent", "k_hat", "kkt_gap", "max_depth_fraction",
-                    "missing_information", "converged", "ebfmi"):  # fmt: skip
+        for key in (
+            "n_divergent",
+            "k_hat",
+            "kkt_gap",
+            "max_depth_fraction",
+            "missing_information",
+            "converged",
+            "ebfmi",
+        ):
             if key in self.info:
                 out[key] = self.info[key]
         self._cache["diagnostics"] = out
@@ -587,7 +605,10 @@ class PopulationResult(_IndividualMixin):
 
     @classmethod
     def load(cls, path: str) -> PopulationResult:
-        """Load a result saved with :meth:`save` (re-``attach`` likelihoods for per-object methods)."""
+        """Load a result saved with :meth:`save`.
+
+        Re-:meth:`attach` the likelihoods to use the per-object methods.
+        """
         from .io import load_result
 
         return load_result(path)

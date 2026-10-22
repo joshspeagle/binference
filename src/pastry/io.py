@@ -120,9 +120,11 @@ def to_datatree(result: PopulationResult):
     try:
         import xarray as xr
     except ImportError as err:  # pragma: no cover - depends on environment
-        raise ImportError("to_datatree needs xarray: pip install 'pastry-inference[xarray]'.") from err
+        raise ImportError(
+            "to_datatree needs xarray: pip install 'pastry-inference[xarray]'."
+        ) from err
     C = result.chains
-    n_chains, n_draws, K = C.shape
+    n_chains, n_draws, _ = C.shape
     from .results import _bin_labels
 
     coords = {
@@ -133,8 +135,11 @@ def to_datatree(result: PopulationResult):
     data_vars = {"rho": (("chain", "draw", "bin"), C)}
     if result.rates is not None:
         data_vars["rate"] = (("chain", "draw", "bin"), result._draws)
-    post = xr.Dataset(data_vars, coords=coords, attrs={"method": result.method,
-                                                       "approximate": int(result.approximate)})  # fmt: skip
+    post = xr.Dataset(
+        data_vars,
+        coords=coords,
+        attrs={"method": result.method, "approximate": int(result.approximate)},
+    )
     groups = {"posterior": post}
     stats = {
         k: (("chain", "draw"), np.asarray(v))
@@ -144,5 +149,7 @@ def to_datatree(result: PopulationResult):
     if result.log_prob is not None and np.shape(result.log_prob) == (n_chains, n_draws):
         stats["lp"] = (("chain", "draw"), np.asarray(result.log_prob))
     if stats:
-        groups["sample_stats"] = xr.Dataset(stats, coords={k: coords[k] for k in ("chain", "draw")})
+        groups["sample_stats"] = xr.Dataset(
+            stats, coords={k: coords[k] for k in ("chain", "draw")}
+        )
     return xr.DataTree.from_dict(groups)

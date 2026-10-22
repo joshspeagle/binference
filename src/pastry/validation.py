@@ -72,7 +72,9 @@ def exact_posterior(
     if not isinstance(model, PopulationModel):
         model = PopulationModel(model, prior)
     if model.kind != "fractions" or not model.prior.has_density:
-        raise ValueError("exact_posterior needs a fractions model with a closed-form prior density.")
+        raise ValueError(
+            "exact_posterior needs a fractions model with a closed-form prior density."
+        )
     K = model.K
     u = (np.arange(n_grid) + 0.5) / n_grid
     if K == 2:
