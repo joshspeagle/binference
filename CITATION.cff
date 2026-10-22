@@ -1,0 +1,52 @@
+cff-version: 1.2.0
+message: "If you use pastry, please cite it as below, together with the method papers relevant to your application."
+title: "pastry: population and hierarchical inference with PDFs"
+abstract: >-
+  pastry infers population distributions over bins, and the posteriors of
+  individual objects, from heteroscedastic per-object likelihoods, posteriors
+  or posterior samples, using an exact hierarchical Bayesian model with
+  smoothness priors, selection effects and built-in validation.
+type: software
+authors:
+  - family-names: Speagle
+    given-names: Joshua S.
+version: 0.1.0.dev0
+license: MIT
+repository-code: "https://github.com/joshspeagle/pastry"
+keywords:
+  - Bayesian inference
+  - hierarchical models
+  - population inference
+  - deconvolution
+  - Dirichlet
+  - photometric redshifts
+  - unfolding
+references:
+  - type: article
+    title: "Hierarchical Bayesian inference of galaxy redshift distributions from photometric surveys"
+    authors:
+      - family-names: Leistedt
+        given-names: Boris
+      - family-names: Mortlock
+        given-names: Daniel J.
+      - family-names: Peiris
+        given-names: Hiranya V.
+    journal: "Monthly Notices of the Royal Astronomical Society"
+    volume: 460
+    start: 4258
+    year: 2016
+    doi: "10.1093/mnras/stw1304"
+  - type: article
+    title: "Inferring the eccentricity distribution"
+    authors:
+      - family-names: Hogg
+        given-names: David W.
+      - family-names: Myers
+        given-names: Adam D.
+      - family-names: Bovy
+        given-names: Jo
+    journal: "The Astrophysical Journal"
+    volume: 725
+    start: 2166
+    year: 2010
+    doi: "10.1088/0004-637X/725/2/2166"
