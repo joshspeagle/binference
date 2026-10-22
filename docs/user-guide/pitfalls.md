@@ -144,3 +144,9 @@ $\hat R>1.01$, low effective sample sizes or NUTS divergences mean the draws
 do not yet represent the posterior. `pastry.infer` warns by default, so do not
 silence `ConvergenceWarning` without reading it. Run longer, or switch to NUTS
 if Gibbs mixes slowly.
+
+A few isolated divergences among thousands of draws are usually harmless if
+$\hat R$ and the effective sample sizes are fine. Divergences that persist
+with a higher `target_accept` mark a region the sampler cannot explore, such
+as the funnel described above: change the prior or its hyperprior rather
+than ignore them.

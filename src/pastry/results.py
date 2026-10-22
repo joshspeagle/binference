@@ -606,8 +606,13 @@ class PopulationResult(_IndividualMixin):
                 hint += f" (missing information {f:.2f}: autocorrelation time {tau_text})"
             hints.append(hint + "; run longer or use method='nuts'")
         if d.get("n_divergent", 0):
-            msgs.append(f"{d['n_divergent']} divergent transitions")
-            hints.append("try a higher target_accept, e.g. 0.95")
+            n_div = int(d["n_divergent"])
+            share = 100.0 * n_div / max(self.n_draws, 1)
+            msgs.append(f"{n_div} divergent transitions ({share:.2g}% of draws)")
+            hints.append(
+                "try a higher target_accept, e.g. 0.95; divergences that persist mark a "
+                "region the sampler cannot explore (see the pitfalls guide)"
+            )
         if d.get("k_hat", 0) > 0.7:
             msgs.append(f"Pareto k-hat = {d['k_hat']:.2f} > 0.7 (importance sampling unreliable)")
         if d.get("max_depth_fraction", 0) > 0.05:

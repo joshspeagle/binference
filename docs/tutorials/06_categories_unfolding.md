@@ -106,8 +106,18 @@ or a regularisation strength by hand.
 lk_u = pastry.Likelihoods.from_response(counts, R, bins=mu.bins)
 print(lk_u, lk_u.selection)
 flat = pastry.infer(lk_u, rng=1, n_samples=500, n_warmup=500)
-smooth = pastry.infer(lk_u, pastry.priors.LogisticGP(), rng=1)
+smooth = pastry.infer(lk_u, pastry.priors.LogisticGP(), rng=1, check=False)
+d = smooth.diagnostics
+print(f"divergent: {d['n_divergent']} of {smooth.n_draws}, max R-hat {d['rhat'].max():.3f}, "
+      f"min bulk ESS {d['ess_bulk'].min():.0f}")
 ```
+
+`check=False` stops `infer` from warning so that we can look at the
+diagnostics ourselves. One transition out of 4000 diverged, which `infer`
+would have flagged. The R-hat and effective sample sizes are fine, and an
+isolated divergence like this is usually harmless. Many divergences, or
+divergences that persist with a higher `target_accept`, would mean the
+sampler cannot explore part of the posterior ({doc}`/user-guide/pitfalls`).
 
 ```{code-cell} python
 truth = mu.truth.rho
