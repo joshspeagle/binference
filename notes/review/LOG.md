@@ -98,3 +98,4 @@ Append-only. One entry per working session (or per step within a long session).
   zero-weight rows make EM reset or collapse under bootstrap weights).
 
 - Audit report received and committed: nuts-laplace (15 findings, no bug-major; NUTS matches Stan; main item: results of logistic-prior fits expose the internal centred coordinates in `x`, `log_prob`, `model`).
+- Audit report received and committed: priors (22 findings; core math correct; LogisticGP defaults misbehave on log bins (P-1), K > 48 (P-2), long length scales (P-3); DirichletTree per-node alpha crash (P-4)). Note: this OpenBLAS is pathologically slow multi-threaded for eigh; use OPENBLAS_NUM_THREADS=1 for experiments.
