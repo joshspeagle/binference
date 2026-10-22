@@ -240,7 +240,7 @@ class Likelihoods:
             norm = norm[keep] if not sp.issparse(norm) else sp.csr_array(norm)[keep]
             log_scale = log_scale[keep]
             weights = weights[keep]
-            meta = {**meta, "dropped": bad}
+            meta = _slice_per_object({**meta, "dropped": bad}, keep)
             if norm.shape[0] == 0:
                 raise ValueError("No objects left after dropping empty rows.")
         self._values = norm
@@ -341,8 +341,7 @@ class Likelihoods:
 
     def to_sparse(self, rtol: float = 0.0) -> Likelihoods:
         """Copy with sparse CSR storage, dropping entries below ``rtol`` (relative to row max)."""
-        dense = None if self.is_sparse else self._values
-        M = sp.csr_array(self._values) if dense is None else sp.csr_array(dense)
+        M = sp.csr_array(self._values, copy=True)  # never touch this object's storage
         if rtol > 0:
             M.data[M.data < rtol] = 0.0
         M.eliminate_zeros()
@@ -361,7 +360,7 @@ class Likelihoods:
             self._bins,
             self._weights[rows],
             self._selection,
-            {**self.meta, "subset_of": self.N},
+            _slice_per_object({**self.meta, "subset_of": self.N}, rows),
         )
 
     def with_weights(self, weights: Any) -> Likelihoods:
@@ -397,7 +396,8 @@ class Likelihoods:
         ls = np.bincount(inverse, weights=self._weights * self._log_scale, minlength=uniq.shape[0])
         rows = dense[np.unique(inverse, return_index=True)[1]] if decimals is not None else uniq
         vals = sp.csr_array(rows) if self.is_sparse else rows
-        meta = {**self.meta, "compressed_from": self.N}
+        meta = {k: v for k, v in self.meta.items() if k not in _PER_OBJECT_KEYS}
+        meta["compressed_from"] = self.N
         return Likelihoods._from_parts(vals, ls / w, self._bins, w, self._selection, meta)
 
     def stack(self, interim_prior: InterimPrior = "flat") -> np.ndarray:
@@ -437,7 +437,7 @@ class Likelihoods:
         interim_prior: InterimPrior,
         *,
         representation: Representation = "mass",
-        interim_representation: Representation = "mass",
+        interim_representation: Representation | None = None,
         weights: Any = None,
         selection: Any = None,
         selection_mode: str | None = None,
@@ -465,8 +465,9 @@ class Likelihoods:
         representation : {"mass", "density"}
             Whether ``posteriors`` are probabilities per bin (``"mass"``,
             default) or densities evaluated at bin centres (``"density"``).
-        interim_representation : {"mass", "density"}
-            Same for an array-valued ``interim_prior``.
+        interim_representation : {"mass", "density"}, optional
+            Same for an array-valued ``interim_prior``. Defaults to
+            ``representation``: masses with masses, densities with densities.
         """
         P = posteriors
         if sp.issparse(P):
@@ -487,6 +488,8 @@ class Likelihoods:
         _check_posterior_representation(P, vol, representation)
         if representation == "density":
             P = _scale_columns(P, vol)
+        if interim_representation is None:
+            interim_representation = representation
         Pi = _interim_masses(interim_prior, bins, interim_representation)
         zero = Pi <= 0
         if np.any(zero):
@@ -589,12 +592,8 @@ class Likelihoods:
             selection_mode=selection_mode,
             drop_empty=drop_empty,
         )
-        lk.meta.update(
-            source="samples",
-            n_eff=n_eff,
-            outside_fraction=outside,
-            interim_prior_masses=Pi,
-        )
+        lk.meta.update(source="samples", interim_prior_masses=Pi)
+        _attach_per_object(lk, n_eff=n_eff, outside_fraction=outside)
         return lk
 
     @classmethod
@@ -667,6 +666,8 @@ class Likelihoods:
             drop_empty=drop_empty,
         )
         lk.meta.update(source="gaussian")
+        # kept so that true values can be drawn from the likelihood within bins
+        _attach_per_object(lk, gaussian_mean=mu, gaussian_sigma=np.array(sig))
         return lk
 
     @classmethod
@@ -821,21 +822,32 @@ class Likelihoods:
     ) -> Likelihoods:
         r"""HEP-style unfolding input: observed counts and a response matrix.
 
-        With ``response[j, k] = P(reco bin j | true bin k)``, every event
-        observed in reco bin *j* has likelihood row ``response[j]``; rows are
-        weighted by the observed counts. The efficiency
-        :math:`\epsilon_k = \sum_j R_{jk}` (the probability that an event in
-        true bin *k* is observed at all) becomes the selection function, unless
-        ``efficiency`` is given explicitly (or ``None`` to ignore it).
+        Every event observed in reco bin *j* has likelihood row
+        :math:`p(\text{reco } j,\ \text{observed} \mid \text{true } k)`, and rows
+        are weighted by the observed counts. Two conventions are supported:
+
+        * ``efficiency="from_response"`` (default): ``response[j, k] =
+          P(reco j, observed | true k)`` already includes the efficiency, so
+          its columns sum to :math:`\epsilon_k \le 1`.
+        * ``efficiency=eps``: ``response`` is a *migration* matrix
+          ``P(reco j | true k, observed)`` whose columns sum to one, and ``eps``
+          is the efficiency per true bin. The likelihood rows are then
+          ``response[j, k] * eps[k]``.
+
+        Either way the efficiency becomes the selection function, in
+        ``"observed"`` mode because it is already folded into the rows. Pass
+        ``efficiency=None`` to ignore selection altogether.
 
         Parameters
         ----------
         counts : array_like, shape (J,)
             Observed counts per reco bin (non-negative).
         response : array_like, shape (J, K)
-            Response matrix.
+            Response or migration matrix (see above).
         bins : Bins, optional
             True-spectrum bins (default ``Bins.categories(K)``).
+        efficiency : "from_response", array_like (K,), or None
+            How to obtain the efficiency (see above).
         """
         c = np.asarray(counts, dtype=float).ravel()
         R = np.asarray(response, dtype=float)
@@ -845,18 +857,34 @@ class Likelihoods:
             raise ValueError("counts must be finite and non-negative.")
         if np.any(R < 0) or not np.all(np.isfinite(R)):
             raise ValueError("response must be finite and non-negative.")
+        col = R.sum(axis=0)
+        if np.any(col > 1.0 + 1e-6):
+            raise ValueError(
+                "Columns of the response matrix sum to more than one, so they are not "
+                "probabilities P(reco j | true k). Normalise each column by the number of "
+                "simulated events generated in that true bin."
+            )
         keep = c > 0
         eff: np.ndarray | None
         if isinstance(efficiency, str):
             if efficiency != "from_response":
                 raise ValueError("efficiency must be 'from_response', an array, or None.")
-            eff = R.sum(axis=0)
-            if np.allclose(eff, 1.0):
-                eff = None
+            eff = None if np.allclose(col, 1.0) else col
         elif efficiency is None:
             eff = None
         else:
-            eff = np.asarray(efficiency, dtype=float)
+            eff = np.asarray(efficiency, dtype=float).ravel()
+            if eff.shape != (R.shape[1],):
+                raise ValueError("efficiency must have one value per true bin.")
+            if not np.allclose(col[col > 0], 1.0, atol=1e-3):
+                warnings.warn(
+                    "With an explicit efficiency the response should be a migration matrix "
+                    "whose columns sum to one; these columns do not, so the efficiency may "
+                    "be counted twice.",
+                    InputWarning,
+                    stacklevel=2,
+                )
+            R = R * eff[None, :]
         sel = None if eff is None else Selection(eff, "observed")
         lk = cls(R[keep], bins, weights=c[keep], selection=sel)
         lk.meta.update(source="response", reco_bins_used=np.flatnonzero(keep))
@@ -893,10 +921,33 @@ class Likelihoods:
 # ----------------------------------------------------------------------------
 # module-level helpers used by the class
 # ----------------------------------------------------------------------------
+#: ``meta`` entries holding one value per object (row); they follow subsets and
+#: dropped rows, and are discarded when rows are merged by ``compress``.
+_PER_OBJECT_KEYS = ("n_eff", "outside_fraction", "gaussian_mean", "gaussian_sigma")
+
+
+def _slice_per_object(meta: dict[str, Any], rows: Any) -> dict[str, Any]:
+    out = dict(meta)
+    for key in _PER_OBJECT_KEYS:
+        if key in out:
+            out[key] = np.asarray(out[key])[rows]
+    return out
+
+
+def _attach_per_object(lk: Likelihoods, **arrays: np.ndarray) -> None:
+    """Store per-object arrays aligned with the rows that survived ``drop_empty``."""
+    dropped = lk.meta.get("dropped")
+    for key, arr in arrays.items():
+        arr = np.asarray(arr)
+        if dropped is not None and len(dropped):
+            arr = np.delete(arr, dropped, axis=0)
+        lk.meta[key] = arr
+
+
 def _normalise_linear(values: Any):
     """Validate non-negative values and normalise rows to max 1."""
     if sp.issparse(values):
-        L = sp.csr_array(values, dtype=float)
+        L = sp.csr_array(values, dtype=float, copy=True)  # do not modify the caller's matrix
         L.sum_duplicates()
         if L.data.size and (not np.all(np.isfinite(L.data)) or np.any(L.data < 0)):
             raise ValueError("Likelihood values must be finite and non-negative.")

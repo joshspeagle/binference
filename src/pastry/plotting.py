@@ -49,13 +49,18 @@ def _draws(result: Any, which: str) -> np.ndarray:
     raise ValueError("which must be 'density', 'fraction' or 'rate'.")
 
 
-def _to_which(values: np.ndarray, bins: Any, which: str) -> np.ndarray:
+def _to_which(values: np.ndarray, bins: Any, which: str, total: float = 1.0) -> np.ndarray:
+    """Overlay values (fractions or rates) on the scale of the plotted posterior.
+
+    Overlays are normalised and multiplied by ``total``, the posterior mean total
+    rate for rate models (1 otherwise), so only their shape is compared.
+    """
     v = np.asarray(values, dtype=float)
-    if which == "density":
-        v = v / v.sum() / bins.volumes
-    elif which == "fraction":
-        v = v / v.sum()
-    return v
+    v = v / v.sum()
+    if which == "fraction":
+        return v
+    v = v * total
+    return v / bins.volumes if which == "density" else v
 
 
 def plot_population(
@@ -82,13 +87,16 @@ def plot_population(
     levels : sequence of float
         Central credible levels shown as nested bands.
     truth, stack : array_like (K,), optional
-        True fractions and a naive stacked estimate to overlay (fractions;
-        converted to ``which``).
+        True fractions and a naive stacked estimate to overlay. Only their
+        shape is used: for rate models they are scaled to the posterior mean
+        total rate.
     """
     plt = _plt()
     bins = result.bins
     X = _draws(result, which)
     med = np.median(X, axis=0)
+    rates = getattr(result, "rates", None)
+    total = 1.0 if rates is None else float(np.mean(np.sum(np.atleast_2d(rates), axis=-1)))
     if bins.ndim == 2 and not bins.is_categorical:
         return _plot_2d(result, X, plt, ax)
     if ax is None:
@@ -101,10 +109,15 @@ def plot_population(
         if X.shape[0] > 1:
             ax.errorbar(x, med, yerr=[med - lo, hi - med], fmt="none", ecolor=INK, capsize=3)
         if truth is not None:
-            ax.plot(x, _to_which(truth, bins, which), "D", color=INK, ms=6, label="truth")
+            ax.plot(x, _to_which(truth, bins, which, total), "D", color=INK, ms=6, label="truth")
         if stack is not None:
             ax.plot(
-                x, _to_which(stack, bins, which), "s", color=STACK_COLOR, ms=6, label="stacked"
+                x,
+                _to_which(stack, bins, which, total),
+                "s",
+                color=STACK_COLOR,
+                ms=6,
+                label="stacked",
             )
         ax.set_xticks(x, [str(lab) for lab in bins.labels], rotation=45, ha="right")
     else:
@@ -137,12 +150,12 @@ def plot_population(
         else:
             ax.plot(centers, med, color=color, lw=1.5, label=lab)
         if truth is not None:
-            t = _to_which(truth, bins, which)
+            t = _to_which(truth, bins, which, total)
             ax.step(
                 edges, np.append(t, t[-1]), where="post", color=INK, lw=1.5, ls="--", label="truth"
             )
         if stack is not None:
-            s = _to_which(stack, bins, which)
+            s = _to_which(stack, bins, which, total)
             ax.step(
                 edges,
                 np.append(s, s[-1]),

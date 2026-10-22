@@ -139,7 +139,7 @@ Compare how well each fit predicts galaxies it has not seen:
 train, test = lk[:1500], lk[1500:]
 lp = {}
 for name, prior in [("Dirichlet", None), ("GP", pastry.priors.LogisticGP())]:
-    fit = pastry.infer(train, prior, rng=2, n_samples=500, n_warmup=500)
+    fit = pastry.infer(train, prior, rng=2)
     lp[name] = fit.log_predictive(test).sum()
 print({k: round(v, 1) for k, v in lp.items()})
 ```

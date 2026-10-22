@@ -139,13 +139,14 @@ def test_hessian_helpers():
 
 
 def test_nuts_reparametrises_logistic_priors_without_touching_the_model():
-    mock = pastry.simulate.mock_1d(300, Bins.linear(0, 3, 8), rng=2)
+    mock = pastry.simulate.mock_1d(5000, Bins.linear(0, 3, 8), noise=(0.05, 0.1), rng=2)
     m = PopulationModel(mock.likelihoods, P.LogisticRandomWalk(order=1))
-    eng = NUTS(m, n_chains=2, n_warmup=60, rng=1)
+    eng = NUTS(m, n_chains=2, n_warmup=150, rng=1)
     assert eng.metric == "dense" and eng.target_accept == 0.9
     res = eng.run(40)
     assert np.all(m.prior.lam == 1.0)  # the user's model keeps its parametrisation
-    assert not np.all(eng.model.prior.lam == 1.0)
+    assert eng.model is not m
+    assert not np.all(eng.model.prior.lam == 1.0)  # strong data: some modes centred
     assert res.model is eng.model
     # draws map to the same fractions under the engine's parametrisation
     np.testing.assert_allclose(eng.model.to_value(res.x[0, -1]), res.chains[0, -1])
@@ -320,12 +321,51 @@ def test_map_mle_matches_scipy(k3_problem):
 def test_map_squarem_faster_than_em():
     mock = pastry.simulate.mock_1d(1000, Bins.linear(0, 3, 15), noise=(0.3, 0.6), rng=1)
     m = PopulationModel(mock.likelihoods)
-    fast = MAP(m, accelerate=True).run()
+    fast = MAP(m, algorithm="em", accelerate=True).run()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", pastry.ConvergenceWarning)
-        slow = MAP(m, accelerate=False, max_iter=100000).run()
+        slow = MAP(m, algorithm="em", accelerate=False, max_iter=100000).run()
     np.testing.assert_allclose(fast.rho, slow.rho, atol=2e-4)
     assert fast.n_iter * 5 < slow.n_iter
+
+
+@pytest.mark.parametrize("alpha", [1.0, 2.5])
+@pytest.mark.parametrize("sparse", [False, True])
+def test_mixsqp_matches_em_and_is_certified(alpha, sparse):
+    mock = pastry.simulate.mock_1d(1500, Bins.linear(0, 3, 20), noise=(0.2, 0.5), rng=3)
+    lk = mock.likelihoods.to_sparse(1e-8) if sparse else mock.likelihoods
+    m = PopulationModel(lk, P.Dirichlet(alpha))
+    sqp = MAP(m).run()
+    assert sqp.info["algorithm"] == "mixsqp"
+    assert sqp.converged and sqp.kkt_gap < 1e-7 and sqp.n_iter < 50
+    em = MAP(m, algorithm="em", max_iter=200000).run()
+    # EM crawls along flat directions of sparse maximum-likelihood solutions, so the
+    # better-certified mix-SQP optimum is the reference
+    np.testing.assert_allclose(sqp.rho, em.rho, atol=1e-3)
+    assert sqp.log_posterior >= em.log_posterior - 1e-8
+    # weighted fits (used by the bootstrap) agree too
+    w = np.random.default_rng(0).poisson(1.0, lk.N).astype(float)
+    np.testing.assert_allclose(
+        MAP(m).run(weights=w).rho,
+        MAP(m, algorithm="em", max_iter=200000).run(weights=w).rho,
+        atol=1e-3,
+    )
+
+
+def test_mixsqp_low_rank_path_and_fallbacks():
+    mock = pastry.simulate.mock_1d(6000, Bins.linear(0, 3, 30), noise=(0.1, 0.3), rng=4)
+    m = PopulationModel(mock.likelihoods)  # tall and dense: low-rank Hessian
+    est = MAP(m).run()
+    assert est.info["algorithm"] == "mixsqp" and est.kkt_gap < 1e-7
+    # selection or tree priors fall back to EM; asking for mix-SQP there is an error
+    sel = PopulationModel(
+        mock.likelihoods, selection=np.linspace(1, 0.5, 30), selection_mode="true"
+    )
+    assert MAP(sel).run().info["algorithm"] == "squarem"
+    with pytest.raises(ValueError, match="mix-SQP"):
+        MAP(sel, algorithm="mixsqp").run()
+    with pytest.raises(ValueError):
+        MAP(m, algorithm="newton")
 
 
 def test_map_is_em_fixed_point(k3_problem):

@@ -125,6 +125,9 @@ class _BoundGammaRates(BoundPrior):
         S = self._exposure(exposure)
         return _gamma_draw(self.a + counts, self.b + S, rng)
 
+    def unbounded_density(self):
+        return bool(np.any(self.a < 1.0))
+
     def map_from_counts(self, counts, exposure=None):
         S = self._exposure(exposure)
         return np.maximum(self.a + np.asarray(counts, float) - 1.0, 0.0) / (self.b + S)

@@ -21,6 +21,12 @@ class Bootstrap(Engine):
 
     ``kind="nonparametric"`` resamples objects with replacement;
     ``kind="bayesian"`` reweights them with Dirichlet weights (Rubin 1981).
+    Integer weights are multiplicities, so a row of weight ``w`` stands for
+    ``w`` objects that are resampled individually. For rate models the number
+    of objects is itself random: objects get Poisson(1) counts (or Gamma(1)
+    weights), so the total rate varies between replicates. Every replicate is
+    fitted from an interior starting point.
+
     The result is the sampling distribution of an estimator, not a posterior:
     it is flagged ``approximate=True``. Useful for frequentist intervals and
     comparisons with unfolding / empirical-Bayes practice.
@@ -46,24 +52,40 @@ class Bootstrap(Engine):
         self.tol = float(tol)
         self.max_iter = int(max_iter)
 
+    def _replicate_weights(self, w: np.ndarray, integer: bool, rates: bool) -> np.ndarray:
+        rng = self.rng
+        N = w.size
+        if self.kind == "nonparametric":
+            if integer:  # resample the underlying objects, not the rows
+                if rates:
+                    return rng.poisson(w).astype(float)
+                W = round(float(w.sum()))
+                return rng.multinomial(W, w / w.sum()).astype(float)
+            counts = rng.poisson(1.0, size=N) if rates else rng.multinomial(N, np.full(N, 1 / N))
+            return w * counts
+        # Bayesian bootstrap: a row of multiplicity w gets a Gamma(w, 1) weight (a sum of
+        # w Exp(1) weights); fractions renormalise to the original total
+        g = rng.gamma(w, 1.0) if integer else w * rng.gamma(1.0, 1.0, size=N)
+        return g if rates else g * (w.sum() / g.sum())
+
     def run(self, n_samples: int = 200) -> PopulationResult:
         """Return ``n_samples`` bootstrap replicates of the estimate."""
         m = self.model
         w = m.likelihoods.weights
-        N = m.N
+        integer = bool(np.all(np.abs(w - np.round(w)) < 1e-9))
+        rates = m.kind == "rates"
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", ConvergenceWarning)
             base = MAP(m, tol=self.tol, max_iter=self.max_iter).run()
+        # EM cannot revive components that are exactly (or nearly) zero, and maximum
+        # likelihood estimates on grids are often sparse: start replicates inside
+        start = 0.5 * base.value + 0.5 * base.value.mean()
         out = np.empty((int(n_samples), m.K))
         for b in progress(range(int(n_samples)), n_samples, "Bootstrap", self.progress):
-            if self.kind == "nonparametric":
-                wb = w * self.rng.multinomial(N, np.full(N, 1.0 / N))
-            else:
-                g = self.rng.gamma(1.0, 1.0, size=N)
-                wb = w * g * (N / g.sum())
+            wb = self._replicate_weights(w, integer, rates)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", ConvergenceWarning)
-                est = MAP(m, tol=self.tol, max_iter=self.max_iter, init=base.value).run(weights=wb)
+                est = MAP(m, tol=self.tol, max_iter=self.max_iter, init=start).run(weights=wb)
             out[b] = est.value
         warnings.warn(
             "Bootstrap replicates describe the sampling distribution of the MAP estimator, not "

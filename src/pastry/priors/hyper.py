@@ -135,23 +135,27 @@ class InverseGamma(Hyperprior):
         if not 0 < tail < 0.5:
             raise ValueError("tail must be in (0, 0.5).")
 
-        def resid(v):
-            a, b = np.exp(v)
-            # CDF of the inverse gamma: Q(a, b / x) (regularised upper incomplete gamma)
-            return [
-                special.gammaincc(a, b / lower) - tail,
-                special.gammaincc(a, b / upper) - (1.0 - tail),
-            ]
+        # The tail conditions fix b = lower * Qinv(a, tail) = upper * Qinv(a, 1 - tail)
+        # (Qinv: inverse regularised upper incomplete gamma). The ratio
+        # Qinv(a, tail) / Qinv(a, 1 - tail) falls monotonically from infinity to 1 as a
+        # grows, so a follows from a bracketed one-dimensional root.
+        target = np.log(upper / lower)
 
-        # moment-matched starting point from a log-normal with the same quantiles
-        z = special.ndtri(1.0 - tail)
-        sig = (np.log(upper) - np.log(lower)) / (2.0 * z)
-        a0 = max(1.0 / (np.expm1(sig**2)) + 2.0, 1.5)
-        b0 = np.sqrt(lower * upper) * (a0 - 1.0)
-        sol = optimize.root(resid, [np.log(a0), np.log(b0)], method="hybr")
-        if not sol.success or np.max(np.abs(resid(sol.x))) > 1e-6:
-            raise RuntimeError("Could not match the requested quantiles.")
-        a, b = np.exp(sol.x)
+        def h(log_a):
+            a = np.exp(log_a)
+            with np.errstate(divide="ignore"):  # tiny a: the lower quantile underflows
+                return (
+                    np.log(special.gammainccinv(a, tail))
+                    - np.log(special.gammainccinv(a, 1.0 - tail))
+                    - target
+                )
+
+        lo_, hi_ = np.log(1e-3), np.log(1e7)
+        if not (h(lo_) > 0 > h(hi_)):
+            raise ValueError("Cannot match these quantiles with an inverse gamma.")
+        log_a = optimize.brentq(h, lo_, hi_, xtol=1e-12)
+        a = float(np.exp(log_a))
+        b = float(lower * special.gammainccinv(a, tail))
         return cls(a, b)
 
 
