@@ -110,3 +110,4 @@ Append-only. One entry per working session (or per step within a long session).
   Answer: it can; it amounts to separating the model's internal resolution
   from the reporting bins. Analysis parked in QUESTIONS for the Phase 3/7
   design discussion.
+- Audit report received and committed: tests-docs (20 findings; slow statistical tests too weak: pass an ~18%-too-narrow posterior at the shipped seed (T-1); SBC never covers hyperparameters, GP, selection, rates, trees, Laplace (T-2); mix-SQP RuntimeWarning with mixed alpha=1/alpha>1 (T-4); several docs-vs-code contradictions). All seven audit reports are in (135 findings in total).
