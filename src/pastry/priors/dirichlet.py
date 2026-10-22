@@ -29,15 +29,23 @@ _TINY = 1e-300
 
 
 def _dirichlet_draw(alpha: np.ndarray, rng: np.random.Generator, size: int | None = None):
-    """Dirichlet draws that stay finite for very small concentrations."""
-    out = rng.dirichlet(alpha, size=size)
-    bad = ~np.all(np.isfinite(out), axis=-1)
-    if np.any(bad):  # pragma: no cover - only for pathological alphas
-        g = rng.gamma(alpha + 1.0, 1.0, size=out[bad].shape)
-        logu = np.log(rng.random(size=g.shape)) / alpha
-        lg = np.log(g) + logu
-        out[bad] = np.exp(lg - special.logsumexp(lg, axis=-1, keepdims=True))
-    return out
+    """Dirichlet draws without exact zeros, even for tiny concentrations.
+
+    For ``min(alpha) < 1`` the Gamma variates are drawn in log space using
+    ``Gamma(a) = Gamma(a + 1) * U**(1/a)``; ordinary draws underflow to exactly 0
+    (e.g. about 12% of ``Gamma(0.003)`` draws), which would make ``log(rho)``
+    infinite. Components are floored at 1e-300.
+    """
+    alpha = np.asarray(alpha, dtype=float)
+    shape = alpha.shape if size is None else (int(size), *alpha.shape)
+    if np.min(alpha) >= 1.0:
+        g = rng.standard_gamma(alpha, size=shape)
+        out = g / g.sum(axis=-1, keepdims=True)
+    else:
+        lg = np.log(rng.standard_gamma(alpha + 1.0, size=shape))
+        lg += np.log(rng.random(size=shape)) / alpha
+        out = np.exp(lg - special.logsumexp(lg, axis=-1, keepdims=True))
+    return np.maximum(out, _TINY)
 
 
 class _SimplexBound(BoundPrior):
@@ -344,7 +352,8 @@ class _BoundTree(_SimplexBound):
         return lp, g
 
     def sample(self, n, rng):
-        return self.tree.compose(self.tree.draw_theta(self.tree.slot_alpha, rng, size=n))
+        theta = self.tree.draw_theta(self.tree.slot_alpha, rng, size=n)
+        return np.maximum(self.tree.compose(theta), _TINY)
 
     def log_density(self, value):
         t = self.tree
@@ -383,7 +392,9 @@ class _BoundTree(_SimplexBound):
 
     def posterior_sample(self, counts, rng, exposure=None):
         t = self.tree
-        return t.compose(t.draw_theta(t.slot_alpha + t.slot_counts(counts), rng))
+        return np.maximum(
+            t.compose(t.draw_theta(t.slot_alpha + t.slot_counts(counts), rng)), _TINY
+        )
 
     def map_from_counts(self, counts, exposure=None):
         # Mode of (prior density on the simplex) x prod rho^counts. The log-density is

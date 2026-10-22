@@ -13,7 +13,6 @@ import warnings
 
 import numpy as np
 import pytest
-from scipy import stats
 
 import pastry
 from pastry import Bins, Likelihoods, PopulationModel
@@ -82,20 +81,19 @@ def test_coverage_gibbs():
     assert np.all(np.abs(rates - cov.levels[:, None]) < 4 * se), rates
 
 
-def _emission(K, J, rng):
-    E = rng.dirichlet(np.full(J, 0.7), size=K)
-    return E
+def _geweke_z_scores(selection, augment_missed=True):
+    """Marginal-conditional vs successive-conditional simulation of (rho, data).
 
-
-@pytest.mark.parametrize("selection", [None, np.array([0.9, 0.5, 0.25])])
-def test_geweke_getting_it_right(selection):
-    """Marginal-conditional vs successive-conditional simulation of (rho, data)."""
+    Returns z-scores comparing the means of rho, rho**2 and the data histogram.
+    ``augment_missed=False`` deliberately breaks the Gibbs kernel under
+    selection (the missed objects are not imputed) as a negative control.
+    """
     rng = np.random.default_rng(31)
     K, J, N = 3, 4, 12
-    E = _emission(K, J, rng)
+    E = rng.dirichlet(np.full(J, 0.7), size=K)  # emission probabilities p(d | bin)
     alpha = np.array([1.5, 1.0, 2.0])
     prior = P.Dirichlet(alpha).bind(Bins.categories(K))
-    S = np.ones(K) if selection is None else selection
+    S = np.ones(K) if selection is None else np.asarray(selection)
 
     def draw_data(z, g):
         u = g.random(z.size)[:, None]
@@ -121,7 +119,7 @@ def test_geweke_getting_it_right(selection):
     for t in range(T):
         L = E[:, d].T * S  # effective likelihoods (selection mode "true")
         counts, z = kern.sample_counts(L, np.ones(N), rho, rng, unit_weights=True)
-        if selection is not None:
+        if selection is not None and augment_missed:
             n_missed = rng.negative_binomial(N, S @ rho)
             if n_missed:
                 qm = rho * (1 - S)
@@ -134,8 +132,19 @@ def test_geweke_getting_it_right(selection):
     batches = sc[: (T // nb) * nb].reshape(nb, -1, sc.shape[1]).mean(axis=1)
     se_sc = batches.std(axis=0, ddof=1) / np.sqrt(nb)
     se_mc = mc.std(axis=0, ddof=1) / np.sqrt(M)
-    z_scores = (sc.mean(0) - mc.mean(0)) / np.sqrt(se_sc**2 + se_mc**2)
+    return (sc.mean(0) - mc.mean(0)) / np.sqrt(se_sc**2 + se_mc**2)
+
+
+@pytest.mark.parametrize("selection", [None, (0.9, 0.5, 0.25)])
+def test_geweke_getting_it_right(selection):
+    z_scores = _geweke_z_scores(selection)
     assert np.all(np.abs(z_scores) < 4.5), z_scores
+
+
+def test_geweke_has_power_against_a_broken_kernel():
+    """Negative control: forgetting the missed objects under selection must be detected."""
+    z_scores = _geweke_z_scores((0.9, 0.5, 0.25), augment_missed=False)
+    assert np.max(np.abs(z_scores)) > 8.0, z_scores
 
 
 def test_gibbs_and_nuts_agree_on_larger_problem():
@@ -148,12 +157,19 @@ def test_gibbs_and_nuts_agree_on_larger_problem():
     np.testing.assert_allclose(g.std, n.std, rtol=0.25)
 
 
+# The recovery tests draw true values uniformly within bins (density given as bin
+# fractions), so the histogram model is exactly right. With a continuous density
+# and coarse bins the piecewise-constant model is misspecified and, for large N,
+# the resulting binning bias exceeds the statistical errors (see the docs).
 def test_recovery_with_interim_prior_posteriors():
     """Posterior means vs true population over many mocks: standardised residuals ~ N(0, 1)."""
     bins = Bins.linear(0, 3, 6)
+    rho_true = pastry.simulate.population(bins, "gaussian")
     zs = []
     for s in range(40):
-        mock = pastry.simulate.mock_1d(800, bins, interim_prior="gaussian", rng=1000 + s)
+        mock = pastry.simulate.mock_1d(
+            800, bins, density=rho_true, interim_prior="gaussian", rng=1000 + s
+        )
         lk = Likelihoods.from_posteriors(mock.posteriors, bins, mock.interim_prior)
         res = pastry.infer(lk, method="gibbs", rng=s, n_samples=500, check=False)
         zs.append((res.mean - mock.truth.rho) / res.std)
@@ -165,31 +181,45 @@ def test_recovery_with_interim_prior_posteriors():
 def test_interim_prior_regression():
     """Feeding posteriors as likelihoods biases the population toward the interim prior."""
     bins = Bins.linear(0, 3, 6)
-    mock = pastry.simulate.mock_1d(20000, bins, interim_prior="gaussian", noise=(0.3, 0.6), rng=5)
-    right = pastry.infer(
-        Likelihoods.from_posteriors(mock.posteriors, bins, mock.interim_prior), method="map"
-    ).rho
-    wrong = pastry.infer(Likelihoods(mock.posteriors, bins), method="map").rho
+    rho_true = pastry.simulate.population(bins, "bimodal")
+    mock = pastry.simulate.mock_1d(
+        20000, bins, density=rho_true, interim_prior="gaussian", noise=(0.3, 0.6), rng=5
+    )
+    lk_right = Likelihoods.from_posteriors(mock.posteriors, bins, mock.interim_prior)
+    lk_wrong = Likelihoods(mock.posteriors, bins)
+    right = pastry.infer(lk_right, method="gibbs", rng=1, n_samples=500, check=False)
+    wrong = pastry.infer(lk_wrong, method="gibbs", rng=2, n_samples=500, check=False)
     truth = mock.truth.rho
-    assert np.max(np.abs(right - truth)) < 0.03
-    # the wrong answer is pulled toward the interim prior
+    assert np.all(np.abs(right.mean - truth) < 4 * right.std)
+    assert np.max(np.abs(wrong.mean - truth) / wrong.std) > 8
+    # Using posteriors adds W log(pi . rho) to the log-likelihood, which drags the
+    # population toward where the interim prior is large.
     pi = mock.interim_prior
-    assert np.sum((wrong - pi) ** 2) < np.sum((right - pi) ** 2)
-    assert np.max(np.abs(wrong - truth)) > 0.05
+    assert pi @ wrong.mean > pi @ right.mean + 0.01
 
 
 def test_selection_recovery():
     bins = Bins.linear(0, 3, 4)
     S = np.array([0.95, 0.6, 0.35, 0.15])
+    rho_true = pastry.simulate.population(bins, "gaussian")
     zs = []
     for s in range(30):
         mock = pastry.simulate.mock_1d(
-            600, bins, density="gaussian", noise=(0.2, 0.5), selection=S, rng=2000 + s
+            600, bins, density=rho_true, noise=(0.2, 0.5), selection=S, rng=2000 + s
         )
         res = pastry.infer(mock.likelihoods, method="gibbs", rng=s, n_samples=500, check=False)
         zs.append((res.mean - mock.truth.rho) / res.std)
     zs = np.concatenate(zs)
-    assert abs(zs.mean()) < 0.25 and 0.7 < zs.std() < 1.3
+    assert abs(zs.mean()) < 0.25
+    assert 0.7 < zs.std() < 1.3
+
+
+def test_binning_bias_with_coarse_bins_is_real():
+    """A continuous population on coarse bins: the bias grows with N (documented pitfall)."""
+    bins = Bins.linear(0, 3, 6)
+    mock = pastry.simulate.mock_1d(20000, bins, density="bimodal", noise=(0.3, 0.6), rng=5)
+    res = pastry.infer(mock.likelihoods, method="gibbs", rng=1, n_samples=500, check=False)
+    assert np.max(np.abs(res.mean - mock.truth.rho) / res.std) > 4
 
 
 def test_vb_underestimates_widths_vs_nuts():
@@ -202,4 +232,3 @@ def test_vb_underestimates_widths_vs_nuts():
     # but its mean is in the right place on well-constrained bins
     model = PopulationModel(mock.likelihoods)
     assert model.missing_information(n.mean) > 0.9
-    _ = stats  # keep import for future tests

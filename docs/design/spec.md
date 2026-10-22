@@ -622,12 +622,15 @@ These were decided without the user's input so that work could proceed. Each is 
 
 ## Appendix B: lessons from the `frankenz` samplers
 
-Filled in from `research_notes/.../frankenz_audit.md`; see the landscape report and §3 above. In summary, so far:
+The full audit is in `research_notes/Population inference software landscape/frankenz_audit.md`; the landscape report summarises it. The findings that shape this spec:
 
-1. The population and hierarchical samplers target the same posterior for $\rho$ (§3.3).
-2. The notebooks' notation mixes likelihoods and posteriors.
-3. The "flexible reference" step is not the full conditional of a coherent joint model. It is replaced by §5.2's reference-centred logistic prior and §5.4's hierarchical Dirichlet.
-4. Further numerical findings are recorded in the audit.
+1. **Same target.** The population and hierarchical samplers target the same marginal posterior for $\rho$ (§3.3), so pastry offers one model with several engines rather than two models.
+2. **The hierarchical (data-augmentation Gibbs) sampler is exact** and is kept, vectorised, as `Gibbs` (§6). Its mixing degrades sharply once likelihoods are as wide as the bins (median autocorrelation time 7 → 180 sweeps), which is why NUTS is the default.
+3. **The pairwise population sampler is invalid**: its state-dependent proposal width lacks a Hastings factor and is frozen across inner steps, so it absorbs low-mass bins at ~1e-13 and inflates other SDs by 8–18%. Not ported; any future derivative-free kernel must pass the exact-K=3 and Geweke tests (test plan §2.6, §2.11).
+4. **The "flexible reference" step is not the full conditional of a coherent joint model** (Geweke max |z| = 70). It is replaced by the power prior `Dirichlet.from_counts(m, strength=λ)`, §5.2's reference-centred logistic prior and §5.4's hierarchical Dirichlet.
+5. **Inputs must be likelihoods**, and the likelihood factor is the bin *average* (§3.1). Posteriors require the interim prior (§4.2); unequal bins require an explicit `representation`.
+6. **Notation.** The notebooks use $P(z\mid g)$ for the population, the individual posterior and the likelihood. §3 replaces this with $\ell_i$, $L_{ik}$, $\pi_k$, $\rho$ and $r_{ik}$ throughout.
+7. **Software defects to avoid** (each now has a test): non-resumable runs, incomplete `reset`, global or legacy RNG state, bins frozen at exactly zero, exact-zero Dirichlet draws for small concentrations, and no input validation.
 
 ## Appendix C: key references
 

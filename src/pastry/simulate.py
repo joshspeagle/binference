@@ -223,6 +223,15 @@ def mock_1d(
         Fraction of measurements replaced by uniform draws over the range
         (the likelihoods ignore this: a misspecification test).
     rng : int, Generator or None
+
+    Notes
+    -----
+    With a named or callable density the true values follow that continuous
+    density, whereas the histogram model assumes the population is flat within
+    each bin. For coarse bins, measurement errors comparable to the bin width
+    and many objects, this *binning bias* can exceed the statistical errors.
+    Pass bin fractions (e.g. ``density=population(bins, "bimodal")``) to draw
+    values uniformly within bins, for which the model is exactly right.
     """
     gen = as_generator(rng)
     bins = Bins.linear(0.0, 3.0, 30) if bins is None else bins

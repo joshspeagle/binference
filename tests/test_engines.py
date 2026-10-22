@@ -32,6 +32,20 @@ def dirichlet_moments(a):
 
 
 # --------------------------------------------------------------------- NUTS
+@pytest.mark.parametrize("method", ["nuts", "gibbs"])
+def test_bin_without_likelihood_support_is_not_frozen(method):
+    """A bin no object can be in keeps its prior-driven mass alpha_k / (A + N) (frankenz F11)."""
+    rng = np.random.default_rng(3)
+    N, K = 300, 5
+    L = rng.random((N, K)) + 0.1
+    L[:, -1] = 0.0
+    lk = Likelihoods(L, Bins.linear(0, 1, K))
+    res = pastry.infer(lk, method=method, rng=1, n_samples=1000, check=False)
+    exact_mean = 1.0 / (K + N)  # rho_K | D ~ Beta(1, K - 1 + N) under Dir(1)
+    assert np.all(res.samples[:, -1] > 0)
+    assert res.mean[-1] == pytest.approx(exact_mean, rel=0.15)
+
+
 def test_nuts_matches_exact(k3_problem):
     mock, exact = k3_problem
     res = pastry.infer(
@@ -80,6 +94,16 @@ def test_nuts_reproducible_resumable_and_generator(onehot):
     info = res.info
     for key in ("accept_stat", "tree_depth", "diverging", "n_leapfrog", "energy", "step_size"):
         assert key in info
+
+
+@pytest.mark.parametrize("engine", [NUTS, Gibbs])
+def test_resuming_is_bitwise_identical_to_one_long_run(engine, onehot):
+    m = PopulationModel(onehot[0])
+    e1 = engine(m, n_chains=2, n_warmup=30, rng=4)
+    e1.run(20)
+    split = e1.run(15)
+    whole = engine(m, n_chains=2, n_warmup=30, rng=4).run(35)
+    np.testing.assert_array_equal(split.chains, whole.chains)
 
 
 def test_nuts_validation():

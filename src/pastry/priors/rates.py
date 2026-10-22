@@ -24,6 +24,21 @@ from .base import BoundPrior, Prior
 
 __all__ = ["GammaRates"]
 
+_TINY = 1e-300
+
+
+def _gamma_draw(shape, rate, rng: np.random.Generator, size=None) -> np.ndarray:
+    """Gamma(shape, rate) draws without exact zeros (log space for shape < 1)."""
+    shape = np.asarray(shape, dtype=float)
+    out_shape = np.broadcast_shapes(shape.shape, np.shape(rate)) if size is None else size
+    a = np.broadcast_to(shape, out_shape)
+    if np.min(a) >= 1.0:
+        g = rng.standard_gamma(a)
+    else:
+        lg = np.log(rng.standard_gamma(a + 1.0)) + np.log(rng.random(out_shape)) / a
+        g = np.exp(np.maximum(lg, np.log(_TINY)))
+    return np.maximum(g / rate, _TINY)
+
 
 class GammaRates(Prior):
     r"""Independent Gamma priors on per-bin rates, :math:`\lambda_k \sim \mathrm{Gamma}(a_k, b_k)`.
@@ -92,7 +107,7 @@ class _BoundGammaRates(BoundPrior):
         return np.log(lam)
 
     def sample(self, n, rng):
-        return rng.gamma(self.a, 1.0 / self.b, size=(n, self.K))
+        return _gamma_draw(self.a, self.b, rng, size=(n, self.K))
 
     def log_density(self, value):
         lam = np.asarray(value, dtype=float)
@@ -108,7 +123,7 @@ class _BoundGammaRates(BoundPrior):
 
     def posterior_sample(self, counts, rng, exposure=None):
         S = self._exposure(exposure)
-        return rng.gamma(self.a + counts, 1.0 / (self.b + S))
+        return _gamma_draw(self.a + counts, self.b + S, rng)
 
     def map_from_counts(self, counts, exposure=None):
         S = self._exposure(exposure)
@@ -124,7 +139,7 @@ class _BoundGammaRates(BoundPrior):
 
     def vb_sample(self, state, n, rng):
         a, b = state
-        return rng.gamma(a, 1.0 / b, size=(n, self.K))
+        return _gamma_draw(a, b, rng, size=(n, self.K))
 
     def vb_mean(self, state):
         a, b = state

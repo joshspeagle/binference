@@ -125,6 +125,24 @@ def test_dirichlet_constructors():
         P.Dirichlet("flat")
 
 
+def test_small_concentration_draws_have_no_exact_zeros(rng):
+    """Gamma(0.003) underflows to exactly 0 ~12% of the time in naive sampling."""
+    a = np.array([0.003, 0.003, 0.5, 2.0])
+    b = P.Dirichlet(a).bind(Bins.linear(0, 1, 4))
+    d = b.sample(20000, rng)
+    assert np.all(d > 0)
+    assert np.all(np.isfinite(b.log_density(d)))
+    A = a.sum()
+    np.testing.assert_allclose(d.mean(0), a / A, atol=0.01)
+    post = b.posterior_sample(np.zeros(4), rng)
+    assert np.all(post > 0)
+    tree = P.GeneralizedDirichlet(0.003).bind(Bins.linear(0, 1, 4))
+    assert np.all(tree.sample(2000, rng) > 0)
+    g = P.GammaRates(0.003, 1.0).bind(Bins.linear(0, 1, 4))
+    assert np.all(g.sample(2000, rng) > 0)
+    assert np.all(g.posterior_sample(np.zeros(4), rng) > 0)
+
+
 def test_dirichlet_moments_analytic(rng):
     a = np.array([0.5, 2.0, 4.0])
     d = P.Dirichlet(a).bind(B3).sample(100000, rng)
