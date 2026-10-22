@@ -26,8 +26,8 @@ The engines spend these differently:
   draws are correlated when likelihoods are broad, so compare *effective*
   samples per second.
 - **MAP** with a Dirichlet prior (the default) uses mix-SQP, which converges
-  in a handful of second-order iterations: about 2 s for $N=10^5$ objects and
-  $K=100$ bins. EM, used for the other conjugate priors, needs one pass per
+  in a handful of second-order iterations: a few seconds for $N=10^5$ objects
+  and $K=100$ bins. EM, used for the other conjugate priors, needs one pass per
   iteration and thousands of iterations when likelihoods are broad compared
   with the bins.
 - **Laplace** costs a MAP fit plus a finite-difference Hessian ($2K$ gradient
