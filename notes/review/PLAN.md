@@ -1,6 +1,6 @@
 # Walkthrough plan
 
-**Current position:** Phase 1, step 1.3 (architecture), level L2. Order agreed: phases in the proposed order, starting with 1.3, then 1.1, 1.2, 1.4.
+**Current position:** step 2.1 (core math, pulled forward from Phase 2 at Josh's request), L3, combined with reading `model.py`, `_kernels.py`, `_simplex.py`. Step 1.3 is open: its eight architecture decisions are deferred until we have read the relevant code (see QUESTIONS.md). Then 1.1, 1.2, 1.4.
 
 ## How each step works
 
@@ -40,7 +40,7 @@ Order is a proposal: Josh may jump around. Rough default levels in brackets.
 ### Phase 2. The statistical model [L3]
 - 2.1 Notation and the core model: Dirichlet–multinomial hierarchy, marginal vs augmented form, EM as iterated stacking, KKT certificate (spec §3, `docs/theory.md`).
 - 2.2 Bins, masses vs densities, bin-averaged likelihoods, binning bias: `bins.py`.
-- 2.3 Inputs: likelihoods vs posteriors and interim priors, samples, functions, unfolding, classifiers: `likelihoods.py`, `selection.py`.
+- 2.3 Inputs: likelihoods vs posteriors and interim priors, samples, functions, unfolding, classifiers: `likelihoods.py`, `selection.py`. **Josh wants the details of every `from_*` conversion.**
 - 2.4 Selection effects: "observed" vs "true" modes, the normaliser, rates with exposure.
 - 2.5 Population vs realised sample; individual-object posteriors; value draws.
 - 2.6 The model object and numerical kernels: `model.py`, `_kernels.py`, `_simplex.py` (ILR coordinates, Jacobians).
@@ -87,4 +87,5 @@ Order is a proposal: Josh may jump around. Rough default levels in brackets.
 | Step | Level | Status | Briefing | Notes |
 |---|---|---|---|---|
 | 0 Plan | – | done | – | Josh: follow the proposed order |
-| 1.3 Architecture | L2 | briefing ready | `briefings/1.3-architecture.md` | |
+| 1.3 Architecture | L2 | overview done; decisions deferred | `briefings/1.3-architecture.md` | Josh: needs code context before judging the 8 decisions |
+| 2.1 Core math (+2.6 code) | L3 | briefing ready | `briefings/2.1-core-math.md` | pulled forward |

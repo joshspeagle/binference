@@ -19,3 +19,19 @@ Append-only. One entry per working session (or per step within a long session).
   objects, the Prior/BoundPrior and Engine contracts, the central equations,
   cross-cutting conventions, dependency graph, size map, and eight
   architecture decisions flagged for discussion.
+
+## 2026-10-22: step 1.3 discussion, pull 2.1 forward
+
+- Josh asked whether N-D grids lose their structure when flattened. Answer
+  (checked in code): flattening is storage only (C order). `Bins` keeps
+  `shape`, `edges`, `unflatten`, `neighbors`. Smoothness priors are built
+  per axis: the random walk uses a Kronecker sum of per-axis RW precisions
+  (eigenbasis via `_KronBasis`), the GP a tensor-product Hilbert-space basis
+  with a joint D-dimensional Matérn/RBF spectral density and one length scale
+  per axis (ARD). Dirichlet priors are exchangeable (no geometry by design);
+  Pólya trees reject N-D grids.
+- Josh wants: the details of every `from_*` conversion (Phase 2.3); a longer
+  discussion of the core math; code reading alongside the briefings before
+  judging the eight architecture decisions (deferred, parked in QUESTIONS).
+- Pulled step 2.1 forward; wrote `briefings/2.1-core-math.md` (math + exact
+  code locations).

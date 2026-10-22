@@ -18,3 +18,6 @@ Known weaknesses worth discussing when we reach them:
 - [ ] Single-chain runs: the curvature at one warm-up point is a noisy basis for adaptation. (Phase 4.2)
 
 New items:
+- [ ] The eight architecture decisions of briefing 1.3 §8 (Prior/BoundPrior split; public PopulationModel; kind set by prior; selection in two places; `infer` kwargs passthrough; results hold the model; flat layout and `samplers` name; closed method registry). Josh: revisit after the code tours of Phases 2–4, with the code in view. (1.3)
+- [ ] `Bins.neighbors()` is unused by any prior (the random walk builds per-axis eigenbases instead). Keep as a utility, use it, or remove? (1.3 / 3.2)
+- [ ] Pólya trees are 1-D only; N-D grids have no multiscale conjugate prior (a k-d / quadtree Dirichlet tree would be natural). (3.1)
