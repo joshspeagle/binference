@@ -24,6 +24,7 @@ with expected counts :math:`\hat n_k = \rho_k \sum_i w_i L_{ik}/(L_i\cdot\rho)`.
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 import numpy as np
@@ -168,7 +169,7 @@ class PopulationModel:
         x = np.asarray(x, dtype=float)
         eta, cache = self.prior.forward(x)
         value = self._value(eta)
-        if not np.all(np.isfinite(value)):
+        if not np.isfinite(value.sum()):
             return -np.inf, np.zeros_like(x)
         ll, d_eta = self._ll_and_deta(value)
         if not np.isfinite(ll):
@@ -179,6 +180,12 @@ class PopulationModel:
     def log_prob(self, x: np.ndarray) -> float:
         """Log posterior density (up to a constant) in unconstrained space."""
         return self.log_prob_and_grad(x)[0]
+
+    def _with_bound_prior(self, prior: BoundPrior) -> PopulationModel:
+        """A shallow copy sharing the data but using another parametrisation of the prior."""
+        new = copy.copy(self)
+        new.prior = prior
+        return new
 
     def to_value(self, x: np.ndarray) -> np.ndarray:
         """Fractions (or rates, for rate priors) at unconstrained ``x``."""

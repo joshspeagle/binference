@@ -260,10 +260,13 @@ LOGISTIC_PRIORS = [
 ]
 
 
+@pytest.mark.parametrize("centred", [False, True], ids=["noncentred", "partial"])
 @pytest.mark.parametrize("prior", LOGISTIC_PRIORS, ids=repr)
-def test_logistic_gradients(prior, rng):
+def test_logistic_gradients(prior, centred, rng):
     bins = Bins.linear(0.0, 3.0, 6)
     b = prior.bind(bins)
+    if centred:
+        b = b.with_centering(rng.random(b.n_active))
     for _ in range(3):
         x = rng.normal(scale=0.5, size=b.dim)
         d_eta = rng.normal(size=6)
@@ -291,6 +294,61 @@ def test_logistic_sampling_and_init(prior, rng):
     x0 = b.init_from_value(target)
     eta, _ = b.forward(x0)
     assert np.corrcoef(np.log(softmax(eta)), np.log(target))[0, 1] > 0.8
+
+
+@pytest.mark.parametrize("prior", LOGISTIC_PRIORS[2:], ids=repr)
+def test_partial_centring_is_a_reparametrisation(prior, rng):
+    """Same field for mapped coordinates; the prior on the field is unchanged."""
+    bins = Bins.linear(0.0, 3.0, 6)
+    b = prior.bind(bins)
+    lam = rng.random(b.n_active)
+    c = b.with_centering(lam)
+    assert np.all(b.lam == 1.0)  # the original is untouched
+    x = rng.normal(scale=0.5, size=b.dim)
+    y = b.recentre(x, lam)
+    np.testing.assert_allclose(c.forward(y)[0], b.forward(x)[0], atol=1e-12)
+    np.testing.assert_allclose(c.recentre(y, np.ones(b.n_active)), x, atol=1e-12)
+
+    # log-density difference between parametrisations is the log-Jacobian
+    # sum_j (1 - lam_j) log s_j, whatever the field values
+    def lp(bound, xx):
+        eta, cache = bound.forward(xx)
+        return bound.log_prior_and_grad(xx, cache, softmax(eta), np.zeros(6))[0]
+
+    s, _ = b.scales(b.theta_from_x(x))
+    np.testing.assert_allclose(lp(b, x) - lp(c, y), float((1 - lam) @ np.log(s)), atol=1e-10)
+    x2 = x.copy()
+    x2[: b.n_active] = rng.normal(size=b.n_active)
+    s2, _ = b.scales(b.theta_from_x(x2))
+    y2 = b.recentre(x2, lam)
+    np.testing.assert_allclose(lp(b, x2) - lp(c, y2), float((1 - lam) @ np.log(s2)), atol=1e-10)
+    with pytest.raises(ValueError):
+        b.with_centering(np.ones(b.n_active + 1))
+
+
+def test_inverse_gamma_from_quantiles():
+    from scipy import stats
+
+    h = P.InverseGamma.from_quantiles(0.2, 3.0)
+    d = stats.invgamma(h.a, scale=h.b)
+    assert d.cdf(0.2) == pytest.approx(0.01, abs=1e-8)
+    assert d.sf(3.0) == pytest.approx(0.01, abs=1e-8)
+    h2 = P.InverseGamma.from_quantiles(1.0, 2.0, tail=0.05)
+    assert stats.invgamma(h2.a, scale=h2.b).cdf(1.0) == pytest.approx(0.05, abs=1e-8)
+    with pytest.raises(ValueError):
+        P.InverseGamma.from_quantiles(2.0, 1.0)
+    with pytest.raises(ValueError):
+        P.InverseGamma.from_quantiles(1.0, 2.0, tail=0.6)
+
+
+def test_gp_default_length_scale_prior_tracks_the_grid():
+    b = P.LogisticGP().bind(Bins.linear(0.0, 3.0, 30))
+    from scipy import stats
+
+    h = dict(b.hypers)["length_scale"]
+    d = stats.invgamma(h.a, scale=h.b)
+    assert d.cdf(0.2) == pytest.approx(0.01, abs=1e-6)  # two bin widths
+    assert d.sf(3.0) == pytest.approx(0.01, abs=1e-6)  # the range
 
 
 def test_logistic_priors_need_grids():

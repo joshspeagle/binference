@@ -10,6 +10,8 @@ paths are two matrix-vector products:
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import scipy.sparse as sp
 
@@ -64,9 +66,11 @@ def loglike_and_counts(L, w: np.ndarray, rho: np.ndarray) -> tuple[float, np.nda
         ``L_i . rho``.
     """
     s = matvec(L, rho)
-    if np.any(s <= 0.0) or not np.all(np.isfinite(s)):
+    if not s.min() > 0.0:  # also catches NaN
         return -np.inf, np.zeros_like(rho), s
     ll = float(np.dot(w, np.log(s)))
+    if not math.isfinite(ll):
+        return -np.inf, np.zeros_like(rho), s
     n_hat = rho * rmatvec(L, w / s)
     return ll, n_hat, s
 

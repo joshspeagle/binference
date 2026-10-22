@@ -106,6 +106,43 @@ def test_resuming_is_bitwise_identical_to_one_long_run(engine, onehot):
     np.testing.assert_array_equal(split.chains, whole.chains)
 
 
+def test_hessian_helpers():
+    from pastry.samplers._nuts_core import covariance_from_hessian, fd_hessian
+
+    A = np.array([[2.0, 0.5, 0.0], [0.5, 1.0, 0.2], [0.0, 0.2, 3.0]])
+
+    def fn(x):
+        return -0.5 * float(x @ A @ x), -A @ x
+
+    H = fd_hessian(fn, np.array([0.3, -1.0, 2.0]))
+    np.testing.assert_allclose(H, -A, atol=1e-6)
+    np.testing.assert_allclose(covariance_from_hessian(H), np.linalg.inv(A), rtol=1e-6)
+    cols = fd_hessian(fn, np.zeros(3), cols=[1])
+    np.testing.assert_allclose(cols[:, 0], -A[:, 1], atol=1e-6)
+    # indefinite curvature is clipped, not inverted
+    cov = covariance_from_hessian(np.diag([-1.0, 0.5]))
+    assert np.all(np.linalg.eigvalsh(cov) > 0)
+    assert covariance_from_hessian(np.diag([1.0, 2.0])) is None
+    assert covariance_from_hessian(np.full((2, 2), np.nan)) is None
+
+
+def test_nuts_reparametrises_logistic_priors_without_touching_the_model():
+    mock = pastry.simulate.mock_1d(300, Bins.linear(0, 3, 8), rng=2)
+    m = PopulationModel(mock.likelihoods, P.LogisticRandomWalk(order=1))
+    eng = NUTS(m, n_chains=2, n_warmup=60, rng=1)
+    assert eng.metric == "dense" and eng.target_accept == 0.9
+    res = eng.run(40)
+    assert np.all(m.prior.lam == 1.0)  # the user's model keeps its parametrisation
+    assert not np.all(eng.model.prior.lam == 1.0)
+    assert res.model is eng.model
+    # draws map to the same fractions under the engine's parametrisation
+    np.testing.assert_allclose(eng.model.to_value(res.x[0, -1]), res.chains[0, -1])
+    plain = NUTS(m, n_chains=2, n_warmup=60, rng=1, reparametrize=False, metric="diag")
+    assert plain.metric == "diag" and plain.run(5).model.prior is m.prior
+    dirichlet = NUTS(PopulationModel(mock.likelihoods), n_chains=1)
+    assert dirichlet.metric == "diag" and dirichlet.target_accept == 0.8
+
+
 def test_nuts_validation():
     m = PopulationModel(np.ones((3, 2)))
     with pytest.raises(ValueError):

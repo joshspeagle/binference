@@ -8,7 +8,7 @@ its derivative. :class:`Fixed` marks a hyperparameter that is not inferred.
 from __future__ import annotations
 
 import numpy as np
-from scipy import special
+from scipy import optimize, special
 
 __all__ = ["Fixed", "Gamma", "HalfNormal", "Hyperprior", "InverseGamma", "LogNormal"]
 
@@ -121,6 +121,38 @@ class InverseGamma(Hyperprior):
 
     def median(self) -> float:
         return float(self.b / special.gammaincinv(self.a, 0.5))
+
+    @classmethod
+    def from_quantiles(cls, lower: float, upper: float, tail: float = 0.01) -> InverseGamma:
+        """The inverse gamma with ``P(< lower) = P(> upper) = tail``.
+
+        Useful for GP length scales: put little mass below the resolution of
+        the grid and above the size of the domain (Betancourt 2017, "Robust
+        Gaussian processes in Stan").
+        """
+        if not 0 < lower < upper:
+            raise ValueError("Need 0 < lower < upper.")
+        if not 0 < tail < 0.5:
+            raise ValueError("tail must be in (0, 0.5).")
+
+        def resid(v):
+            a, b = np.exp(v)
+            # CDF of the inverse gamma: Q(a, b / x) (regularised upper incomplete gamma)
+            return [
+                special.gammaincc(a, b / lower) - tail,
+                special.gammaincc(a, b / upper) - (1.0 - tail),
+            ]
+
+        # moment-matched starting point from a log-normal with the same quantiles
+        z = special.ndtri(1.0 - tail)
+        sig = (np.log(upper) - np.log(lower)) / (2.0 * z)
+        a0 = max(1.0 / (np.expm1(sig**2)) + 2.0, 1.5)
+        b0 = np.sqrt(lower * upper) * (a0 - 1.0)
+        sol = optimize.root(resid, [np.log(a0), np.log(b0)], method="hybr")
+        if not sol.success or np.max(np.abs(resid(sol.x))) > 1e-6:
+            raise RuntimeError("Could not match the requested quantiles.")
+        a, b = np.exp(sol.x)
+        return cls(a, b)
 
 
 class Gamma(Hyperprior):

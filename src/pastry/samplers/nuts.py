@@ -12,10 +12,21 @@ from .._utils import RNGLike, progress, spawn
 from ..model import PopulationModel
 from ..results import PopulationResult
 from ..warnings import ConvergenceWarning
-from ._nuts_core import Metric, adaptation_windows, find_reasonable_eps, nuts_step
+from ._nuts_core import (
+    Metric,
+    adaptation_windows,
+    covariance_from_hessian,
+    fd_hessian,
+    find_reasonable_eps,
+    nuts_step,
+)
 from .base import Engine
 
 __all__ = ["NUTS"]
+
+# Dimension limits for the warm-up geometry adaptation (see NUTS docstring).
+_DENSE_MAX_DIM = 200
+_HESSIAN_MAX_DIM = 500
 
 
 class _Chain:
@@ -28,6 +39,7 @@ class _Chain:
         self.lp, self.g = fn(self.x)
         d = self.x.size
         self.metric = Metric(np.eye(d) if dense else np.ones(d))
+        self.informed = False  # metric initialised from curvature rather than the identity
         self.dense = dense
         self.eps = find_reasonable_eps(self.x, self.lp, self.g, self.metric, fn, rng)
         self.target = target_accept
@@ -37,6 +49,18 @@ class _Chain:
         self.buf: list[np.ndarray] = []
         self.n_warmup = n_warmup
         self.it = 0
+
+    def reset_geometry(self, fn, x, inv_m) -> None:
+        """Move to a new parametrisation and/or metric mid warm-up."""
+        self.fn = fn
+        self.x = np.asarray(x, dtype=float)
+        self.lp, self.g = fn(self.x)
+        if inv_m is not None:
+            self.metric = Metric(inv_m)
+            self.informed = True
+        self.buf = []
+        self.eps = find_reasonable_eps(self.x, self.lp, self.g, self.metric, self.fn, self.rng)
+        self._restart_dual_averaging()
 
     def _restart_dual_averaging(self):
         self.mu = np.log(10.0 * self.eps)
@@ -70,13 +94,20 @@ class _Chain:
             arr = np.asarray(self.buf)
             n = len(arr)
             d = self.x.size
+            prev = self.metric.inv_m
             if self.dense:
-                cov = np.cov(arr.T) if n > 1 else np.eye(d)
-                cov = np.atleast_2d(cov)
-                inv_m = (n / (n + 5.0)) * cov + 1e-3 * (5.0 / (n + 5.0)) * np.eye(d)
+                cov = np.atleast_2d(np.cov(arr.T)) if n > 1 else prev
+                if self.informed:  # shrink toward the curvature-based metric
+                    k = d + 5.0
+                    inv_m = (n / (n + k)) * cov + (k / (n + k)) * prev
+                else:  # Stan's regularisation
+                    inv_m = (n / (n + 5.0)) * cov + 1e-3 * (5.0 / (n + 5.0)) * np.eye(d)
             else:
-                var = arr.var(axis=0, ddof=1) if n > 1 else np.ones(d)
-                inv_m = (n / (n + 5.0)) * var + 1e-3 * (5.0 / (n + 5.0))
+                var = arr.var(axis=0, ddof=1) if n > 1 else prev
+                if self.informed:
+                    inv_m = (n / (n + 5.0)) * var + (5.0 / (n + 5.0)) * prev
+                else:
+                    inv_m = (n / (n + 5.0)) * var + 1e-3 * (5.0 / (n + 5.0))
             self.metric = Metric(inv_m)
             self.buf = []
             self.eps = find_reasonable_eps(self.x, self.lp, self.g, self.metric, self.fn, self.rng)
@@ -103,12 +134,22 @@ class NUTS(Engine):
         Number of independent chains (default 4; needed for R-hat).
     n_warmup : int
         Warm-up (adaptation) iterations per chain.
-    target_accept : float
-        Target mean acceptance statistic for step-size adaptation.
+    target_accept : float, optional
+        Target mean acceptance statistic for step-size adaptation. Defaults to
+        0.8, or 0.9 for logistic (smoothness) priors, whose hyperparameters
+        make the geometry harder.
     max_depth : int
         Maximum tree depth (at most ``2**max_depth`` gradient evaluations per draw).
-    metric : {"diag", "dense"}
-        Adapted Euclidean metric.
+    metric : {"auto", "diag", "dense"}
+        Adapted Euclidean metric. ``"auto"`` uses a dense metric for logistic
+        (smoothness) priors with at most 200 unconstrained dimensions, whose
+        hyperparameters correlate with the field, and a diagonal one otherwise.
+    reparametrize : bool
+        For logistic priors, switch each basis coefficient between the
+        non-centred and centred forms according to how strongly the data
+        constrain it (partial non-centring with weights ``1 / -H_jj`` from the
+        curvature at the chains' positions early in warm-up). This changes
+        the sampling coordinates, not the posterior.
     init : array_like (dim,) or (n_chains, dim), optional
         Starting points in unconstrained coordinates. By default chains start
         at the posterior mode (in unconstrained coordinates) plus ``jitter``.
@@ -118,6 +159,15 @@ class NUTS(Engine):
         Random number generator (SPEC 7); each chain gets an independent child.
     progress : bool
         Show a progress bar.
+
+    Notes
+    -----
+    At the start of the first slow adaptation window (iteration 75 of the
+    default warm-up) the engine optionally reparametrises logistic priors
+    (``reparametrize``) and, for at most 500 dimensions, initialises the metric
+    from the finite-difference curvature of the log posterior at the chains'
+    positions. Later windows refine the metric from the warm-up draws,
+    shrinking toward that curvature-based starting point.
     """
 
     name = "nuts"
@@ -128,9 +178,10 @@ class NUTS(Engine):
         *,
         n_chains: int = 4,
         n_warmup: int = 1000,
-        target_accept: float = 0.8,
+        target_accept: float | None = None,
         max_depth: int = 10,
-        metric: str = "diag",
+        metric: str = "auto",
+        reparametrize: bool = True,
         init: Any = None,
         jitter: float = 0.1,
         rng: RNGLike = None,
@@ -139,18 +190,26 @@ class NUTS(Engine):
         super().__init__(model, rng=rng, progress=progress)
         if n_chains < 1:
             raise ValueError("n_chains must be at least 1.")
-        if metric not in ("diag", "dense"):
-            raise ValueError("metric must be 'diag' or 'dense'.")
+        if metric not in ("auto", "diag", "dense"):
+            raise ValueError("metric must be 'auto', 'diag' or 'dense'.")
+        logistic = hasattr(model.prior, "with_centering")
+        if target_accept is None:
+            target_accept = 0.9 if logistic else 0.8
         if not 0 < target_accept < 1:
             raise ValueError("target_accept must be in (0, 1).")
         self.n_chains = int(n_chains)
         self.n_warmup = int(n_warmup)
         self.target_accept = float(target_accept)
         self.max_depth = int(max_depth)
+        if metric == "auto":
+            metric = "dense" if logistic and model.dim <= _DENSE_MAX_DIM else "diag"
         self.metric = metric
+        self.reparametrize = bool(reparametrize)
         self.init = init
         self.jitter = float(jitter)
         self._chains: list[_Chain] | None = None
+        self._base_model = model
+        self._geometry_iter = 25
         self._warm = False
         self._x: list[np.ndarray] = []
         self._lp: list[np.ndarray] = []
@@ -197,6 +256,47 @@ class NUTS(Engine):
             for c in range(self.n_chains)
         ]
 
+    def _adapt_geometry(self) -> None:
+        """Reparametrise a logistic prior and initialise the metric from curvature.
+
+        Only for priors with a ``with_centering`` method (the logistic family):
+        for simplex priors the curvature at single points is a poor guide to
+        the posterior scales (sparse bins), so they keep Stan's adaptation.
+        """
+        assert self._chains is not None
+        base = self._base_model
+        prior0 = base.prior
+        if not hasattr(prior0, "with_centering"):
+            return
+        chains = self._chains
+        d = base.dim
+        cur = self.model.prior
+        ones = np.ones(prior0.n_active)
+        # positions in the base (non-centred) parametrisation
+        pts = [cur.recentre(ch.x, ones) for ch in chains]
+        # curvature at every chain's position for small problems, one chain otherwise
+        n_pts = len(chains) if d <= _DENSE_MAX_DIM else 1
+        model = base
+        if self.reparametrize and prior0.n_active > 0:
+            fn0 = base.log_prob_and_grad
+            n_act = prior0.n_active
+            diag = np.mean(
+                [np.diag(fd_hessian(fn0, x, cols=range(n_act))) for x in pts[:n_pts]], axis=0
+            )
+            lam = np.clip(1.0 / np.maximum(-diag, 1.0), 0.0, 1.0)
+            model = base._with_bound_prior(prior0.with_centering(lam))
+            pts = [prior0.recentre(x, lam) for x in pts]
+        self.model = model
+        fn = model.log_prob_and_grad
+        inv_m = None
+        if d <= _HESSIAN_MAX_DIM:
+            H = np.mean([fd_hessian(fn, x) for x in pts[:n_pts]], axis=0)
+            cov = covariance_from_hessian(H)
+            if cov is not None:
+                inv_m = cov if self.metric == "dense" else np.diag(cov).copy()
+        for ch, x in zip(chains, pts, strict=True):
+            ch.reset_geometry(fn, x, inv_m)
+
     # ---------------------------------------------------------- running
     def warmup(self) -> None:
         """Run warm-up (adaptation) if it has not been run yet."""
@@ -204,7 +304,12 @@ class NUTS(Engine):
         if self._warm:
             return
         assert self._chains is not None
-        for _ in progress(range(self.n_warmup), self.n_warmup, "NUTS warm-up", self.progress):
+        windows = self._chains[0].windows
+        # adapt the geometry once the chains have left the mode for the typical set
+        switch = min(self._geometry_iter, windows[0][0]) if windows else -1
+        for it in progress(range(self.n_warmup), self.n_warmup, "NUTS warm-up", self.progress):
+            if it == switch:
+                self._adapt_geometry()
             for ch in self._chains:
                 _, _, div, _, _ = ch.step(self.max_depth, adapt=True)
                 self.warmup_divergences += int(div)

@@ -21,6 +21,7 @@ mode is dropped wherever it is explicit.
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Sequence
 from typing import Any
 
@@ -30,7 +31,7 @@ from scipy import special
 from .._simplex import helmert_basis, softmax
 from ..bins import Bins
 from .base import BoundPrior, Prior
-from .hyper import Fixed, HalfNormal, Hyperprior, LogNormal, as_hyperprior
+from .hyper import Fixed, HalfNormal, Hyperprior, InverseGamma, as_hyperprior
 
 __all__ = ["LogisticGP", "LogisticNormal", "LogisticRandomWalk"]
 
@@ -124,6 +125,26 @@ class _BoundLogistic(BoundPrior):
         self.n_free = len(self.free)
         self.dim = self.n_active + self.n_free
         self.hyper_names = [hypers[i][0] for i in self.free]
+        # Partial non-centring: coefficient j is c_j = s_j**lam_j * x_j with
+        # x_j ~ N(0, s_j**(2 (1 - lam_j))); lam = 1 is the whitened
+        # (non-centred) form, lam = 0 the centred one.
+        self.lam = np.ones(self.n_active)
+
+    def with_centering(self, lam: np.ndarray) -> _BoundLogistic:
+        """A copy using partial non-centring weights ``lam`` (1 = non-centred, 0 = centred)."""
+        lam = np.clip(np.asarray(lam, dtype=float), 0.0, 1.0)
+        if lam.shape != (self.n_active,):
+            raise ValueError(f"lam must have shape ({self.n_active},).")
+        new = copy.copy(self)
+        new.lam = lam
+        return new
+
+    def recentre(self, x: np.ndarray, lam: np.ndarray) -> np.ndarray:
+        """Map unconstrained ``x`` in this parametrisation to the one with weights ``lam``."""
+        x = np.array(x, dtype=float, copy=True)
+        s, _ = self.scales(self._theta(x[self.n_active :]))
+        x[: self.n_active] *= s ** (self.lam - np.clip(lam, 0.0, 1.0))
+        return x
 
     # subclasses implement: scales(theta) -> (s, dlogs) with dlogs (n_hypers, n_active)
     def scales(self, theta: np.ndarray) -> tuple[np.ndarray, np.ndarray]:  # pragma: no cover
@@ -140,29 +161,43 @@ class _BoundLogistic(BoundPrior):
         return self._theta(np.asarray(x)[self.n_active :])
 
     def _eta(self, xi: np.ndarray, s: np.ndarray) -> np.ndarray:
+        """Log-fractions from whitened coefficients ``xi`` and scales ``s``."""
         v = np.zeros(self.basis.J)
         v[self.active] = s * xi
         return self.mu + self.basis.matvec(v)
 
     def forward(self, x):
-        xi = x[: self.n_active]
+        z = x[: self.n_active]
         u = x[self.n_active :]
         theta = self._theta(u)
         s, dlogs = self.scales(theta)
-        return self._eta(xi, s), (xi, s, dlogs, u)
+        if self.lam is None or np.all(self.lam == 1.0):
+            m = s
+        else:
+            m = s**self.lam
+        c = m * z
+        v = np.zeros(self.basis.J)
+        v[self.active] = c
+        return self.mu + self.basis.matvec(v), (z, s, m, c, dlogs, u)
 
     def log_prior_and_grad(self, x, cache, value, d_eta):
-        xi, s, dlogs, u = cache
+        z, s, m, c, dlogs, u = cache
         bt = self.basis.rmatvec(d_eta)[self.active]
-        g_xi = s * bt - xi
-        lp = -0.5 * float(xi @ xi) - 0.5 * self.n_active * np.log(2 * np.pi)
+        lam = self.lam
+        one_m = 1.0 - lam
+        # prior z_j ~ N(0, s_j**(2 (1 - lam_j)))
+        prec = s ** (-2.0 * one_m)
+        q = z * z * prec
+        lp = -0.5 * float(q.sum()) - float(one_m @ np.log(s))
+        lp -= 0.5 * self.n_active * np.log(2 * np.pi)
+        g_z = m * bt - z * prec
         g_u = np.empty(self.n_free)
-        common = bt * xi * s
+        common = lam * bt * c + one_m * (q - 1.0)
         for j, i in enumerate(self.free):
             h = self.hypers[i][1]
             lp += h.logpdf_u(u[j])
             g_u[j] = float(common @ dlogs[i]) + h.dlogpdf_u(u[j])
-        return lp, np.concatenate([g_xi, g_u])
+        return lp, np.concatenate([g_z, g_u])
 
     def init_from_value(self, value: np.ndarray) -> np.ndarray:
         r = np.asarray(value, dtype=float)
@@ -199,7 +234,7 @@ class _BoundLogistic(BoundPrior):
             p = r_ + (rs_new / rs) * p
             rs = rs_new
         u0 = np.log(theta0[self.free]) if self.n_free else np.empty(0)
-        return np.concatenate([xi, u0])
+        return np.concatenate([xi * s0 ** (1.0 - self.lam), u0])
 
     def sample(self, n, rng):
         out = np.empty((n, self.K))
@@ -395,8 +430,10 @@ class LogisticGP(Prior):
         Marginal standard deviation of the log-density field; inferred with a
         ``HalfNormal(2.0)`` prior by default.
     length_scale : Hyperprior, float, or sequence (one per axis)
-        Length scale(s) in the units of the bin coordinates. Default:
-        ``LogNormal(log(0.2 * range), 1)`` per axis.
+        Length scale(s) in the units of the bin coordinates. Default: per axis,
+        an inverse gamma with 1% prior mass below two (narrowest) bin widths
+        and 1% above the axis range, so the field is neither rougher than the
+        grid can resolve nor flatter than the data can constrain.
     mean : array_like (K,), optional
         Mean log-fractions (e.g. the log of a reference distribution).
     n_basis : int or sequence, optional
@@ -457,7 +494,10 @@ class LogisticGP(Prior):
         omega = np.stack([g.ravel() for g in grids], axis=1)  # (J, D)
         ls = self.length_scale
         if ls is None:
-            ls_h = [LogNormal(np.log(0.2 * (e[-1] - e[0])), 1.0) for e in bins.edges]
+            ls_h = [
+                InverseGamma.from_quantiles(2.0 * float(np.min(np.diff(e))), float(e[-1] - e[0]))
+                for e in bins.edges
+            ]
         elif isinstance(ls, Sequence) and not isinstance(ls, str):
             if len(ls) != D:
                 raise ValueError(f"Need one length scale per axis ({D}).")
