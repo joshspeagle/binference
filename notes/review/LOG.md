@@ -43,3 +43,17 @@ Append-only. One entry per working session (or per step within a long session).
   `notes/review/audit/<area>.md`; source is untouched. Index: `audit/README.md`.
 - Findings will be triaged when the walkthrough reaches each area; outcomes
   go to DECISIONS.md. The walkthrough continues meanwhile with step 2.1.
+
+## 2026-10-22: step 2.1 §1–2 (generative model, binning assumption, marginal posterior)
+
+- Walked through §1–2 with code: `Likelihoods.from_gaussian` (CDF differences
+  divided by bin width = the flat-within-bin average), `_normalise_linear`
+  (rows scaled to max 1, log-scales kept), `PopulationModel.__init__`
+  (`_ll_const`), `_kernels.loglike_and_counts`, `log_prob_and_grad`.
+- Demo of the flat-within-bin approximation: population ∝ exp(−1.5 z),
+  bins of width 0.5, object at d = 0.5 (on a bin edge): ratio of pastry's
+  L_ik to the exact p(d | z ∈ B_k) is 1.32 / 0.79 / 0.72 for σ = 0.1 and
+  1.05 … 0.78 for σ = 0.4. Errors of 20–30% per bin when the population
+  changes by ×2 across a bin.
+- Raised for discussion: flat in which coordinate (log bins are flat in z,
+  not log z); correction options; non-integer weights.
