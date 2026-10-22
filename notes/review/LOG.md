@@ -35,3 +35,11 @@ Append-only. One entry per working session (or per step within a long session).
   judging the eight architecture decisions (deferred, parked in QUESTIONS).
 - Pulled step 2.1 forward; wrote `briefings/2.1-core-math.md` (math + exact
   code locations).
+
+## 2026-10-22: background audit launched
+
+- At Josh's request, launched seven independent background auditors (review +
+  simplify lenses), one per slice of the codebase. They write only to
+  `notes/review/audit/<area>.md`; source is untouched. Index: `audit/README.md`.
+- Findings will be triaged when the walkthrough reaches each area; outcomes
+  go to DECISIONS.md. The walkthrough continues meanwhile with step 2.1.
