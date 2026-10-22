@@ -326,6 +326,19 @@ def test_partial_centring_is_a_reparametrisation(prior, rng):
         b.with_centering(np.ones(b.n_active + 1))
 
 
+def test_logistic_prior_survives_scale_underflow():
+    """Extreme hyperparameters underflow some scales to zero without NaNs or warnings."""
+    b = P.LogisticGP(kernel="rbf").bind(Bins.linear(0.0, 3.0, 12))
+    lam = np.r_[np.full(6, 0.5), np.ones(b.n_active - 6)]
+    for prior in (b, b.with_centering(lam)):
+        x = np.zeros(prior.dim)
+        x[prior.n_active :] = [-800.0, 800.0]  # absurd amplitude and length scale
+        eta, cache = prior.forward(x)
+        lp, g = prior.log_prior_and_grad(x, cache, softmax(eta), np.zeros(12))
+        assert np.isfinite(lp) or lp == -np.inf
+        assert not np.any(np.isnan(g))
+
+
 def test_inverse_gamma_from_quantiles():
     from scipy import stats
 

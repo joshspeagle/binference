@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath("../src"))
 
-from pastry import __version__  # noqa: E402
+from pastry import __version__
 
 project = "pastry"
 author = "Joshua S. Speagle"

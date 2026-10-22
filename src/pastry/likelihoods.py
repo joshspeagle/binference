@@ -416,7 +416,7 @@ class Likelihoods:
         return out / out.sum()
 
     def log_evidence_terms(self, rho: np.ndarray) -> np.ndarray:
-        """Absolute per-object log marginal likelihoods ``log(L_i . rho)`` (unweighted)."""
+        r"""Per-object absolute log marginal likelihoods :math:`\log(L_i\cdot\rho)`, unweighted."""
         s = np.asarray(self._values @ np.asarray(rho, dtype=float)).ravel()
         with np.errstate(divide="ignore"):
             return np.log(s) + self._log_scale

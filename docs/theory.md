@@ -258,7 +258,7 @@ engine.
 
 A Dirichlet treats bins as exchangeable, so with broad likelihoods
 neighbouring bins trade mass and the posterior is jagged (see the figure on the
-[front page](index)). Smoothness priors put a Gaussian prior on the
+[front page](index.md)). Smoothness priors put a Gaussian prior on the
 log-fractions $\eta=\log\rho+\text{const}$, so that $\rho=\mathrm{softmax}(\eta)$:
 
 $$

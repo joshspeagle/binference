@@ -153,7 +153,8 @@ class _BoundLogistic(BoundPrior):
     def _theta(self, u: np.ndarray) -> np.ndarray:
         theta = np.array([h.median() if h.fixed else 0.0 for _, h in self.hypers])
         if self.n_free:
-            theta[self.free] = np.exp(u)
+            # clipping keeps absurd excursions (e.g. in a diverging trajectory) finite
+            theta[self.free] = np.exp(np.clip(u, -350.0, 350.0))
         return theta
 
     def theta_from_x(self, x: np.ndarray) -> np.ndarray:
@@ -185,18 +186,28 @@ class _BoundLogistic(BoundPrior):
         bt = self.basis.rmatvec(d_eta)[self.active]
         lam = self.lam
         one_m = 1.0 - lam
-        # prior z_j ~ N(0, s_j**(2 (1 - lam_j)))
-        prec = s ** (-2.0 * one_m)
+        # prior z_j ~ N(0, s_j**(2 (1 - lam_j))). Fully non-centred modes (lam_j = 1)
+        # need no scale terms; flooring the scales keeps underflowed ones finite.
+        if one_m.any():
+            s_safe = np.maximum(s, 1e-150)
+            prec = s_safe ** (-2.0 * one_m)
+            log_s_term = float(one_m @ np.log(s_safe))
+        else:
+            prec = np.ones_like(s)
+            log_s_term = 0.0
         q = z * z * prec
-        lp = -0.5 * float(q.sum()) - float(one_m @ np.log(s))
+        lp = -0.5 * float(q.sum()) - log_s_term
+        if not np.isfinite(lp):
+            return -np.inf, np.zeros(self.dim)
         lp -= 0.5 * self.n_active * np.log(2 * np.pi)
         g_z = m * bt - z * prec
         g_u = np.empty(self.n_free)
         common = lam * bt * c + one_m * (q - 1.0)
+        uc = np.clip(u, -350.0, 350.0)  # as in _theta
         for j, i in enumerate(self.free):
             h = self.hypers[i][1]
-            lp += h.logpdf_u(u[j])
-            g_u[j] = float(common @ dlogs[i]) + h.dlogpdf_u(u[j])
+            lp += h.logpdf_u(uc[j])
+            g_u[j] = float(common @ dlogs[i]) + h.dlogpdf_u(uc[j])
         return lp, np.concatenate([g_z, g_u])
 
     def init_from_value(self, value: np.ndarray) -> np.ndarray:

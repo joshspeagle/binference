@@ -25,6 +25,15 @@ __all__ = ["PointEstimate", "PopulationResult", "Summary"]
 # ----------------------------------------------------------------------------
 # Summary table
 # ----------------------------------------------------------------------------
+def _small_concentration(model: Any) -> bool:
+    """Whether a conjugate simplex prior has concentrations below one."""
+    prior = getattr(model, "prior", None)
+    alpha = getattr(prior, "alpha", None)
+    if alpha is None and getattr(prior, "tree", None) is not None:
+        alpha = prior.tree.slot_alpha
+    return alpha is not None and bool(np.min(alpha) < 1.0)
+
+
 class Summary:
     """A small per-bin summary table with a readable ``repr``.
 
@@ -238,7 +247,7 @@ class _IndividualMixin:
         return acc / R.shape[0]
 
     def log_predictive(self, likelihoods: Likelihoods | Any, n_draws: int | None = 500):
-        """Log posterior-predictive density of new objects, ``log E[L_i . rho]``.
+        r"""Log posterior-predictive density of new objects, :math:`\log E[L_i\cdot\rho]`.
 
         Includes the per-object log-scales of the likelihoods, so values can be
         compared across priors and binnings (e.g. for cross-validation).
@@ -524,6 +533,7 @@ class PopulationResult(_IndividualMixin):
         """
         d = self.diagnostics
         msgs = []
+        hints = []
         if "rhat" in d and np.nanmax(d["rhat"]) > rhat_max:
             msgs.append(f"max R-hat = {np.nanmax(d['rhat']):.3f} > {rhat_max}")
         if "ess_bulk" in d:
@@ -533,8 +543,14 @@ class PopulationResult(_IndividualMixin):
                     f"min bulk ESS = {np.nanmin(d['ess_bulk']):.0f} "
                     f"({per_chain:.0f} per chain < {ess_min:.0f})"
                 )
+        if msgs and self.method == "gibbs":
+            hints.append(
+                "Gibbs mixes slowly when likelihoods are broad compared with the bins; "
+                "run longer or use method='nuts'"
+            )
         if d.get("n_divergent", 0):
             msgs.append(f"{d['n_divergent']} divergent transitions")
+            hints.append("try a higher target_accept, e.g. 0.95")
         if d.get("k_hat", 0) > 0.7:
             msgs.append(f"Pareto k-hat = {d['k_hat']:.2f} > 0.7 (importance sampling unreliable)")
         if d.get("max_depth_fraction", 0) > 0.05:
@@ -542,8 +558,15 @@ class PopulationResult(_IndividualMixin):
                 f"{100 * d['max_depth_fraction']:.0f}% of NUTS iterations hit the maximum tree "
                 "depth"
             )
+            if _small_concentration(self.model):
+                hints.append(
+                    "concentrations below 1 give nearly empty bins very long tails in log "
+                    "space; method='gibbs' samples such conjugate priors efficiently"
+                )
         if msgs:
             text = "; ".join(msgs)
+            if hints:
+                text += ". Hint: " + "; ".join(hints)
             if strict:
                 raise RuntimeError(f"Diagnostics failed: {text}")
             warnings.warn(f"Diagnostics: {text}.", ConvergenceWarning, stacklevel=2)

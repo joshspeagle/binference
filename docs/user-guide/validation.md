@@ -1,0 +1,115 @@
+# Diagnostics and validation
+
+Convergence diagnostics tell you whether a sampler explored the posterior.
+They cannot tell you whether the posterior is *right*: whether your
+likelihoods, prior and engine together give calibrated answers. pastry ships
+the tools to check that, the same ones its own test suite uses.
+
+```python
+import numpy as np
+import pastry
+from pastry import priors
+from pastry.validation import coverage, exact_posterior, sbc
+```
+
+## Exact posteriors for small problems
+
+With two or three bins, {func}`~pastry.validation.exact_posterior` integrates
+the posterior on a fine grid over the simplex. Any engine can then be compared
+against it:
+
+```python
+bins = pastry.Bins([0.0, 1.0, 2.0, 3.0])
+mock = pastry.simulate.mock_1d(200, bins, density=np.array([0.5, 0.3, 0.2]), noise=(0.3, 0.8), rng=8)
+exact = exact_posterior(mock.likelihoods, priors.Dirichlet(1.0), n_grid=400)
+res = pastry.infer(mock.likelihoods, rng=1, n_samples=1000, n_warmup=500)
+print(exact.mean.round(4), res.mean.round(4))
+print(exact.std.round(4), res.std.round(4))
+```
+
+## Simulation-based calibration
+
+Simulation-based calibration (SBC; Talts et al. 2018) repeats three steps
+many times:
+1. draw a population from the prior;
+2. simulate a catalogue from that population;
+3. fit it, and record the **rank** of the true value among the posterior draws.
+
+If the whole pipeline is calibrated, the ranks are uniform. Deviations have
+recognisable shapes: a U-shape means intervals are too narrow, a hump means
+they are too wide, and a slope means bias.
+
+```python
+prior = priors.Dirichlet(1.0)
+simulate = pastry.simulate.prior_predictive(prior, pastry.Bins.linear(0, 1, 4),
+                                            n_objects=40, noise=0.2)
+
+def fit(lk, rng):
+    return pastry.infer(lk, prior, method="gibbs", rng=rng, n_chains=1,
+                        n_warmup=100, n_samples=400, check=False)
+
+result = sbc(simulate, fit, n_simulations=40, n_draws=49, rng=0)
+print(result.names, result.pvalues().round(2), result.passed())
+fig = result.plot()
+```
+
+- **`simulate(rng)`** returns `(likelihoods, true_rho)`.
+  `simulate.prior_predictive` builds one from a prior, and you can write your
+  own to include your real selection or noise model.
+- **`fit(likelihoods, rng)`** returns a result. Use the settings you will use
+  in production.
+- **`loglike`.** Besides each bin, SBC ranks the joint log-likelihood of the
+  true population. This is sensitive to errors in the correlations between
+  bins.
+- **Size.** A real check needs a few hundred simulations and roughly
+  independent draws: keep `n_draws` below the effective sample size.
+
+pastry's slow test suite runs SBC for NUTS and Gibbs, for the Dirichlet,
+generalised-Dirichlet and random-walk priors. It also shows that mean-field
+VB *fails* SBC, as expected.
+
+## Coverage
+
+{func}`~pastry.validation.coverage` measures how often central credible
+intervals contain the truth, for each bin and for any functional. It answers
+the frequentist question most readers care about: do my 68% error bars
+contain the truth 68% of the time?
+
+```python
+centers = pastry.Bins.linear(0, 1, 4).centers
+cov = coverage(simulate, fit, n_simulations=40, levels=(0.68, 0.95),
+               functionals={"mean": lambda rho: rho @ centers}, rng=1)
+print(cov.levels, cov.average().round(2), cov.stderr().ravel().round(2))
+```
+
+With data simulated from the prior, Bayesian intervals have exactly their
+nominal coverage *on average over the prior*. Simulate from a fixed
+population instead to see how they behave for a particular truth.
+
+## Mock catalogues
+
+{mod}`pastry.simulate` generates catalogues with known truth. Iterating over
+a mock gives `(likelihoods, truth)`.
+
+| simulator | what it makes |
+|---|---|
+| `mock_1d` | 1-D populations: named shapes, callables or bin fractions; Gaussian errors; interim-prior posteriors (`mock.posteriors`); posterior samples; selection; outliers |
+| `mock_2d` | 2-D grids, e.g. a colour–magnitude-like ridge |
+| `mock_categorical` | classifier outputs with a training prior, for quantification |
+| `mock_unfolding` | counts in reconstructed bins with a response matrix and efficiency |
+| `prior_predictive` | a simulator drawing populations from a prior, for SBC and coverage |
+
+```python
+mock = pastry.simulate.mock_1d(500, interim_prior="gaussian", n_samples=100, rng=2)
+truth = mock.truth
+print(truth.rho.shape, truth.counts.sum(), mock.posteriors.shape, mock.samples.shape)
+```
+
+```{note}
+`mock_1d` draws true values from a continuous density by default. The
+histogram model assumes the population is flat within each bin, so with
+coarse bins and many objects the fit shows a small *binning bias*
+({doc}`pitfalls`). Pass bin fractions as `density` (e.g.
+`density=pastry.simulate.population(bins, "bimodal")`) to draw values uniformly
+within bins, for which the model is exactly right.
+```

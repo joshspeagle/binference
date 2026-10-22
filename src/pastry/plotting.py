@@ -274,8 +274,8 @@ def plot_individual(result: Any, i: int, ax: Any = None, n_draws: int = 200):
         _, ax = plt.subplots(figsize=(6, 3.5))
     if bins.is_categorical or bins.ndim > 1:
         x = np.arange(bins.K)
-        ax.bar(x - 0.2, own, width=0.4, label="own likelihood (flat prior)")
-        ax.bar(x + 0.2, shrunk, width=0.4, label="hierarchical posterior")
+        ax.bar(x - 0.2, own, width=0.4, color="0.6", label="own likelihood (flat prior)")
+        ax.bar(x + 0.2, shrunk, width=0.4, color=POSTERIOR_COLOR, label="hierarchical posterior")
         ax.set_xlabel("bin")
     else:
         edges = bins.edges[0]
@@ -284,18 +284,22 @@ def plot_individual(result: Any, i: int, ax: Any = None, n_draws: int = 200):
             edges,
             np.append(own / vol, own[-1] / vol[-1]),
             where="post",
-            color="0.5",
+            color="0.45",
+            lw=1.5,
+            ls="--",
             label="own likelihood (flat prior)",
         )
         ax.step(
             edges,
             np.append(shrunk / vol, shrunk[-1] / vol[-1]),
             where="post",
-            color="C3",
+            color=POSTERIOR_COLOR,
+            lw=1.5,
             label="hierarchical posterior",
         )
         ax.set_xlabel("bin coordinate")
     ax.set_ylabel("posterior density")
+    _tidy(ax)
     ax.legend(frameon=False)
     return ax
 
