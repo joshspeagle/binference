@@ -52,9 +52,10 @@ iterations, starting near the posterior mode.
 - **Diagnostics** are computed automatically: $\hat R$, effective sample
   sizes, divergences, tree depth and E-BFMI. `pastry.infer(check=True)`, the
   default, warns about any problem.
-- **Parallel chains.** `n_jobs=-1` runs the chains in separate processes,
-  with draws identical to a serial run. In scripts on macOS and Windows, put
-  the call under `if __name__ == "__main__":`.
+- **Parallel chains.** `n_jobs=-1` runs the chains in separate processes.
+  They use the same random streams as a serial run, so the draws agree up to
+  floating-point rounding. In scripts on macOS and Windows, put the call
+  under `if __name__ == "__main__":`.
 
 Use the engine class directly to resume a run, stream draws, or inspect
 adaptation:

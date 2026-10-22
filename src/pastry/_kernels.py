@@ -66,7 +66,9 @@ def loglike_and_counts(L, w: np.ndarray, rho: np.ndarray) -> tuple[float, np.nda
         ``L_i . rho``.
     """
     s = matvec(L, rho)
-    if not s.min() > 0.0:  # also catches NaN
+    # rows are normalised to a maximum of one, so an object whose evidence is below
+    # 1e-250 (log-likelihood < -575) is effectively impossible; this also keeps w / s finite
+    if not s.min() > 1e-250:  # also catches NaN
         return -np.inf, np.zeros_like(rho), s
     ll = float(np.dot(w, np.log(s)))
     if not math.isfinite(ll):

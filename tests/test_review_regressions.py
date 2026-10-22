@@ -258,3 +258,15 @@ def test_em_convergence_warning_reports_missing_information():
     m = PopulationModel(mock.likelihoods, P.Dirichlet(2.0), selection=S, selection_mode="true")
     with pytest.warns(pastry.ConvergenceWarning, match="missing information"):
         MAP(m, max_iter=5).run()
+
+
+def test_parallel_chain_workers_share_blas_threads():
+    from concurrent.futures import ProcessPoolExecutor
+
+    from threadpoolctl import threadpool_info
+
+    from pastry.samplers.nuts import _limit_threads
+
+    with ProcessPoolExecutor(1, initializer=_limit_threads, initargs=(1,)) as ex:
+        info = ex.submit(threadpool_info).result()
+    assert all(lib["num_threads"] == 1 for lib in info)

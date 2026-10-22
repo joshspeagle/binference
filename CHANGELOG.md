@@ -35,7 +35,8 @@ First development version.
   - `NUTS` (default): multinomial NUTS with windowed metric adaptation.
     Smoothness priors get partial non-centring (where the data constrain
     their scales) and a curvature-based dense metric. Chains are resumable
-    and can run in parallel processes.
+    and can run in parallel processes, which share the cores' BLAS threads
+    (via `threadpoolctl`) rather than oversubscribing them.
   - Data-augmentation `Gibbs` for conjugate priors, with selection augmentation.
   - `MAP` with an optimality certificate: mix-SQP for Dirichlet priors
     (including maximum likelihood under selection), SQUAREM-accelerated EM

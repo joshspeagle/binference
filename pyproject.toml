@@ -11,7 +11,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Joshua S. Speagle" }]
 requires-python = ">=3.11"
-dependencies = ["numpy>=1.25", "scipy>=1.11"]
+dependencies = ["numpy>=1.25", "scipy>=1.11", "threadpoolctl>=3.1"]
 keywords = [
     "bayesian",
     "hierarchical",

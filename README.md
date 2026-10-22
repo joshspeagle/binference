@@ -43,7 +43,7 @@ name `pastry` is taken), install it from GitHub:
 pip install "pastry-inference[plot] @ git+https://github.com/joshspeagle/pastry"
 ```
 
-It needs Python ≥ 3.11, NumPy and SciPy; the `plot` extra adds matplotlib and
+It needs Python ≥ 3.11, NumPy, SciPy and threadpoolctl; the `plot` extra adds matplotlib and
 `xarray` adds export to ArviZ-style `DataTree`s.
 
 ## Quick start

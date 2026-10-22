@@ -597,7 +597,7 @@ These were decided without the user's input so that work could proceed. Each is 
 
 | # | Decision | Rationale | Alternatives |
 |---|---|---|---|
-| D1 | NumPy/SciPy-only core; JAX later as an optional backend | install-anywhere usability (emcee-like); the gradient is just two matrix–vector products | JAX-first core |
+| D1 | NumPy/SciPy-only core (plus the pure-Python `threadpoolctl`, D14); JAX later as an optional backend | install-anywhere usability (emcee-like); the gradient is just two matrix–vector products | JAX-first core |
 | D2 | NUTS is the default engine, with ILR coordinates | Gibbs mixes poorly with broad PDFs (§6.10); exact; Stan made the same simplex choice | Gibbs default (frankenz, Leistedt+16) |
 | D3 | Default prior `Dirichlet(1.0)` | familiar and robust for samplers | α = 1/K (BBS reference prior), α ∝ bin volume |
 | D4 | Posteriors require an explicit interim prior | correctness | silent flat default |
@@ -610,7 +610,7 @@ These were decided without the user's input so that work could proceed. Each is 
 | D11 | MAP for tree priors is the mode of the density on the simplex (branch probabilities proportional to their coefficients) | matches the Dirichlet convention; the unconstrained-space mode remains available via `space="unconstrained"` | unconstrained mode everywhere |
 | D12 | For logistic priors, NUTS reparametrises (partial non-centring, weights $1/(-H_{jj})$ from the curvature after 25 warm-up iterations), starts a dense metric from the Hessian, and targets acceptance 0.9. Modes whose log-scale has a Laplace posterior s.d. above 0.35 stay non-centred | 3–10× more effective samples per second than the whitened form, and far fewer divergences, for K ≥ 20 and N ≥ 500; without the gate, weakly constrained scales (small K or N) re-create a funnel (independent review, finding 7); the user's model object is not modified | non-centred field with a diagonal metric (Stan's default advice) |
 | D13 | `LogisticGP`'s default length-scale prior is an inverse gamma with 1% mass below two bin widths and 1% above the range | removes length scales the grid cannot resolve, which caused divergences, and follows Betancourt's robust-GP advice | log-normal centred on 0.2 × range |
-| D14 | NUTS chains can run in worker processes (`n_jobs`), defaulting to serial | identical draws either way; process pools have pitfalls in notebooks and on platforms that spawn | parallel by default |
+| D14 | NUTS chains can run in worker processes (`n_jobs`), defaulting to serial. Workers split the cores' BLAS threads between them (`threadpoolctl`, a small pure-Python dependency) | the same random streams either way (draws agree up to rounding); forked workers otherwise inherit a full BLAS thread pool each, and oversubscription made 4 chains on 4 cores slower than one serial process; process pools have pitfalls in notebooks and on platforms that spawn | parallel by default; environment variables (ignored by forked workers) |
 | D15 | MAP uses mix-SQP for Dirichlet priors with $\alpha_k\ge1$ (with selection: flat prior only, solved in $\phi_k\propto S_k\rho_k$) | 5–10 second-order iterations to a KKT gap of $10^{-10}$, where SQUAREM-EM needs $10^4$ or more iterations with broad PDFs | EM everywhere |
 | D16 | Logistic priors default to a mean of log bin volumes (a flat density) | the penalty then acts on the log-density whatever the binning; with log bins a zero mean would centre the prior on density ∝ 1/z | zero mean (equal fractions) |
 

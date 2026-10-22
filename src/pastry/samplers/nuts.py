@@ -157,6 +157,17 @@ def _advance_chain(chain: _Chain, n_iter: int, adapt: bool, max_depth: int, reco
     return xs, lps, st, n_div
 
 
+def _limit_threads(n_threads: int) -> None:
+    """Worker initializer: share the cores between chains rather than oversubscribe.
+
+    Forked workers inherit the parent's BLAS thread pool, so every chain would
+    otherwise run as many BLAS threads as there are cores.
+    """
+    from threadpoolctl import threadpool_limits
+
+    threadpool_limits(limits=n_threads)
+
+
 def _chain_worker(payload):
     """Run in a worker process: advance one chain and send it back without the model."""
     chain, model, n_iter, adapt, max_depth, record = payload
@@ -209,8 +220,10 @@ class NUTS(Engine):
         Standard deviation of the Gaussian jitter around the mode.
     n_jobs : int
         Number of worker processes for the chains (``-1``: one per CPU). The
-        default ``1`` runs the chains in this process. Parallel and serial runs
-        give identical draws for the same ``rng``.
+        default ``1`` runs the chains in this process. The workers share the
+        cores' BLAS threads instead of oversubscribing them. Parallel and
+        serial runs use the same random streams, so their draws agree up to
+        rounding differences in multithreaded linear algebra.
     rng : int, Generator or None
         Random number generator (SPEC 7); each chain gets an independent child.
     progress : bool
@@ -383,7 +396,11 @@ class NUTS(Engine):
         payloads = [(ch, self.model, n_iter, adapt, self.max_depth, record) for ch in chains]
         try:
             pickle.dumps(payloads[0])  # e.g. a lambda in a prior cannot be sent to workers
-            with ProcessPoolExecutor(max_workers=min(self.n_jobs, len(chains))) as ex:
+            n_workers = min(self.n_jobs, len(chains))
+            n_threads = max(1, (os.cpu_count() or 1) // n_workers)
+            with ProcessPoolExecutor(
+                max_workers=n_workers, initializer=_limit_threads, initargs=(n_threads,)
+            ) as ex:
                 results = list(ex.map(_chain_worker, payloads))
         except (
             OSError,

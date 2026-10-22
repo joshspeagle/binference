@@ -50,7 +50,7 @@ for ax in axes:
 A Gaussian-process prior with one length scale per axis lets the data decide
 how smooth the population is in each direction. This is the largest fit in
 the tutorials, so `n_jobs=-1` runs the four chains in parallel processes.
-The draws are identical to a serial run.
+They use the same random streams as a serial run.
 
 ```{code-cell} python
 result = pastry.infer(lk, pastry.priors.LogisticGP(), rng=1, n_samples=500, n_warmup=500,

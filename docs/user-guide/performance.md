@@ -36,8 +36,10 @@ The engines spend these differently:
 ## Making it faster
 
 1. **Run chains in parallel.** `pastry.infer(lk, n_jobs=-1)` uses one process
-   per chain, and the draws are identical to a serial run. In scripts on
-   macOS and Windows, put the call under `if __name__ == "__main__":`.
+   per chain and gives each process an equal share of the cores for its
+   linear algebra. The random streams are the same as in a serial run, so the
+   draws agree up to rounding. In scripts on macOS and Windows, put the call
+   under `if __name__ == "__main__":`.
 2. **Use sparse likelihoods.** Narrow PDFs on many bins are mostly zeros.
    `lk.to_sparse(rtol=1e-8)` drops entries below `rtol` times each row's
    maximum. `from_samples` returns sparse matrices automatically when fewer

@@ -1,8 +1,9 @@
 # Installation
 
-pastry needs Python ≥ 3.11 with NumPy ≥ 1.25 and SciPy ≥ 1.11. Plotting needs
-matplotlib, and export to ArviZ-style `DataTree`s needs xarray. Both are
-optional extras.
+pastry needs Python ≥ 3.11 with NumPy ≥ 1.25, SciPy ≥ 1.11 and the small
+pure-Python package threadpoolctl, which keeps parallel chains from
+oversubscribing the cores. Plotting needs matplotlib, and export to
+ArviZ-style `DataTree`s needs xarray. Both are optional extras.
 
 pastry is in alpha. Until it is released on PyPI as `pastry-inference` (the
 name `pastry` is taken), install it from GitHub:
