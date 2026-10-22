@@ -1,0 +1,118 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pastry-inference"
+dynamic = ["version"]
+description = "Population and hierarchical inference with PDFs: honest population distributions from noisy per-object PDFs over bins."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Joshua S. Speagle" }]
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.25", "scipy>=1.11"]
+keywords = [
+    "bayesian",
+    "hierarchical",
+    "population inference",
+    "deconvolution",
+    "dirichlet",
+    "photometric redshifts",
+    "unfolding",
+    "quantification",
+    "mcmc",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+[project.optional-dependencies]
+plot = ["matplotlib>=3.7"]
+xarray = ["xarray>=2024.10"]
+test = ["pytest>=7.4", "pytest-cov>=4", "hypothesis>=6.80", "matplotlib>=3.7"]
+docs = [
+    "sphinx>=7.2",
+    "myst-nb>=1.1",
+    "pydata-sphinx-theme>=0.15",
+    "numpydoc>=1.6",
+    "sphinx-copybutton>=0.5",
+    "sphinx-design>=0.5",
+    "matplotlib>=3.7",
+    "ipykernel>=6",
+]
+dev = ["pastry-inference[test,docs,plot]", "ruff>=0.6", "pre-commit>=3"]
+all = ["pastry-inference[plot,xarray]"]
+
+[project.urls]
+Homepage = "https://github.com/joshspeagle/pastry"
+Source = "https://github.com/joshspeagle/pastry"
+Issues = "https://github.com/joshspeagle/pastry/issues"
+
+[tool.hatch.version]
+path = "src/pastry/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pastry"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/pastry", "tests", "README.md", "LICENSE", "CHANGELOG.md", "CITATION.cff"]
+
+[tool.pytest.ini_options]
+minversion = "7.4"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not slow"]
+markers = ["slow: statistical validation (SBC, coverage, long chains); run with `-m slow`"]
+xfail_strict = true
+filterwarnings = [
+    "error",
+    # matplotlib / pyparsing deprecations are not ours to fix
+    "ignore::DeprecationWarning:matplotlib.*",
+    "ignore::DeprecationWarning:pyparsing.*",
+]
+
+[tool.coverage.run]
+source = ["pastry"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "@overload"]
+
+[tool.ruff]
+line-length = 99
+target-version = "py311"
+src = ["src", "tests"]
+extend-exclude = ["docs/_build", "research_notes", "reports"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "NPY", "RUF", "SIM", "C4", "PT", "PIE", "PERF"]
+ignore = [
+    "E741",    # ambiguous variable names (l, I) are idiomatic in the maths
+    "N803",
+    "N806",
+    "RUF001",  # unicode in strings (Greek letters in messages are intentional)
+    "RUF002",
+    "RUF003",
+    "PERF203", # try/except in loops is fine where used
+    "SIM108",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PT011", "B011"]
+"docs/**" = ["E402", "B018"]
+
+[tool.ruff.format]
+docstring-code-format = true
