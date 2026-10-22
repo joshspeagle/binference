@@ -10,7 +10,7 @@ Nothing under `src/`, `tests/` or `docs/` was modified.
   posteriors that are 30% too narrow 80% of the time, 20% too narrow 16% of the time, and 10%
   too narrow never. Coverage and recovery tests have similar blind spots. A realistic
   multiplicity bug (half the objects counted twice) was run through the shipped SBC
-  configuration: __NEGCTRL__ (T-1). The SBC suite also never covers inferred hyperparameters,
+  configuration. With the shipped seed it *passes*: the bug is missed (T-1). The SBC suite also never covers inferred hyperparameters,
   the GP, selection, rates, Pólya/Dirichlet trees or Laplace (T-2).
 - **Several fast tests do not test what they claim.** Examples: the bootstrap "interior start"
   regression test, VB "mean in the right place", mock selection thinning, and `sample_values`
@@ -66,8 +66,8 @@ Counts by category (20 findings): test-gap 4 (T-2, T-4, T-9, T-10); weak-test 3 
     |---|---|---|---|---|
     | reject | 0.01 | 0.03 | 0.25 | 0.97 |
 
-    The 5 quantities are strongly correlated (4 fractions summing to one, plus the
-    log-likelihood), so the suite-level power is not much higher.
+    The four fractions sum to one, so they are strongly correlated and add little beyond a
+    single quantity. The joint log-likelihood rank adds the most (see the realistic bug below).
   - **Coverage.** Settings: 300 simulations, |rate − nominal| < 4·SE per quantity. The 68%
     tolerance is ±0.108, so any 68% coverage between 0.57 and 0.79 passes.
 
@@ -81,7 +81,15 @@ Counts by category (20 findings): test-gap 4 (T-2, T-4, T-9, T-10); weak-test 3 
     0.08 at 0.85 and 0.48 at 0.8.
   - **Realistic bug.** I ran a multiplicity bug through the exact `gibbs-dirichlet` SBC
     configuration: half the objects get weight 2, so posteriors are about 18% too narrow. The
-    script is `sbc_negative_control.py`. Result: __NEGCTRL_DETAIL__.
+    script is `sbc_negative_control.py`. Results over 200 simulations each:
+
+    | rng | min p | threshold | outcome |
+    |---|---|---|---|
+    | 2026 (the shipped seed) | 6e-4, on `loglike` | 2e-4 | **passes: the bug is missed** |
+    | 1 | below 1e-4 | 2e-4 | fails |
+    | 2 | below 1e-4 | 2e-4 | fails |
+
+    At the shipped seed the per-bin p-values are 0.055–0.31; only `loglike` comes near the threshold. This is a coin flip that the shipped seed happens to lose.
   - **Existing negative controls.** There are two:
     - VB `xfail`, whose under-dispersion is a factor of 2 or more;
     - Geweke with the missed objects removed, at |z| > 8.
@@ -94,7 +102,7 @@ Counts by category (20 findings): test-gap 4 (T-2, T-4, T-9, T-10); weak-test 3 
   - **Better statistics.** Pool the rank test across quantities, or use the ECDF-difference
     test with simultaneous bands (Säilynoja, Bürkner & Vehtari 2022); both beat 10-bin χ².
   - **A calibrated negative control.** Add a test that the same SBC configuration *rejects* a
-    pipeline with an 15–20% width error, e.g. the duplicated-weights fit above or a tempered
+    pipeline with a 15–20% width error, e.g. the duplicated-weights fit above or a tempered
     likelihood. This documents the suite's power.
   - **Pooled recovery tests.** For recovery, test the pooled z-variance with its chi-square
     standard error instead of a ±25% window.
@@ -710,4 +718,27 @@ machine.
 
 ## Slow suite (run once)
 
-__SLOW__
+`pytest -m slow` (OMP_NUM_THREADS=1, loaded machine): **14 passed, 1 xfailed** (the VB
+SBC, as intended) in **645 s (10.8 min)**.
+
+Slowest:
+
+| test | time |
+|---|---|
+| `test_sbc[nuts-dirichlet]` | 207 s |
+| `test_sbc[nuts-randomwalk]` | 168 s |
+| `test_vb_underestimates_widths_vs_nuts` | 54 s |
+| `test_sbc[gibbs-gdirichlet]` | 44 s |
+| `test_gibbs_and_nuts_agree_on_larger_problem` | 36 s |
+| `test_coverage_gibbs` | 36 s |
+| `test_sbc[gibbs-dirichlet]` | 24 s |
+
+Simplification opportunities:
+- **`test_vb_underestimates_widths_vs_nuts` (54 s).** It mostly runs NUTS on 3000 × 15 to show
+  that VB is too narrow. The fast suite already shows this against the exact posterior
+  (`test_vb_exact_for_onehot_and_overconfident_otherwise`), and the VB SBC `xfail` shows it
+  again. Drop the test, or reuse the NUTS fit from `test_gibbs_and_nuts_agree_on_larger_problem`
+  through a module fixture.
+- **The NUTS SBC cases (375 s together).** They dominate the run. Spending that time on more
+  Gibbs simulations, plus the missing configurations of T-2, would buy far more power per
+  minute than the current split.
