@@ -182,3 +182,8 @@ Append-only. One entry per working session (or per step within a long session).
 - Page version 7: §8 (population vs realised sample, with a small in-page
   Gibbs sampler showing both intervals; individual-object posteriors) and §9
   outcomes (decisions #1–#15, open threads). Step 2.1 marked done.
+
+## 2026-10-23: step 2.2 started
+
+- DECISIONS #16: expose everything with sensible defaults. Agreed order: 2.2 → 2.3 → Phase 1.
+- Published `2.2-bins.html`: Bins anatomy, where volumes enter, flat-in-which-coordinate, exact large-N binning-bias calculator (N_crit) comparing flat-in-z, flat-in-log-z and linear B-spline bin shapes; numbers checked with a Node harness.

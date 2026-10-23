@@ -1,6 +1,6 @@
 # Walkthrough plan
 
-**Current position:** step 2.1 finished. Next per the agreed order: Phase 1 remainder (1.1, 1.2, 1.4) or continue Phase 2 (2.2 bins/binning, 2.3 inputs and the `from_*` conversions). Step 1.3's eight architecture decisions remain deferred until the relevant code has been read.
+**Current position:** step 2.2 (bins, volumes, measures, binning bias). Agreed order: 2.2 → 2.3 → back to Phase 1 (1.1, 1.2, 1.4) → rest of Phase 2. Step 1.3's architecture decisions remain deferred until the relevant code has been read.
 
 ## How each step works
 
@@ -93,3 +93,4 @@ Seven auditor reports land in `audit/` (see `audit/README.md`). Per DECISIONS #1
 | 0 Plan | – | done | – | Josh: follow the proposed order |
 | 1.3 Architecture | L2 | overview done; decisions deferred | `briefings/1.3-architecture.md` | Josh: needs code context before judging the 8 decisions |
 | 2.1 Core math (+2.6 code) | L3 | done (2026-10-23) | `briefings/2.1-core-math.html` (+ .md) | decisions #1–#15; 2.6 code review of model/kernels partly covered |
+| 2.2 Bins and binning bias | L2–L3 | briefing ready | `briefings/2.2-bins.html` (+ .md) | |

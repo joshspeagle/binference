@@ -1,0 +1,400 @@
+<title>Pastry Bins</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Literata:opsz,wght@7..72,500;7..72,600&display=swap">
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [["$", "$"], ["\\(", "\\)"]], displayMath: [["$$", "$$"]] },
+    svg: { fontCache: "global" },
+    options: { skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"] }
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
+<style>
+/* Layout: sticky section index on the left, a single reading column on the right; explorers break out to full column width. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #18202b;
+  --muted: #5a6573;
+  --rule: #d9dee5;
+  --accent: #1f5fa8;      /* ink blue: the model, exact quantities */
+  --warm: #b4691f;        /* amber: approximations, the flat-within-bin assumption */
+  --good: #2e7d4f;
+  --alt: #8a3b8f;         /* purple: ignoring selection */
+  --code-bg: #eef1f5;
+  --font-display: "Literata", Georgia, serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
+    --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
+  --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body);
+  font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+.page { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 40px; }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-top: 40px; font-size: 13.5px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+nav.toc a { color: var(--muted); text-decoration: none; display: flex; gap: 8px; padding: 4px 8px; border-radius: 4px; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink); background: var(--code-bg); outline: none; }
+nav.toc .n { font-family: var(--font-mono); width: 1.6em; color: var(--muted); }
+nav.toc .now { color: var(--accent); font-weight: 600; }
+nav.toc .done::after { content: "discussed"; margin-left: auto; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--good); }
+main { min-width: 0; padding-top: 40px; }
+header.top { border-bottom: 1px solid var(--rule); padding-bottom: 24px; margin-bottom: 8px; }
+.eyebrow { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 2.3rem; line-height: 1.15; margin: 6px 0 12px; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.55rem; margin: 0 0 8px; text-wrap: balance; }
+h3 { font-size: 1rem; font-weight: 600; margin: 22px 0 6px; }
+.lede { max-width: 66ch; color: var(--muted); margin: 0; }
+section { padding: 36px 0 8px; border-bottom: 1px solid var(--rule); }
+section > p, section > ul, section > ol { max-width: 68ch; }
+.sec-head { display: flex; align-items: baseline; gap: 12px; }
+.sec-head .n { font-family: var(--font-mono); color: var(--muted); font-size: 14px; }
+.files { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+.eq { overflow-x: auto; padding: 4px 0; }
+.callout { border: 1px solid var(--rule); background: var(--surface); padding: 14px 18px; border-radius: 6px; max-width: 68ch; }
+.callout.approx { border-color: var(--warm); }
+.callout.approx strong { color: var(--warm); }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+details.code { margin: 14px 0; max-width: 820px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+details.code summary { cursor: pointer; padding: 8px 14px; font-size: 13.5px; color: var(--muted); }
+details.code summary b { font-family: var(--font-mono); font-weight: 500; color: var(--ink); }
+details.code pre { margin: 0; padding: 12px 14px; overflow-x: auto; background: var(--code-bg); border-top: 1px solid var(--rule); font-family: var(--font-mono); font-size: 12.8px; line-height: 1.5; border-radius: 0 0 6px 6px; }
+.cm { color: var(--muted); }
+.explorer { margin: 22px 0 10px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 18px; }
+.explorer h3 { margin-top: 0; font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px 20px; margin: 10px 0 14px; }
+.controls label { display: grid; gap: 2px; font-size: 13px; color: var(--muted); }
+.controls .val { font-family: var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+canvas { width: 100%; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+.legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+.stats { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 12px; font-size: 13.5px; }
+.stats b { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+.note { font-size: 13.5px; color: var(--muted); max-width: 70ch; }
+table.tbl { border-collapse: collapse; font-size: 13.5px; margin: 10px 0; }
+.tblwrap { overflow-x: auto; }
+table.tbl th, table.tbl td { padding: 6px 12px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+table.tbl th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+pre.mermaid { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 12px; overflow-x: auto; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 10px; }
+.pair figure { margin: 0; min-width: 0; } .pair figcaption { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 4px; }
+.qs { list-style: none; padding: 0; display: grid; gap: 10px; max-width: 72ch; }
+.qs li { display: grid; grid-template-columns: auto 1fr; gap: 12px; border: 1px solid var(--rule); background: var(--surface); padding: 10px 14px; border-radius: 6px; }
+.qs .tag { font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding-top: 2px; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; max-width: 100%; padding: 2px 0; }
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 12px 0; max-width: 820px; }
+.mode { border: 1px solid var(--rule); background: var(--surface); border-radius: 6px; padding: 12px 14px; min-width: 0; }
+.mode h4 { margin: 0 0 6px; font-size: 14px; } .mode h4 code { font-size: 13px; }
+.mode dl { margin: 0; display: grid; gap: 6px; font-size: 14px; } .mode dt { color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; } .mode dd { margin: 0; min-width: 0; }
+input[type=range] { height: 28px; }
+@media (max-width: 860px) {
+  .page { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--rule); margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  nav.toc .eyebrow { display: none; }
+  nav.toc ol { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  nav.toc ol::-webkit-scrollbar { display: none; }
+  nav.toc a { white-space: nowrap; border: 1px solid var(--rule); border-radius: 999px; padding: 6px 12px; }
+  nav.toc .done::after { content: "✓"; letter-spacing: 0; margin-left: 2px; font-size: 12px; }
+  main { padding-top: 20px; }
+  h1 { font-size: 1.7rem; } h2 { font-size: 1.3rem; }
+  section { padding-top: 28px; scroll-margin-top: 64px; }
+  .explorer { padding: 14px 12px; margin-left: -4px; margin-right: -4px; }
+  .sec-head { flex-wrap: wrap; gap: 4px 10px; }
+}
+section { scroll-margin-top: 16px; }
+.sel { font: inherit; width: 100%; padding: 6px; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); color: var(--ink); }
+</style>
+
+<div class="page">
+<nav class="toc" aria-label="Sections">
+  <div class="eyebrow" style="padding:0 8px 8px">Step 2.2</div>
+  <ol>
+    <li><a href="#b1" class="now"><span class="n">1</span>What a Bins object is</a></li>
+    <li><a href="#b2" class="now"><span class="n">2</span>Where volumes enter</a></li>
+    <li><a href="#b3" class="now"><span class="n">3</span>Flat in which coordinate</a></li>
+    <li><a href="#b4" class="now"><span class="n">4</span>Binning bias</a></li>
+    <li><a href="#b5" class="now"><span class="n">5</span>Choosing bins</a></li>
+    <li><a href="#b6"><span class="n">6</span>To discuss</a></li>
+  </ol>
+</nav>
+<main>
+<header class="top">
+  <div class="eyebrow">pastry walkthrough · Phase 2 · level L2–L3</div>
+  <h1>Bins, volumes and binning bias</h1>
+  <p class="lede">What pastry assumes about the support, where bin sizes matter, and how large the one approximation of the framework (flat within each bin) becomes as data accumulate. File: <code>bins.py</code> (338 lines), plus the places that read <code>bins.volumes</code>.</p>
+</header>
+
+<section id="b1">
+  <div class="sec-head"><span class="n">§1</span><h2>What a Bins object is</h2></div>
+  <div class="files">bins.py · Bins (l. 25), constructors (l. 99–157), index (l. 255), coarsen (l. 319)</div>
+  <p>A <code>Bins</code> is an immutable description of the support. Three kinds:</p>
+  <div class="modes">
+    <div class="mode"><h4>1-D bins</h4><dl>
+      <dt>build with</dt><dd><code>Bins(edges)</code>, <code>Bins.linear(lo, hi, n)</code>, <code>Bins.log(lo, hi, n)</code>, <code>Bins.from_centers(c)</code></dd>
+      <dt>knows</dt><dd>edges, centres (midpoints in the coordinate), widths, volumes = widths</dd></dl></div>
+    <div class="mode"><h4>N-D grids</h4><dl>
+      <dt>build with</dt><dd><code>Bins.grid(edges_x, edges_y, ...)</code>: any rectilinear grid, unequal spacing allowed per axis</dd>
+      <dt>knows</dt><dd>per-axis edges, <code>shape</code>, cell volumes = products of widths; cells are numbered in C order (last axis fastest); <code>unflatten</code> / <code>flatten</code> convert</dd></dl></div>
+    <div class="mode"><h4>categories</h4><dl>
+      <dt>build with</dt><dd><code>Bins.categories(K or labels)</code></dd>
+      <dt>knows</dt><dd>labels only; volumes are 1, no edges, no neighbours; smoothness priors refuse them</dd></dl></div>
+  </div>
+  <ul>
+    <li><strong>Membership rule</strong> (<code>index</code>): bins are left-closed, and the last bin on each axis also includes its upper edge. Values outside the support get −1.</li>
+    <li><strong><code>from_centers</code></strong> puts edges at midpoints and extends the outer bins by half a spacing: the right conversion when PDFs are tabulated on a grid of points.</li>
+    <li><strong><code>coarsen(factor)</code></strong> merges blocks of adjacent bins and returns a fine→coarse map, which <code>result.rebin</code> uses to propagate uncertainties exactly.</li>
+    <li><strong>Immutability</strong>: edges are read-only arrays and attributes cannot be reassigned, so a <code>Bins</code> can be shared safely between likelihoods, priors and results (and compared with <code>==</code>).</li>
+  </ul>
+  <details class="code"><summary><b>bins.py:58</b> · volumes and centres of a grid</summary>
+<pre>widths = [np.diff(e) for e in edges]
+vol = widths[0]
+for w in widths[1:]:
+    vol = np.multiply.outer(vol, w)          <span class="cm"># cell volume = product of per-axis widths</span>
+vol = vol.ravel()                            <span class="cm"># C-order flattening</span>
+mids = [0.5 * (e[1:] + e[:-1]) for e in edges]   <span class="cm"># centres: midpoints in the coordinate itself</span></pre>
+  </details>
+</section>
+
+<section id="b2">
+  <div class="sec-head"><span class="n">§2</span><h2>Where volumes enter</h2></div>
+  <p>With equal bins, volumes are irrelevant: every place they enter multiplies by a constant. With unequal bins (log spacing, a coarse tail, N-D cells of different sizes) each of these matters:</p>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>place</th><th>what the volume does</th></tr>
+    <tr><td>likelihood rows</td><td><code>representation="mass"</code> divides by $v_k$ to get the bin-averaged likelihood $L_{ik}$ (a mass is $v_kL_{ik}$)</td></tr>
+    <tr><td>interim priors</td><td>a density at bin centres becomes a mass by multiplying by $v_k$ before dividing it out of posteriors</td></tr>
+    <tr><td>outputs</td><td><code>result.density()</code> = $\rho_k/v_k$: what a plot of an $n(z)$ shows</td></tr>
+    <tr><td>priors</td><td><code>Dirichlet.from_base_measure</code> and <code>PolyaTree</code> use volumes as the base measure; logistic priors use $\log v_k$ as the default mean (a flat density). A symmetric <code>Dirichlet(α)</code> ignores them.</td></tr>
+    <tr><td>mocks</td><td>true bin masses are density × volume</td></tr>
+  </table></div>
+  <p class="note">The mass/density distinction is the most common user error with unequal bins; pastry warns when rows look like the wrong representation (audit I-1 found one place where an interim-prior array is read inconsistently).</p>
+</section>
+
+<section id="b3">
+  <div class="sec-head"><span class="n">§3</span><h2>Flat in which coordinate?</h2></div>
+  <p><code>Bins.log(0.05, 3, 20)</code> gives log-spaced edges, but the coordinate is still $z$: volumes are widths in $z$, centres are midpoints in $z$, and the bin-averaged likelihood assumes the population is flat <em>in $z$</em> inside each bin. For a wide log bin that is a strong statement: a population falling like $1/z$ (flat in $\log z$) changes by the bin's full ratio across it.</p>
+  <div class="eq">$$\text{flat in }z:\ \ \varphi_k(z)=\frac{1}{v_k},\qquad \text{flat in }\log z:\ \ \varphi_k(z)=\frac{1}{z\,\ln(z_{k+1}/z_k)}\qquad(z\in B_k).$$</div>
+  <p>Either is a valid "bin shape"; the explorer below compares them. The general version is a <strong>measure</strong> attached to the bins (Lebesgue in $z$, in $\log z$, or a user density), from which every component would take its geometry: likelihood averaging, base measures, the GP's coordinate and the random walk's spacing. That is the design question parked after step 2.1.</p>
+</section>
+
+<section id="b4">
+  <div class="sec-head"><span class="n">§4</span><h2>Binning bias, exactly</h2></div>
+  <p>With infinitely many objects the maximum-likelihood fit converges to the bin weights that best explain the <em>distribution</em> of the data, $p(d)=\int p(d\mid z)f(z)\,dz$:</p>
+  <div class="eq">$$\rho^\infty=\arg\max_\rho\int p(d)\,\log\Big(\sum_k\rho_k\,L_k(d)\Big)\,dd,\qquad L_k(d)=\int p(d\mid z)\,\varphi_k(z)\,dz .$$</div>
+  <p>If the bin shapes $\varphi_k$ could reproduce $f$ exactly, $\rho^\infty$ would be the true bin masses. They cannot, so $\rho^\infty$ differs from the truth by a <em>bias that does not depend on $N$</em>. The statistical error shrinks as $\sigma_k/\sqrt N$ (from the Fisher information of the same integral), so the two cross at</p>
+  <div class="eq">$$N_{\rm crit}=\min_k\frac{\sigma_k^2}{(\rho^\infty_k-\rho^{\rm true}_k)^2}.$$</div>
+  <p>Below $N_{\rm crit}$ binning bias is negligible; above it, it dominates. The explorer computes both exactly by quadrature (no simulation noise).</p>
+
+  <div class="explorer" id="bias-explorer">
+    <h3>Explore: when does binning bias matter?</h3>
+    <p class="note">Gaussian errors σ on every object. Top: the true density (curve), the true bin masses as densities (dashed steps), and the large-N estimate (solid). Bottom: bias divided by the statistical error at the chosen N; outside the band, bias dominates. Changes apply on release.</p>
+    <div class="controls">
+      <label for="g-pop" style="grid-column:1/-1">population <select id="g-pop" class="sel"><option value="exp">falling exponential</option><option value="peak">narrow peak on a floor</option><option value="bimodal">two peaks</option><option value="power">power law, 1/z (flat in log z)</option></select></label>
+      <label for="g-space">bin spacing <select id="g-space" class="sel"><option value="lin">linear on [0, 3]</option><option value="log">logarithmic on [0.05, 3]</option></select></label>
+      <label for="g-basis">bin shape <select id="g-basis" class="sel"><option value="flatz">flat in z (pastry today)</option><option value="flatlog">flat in log z</option><option value="hat">linear B-splines</option></select></label>
+      <label for="g-k">bins K <span class="val" id="g-k-v"></span><input id="g-k" type="range" min="4" max="30" step="1" value="10"></label>
+      <label for="g-sig">measurement σ <span class="val" id="g-sig-v"></span><input id="g-sig" type="range" min="0.02" max="0.5" step="0.01" value="0.15"></label>
+      <label for="g-n">objects N (log) <span class="val" id="g-n-v"></span><input id="g-n" type="range" min="2" max="7" step="0.1" value="4"></label>
+    </div>
+    <canvas id="g-top" height="200" aria-label="True and large-N bin masses"></canvas>
+    <div class="legend"><span><i style="background:var(--muted)"></i>true density</span><span><i style="background:var(--ink)"></i>true bin masses</span><span><i style="background:var(--accent)"></i>large-N estimate</span></div>
+    <canvas id="g-bot" height="150" aria-label="Bias relative to statistical error"></canvas>
+    <div class="legend"><span><i style="background:var(--warm)"></i>bias ÷ statistical error at N</span><span><i style="background:var(--rule)"></i>±1 band</span></div>
+    <div class="stats" id="g-stats"></div>
+  </div>
+  <p class="note">Things to try: the falling exponential with flat-in-z bins: the bias overtakes the statistical error at about 1,500 objects (σ = 0.15, K = 10). Switch to linear B-splines and that rises to about 11,000; for the two-peak population, from about 850 to 35,000. On log bins, the power law ($1/z$, flat in log z) under "flat in z" gives about 56,000, and under "flat in log z" the bias vanishes (the shape is exact). A smaller σ helps histograms only modestly (exponential: 1,500 → 2,800 for σ = 0.15 → 0.05). "Flat in log z" is only offered for log spacing, since a linear grid starts at z = 0.</p>
+</section>
+
+<section id="b5">
+  <div class="sec-head"><span class="n">§5</span><h2>Choosing bins</h2></div>
+  <ul>
+    <li><strong>Narrower than the population's features</strong>, or the bias of §4 grows; and, with a flat Dirichlet, not so many that the prior pseudo-counts (one per bin) matter against $N$.</li>
+    <li><strong>Error scale vs bin width</strong> sets two things: the size of the binning bias (larger when σ is comparable to the bin) and the missing information (EM and Gibbs slow down as σ grows relative to bins).</li>
+    <li><strong>Smoothness priors make fine bins cheap</strong> in statistical terms: they share strength between neighbours, so more bins add resolution without adding noise.</li>
+    <li><strong>Coverage</strong>: objects with likelihood mass outside the bins are truncated to the support (rows are renormalised); <code>drop_empty</code> handles objects entirely outside.</li>
+  </ul>
+  <p class="note">The binning-bias diagnostic agreed in step 2.1 (#6) would automate §4 for a real fit: refit on refined bins or another bin shape and flag shifts larger than the error bars. The explorer's $N_{\rm crit}$ is the closed-form version for Gaussian errors.</p>
+</section>
+
+<section id="b6">
+  <div class="sec-head"><span class="n">§6</span><h2>To discuss</h2></div>
+  <ul class="qs">
+    <li><span class="tag">§3</span><span><strong>Bins with a measure.</strong> Add a coordinate/measure to <code>Bins</code> (e.g. <code>Bins.log(..., measure="log")</code>) that every component reads?</span></li>
+    <li><span class="tag">§4</span><span><strong>Default bin shape.</strong> B-splines raise $N_{\rm crit}$ by roughly 7–50× in these examples. Should they become the default once implemented (#5), with histograms as an option?</span></li>
+    <li><span class="tag">§4</span><span><strong>A planning tool.</strong> Expose the $N_{\rm crit}$ calculation (e.g. <code>pastry.diagnostics.binning_bias(bins, sigma, density)</code>) so users can choose bins before fitting?</span></li>
+    <li><span class="tag">§1</span><span><strong>Support coverage.</strong> Should pastry warn when a large fraction of an object's likelihood lies outside the bins (it is currently truncated silently)?</span></li>
+    <li><span class="tag">§1</span><span><strong>Non-rectilinear N-D supports</strong> (masked grids, e.g. a colour–magnitude region): a mask on the grid is a cheap generalisation.</span></li>
+  </ul>
+</section>
+</main>
+</div>
+
+<script>
+(function () {
+  const root = document.documentElement;
+  const tok = (n) => getComputedStyle(root).getPropertyValue(n).trim();
+  function erf(x) { const s = Math.sign(x); x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x); return s * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x)); }
+  const npdf = (x, m, s) => Math.exp(-0.5 * ((x - m) / s) ** 2) / (s * Math.sqrt(2 * Math.PI));
+  function setup(cv) {
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.getAttribute("height") * 1;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.height = h + "px";
+    const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+    ctx.font = "11px " + tok("--font-mono"); return { ctx, w, h };
+  }
+  function axes(ctx, x0, y0, x1, y1, xt) {
+    ctx.strokeStyle = tok("--rule"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, y1); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.fillStyle = tok("--muted"); ctx.textAlign = "center"; ctx.textBaseline = "top"; for (const [v, px] of xt) ctx.fillText(v, px, y1 + 4);
+  }
+  const POPS = {
+    exp: (z) => Math.exp(-1.5 * z),
+    peak: (z) => Math.exp(-0.5 * ((z - 1.2) / 0.1) ** 2) + 0.15,
+    bimodal: (z) => 0.55 * npdf(z, 0.8, 0.35) + 0.45 * npdf(z, 2.1, 0.4),
+    power: (z) => 1 / (z + 0.02),
+  };
+  function inv(A) {           // Gauss-Jordan inverse of a small symmetric matrix
+    const n = A.length, M = A.map((r, i) => [...r, ...Array.from({ length: n }, (_, j) => (i === j ? 1 : 0))]);
+    for (let c = 0; c < n; c++) {
+      let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+      [M[c], M[p]] = [M[p], M[c]]; const piv = M[c][c]; if (Math.abs(piv) < 1e-300) return null;
+      for (let j = 0; j < 2 * n; j++) M[c][j] /= piv;
+      for (let r = 0; r < n; r++) if (r !== c) { const f = M[r][c]; if (f) for (let j = 0; j < 2 * n; j++) M[r][j] -= f * M[c][j]; }
+    }
+    return M.map(r => r.slice(n));
+  }
+  const ST = { key: "", res: null };
+  function compute(pop, space, basis, K, sig) {
+    const lo = space === "lin" ? 0 : 0.05, hi = 3;
+    const edges = Array.from({ length: K + 1 }, (_, k) => space === "lin" ? lo + (hi - lo) * k / K : lo * Math.pow(hi / lo, k / K));
+    const f = (pop === "power" && space === "log") ? (z) => 1 / z : POPS[pop];
+    // z quadrature: Simpson, 40 intervals per bin
+    const zq = [], wq = [], bq = [];
+    for (let k = 0; k < K; k++) { const a = edges[k], b = edges[k + 1], m = 40, h = (b - a) / m; for (let j = 0; j <= m; j++) { zq.push(a + j * h); wq.push(h / 3 * ((j === 0 || j === m) ? 1 : (j % 2 ? 4 : 2))); bq.push(k); } }
+    const Q = zq.length, fq = zq.map(f); let F = 0; for (let q = 0; q < Q; q++) F += fq[q] * wq[q];
+    const mtrue = new Float64Array(K); for (let q = 0; q < Q; q++) mtrue[bq[q]] += fq[q] * wq[q] / F;
+    // bin shapes phi_k(z_q) (sparse: list of [k, value] per node)
+    const cen = edges.slice(0, K).map((a, k) => 0.5 * (a + edges[k + 1]));
+    const phi = Array.from({ length: Q }, () => []);
+    if (basis === "flatz") for (let q = 0; q < Q; q++) phi[q].push([bq[q], 1 / (edges[bq[q] + 1] - edges[bq[q]])]);
+    else if (basis === "flatlog") for (let q = 0; q < Q; q++) { const k = bq[q]; phi[q].push([k, 1 / (zq[q] * Math.log(edges[k + 1] / edges[k]))]); }
+    else {
+      const raw = Array.from({ length: Q }, () => []), norm = new Float64Array(K);
+      for (let q = 0; q < Q; q++) {
+        const z = zq[q];
+        if (z <= cen[0]) raw[q].push([0, 1]); else if (z >= cen[K - 1]) raw[q].push([K - 1, 1]);
+        else { let j = 0; while (cen[j + 1] < z) j++; const t = (z - cen[j]) / (cen[j + 1] - cen[j]); raw[q].push([j, 1 - t], [j + 1, t]); }
+        raw[q].forEach(([k, v]) => { norm[k] += v * wq[q]; });
+      }
+      for (let q = 0; q < Q; q++) phi[q] = raw[q].map(([k, v]) => [k, v / norm[k]]);
+    }
+    const Mm = Array.from({ length: K }, () => new Float64Array(K));   // bin masses from weights
+    for (let q = 0; q < Q; q++) phi[q].forEach(([k, v]) => { Mm[bq[q]][k] += v * wq[q]; });
+    // data density on a d grid, and L_k(d)
+    const D = 400, d0 = lo - 4 * sig, d1 = hi + 4 * sig, dd = (d1 - d0) / (D - 1);
+    const L = Array.from({ length: D }, () => new Float64Array(K)), wd = new Float64Array(D); let wt = 0;
+    for (let i = 0; i < D; i++) {
+      const d = d0 + i * dd; let p = 0;
+      for (let q = 0; q < Q; q++) { const kq = npdf(d, zq[q], sig) * wq[q]; p += kq * fq[q]; for (const [k, v] of phi[q]) L[i][k] += kq * v; }
+      wd[i] = p / F * dd; wt += wd[i];
+    }
+    for (let i = 0; i < D; i++) wd[i] /= wt;
+    const gfun = (r) => { const g = new Float64Array(K); let obj = 0; for (let i = 0; i < D; i++) { let s = 0; for (let k = 0; k < K; k++) s += L[i][k] * r[k]; obj += wd[i] * Math.log(s); for (let k = 0; k < K; k++) g[k] += wd[i] * L[i][k] / s; } return { g, obj }; };
+    const Fm = (r) => { const { g } = gfun(r); const o = r.map((v, k) => v * g[k]); const t = o.reduce((a, b) => a + b, 0); return o.map(v => v / t); };
+    let r = new Float64Array(K).fill(1 / K), it = 0, conv = false;
+    for (it = 0; it < 1500; it++) {        // SQUAREM-accelerated EM on the large-N objective
+      const r1 = Fm(r), r2 = Fm(r1), d1v = r1.map((v, k) => v - r[k]), d2v = r2.map((v, k) => v - 2 * r1[k] + r[k]);
+      const n1 = Math.hypot(...d1v), n2 = Math.hypot(...d2v);
+      let nxt = r2;
+      if (n2 > 0) {
+        const a = Math.min(-n1 / n2, -1); let c = r.map((v, k) => Math.max(v - 2 * a * d1v[k] + a * a * d2v[k], 0)); const t = c.reduce((p, q) => p + q, 0);
+        if (t > 0) { c = Fm(c.map(v => v / t)); if (gfun(c).obj >= gfun(r2).obj) nxt = c; }
+      }
+      const ch = Math.max(...nxt.map((v, k) => Math.abs(v - r[k]))); r = nxt; if (ch < 1e-11) { conv = true; break; }
+    }
+    // Fisher information per object and the covariance of the bin masses
+    const { g } = gfun(r);
+    const I = Array.from({ length: K }, () => new Float64Array(K));
+    for (let i = 0; i < D; i++) { let s = 0; for (let k = 0; k < K; k++) s += L[i][k] * r[k]; const w2 = wd[i] / (s * s); for (let j = 0; j < K; j++) for (let k = j; k < K; k++) I[j][k] += w2 * L[i][j] * L[i][k]; }
+    for (let j = 0; j < K; j++) for (let k = 0; k < j; k++) I[j][k] = I[k][j];
+    const A = (j, a) => (j < K - 1 ? (j === a ? 1 : 0) : -1);                // rho_K = 1 - sum of the others
+    const Ip = Array.from({ length: K - 1 }, (_, a) => Array.from({ length: K - 1 }, (_, b) => { let s = 0; for (let j = 0; j < K; j++) for (let k = 0; k < K; k++) s += A(j, a) * I[j][k] * A(k, b); return s; }));
+    const tr = Ip.reduce((s, row, a) => s + row[a], 0); Ip.forEach((row, a) => { row[a] += 1e-9 * tr; });
+    const Ci = inv(Ip);
+    const C = Array.from({ length: K }, (_, j) => Array.from({ length: K }, (_, k) => { let s = 0; for (let a = 0; a < K - 1; a++) for (let b = 0; b < K - 1; b++) s += A(j, a) * Ci[a][b] * A(k, b); return s; }));
+    const mhat = Mm.map(row => row.reduce((s, v, k) => s + v * r[k], 0)); const mt = mhat.reduce((a, b) => a + b, 0);
+    const varm = Mm.map(row => { let s = 0; for (let j = 0; j < K; j++) for (let k = 0; k < K; k++) s += row[j] * C[j][k] * row[k]; return Math.max(s, 0); });
+    return { edges, mtrue: Array.from(mtrue), mhat: mhat.map(v => v / mt), varm, conv, f, F, lo, hi, gap: Math.max(...g) - 1 };
+  }
+  function draw() {
+    const v = (id) => document.getElementById(id).value;
+    const pop = v("g-pop"), space = v("g-space"), basis = v("g-basis"), K = +v("g-k"), sig = +v("g-sig"), N = Math.pow(10, +v("g-n"));
+    document.getElementById("g-k-v").textContent = K; document.getElementById("g-sig-v").textContent = sig.toFixed(2);
+    document.getElementById("g-n-v").textContent = N >= 1e6 ? (N / 1e6).toFixed(1) + "M" : N >= 1e3 ? (N / 1e3).toFixed(N >= 1e4 ? 0 : 1) + "k" : Math.round(N);
+    const key = [pop, space, basis, K, sig].join(":");
+    if (key !== ST.key) { ST.res = compute(pop, space, basis, K, sig); ST.key = key; }
+    const R = ST.res, lg = space === "log";
+    // top: density per unit z (linear) or per unit ln z (log)
+    let { ctx, w, h } = setup(document.getElementById("g-top"));
+    const L0 = 40, R0 = w - 10, T0 = 10, B0 = h - 22;
+    const tx = (z) => lg ? Math.log(z) : z, X = (z) => L0 + (R0 - L0) * (tx(z) - tx(R.lo)) / (tx(R.hi) - tx(R.lo));
+    const per = (k) => lg ? Math.log(R.edges[k + 1] / R.edges[k]) : R.edges[k + 1] - R.edges[k];
+    const curve = []; for (let i = 0; i <= 300; i++) { const z = lg ? R.lo * Math.pow(R.hi / R.lo, i / 300) : R.lo + (R.hi - R.lo) * i / 300; curve.push([z, R.f(z) / R.F * (lg ? z : 1)]); }
+    const ym = Math.max(...curve.map(c => c[1]), ...R.mtrue.map((m, k) => m / per(k)), ...R.mhat.map((m, k) => m / per(k))) * 1.08, Y = (q) => B0 - (B0 - T0) * Math.min(q, ym) / ym;
+    const ticks = lg ? [0.05, 0.1, 0.3, 1, 3] : [0, 0.5, 1, 1.5, 2, 2.5, 3];
+    axes(ctx, L0, T0, R0, B0, ticks.map(t => [t, X(t)]));
+    ctx.fillStyle = tok("--muted"); ctx.textAlign = "left"; ctx.textBaseline = "top"; ctx.fillText(lg ? "per unit ln z" : "per unit z", L0 + 4, T0);
+    ctx.strokeStyle = tok("--muted"); ctx.lineWidth = 1.5; ctx.beginPath(); curve.forEach(([z, q], i) => i ? ctx.lineTo(X(z), Y(q)) : ctx.moveTo(X(z), Y(q))); ctx.stroke();
+    const step = (arr, col, lw, dash) => { ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.setLineDash(dash || []); arr.forEach((m, k) => { ctx.beginPath(); ctx.moveTo(X(R.edges[k]), Y(m / per(k))); ctx.lineTo(X(R.edges[k + 1]), Y(m / per(k))); ctx.stroke(); }); ctx.setLineDash([]); };
+    step(R.mtrue, tok("--ink"), 1.5, [4, 3]); step(R.mhat, tok("--accent"), 2.5);
+    // bottom: bias / statistical error at N
+    ({ ctx, w, h } = setup(document.getElementById("g-bot")));
+    const L1 = 40, R1 = w - 10, T1 = 8, B1 = h - 20, bw = (R1 - L1) / K, lim = 6, Yb = (q) => (T1 + B1) / 2 - (B1 - T1) / 2 * Math.max(-lim, Math.min(lim, q)) / lim;
+    ctx.fillStyle = tok("--rule"); ctx.globalAlpha = 0.6; ctx.fillRect(L1, Yb(1), R1 - L1, Yb(-1) - Yb(1)); ctx.globalAlpha = 1;
+    ctx.strokeStyle = tok("--rule"); ctx.beginPath(); ctx.moveTo(L1, Yb(0)); ctx.lineTo(R1, Yb(0)); ctx.stroke();
+    ctx.fillStyle = tok("--muted"); ctx.textAlign = "right"; ctx.textBaseline = "middle"; [[lim, "≥" + lim], [0, "0"], [-lim, "≤−" + lim]].forEach(([q, t]) => ctx.fillText(t, L1 - 4, Yb(q)));
+    let worst = 0, ncrit = Infinity;
+    R.mtrue.forEach((m, k) => {
+      const b = R.mhat[k] - m, sd = Math.sqrt(R.varm[k] / N), z = sd > 0 ? b / sd : 0;
+      if (m > 1e-3) { worst = Math.max(worst, Math.abs(z)); if (Math.abs(b) > 0) ncrit = Math.min(ncrit, R.varm[k] / (b * b)); }
+      ctx.fillStyle = tok("--warm"); const y0 = Yb(0), y1 = Yb(z); ctx.fillRect(L1 + bw * k + bw * 0.2, Math.min(y0, y1), bw * 0.6, Math.max(1, Math.abs(y1 - y0)));
+    });
+    const fmt = (n) => !isFinite(n) ? "never" : n >= 1e9 ? "> 10⁹" : n >= 1e6 ? (n / 1e6).toFixed(1) + " million" : n >= 1e3 ? Math.round(n / 100) / 10 + " thousand" : Math.round(n);
+    document.getElementById("g-stats").innerHTML =
+      `<span>binning bias exceeds the statistical error beyond about <b>${fmt(ncrit)}</b> objects</span>` +
+      `<span>largest |bias| ÷ error at this N: <b>${worst.toFixed(2)}</b></span>` +
+      (R.conv ? "" : `<span>(large-N fit not fully converged; KKT gap ${R.gap.toExponential(1)})</span>`);
+  }
+  function syncShape() {      // flat in log z needs bins away from z = 0
+    const lin = document.getElementById("g-space").value === "lin", sel = document.getElementById("g-basis");
+    sel.querySelector('option[value="flatlog"]').disabled = lin;
+    if (lin && sel.value === "flatlog") sel.value = "flatz";
+  }
+  ["g-pop", "g-space", "g-basis"].forEach(id => document.getElementById(id).addEventListener("change", () => { syncShape(); draw(); }));
+  syncShape();
+  [["g-k", 0], ["g-sig", 2]].forEach(([id, dp]) => { const el = document.getElementById(id); el.addEventListener("input", () => { document.getElementById(id + "-v").textContent = (+el.value).toFixed(dp); }); el.addEventListener("change", draw); });
+  document.getElementById("g-n").addEventListener("input", draw);
+  let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(draw, 120); });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+  new MutationObserver(draw).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+  draw();
+})();
+</script>
