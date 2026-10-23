@@ -145,3 +145,8 @@ Append-only. One entry per working session (or per step within a long session).
 
 - Josh confirmed joint marginalisation as the default (DECISIONS #10).
 - Page version 4: §3–4 marked discussed; §5 gains the softmax gradient derivation and cost; §6 gains why self-consistency is not optimality, the KKT code, SQUAREM / mix-SQP pointers, and the relevant audit findings (M-1–M-4, M-6). EM explorer now reports EM's measured asymptotic rate (≈ missing information) and the implied Gibbs autocorrelation time (0.998 → ~1000 iterations at the defaults).
+
+## 2026-10-23: KKT explained; process decision on audits
+
+- Explained the KKT condition (derivation, meaning of g_k as the rate of improvement from moving mass to bin k, sufficiency by concavity, gap as Frank–Wolfe bound ℓ* − ℓ ≤ W·gap). Demo: EM from a prior excluding bin 7 gets stuck at ρ_7 = 0 with g_7 = 1.65 (flagged); optimum has ρ_7 = 0.11, 57 nats better; bin 10 is a legitimate zero (g ≈ 0.2). Added to the page (version 5).
+- Decisions #11 (stacking explicit in docs/API), #12 (KKT gap checked by check()), #13 (audit findings handled after the walkthrough).

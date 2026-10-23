@@ -84,7 +84,7 @@ Order is a proposal: Josh may jump around. Rough default levels in brackets.
 
 ## Background audit
 
-Seven auditor reports land in `audit/` (see `audit/README.md`). Triage each report at the start of the matching step: inputs → 2.2/2.3, model-map → 2.6/4.4, priors → Phase 3, nuts-laplace → 4.1/4.2/4.5, gibbs-vb-validation → 4.3/4.5/5.3, outputs-api → Phase 5/7, tests-docs → Phases 6/8.
+Seven auditor reports land in `audit/` (see `audit/README.md`). Per DECISIONS #13, findings are triaged after the walkthrough is complete; the mapping below is for reference: inputs → 2.2/2.3, model-map → 2.6/4.4, priors → Phase 3, nuts-laplace → 4.1/4.2/4.5, gibbs-vb-validation → 4.3/4.5/5.3, outputs-api → Phase 5/7, tests-docs → Phases 6/8.
 
 ## Status
 

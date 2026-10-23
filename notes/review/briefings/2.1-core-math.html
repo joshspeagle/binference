@@ -292,6 +292,14 @@ flowchart TD
   </ul>
   <h3>Why "self-consistent" is not enough</h3>
   <p>Every fixed point of EM satisfies $\hat\rho_k=\hat n_k/W$, but so does any point with some $\rho_k=0$: EM can never revive a component it has driven to zero, and a stack started from a sparse interim prior stays sparse. The KKT condition adds the missing half: for a zero component, $g_k\le1$ must hold too, meaning no empty bin could increase the likelihood if given a little mass. In the explorer, compare the KKT gap of the stack (large) with EM after a few hundred steps.</p>
+  <h3>The KKT condition, derived</h3>
+  <p>Maximise $\ell(\rho)=\sum_i w_i\log(L_i\cdot\rho)$ subject to $\rho_k\ge0$ and $\sum_k\rho_k=1$. With a multiplier $\mu$ for the sum and $\nu_k\ge0$ for each bound, an optimum must satisfy</p>
+  <div class="eq">$$\frac{\partial\ell}{\partial\rho_k}=\mu-\nu_k,\qquad \nu_k\ge0,\qquad \nu_k\rho_k=0,\qquad \frac{\partial\ell}{\partial\rho_k}=\sum_i\frac{w_iL_{ik}}{L_i\cdot\rho}=W g_k .$$</div>
+  <p>Multiplying by $\rho_k$ and summing gives $\mu=\sum_k\rho_k\,\partial\ell/\partial\rho_k=W$ (always $\rho\cdot g=1$). So:</p>
+  <div class="eq">$$g_k=1\ \text{where }\rho_k>0,\qquad g_k\le1\ \text{where }\rho_k=0 .$$</div>
+  <p><strong>Meaning of $g_k$.</strong> Moving a sliver $\varepsilon$ of mass toward bin $k$, $\rho\to\rho+\varepsilon(e_k-\rho)$, changes the log-likelihood at rate $W(g_k-1)$. So $g_k>1$ says "bin $k$ wants more mass". For an occupied bin it must be exactly 1 (otherwise mass would flow in or out); for an empty bin it may be below 1 (the data really want it empty) but never above.</p>
+  <p><strong>Why it is a certificate.</strong> $\ell$ is concave, so these conditions are sufficient as well as necessary, and the gap bounds the distance to the optimum: $\ell^*-\ell(\rho)\le W\,(\max_kg_k-1)$ (the Frank–Wolfe duality gap; Lindsay 1983 calls $g_k-1$ the gradient function of a mixture likelihood). EM's fixed-point condition is only $\rho_k(g_k-1)=0$, which any empty bin satisfies; the KKT condition adds "and $g_k\le1$ for the empty ones".</p>
+  <p><strong>It does not stop bins hitting zero.</strong> Zeros can be correct. The certificate tells a correct zero from a stuck one. Example (10 bins, 2000 objects): EM started from a prior with bin 7 set to zero converges with $\rho_7=0$ and $g_7=1.65$, flagged; the true optimum has $\rho_7=0.11$ and is 57 nats better (bound: 1296). Both solutions have bin 10 empty with $g_{10}\approx0.2$: a legitimate zero.</p>
   <details class="code"><summary><b>model.py:258</b> · the certificate (fractions, with prior and selection)</summary>
 <pre>s = L @ v;  G = L.T @ (w / s)                    <span class="cm"># G_k = Σ w_i L_ik / s_i = W g_k</span>
 if selection: G -= W * S / (S @ v)               <span class="cm"># normaliser term</span>
