@@ -46,7 +46,7 @@ Order is a proposal: Josh may jump around. Rough default levels in brackets.
 - 2.6 The model object and numerical kernels: `model.py`, `_kernels.py`, `_simplex.py` (ILR coordinates, Jacobians).
 
 ### Phase 3. Priors [L2–L3]
-- 3.1 Dirichlet family: Dirichlet, generalised Dirichlet, Dirichlet trees, Pólya trees; conjugacy; unbounded densities: `priors/dirichlet.py`, `priors/base.py`.
+- 3.1 Dirichlet family: Dirichlet, generalised Dirichlet, Dirichlet trees, Pólya trees; conjugacy; unbounded densities: `priors/dirichlet.py`, `priors/base.py`. **Josh needs this from first principles (GD and Pólya trees are new to him), with explorers, before deciding on small concentrations.**
 - 3.2 Logistic (smoothness) family: whitened form, random-walk and HSGP bases, default mean, partial non-centring: `priors/logistic.py`.
 - 3.3 Hyperpriors and defaults (e.g. GP length-scale prior): `priors/hyper.py`.
 - 3.4 Rates: `priors/rates.py`.
@@ -58,7 +58,7 @@ Order is a proposal: Josh may jump around. Rough default levels in brackets.
 - 4.3 Gibbs and data augmentation (incl. selection via negative-binomial augmentation): `samplers/gibbs.py`, `samplers/base.py`.
 - 4.4 Point estimates: EM/SQUAREM, mix-SQP, L-BFGS, the KKT gap: `samplers/optimize.py`.
 - 4.5 Approximations: Laplace + PSIS, mean-field VB, bootstrap: `samplers/laplace.py`, `vb.py`, `bootstrap.py`.
-- 4.6 Choosing a method; `method="auto"`; the evidence behind the defaults (spec §6.9–6.10).
+- 4.6 Choosing a method; `method="auto"`; the evidence behind the defaults (spec §6.9–6.10). **Build the benchmark matrix (prior family × data regime × engine) that sets the adaptive defaults (DECISIONS #14).**
 
 ### Phase 5. Outputs and diagnostics [L2]
 - 5.1 `PopulationResult` and `PointEstimate`: `results.py`.

@@ -154,3 +154,17 @@ Append-only. One entry per working session (or per step within a long session).
 ## 2026-10-23: step 2.1 §7 (coordinates)
 
 - Page version 6: why ILR (zero-sum subspace, orthonormal, Aitchison distance, no reference bin), Helmert code, the other families (logistic: linear in ξ, log θ Jacobian; rates: log λ; conjugate engines work on ρ directly), and a K = 3 explorer: Dir(α + n) on the simplex vs in ILR coordinates, and the tail of log ρ for an empty bin (98% span ≈ ln 99 / α), explaining NUTS tree-depth problems for small α.
+
+## 2026-10-23: small concentrations, adaptive defaults, Jacobian convention
+
+- Josh wants to understand the Dirichlet family (GD, Pólya trees) before
+  deciding on small concentrations; prefers dynesty-style adaptive defaults.
+  Recorded #14 (adaptive defaults, evidence-based, benchmark matrix in Phase
+  4) and #15 (Jacobian convention explicit everywhere). Small-concentration
+  decision deferred to after 3.1 (deep dive with explorers) and Phase 4.
+- Benchmark `experiments/2.1_small_concentration.py` (1-D K=30 with ~1/3
+  near-empty bins, N=1000; 2-D 12×12): NUTS vs Gibbs ESS/s — Dir(1) 66 vs 59;
+  Dir(0.3) 8 vs 13; Dir(1/K) 0.5 vs 3.0 (NUTS 633 s, both poor); GD(1) 52 vs
+  24; Pólya(c=1) 88 vs 83; Pólya(c=0.1) 22 vs 28; 2-D Dir(1) 34 vs 36. No
+  NUTS tree-depth saturation except Dir(1/K) (3%). Problem is concentrated
+  at very small concentrations; trees and N-D grids are not special.
