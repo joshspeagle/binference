@@ -168,3 +168,5 @@ Append-only. One entry per working session (or per step within a long session).
   24; Pólya(c=1) 88 vs 83; Pólya(c=0.1) 22 vs 28; 2-D Dir(1) 34 vs 36. No
   NUTS tree-depth saturation except Dir(1/K) (3%). Problem is concentrated
   at very small concentrations; trees and N-D grids are not special.
+
+- Josh clarified his question: structural assumptions of each prior vs the bin structure (edges, unequal widths, N-D). Answered from the code; parked as a design question.
