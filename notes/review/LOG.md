@@ -187,3 +187,4 @@ Append-only. One entry per working session (or per step within a long session).
 
 - DECISIONS #16: expose everything with sensible defaults. Agreed order: 2.2 → 2.3 → Phase 1.
 - Published `2.2-bins.html`: Bins anatomy, where volumes enter, flat-in-which-coordinate, exact large-N binning-bias calculator (N_crit) comparing flat-in-z, flat-in-log-z and linear B-spline bin shapes; numbers checked with a Node harness.
+- Josh: bins must stay arbitrary user edges for continuous problems with any prior; internal resolution and B-spline knots should adapt to bin sizes/scope. Recorded #17 (1-D and rectilinear N-D arbitrary edges already supported).
