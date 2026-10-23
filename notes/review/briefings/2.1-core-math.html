@@ -93,6 +93,8 @@ table.tbl { border-collapse: collapse; font-size: 13.5px; margin: 10px 0; }
 table.tbl th, table.tbl td { padding: 6px 12px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
 table.tbl th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
 pre.mermaid { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 12px; overflow-x: auto; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 10px; }
+.pair figure { margin: 0; min-width: 0; } .pair figcaption { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 4px; }
 .qs { list-style: none; padding: 0; display: grid; gap: 10px; max-width: 72ch; }
 .qs li { display: grid; grid-template-columns: auto 1fr; gap: 12px; border: 1px solid var(--rule); background: var(--surface); padding: 10px 14px; border-radius: 6px; }
 .qs .tag { font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding-top: 2px; }
@@ -130,9 +132,9 @@ section { scroll-margin-top: 16px; }
     <li><a href="#s2" class="done"><span class="n">2</span>Marginal posterior</a></li>
     <li><a href="#s3" class="done"><span class="n">3</span>Selection</a></li>
     <li><a href="#s4" class="done"><span class="n">4</span>Rates</a></li>
-    <li><a href="#s5" class="now"><span class="n">5</span>Gradient</a></li>
-    <li><a href="#s6" class="now"><span class="n">6</span>EM and stacking</a></li>
-    <li><a href="#s7"><span class="n">7</span>Coordinates</a></li>
+    <li><a href="#s5" class="done"><span class="n">5</span>Gradient</a></li>
+    <li><a href="#s6" class="done"><span class="n">6</span>EM and stacking</a></li>
+    <li><a href="#s7" class="now"><span class="n">7</span>Coordinates</a></li>
     <li><a href="#s8"><span class="n">8</span>Population vs sample</a></li>
     <li><a href="#s9"><span class="n">9</span>To discuss</a></li>
   </ol>
@@ -349,6 +351,31 @@ return prior.map_from_counts(nhat)              <span class="cm"># Dirichlet: (n
   <p>which for $\mathrm{Dir}(\alpha)$ becomes</p>
   <div class="eq">$$\log p_x(x)=\sum_k\alpha_k\log\rho_k+\text{const}.$$</div>
   <p>The exponent is $\alpha_k$, not $\alpha_k-1$: in $x$ there is no boundary singularity even for α &lt; 1, but bins without data get very long tails (why NUTS struggles with small α). Gradient by the chain rule: $\nabla_x=V^\top(\partial\ell/\partial\eta+\alpha-A\rho)$.</p>
+  <p><strong>Why these coordinates.</strong> The logits $\eta$ have $K$ components but $\rho$ only $K-1$ degrees of freedom: adding a constant to every $\eta_k$ leaves $\rho$ unchanged. The Helmert basis spans exactly the zero-sum subspace, so $x$ has $K-1$ components and no redundant direction. Its columns are orthonormal, so Euclidean distance in $x$ is the Aitchison distance between compositions, the same for every bin: no bin is singled out, unlike stick-breaking (order-dependent) or additive log-ratios (a reference bin).</p>
+  <div class="explorer" id="simplex-explorer">
+    <h3>Explore: one posterior, two coordinate systems</h3>
+    <p class="note">Three bins; the posterior is $\mathrm{Dir}(\alpha+n)$ with counts $n_1$, $n_2$ and an empty bin 3. Left: its density on the simplex, $\prod\rho_k^{\alpha_k+n_k-1}$. Right: the density NUTS actually samples, in ILR coordinates, $\prod\rho_k^{\alpha_k+n_k}$. Shading covers 12 nats below the maximum.</p>
+    <div class="controls">
+      <label for="x-al">concentration α <span class="val" id="x-al-v"></span><input id="x-al" type="range" min="0.05" max="3" step="0.05" value="1"></label>
+      <label for="x-n1">count in bin 1 <span class="val" id="x-n1-v"></span><input id="x-n1" type="range" min="0" max="60" step="1" value="12"></label>
+      <label for="x-n2">count in bin 2 <span class="val" id="x-n2-v"></span><input id="x-n2" type="range" min="0" max="60" step="1" value="6"></label>
+    </div>
+    <div class="pair">
+      <figure><canvas id="x-rho" aria-label="Density on the simplex"></canvas><figcaption>on the simplex (ρ)</figcaption></figure>
+      <figure><canvas id="x-ilr" aria-label="Density in ILR coordinates"></canvas><figcaption>in ILR coordinates (x), the sampler's view</figcaption></figure>
+    </div>
+    <canvas id="x-tail" height="150" aria-label="Posterior of log rho_3"></canvas>
+    <div class="legend"><span><i style="background:var(--accent)"></i>posterior of log ρ₃ for the empty bin</span><span><i style="background:var(--warm)"></i>1% and 99% quantiles</span></div>
+    <div class="stats" id="x-stats"></div>
+  </div>
+  <p class="note">Try α = 1, then drag it to 0.1. On the simplex the density piles up against the bin-3 edge (it becomes unbounded for α &lt; 1); in $x$ it stays smooth, but a ridge stretches off toward the top of the panel (the direction in which ρ₃ → 0): the empty bin's log-fraction has an exponential tail with rate α, so its 98% interval spans about $\ln 99/\alpha$ e-folds. NUTS has to traverse that with a step size tuned to the narrow directions, which is why small concentrations hit the maximum tree depth and why <code>check()</code> then suggests Gibbs. With α ≥ 1 the tail is short and nothing goes wrong.</p>
+  <details class="code"><summary><b>_simplex.py:22</b> · the Helmert basis</summary>
+<pre>V = np.zeros((K, K - 1))
+for j in range(1, K):
+    V[:j, j - 1] = 1.0 / j          <span class="cm"># first j bins share +1/j</span>
+    V[j, j - 1] = -1.0              <span class="cm"># bin j gets −1: each column sums to zero</span>
+    V[:, j - 1] *= np.sqrt(j / (j + 1.0))   <span class="cm"># unit length; columns are orthogonal</span></pre>
+  </details>
   <details class="code"><summary><b>priors/dirichlet.py:64</b> · forward map and chain rule</summary>
 <pre>def forward(self, x):
     eta = self.V @ x                       <span class="cm"># ILR: logits in the zero-sum subspace</span>
@@ -359,7 +386,12 @@ def log_prior_and_grad(self, x, cache, value, d_eta):
     lp, g_eta = self._lp_eta(value, log_rho)        <span class="cm"># Dirichlet: Σ α log ρ + c,  α − Aρ</span>
     return lp + self._log_jac_const, self.V.T @ (d_eta + g_eta)</pre>
   </details>
-  <p>Logistic (smoothness) priors use $x=$ (whitened field coefficients, log-hyperparameters), $\eta=\mu+B(s(\theta)\odot\xi)$; rates use $x=\log\lambda$.</p>
+  <h3>The other families</h3>
+  <ul>
+    <li><strong>Logistic (smoothness) priors:</strong> $x=(\xi,\log\theta)$, with $\eta=\mu+B\,(s(\theta)\odot\xi)$ and $\xi\sim\mathcal N(0,I)$. The map to $\eta$ is linear in $\xi$, so no Jacobian is needed for the field; the hyperparameters are sampled on the log scale, which adds $\log\theta$ to the density. The softmax redundancy is handled by dropping the constant basis vector. NUTS may also re-mix $\xi$ between centred and non-centred forms (Phase 3.2).</li>
+    <li><strong>Rates:</strong> $x=\log\lambda$, with Jacobian $\prod_k\lambda_k$; a Gamma$(a,b)$ prior becomes $\sum_k(a_k\log\lambda_k-b_k\lambda_k)$, the same "exponent $a$, not $a-1$" shift.</li>
+    <li><strong>Engines that do not use $x$:</strong> Gibbs, EM, mix-SQP and VB work directly on $\rho$ (or $\lambda$) with conjugate updates, which is why they handle α &lt; 1 gracefully.</li>
+  </ul>
 </section>
 
 <!-- ============================================================ 8 -->
@@ -667,8 +699,80 @@ def log_prior_and_grad(self, x, cache, value, d_eta):
     el.addEventListener("change", drawSel);
   });
 
+  // ---------- §7 simplex explorer (K = 3)
+  const V3 = [[1 / Math.sqrt(2), 1 / Math.sqrt(6)], [-1 / Math.sqrt(2), 1 / Math.sqrt(6)], [0, -2 / Math.sqrt(6)]];  // Helmert basis (3 x 2), as in _simplex.py
+  function hex2rgb(h) { h = h.replace("#", ""); if (h.length === 3) h = h.split("").map(c => c + c).join(""); const n = parseInt(h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+  function heat(cv, fn, xr, yr) {
+    const w = cv.clientWidth; cv.setAttribute("height", w); const { ctx } = setup(cv);
+    const dpr = window.devicePixelRatio || 1, W = Math.round(w * dpr), H = Math.round(w * dpr);
+    const vals = new Float64Array(W * H); let mx = -Infinity;
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+      const v = fn(xr[0] + (xr[1] - xr[0]) * (i + .5) / W, yr[1] - (yr[1] - yr[0]) * (j + .5) / H);
+      vals[j * W + i] = v; if (v > mx && isFinite(v)) mx = v;
+    }
+    const bg = hex2rgb(tok("--surface")), fg = hex2rgb(tok("--accent")), img = ctx.createImageData(W, H);
+    for (let p = 0; p < W * H; p++) {
+      const v = vals[p]; let t = isNaN(v) ? -1 : Math.max(0, Math.min(1, 1 + (Math.min(v, mx) - mx) / 12));
+      const o = 4 * p;
+      if (t < 0) { img.data[o + 3] = 0; continue; }
+      for (let c = 0; c < 3; c++) img.data[o + c] = Math.round(bg[c] + (fg[c] - bg[c]) * Math.pow(t, 1.5));
+      img.data[o + 3] = 255;
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.putImageData(img, 0, 0); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w };
+  }
+  function drawSimplex() {
+    const al = +document.getElementById("x-al").value, n1 = +document.getElementById("x-n1").value, n2 = +document.getElementById("x-n2").value;
+    document.getElementById("x-al-v").textContent = al.toFixed(2);
+    document.getElementById("x-n1-v").textContent = n1; document.getElementById("x-n2-v").textContent = n2;
+    const a = [al + n1, al + n2, al];                       // posterior Dir(α + n), bin 3 empty
+    // (A) simplex: log Dir density, Σ (a_k − 1) log ρ_k   (ternary: bin 1 lower left, bin 2 lower right, bin 3 top)
+    const h3 = Math.sqrt(3) / 2;
+    let r = heat(document.getElementById("x-rho"), (u, v) => {
+      const r3 = v / h3, r2 = u - r3 / 2, r1 = 1 - r2 - r3;
+      if (r1 <= 0 || r2 <= 0 || r3 <= 0) return NaN;
+      return (a[0] - 1) * Math.log(r1) + (a[1] - 1) * Math.log(r2) + (a[2] - 1) * Math.log(r3);
+    }, [-0.04, 1.04], [-0.06, 1.02]);
+    let ctx = r.ctx; ctx.fillStyle = tok("--muted"); ctx.font = "11px " + tok("--font-mono");
+    const P = (u, v) => [r.w * (u + 0.04) / 1.08, r.w * (1.02 - v) / 1.08];
+    ctx.strokeStyle = tok("--rule"); ctx.beginPath(); [[0, 0], [1, 0], [0.5, h3], [0, 0]].forEach(([u, v], i) => { const [x, y] = P(u, v); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
+    ctx.textBaseline = "top"; ctx.textAlign = "left"; let [x, y] = P(0, 0); ctx.fillText("bin 1", x + 2, y - 14);
+    ctx.textAlign = "right"; [x, y] = P(1, 0); ctx.fillText("bin 2", x - 2, y - 14);
+    ctx.textAlign = "left"; [x, y] = P(0.5, h3); ctx.fillText("bin 3 (empty)", x + 6, y);
+    // (B) ILR coordinates: log density in x = Σ a_k log ρ_k  (exponent a_k, not a_k − 1)
+    const R = 9;
+    r = heat(document.getElementById("x-ilr"), (x1, x2) => {
+      const eta = [0, 1, 2].map(k => V3[k][0] * x1 + V3[k][1] * x2), m = Math.max(...eta);
+      const lse = m + Math.log(eta.reduce((s, e) => s + Math.exp(e - m), 0));
+      return eta.reduce((s, e, k) => s + a[k] * (e - lse), 0);
+    }, [-R, R], [-R, R]);
+    ctx = r.ctx; ctx.strokeStyle = tok("--rule"); ctx.beginPath(); ctx.moveTo(r.w / 2, 0); ctx.lineTo(r.w / 2, r.w); ctx.moveTo(0, r.w / 2); ctx.lineTo(r.w, r.w / 2); ctx.stroke();
+    ctx.fillStyle = tok("--muted"); ctx.textAlign = "left"; ctx.textBaseline = "top"; ctx.fillText("x₁, x₂ ∈ [−9, 9]", 4, 4);
+    // direction in which bin 3 grows: η_3 = V3[2]·x, i.e. towards −x₂
+    // (C) tail of log ρ_3 for the empty bin: ρ_3 ~ Beta(α, 2α + n1 + n2)
+    const cv = document.getElementById("x-tail"); const s = setup(cv); ctx = s.ctx;
+    const L0 = 36, R0 = s.w - 10, T0 = 10, B0 = s.h - 22, umin = -40;
+    const B = 2 * al + n1 + n2, lg = (u) => al * u + (B - 1) * Math.log1p(-Math.exp(u));
+    const us = Array.from({ length: 800 }, (_, i) => umin + (0 - umin) * (i + .5) / 800), ls = us.map(lg), lm = Math.max(...ls);
+    const ps = ls.map(l => Math.exp(l - lm)), tot = ps.reduce((p, q) => p + q, 0);
+    let c = 0, q01 = umin, q50 = umin, q99 = 0;
+    us.forEach((u, i) => { const c0 = c; c += ps[i] / tot; if (c0 < 0.01 && c >= 0.01) q01 = u; if (c0 < 0.5 && c >= 0.5) q50 = u; if (c0 < 0.99 && c >= 0.99) q99 = u; });
+    const X = (u) => L0 + (R0 - L0) * (u - umin) / (0 - umin), Y = (p) => B0 - (B0 - T0) * p;
+    axes(ctx, L0, T0, R0, B0, [-40, -30, -20, -10, 0].map(v => [v, X(v)]));
+    ctx.fillStyle = tok("--accent"); ctx.globalAlpha = 0.18; ctx.beginPath(); ctx.moveTo(X(us[0]), B0); us.forEach((u, i) => ctx.lineTo(X(u), Y(ps[i]))); ctx.lineTo(X(0), B0); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = tok("--accent"); ctx.lineWidth = 2; ctx.beginPath(); us.forEach((u, i) => i ? ctx.lineTo(X(u), Y(ps[i])) : ctx.moveTo(X(u), Y(ps[i]))); ctx.stroke();
+    ctx.strokeStyle = tok("--warm"); ctx.setLineDash([3, 3]); [q01, q99].forEach(q => { ctx.beginPath(); ctx.moveTo(X(q), T0); ctx.lineTo(X(q), B0); ctx.stroke(); }); ctx.setLineDash([]);
+    ctx.fillStyle = tok("--muted"); ctx.textAlign = "right"; ctx.textBaseline = "top"; ctx.fillText("log ρ₃", R0, T0);
+    const width = q99 - q01;
+    document.getElementById("x-stats").innerHTML =
+      `<span>empty bin: 98% of log ρ₃ lies in [<b>${q01.toFixed(1)}</b>, <b>${q99.toFixed(1)}</b>], a span of <b>${width.toFixed(1)}</b> (≈ ${(Math.log(99) / al).toFixed(0)} from the tail rate α)</span>` +
+      `<span>a bin with data spans ≈ <b>${(4.65 / Math.sqrt(Math.max(1, al + n1))).toFixed(2)}</b> (≈ 4.65/√(α+n₁))</span>` +
+      `<span>NUTS must cover both scales with one step size: ratio ≈ <b>${(width / (4.65 / Math.sqrt(Math.max(1, al + n1)))).toFixed(0)}</b>×</span>`;
+  }
+  ["x-al", "x-n1", "x-n2"].forEach(id => document.getElementById(id).addEventListener("input", drawSimplex));
+
   // ---------- redraw on resize and theme change
-  function drawAll() { drawBins(); drawEM(); drawSel(); }
+  function drawAll() { drawBins(); drawEM(); drawSel(); drawSimplex(); }
   let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(drawAll, 120); });
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawAll);
   new MutationObserver(drawAll).observe(root, { attributes: true, attributeFilter: ["data-theme"] });

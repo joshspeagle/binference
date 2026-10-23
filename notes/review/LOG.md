@@ -150,3 +150,7 @@ Append-only. One entry per working session (or per step within a long session).
 
 - Explained the KKT condition (derivation, meaning of g_k as the rate of improvement from moving mass to bin k, sufficiency by concavity, gap as Frank–Wolfe bound ℓ* − ℓ ≤ W·gap). Demo: EM from a prior excluding bin 7 gets stuck at ρ_7 = 0 with g_7 = 1.65 (flagged); optimum has ρ_7 = 0.11, 57 nats better; bin 10 is a legitimate zero (g ≈ 0.2). Added to the page (version 5).
 - Decisions #11 (stacking explicit in docs/API), #12 (KKT gap checked by check()), #13 (audit findings handled after the walkthrough).
+
+## 2026-10-23: step 2.1 §7 (coordinates)
+
+- Page version 6: why ILR (zero-sum subspace, orthonormal, Aitchison distance, no reference bin), Helmert code, the other families (logistic: linear in ξ, log θ Jacobian; rates: log λ; conjugate engines work on ρ directly), and a K = 3 explorer: Dir(α + n) on the simplex vs in ILR coordinates, and the tail of log ρ for an empty bin (98% span ≈ ln 99 / α), explaining NUTS tree-depth problems for small α.
