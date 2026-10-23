@@ -134,9 +134,9 @@ section { scroll-margin-top: 16px; }
     <li><a href="#s4" class="done"><span class="n">4</span>Rates</a></li>
     <li><a href="#s5" class="done"><span class="n">5</span>Gradient</a></li>
     <li><a href="#s6" class="done"><span class="n">6</span>EM and stacking</a></li>
-    <li><a href="#s7" class="now"><span class="n">7</span>Coordinates</a></li>
-    <li><a href="#s8"><span class="n">8</span>Population vs sample</a></li>
-    <li><a href="#s9"><span class="n">9</span>To discuss</a></li>
+    <li><a href="#s7" class="done"><span class="n">7</span>Coordinates</a></li>
+    <li><a href="#s8" class="now"><span class="n">8</span>Population vs sample</a></li>
+    <li><a href="#s9" class="now"><span class="n">9</span>Outcomes</a></li>
   </ol>
 </nav>
 
@@ -397,20 +397,54 @@ def log_prior_and_grad(self, x, cache, value, d_eta):
 <!-- ============================================================ 8 -->
 <section id="s8">
   <div class="sec-head"><span class="n">§8</span><h2>Population versus realised sample</h2></div>
-  <p>$\rho$ is the population the objects were drawn from, so its posterior includes the multinomial shot noise of having only $N$ objects. The histogram of <em>these</em> objects' true bins (<code>realized_counts</code>) is a different quantity: with precise data it is nearly known while $\rho$ is not. Each object's posterior given its own data and the population is $r_{ik}(\rho)$ averaged over the posterior of $\rho$: shrinkage toward the population.</p>
+  <div class="files">results.py · realized_counts (l. 177), assignment_probabilities (l. 134), sample_assignments, sample_values</div>
+  <p>Two different questions can be asked of the same data:</p>
+  <div class="modes">
+    <div class="mode"><h4>the population, ρ</h4><dl>
+      <dt>question</dt><dd>What distribution were these objects drawn from?</dd>
+      <dt>uncertainty includes</dt><dd>measurement noise <em>and</em> the shot noise of having only $N$ objects: even with perfect measurements, $\rho_k$ is uncertain by $\approx\sqrt{\rho_k(1-\rho_k)/N}$.</dd>
+      <dt>use it for</dt><dd>physics of the parent population, predictions for new objects, comparing surveys.</dd></dl></div>
+    <div class="mode"><h4>the realised sample, $n_k/N$</h4><dl>
+      <dt>question</dt><dd>What is the histogram of the true values of <em>these</em> $N$ objects?</dd>
+      <dt>uncertainty includes</dt><dd>measurement noise only: with perfect measurements it is known exactly.</dd>
+      <dt>use it for</dt><dd>properties of a specific sample, e.g. the redshift distribution of a lensing source sample.</dd></dl></div>
+  </div>
+  <p>The hierarchical model gives both from the same posterior. Draws of $\rho$ describe the population; for each draw, labels $z_i\sim\mathrm{Cat}(r_i(\rho))$ give the realised counts $n_k=\sum_iw_i\,1[z_i=k]$ (<code>realized_counts</code>). Together these are exact joint draws of $(\rho,z)$.</p>
+
+  <div class="explorer" id="pop-explorer">
+    <h3>Explore: two error bars from one posterior</h3>
+    <p class="note">A small Gibbs sampler (the data-augmentation form of §6) on 10 bins: it alternates $z\mid\rho$ and $\rho\mid z\sim\mathrm{Dir}(1+n)$, recording both $\rho$ and $n/N$. Bars: 68% intervals. Dashes: the true population; dots: the true histogram of these objects. Sliders re-run on release.</p>
+    <div class="controls">
+      <label for="p-n">objects N <span class="val" id="p-n-v"></span><input id="p-n" type="range" min="50" max="2000" step="50" value="300"></label>
+      <label for="p-sig">measurement σ <span class="val" id="p-sig-v"></span><input id="p-sig" type="range" min="0.01" max="0.5" step="0.01" value="0.05"></label>
+      <label for="p-seed">mock seed <span class="val" id="p-seed-v"></span><input id="p-seed" type="range" min="1" max="20" step="1" value="2"></label>
+    </div>
+    <canvas id="p-main" height="220" aria-label="Population and realised-sample intervals"></canvas>
+    <div class="legend"><span><i style="background:var(--accent)"></i>population ρ</span><span><i style="background:var(--warm)"></i>realised n/N</span><span><i style="background:var(--muted)"></i>true population</span><span><i style="background:var(--ink)"></i>true histogram</span></div>
+    <div class="stats" id="p-stats"></div>
+  </div>
+  <p class="note">With σ = 0.01 the realised histogram is almost exact (narrow amber bars around the dots) while ρ keeps the shot-noise width. Raise σ toward the bin width (0.3) and the two converge: the measurement noise dominates both. Increasing N shrinks the population bars as $1/\sqrt N$.</p>
+  <h3>Individual objects</h3>
+  <p>The same draws give each object's posterior given its own data <em>and</em> the population, $p(z_i=k\mid D)=\mathbb E_\rho[r_{ik}(\rho)]$ (<code>assignment_probabilities</code>). It is narrower than the object's own likelihood wherever the population is informative: shrinkage. <code>sample_values</code> then draws a continuous true value inside the drawn bin from the object's own likelihood (exact for Gaussian errors), again using the flat-within-bin assumption of §1.</p>
 </section>
 
 <!-- ============================================================ 9 -->
 <section id="s9">
-  <div class="sec-head"><span class="n">§9</span><h2>To discuss</h2></div>
+  <div class="sec-head"><span class="n">§9</span><h2>Outcomes of this step</h2></div>
+  <p>Decisions recorded while discussing this page (full text in <code>notes/review/DECISIONS.md</code>; all are "change later" unless noted).</p>
   <ul class="qs">
-    <li><span class="tag">§1</span><span><strong>Flat in which coordinate?</strong> For <code>Bins.log</code>, "flat" is flat in $z$, not $\log z$. Should the bins carry a measure (flat in $z$, in $\log z$, or a user base density)?</span></li>
-    <li><span class="tag">§1</span><span><strong>Correct the binning bias?</strong> Options: a refit-on-halved-bins check; sub-bin quadrature with a piecewise-linear population (makes $L$ depend on ρ); or documentation only.</span></li>
-    <li><span class="tag">§2</span><span><strong>Non-integer weights.</strong> Gibbs refuses them, NUTS accepts silently. Warn, document, or support calibrated weights explicitly?</span></li>
-    <li><span class="tag">§3</span><span><strong>Selection formalism.</strong> Are "observed" and "true" the right names? Selection that depends on both $z$ and $d$?</span></li>
-    <li><span class="tag">§4</span><span><strong>Rates vs fractions</strong> as separate "kinds" chosen by the prior, or one model with an optional total.</span></li>
-    <li><span class="tag">§7</span><span><strong>ILR vs other maps.</strong> ILR is symmetric across bins and orthonormal (isotropic metric); stick-breaking is order-dependent; additive log-ratio picks a reference bin.</span></li>
+    <li><span class="tag">#1</span><span><strong>Weights:</strong> integer multiplicities are the public meaning; bootstrap reweighting internal; non-integer weights opt-in with a pseudo-likelihood warning.</span></li>
+    <li><span class="tag">#2</span><span><strong>Correlated Gaussian errors</strong> for N-D grids, with a covariance per object.</span></li>
+    <li><span class="tag">#3</span><span><strong>Gradients:</strong> NumPy now (kept); JAX or PyTorch backend on the roadmap.</span></li>
+    <li><span class="tag">#4–6</span><span><strong>No flat-within-bin assumption:</strong> reporting bins separate from internal resolution; continuous fields evaluated inside bins; B-spline mixture basis for every prior family; a binning-bias diagnostic.</span></li>
+    <li><span class="tag">#7–8</span><span><strong>Selection modes</strong> renamed <code>on_measurement</code> / <code>on_truth</code>; both at once, with a worked example.</span></li>
+    <li><span class="tag">#9</span><span><strong>Rates:</strong> derived after any fractions fit (Λ ~ Gamma(N_obs, S·ρ) per draw); explicit total parameter as an opt-in; no separate "rates kind".</span></li>
+    <li><span class="tag">#10</span><span><strong>Selection inputs:</strong> arrays, callables, or draws of either; <code>Selection.from_injections</code> with per-bin and smooth models; joint marginalisation by default (cut available), with a clear note.</span></li>
+    <li><span class="tag">#11–12</span><span><strong>Stacking made explicit</strong> in docs and API; <code>check()</code> warns on a large KKT gap.</span></li>
+    <li><span class="tag">#13</span><span><strong>Process:</strong> audit findings handled after the walkthrough.</span></li>
+    <li><span class="tag">#14–15</span><span><strong>Adaptive defaults</strong> (dynesty-style, evidence-based); <strong>Jacobian convention</strong> explicit everywhere.</span></li>
   </ul>
+  <p>Open threads carried forward: small concentrations and alternative coordinates for complex priors (Phases 3.1 and 4), how every prior takes its geometry from the bins (3.x and 7), SQUAREM and mix-SQP in depth (4.4), and the eight architecture decisions of step 1.3.</p>
 </section>
 </main>
 </div>
@@ -771,8 +805,69 @@ def log_prior_and_grad(self, x, cache, value, d_eta):
   }
   ["x-al", "x-n1", "x-n2"].forEach(id => document.getElementById(id).addEventListener("input", drawSimplex));
 
+  // ---------- §8 population vs realised sample (a small Gibbs sampler)
+  function gammaDraw(a, rnd, gauss) {            // Marsaglia & Tsang, a >= 1
+    const d = a - 1 / 3, c = 1 / Math.sqrt(9 * d);
+    for (;;) { let x, v; do { x = gauss(); v = 1 + c * x; } while (v <= 0); v = v * v * v; const u = rnd(); if (u < 1 - 0.0331 * x ** 4 || Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v; }
+  }
+  const PK = 10, PE = Array.from({ length: PK + 1 }, (_, k) => 0.3 * k), PS = { key: "", res: null };
+  const PRHO = (() => { const m = PE.slice(0, PK).map((a, k) => scomps.reduce((acc, [w, mu, sd]) => acc + w * (Phi((PE[k + 1] - mu) / sd) - Phi((a - mu) / sd)), 0)); const t = m.reduce((a, b) => a + b, 0); return m.map(v => v / t); })();
+  function popSim(N, sig, seed) {
+    const rnd = mulberry32(seed * 7907 + 3), gauss = () => { let u = 0; while (u === 0) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); };
+    const L = new Float64Array(N * PK), real = new Float64Array(PK);
+    for (let i = 0; i < N; i++) {
+      let z; do { const c = rnd() < scomps[0][0] ? scomps[0] : scomps[1]; z = c[1] + c[2] * gauss(); } while (z < 0 || z > 3);
+      real[Math.min(PK - 1, Math.floor(z / 0.3))] += 1 / N;
+      const d = z + sig * gauss(); let mx = 0;
+      for (let k = 0; k < PK; k++) { const v = Phi((PE[k + 1] - d) / sig) - Phi((PE[k] - d) / sig); L[i * PK + k] = v; mx = Math.max(mx, v); }
+      for (let k = 0; k < PK; k++) L[i * PK + k] = mx > 0 ? L[i * PK + k] / mx : 1;
+    }
+    let rho = new Float64Array(PK).fill(1 / PK); const RH = [], RE = [], burn = 300, keep = 1500, p = new Float64Array(PK);
+    for (let t = 0; t < burn + keep; t++) {
+      const n = new Float64Array(PK);
+      for (let i = 0; i < N; i++) {             // z_i | rho ~ Categorical(r_i)
+        let s = 0; for (let k = 0; k < PK; k++) { p[k] = L[i * PK + k] * rho[k]; s += p[k]; }
+        let u = rnd() * s, k = 0; while (k < PK - 1 && (u -= p[k]) > 0) k++; n[k]++;
+      }
+      let g = 0; const gd = []; for (let k = 0; k < PK; k++) { const v = gammaDraw(1 + n[k], rnd, gauss); gd.push(v); g += v; }   // rho | z ~ Dir(1 + n)
+      rho = Float64Array.from(gd, v => v / g);
+      if (t >= burn) { RH.push(Array.from(rho)); RE.push(Array.from(n, v => v / N)); }
+    }
+    const q = (draws, k) => { const v = draws.map(d => d[k]).sort((a, b) => a - b); return [v[Math.floor(0.16 * v.length)], v[Math.floor(0.5 * v.length)], v[Math.floor(0.84 * v.length)]]; };
+    return { real, pop: Array.from({ length: PK }, (_, k) => q(RH, k)), rea: Array.from({ length: PK }, (_, k) => q(RE, k)) };
+  }
+  function drawPop() {
+    const N = +document.getElementById("p-n").value, sig = +document.getElementById("p-sig").value, seed = +document.getElementById("p-seed").value;
+    document.getElementById("p-n-v").textContent = N; document.getElementById("p-sig-v").textContent = sig.toFixed(2); document.getElementById("p-seed-v").textContent = seed;
+    const key = [N, sig, seed].join(":"); if (key !== PS.key) { PS.res = popSim(N, sig, seed); PS.key = key; }
+    const { real, pop, rea } = PS.res;
+    const { ctx, w, h } = setup(document.getElementById("p-main"));
+    const L0 = 36, R0 = w - 10, T0 = 10, B0 = h - 20, bw = (R0 - L0) / PK;
+    const ym = Math.max(...pop.map(q => q[2]), ...rea.map(q => q[2]), ...PRHO) * 1.1, Y = (v) => B0 - (B0 - T0) * v / ym;
+    axes(ctx, L0, T0, R0, B0, PE.map(e => [e.toFixed(1), L0 + (R0 - L0) * e / 3]).filter((_, i) => i % 2 === 0));
+    ctx.fillStyle = tok("--muted"); ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillText(ym.toFixed(2), L0 - 4, T0 + 4);
+    for (let k = 0; k < PK; k++) {
+      const x0 = L0 + bw * k;
+      ctx.strokeStyle = tok("--muted"); ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x0 + 2, Y(PRHO[k])); ctx.lineTo(x0 + bw - 2, Y(PRHO[k])); ctx.stroke(); ctx.setLineDash([]);
+      [[pop[k], "--accent", 0.32], [rea[k], "--warm", 0.68]].forEach(([q, col, f]) => {
+        const x = x0 + bw * f; ctx.strokeStyle = tok(col); ctx.lineWidth = Math.max(3, bw * 0.16);
+        ctx.beginPath(); ctx.moveTo(x, Y(q[0])); ctx.lineTo(x, Math.min(Y(q[2]), Y(q[0]) - 2)); ctx.stroke();
+      });
+      ctx.fillStyle = tok("--ink"); ctx.beginPath(); ctx.arc(x0 + bw * 0.68, Y(real[k]), 2.6, 0, 2 * Math.PI); ctx.fill();
+    }
+    const wp = pop.reduce((a, q) => a + q[2] - q[0], 0) / PK, wr = rea.reduce((a, q) => a + q[2] - q[0], 0) / PK;
+    document.getElementById("p-stats").innerHTML =
+      `<span>mean 68% width: population ρ <b>${wp.toFixed(3)}</b>, realised sample <b>${wr.toFixed(3)}</b> (ratio ${(wr / wp).toFixed(2)})</span>` +
+      `<span>pure multinomial shot noise at this N: ≈ <b>${(2 * Math.sqrt(0.1 * 0.9 / N)).toFixed(3)}</b> for a bin holding 10%</span>`;
+  }
+  ["p-n", "p-sig", "p-seed"].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener("input", () => { document.getElementById(id + "-v").textContent = id === "p-sig" ? (+el.value).toFixed(2) : el.value; });
+    el.addEventListener("change", drawPop);
+  });
+
   // ---------- redraw on resize and theme change
-  function drawAll() { drawBins(); drawEM(); drawSel(); drawSimplex(); }
+  function drawAll() { drawBins(); drawEM(); drawSel(); drawSimplex(); drawPop(); }
   let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(drawAll, 120); });
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawAll);
   new MutationObserver(drawAll).observe(root, { attributes: true, attributeFilter: ["data-theme"] });

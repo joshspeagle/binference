@@ -1,6 +1,6 @@
 # Walkthrough plan
 
-**Current position:** step 2.1 (core math, pulled forward from Phase 2 at Josh's request), L3, combined with reading `model.py`, `_kernels.py`, `_simplex.py`. Step 1.3 is open: its eight architecture decisions are deferred until we have read the relevant code (see QUESTIONS.md). Then 1.1, 1.2, 1.4.
+**Current position:** step 2.1 finished. Next per the agreed order: Phase 1 remainder (1.1, 1.2, 1.4) or continue Phase 2 (2.2 bins/binning, 2.3 inputs and the `from_*` conversions). Step 1.3's eight architecture decisions remain deferred until the relevant code has been read.
 
 ## How each step works
 
@@ -54,7 +54,7 @@ Order is a proposal: Josh may jump around. Rough default levels in brackets.
 
 ### Phase 4. Inference engines [L3]
 - 4.1 NUTS core: multinomial NUTS, U-turn criteria, dual averaging, windowed adaptation: `samplers/_nuts_core.py`.
-- 4.2 NUTS engine: initialisation, geometry adaptation and the centring rule, metric choice, resuming, parallel chains: `samplers/nuts.py`.
+- 4.2 NUTS engine: initialisation, geometry adaptation and the centring rule, metric choice, resuming, parallel chains: `samplers/nuts.py`. **Josh wants to know exactly what is implemented and how much control users have over arguments and hidden constants; and to explore alternate coordinates, sampling strategies and other tricks for the complex priors (with 3.1).**
 - 4.3 Gibbs and data augmentation (incl. selection via negative-binomial augmentation): `samplers/gibbs.py`, `samplers/base.py`.
 - 4.4 Point estimates: EM/SQUAREM, mix-SQP, L-BFGS, the KKT gap: `samplers/optimize.py`.
 - 4.5 Approximations: Laplace + PSIS, mean-field VB, bootstrap: `samplers/laplace.py`, `vb.py`, `bootstrap.py`.
@@ -92,4 +92,4 @@ Seven auditor reports land in `audit/` (see `audit/README.md`). Per DECISIONS #1
 |---|---|---|---|---|
 | 0 Plan | – | done | – | Josh: follow the proposed order |
 | 1.3 Architecture | L2 | overview done; decisions deferred | `briefings/1.3-architecture.md` | Josh: needs code context before judging the 8 decisions |
-| 2.1 Core math (+2.6 code) | L3 | briefing ready | `briefings/2.1-core-math.md` | pulled forward |
+| 2.1 Core math (+2.6 code) | L3 | done (2026-10-23) | `briefings/2.1-core-math.html` (+ .md) | decisions #1–#15; 2.6 code review of model/kernels partly covered |

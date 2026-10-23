@@ -171,3 +171,14 @@ Append-only. One entry per working session (or per step within a long session).
 
 - Josh clarified his question: structural assumptions of each prior vs the bin structure (edges, unequal widths, N-D). Answered from the code; parked as a design question.
 - Benchmark: the 2-D Dirichlet(1/K) NUTS run did not finish within the 30-minute limit (killed); recorded in the .out file.
+
+## 2026-10-23: step 2.1 §8 and wrap-up
+
+- Josh: explore alternate coordinates and sampling strategies for complex
+  priors (parked, Phase 3.1/4). Asked about the NUTS implementation: it is
+  pastry's own NumPy implementation of Stan's algorithm (not a wrapper);
+  the audit confirmed it matches Stan's base_nuts line by line. Exposed vs
+  hard-coded options parked as a question for 4.2.
+- Page version 7: §8 (population vs realised sample, with a small in-page
+  Gibbs sampler showing both intervals; individual-object posteriors) and §9
+  outcomes (decisions #1–#15, open threads). Step 2.1 marked done.
