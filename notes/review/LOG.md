@@ -170,3 +170,4 @@ Append-only. One entry per working session (or per step within a long session).
   at very small concentrations; trees and N-D grids are not special.
 
 - Josh clarified his question: structural assumptions of each prior vs the bin structure (edges, unequal widths, N-D). Answered from the code; parked as a design question.
+- Benchmark: the 2-D Dirichlet(1/K) NUTS run did not finish within the 30-minute limit (killed); recorded in the .out file.
