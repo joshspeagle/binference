@@ -190,3 +190,7 @@ Append-only. One entry per working session (or per step within a long session).
 - Josh: bins must stay arbitrary user edges for continuous problems with any prior; internal resolution and B-spline knots should adapt to bin sizes/scope. Recorded #17 (1-D and rectilinear N-D arbitrary edges already supported).
 - Josh on 2.2 §6: measure on Bins to discuss (proposal written, parked), wants warnings for outside mass (#18) and masked grids everywhere (#19); asked whether bias is used internally (no) and whether bins adapt (no): proposal #20 pending.
 - Josh accepted #20 (bias/adaptivity strategy) and the measure design (#21), with densities allowed via numerical transforms and dynesty-style docs. Step 2.2 done; next 2.3.
+
+## 2026-10-23: step 2.3 page
+
+- Published `2.3-inputs.html` (one section per constructor, audit cross-references, three explorers: interim-prior mistakes, samples per object, quadrature error). Fixed during checking: the posterior explorer's population sampler (now exact), the samples explorer readout (compare the two fits), the quadrature reference (composite Gauss–Legendre instead of an erf approximation); text numbers verified in Node (`experiments/2.3_inputs_check.js`).
