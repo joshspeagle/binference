@@ -194,3 +194,9 @@ Append-only. One entry per working session (or per step within a long session).
 ## 2026-10-23: step 2.3 page
 
 - Published `2.3-inputs.html` (one section per constructor, audit cross-references, three explorers: interim-prior mistakes, samples per object, quadrature error). Fixed during checking: the posterior explorer's population sampler (now exact), the samples explorer readout (compare the two fits), the quadrature reference (composite Gauss–Legendre instead of an erf approximation); text numbers verified in Node (`experiments/2.3_inputs_check.js`).
+
+## 2026-10-24: step 2.3 discussion
+
+- Josh on the constructors: interim-prior options should pass everywhere; samples need a stated sampling distribution, possibly a rename, and a density-fit route; function/distributions convention unclear; asked what response and classifier inputs are.
+- Settled: #22 general bins everywhere, #23 adaptive quadrature, #24 one treatment of likelihood/posterior/interim across inputs, #25 correlated Gaussians (full covariance; exact 1-D/2-D; adaptive cubature vs QMC to test, theory then practice).
+- Parked: samples design, function/distributions merge and name, response explanation, classifier discussion (QUESTIONS).
