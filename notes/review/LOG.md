@@ -200,3 +200,10 @@ Append-only. One entry per working session (or per step within a long session).
 - Josh on the constructors: interim-prior options should pass everywhere; samples need a stated sampling distribution, possibly a rename, and a density-fit route; function/distributions convention unclear; asked what response and classifier inputs are.
 - Settled: #22 general bins everywhere, #23 adaptive quadrature, #24 one treatment of likelihood/posterior/interim across inputs, #25 correlated Gaussians (full covariance; exact 1-D/2-D; adaptive cubature vs QMC to test, theory then practice).
 - Parked: samples design, function/distributions merge and name, response explanation, classifier discussion (QUESTIONS).
+
+## 2026-10-24: step 2.3 follow-up page (2.3b)
+
+- Josh: PopulationPrior/InterimPrior objects for all interim-prior issues; harder look at defaults/arguments; samples need a likelihood path and are a realisation of the PDF (no KDE); merge function/distributions; clarify response; work classifiers through statistically and as API.
+- Experiments: `2.3_samples_mc.py` (log-likelihood MC error ∝ N/S), `2.3_classifier_routes.py` (routes A/B/C under miscalibration, wrong π_train, label-shift violation; coverage of response-uncertainty treatments; Gibbs-over-R comparison run inline and recorded in the briefing).
+- Finding: averaging the likelihood over response draws undercovers badly with many response entries; Gibbs with R as parameters is calibrated. Same risk in DECISIONS #10's selection-draw default (flagged in QUESTIONS).
+- Published `2.3b-redesign.html`; started `api-ledger.md`. Page checked at 375 px (no overflow, no console errors; explorer reacts as described).
