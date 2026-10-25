@@ -44,10 +44,11 @@ First development version.
   population, also `which="selected"`), `realized_counts(full=True)` (with the missed
   objects), `data_support` and the `support` summary column, `prior_information_ratio()`
   (Efron's ratio), `check(support_min=)`, and `PointEstimate.check()` for the KKT gap.
-- **Binning-bias check** (DECISIONS #6, #20, #86): `result.binning_bias(build)` refits
-  the data on linear B-spline components over the same bins and reports each bin's
-  shift in posterior s.d. and `n_crit`, the number of objects at which the binning
-  bias equals the statistical error.
+- **Binning-bias check** (DECISIONS #6, #20, #86): `result.binning_bias()` refits the
+  data on linear B-spline components over the same bins (Gaussian inputs rebuild
+  themselves; others take `build`) and reports each bin's shift in posterior s.d. and,
+  for flagged bins, `n_crit`, the number of objects at which the binning bias equals
+  the statistical error.
 - **Best fit and leave-one-out** (DECISIONS #35, #51, #52, #85): every result has
   `result.best` (the MAP estimate, computed on first use) and per-object outputs at it
   with a `_best` suffix; `assignment_probabilities_loo` gives leave-one-out posteriors
