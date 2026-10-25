@@ -92,8 +92,10 @@ def test_individual_outputs(fitted, small_1d):
     np.testing.assert_allclose(counts.sum(1), lk.W)
     vals = fitted.sample_values(idx=[0, 1, 2], n_draws=20, rng=3)
     assert vals.shape == (20, 3)
-    e = fitted.bins.edges[0]
-    assert np.all((vals >= e[0]) & (vals <= e[-1]))
+    # sample_values draws the labels first from the same generator, so the same seed
+    # reproduces them: each value must lie in its own drawn bin
+    labels = fitted._component_labels([0, 1, 2], 20, np.random.default_rng(3))
+    np.testing.assert_array_equal(fitted.bins.index(vals.ravel()).reshape(vals.shape), labels)
 
 
 def test_realized_counts_narrower_than_population_for_precise_data():

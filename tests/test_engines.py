@@ -187,7 +187,7 @@ def test_nuts_chains_start_at_a_given_init_jittered_only_when_it_is_one_point(k3
     assert np.all(np.abs(x - starts[0]) < 0.6) and not np.allclose(x[0], x[1])
 
 
-def test_nuts_logistic_prior_runs():
+def test_nuts_with_a_logistic_prior_matches_a_long_run():
     mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 8), rng=4)
     res = binference.infer(
         mock.likelihoods,
@@ -200,6 +200,17 @@ def test_nuts_logistic_prior_runs():
     )
     assert res.samples.shape == (400, 8)
     assert "scale" in res.info["hyperparameters"]
+    # Reference: the same call with rng=99, 4 chains x 10000 draws after 1000 warm-up
+    # (ESS > 46000 per bin, R-hat < 1.0002), so its own MC error is negligible here.
+    mean = [0.028023, 0.261029, 0.163405, 0.175175, 0.270258, 0.091127, 0.009948, 0.001036]
+    sd = [0.013765, 0.031731, 0.030073, 0.028615, 0.031246, 0.020168, 0.005868, 0.00146]
+    for k in range(8):
+        x = res.chains[:, :, k]
+        assert abs(x.mean() - mean[k]) < 5 * binference.diagnostics.mcse(x), k
+        # MC error of the sd from the MCSE of the squared deviations; 6 sigma because
+        # these short runs give z-scores with sd up to 1.3 on the skewed edge bins
+        se_sd = binference.diagnostics.mcse((x - x.mean()) ** 2) / (2 * x.std())
+        assert abs(x.std() - sd[k]) < 6 * se_sd, k
 
 
 # -------------------------------------------------------------------- Gibbs
@@ -342,7 +353,9 @@ def test_map_mle_matches_scipy(k3_problem):
 
 
 def test_map_squarem_faster_than_em():
-    mock = binference.simulate.mock_1d(1000, Bins.linear(0, 3, 15), noise=(0.3, 0.6), rng=1)
+    # 300 objects keep plain EM to ~11000 iterations (~0.3 s) and SQUAREM still needs
+    # ~40 times fewer
+    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 15), noise=(0.3, 0.6), rng=1)
     m = PopulationModel(mock.likelihoods)
     fast = MAP(m, algorithm="em", accelerate=True).run()
     with warnings.catch_warnings():
@@ -541,11 +554,20 @@ def test_vb_rates_with_an_exposure_match_gibbs():
 
 # ---------------------------------------------------------------- Bootstrap
 def test_bootstrap(k3_problem):
-    mock, exact = k3_problem
+    mock, _ = k3_problem
     with pytest.warns(ApproximationWarning):
         res = Bootstrap(PopulationModel(mock.likelihoods), rng=1).run(60)
     assert res.samples.shape == (60, 3) and res.approximate
-    assert np.all(res.std < 2.5 * exact.std) and np.all(res.std > 0.3 * exact.std)
+    # At large N the bootstrap sd matches the posterior sd. With B = 200 replicates the
+    # sd has relative MC error ~ 1/sqrt(2B) = 5%; the Gibbs reference (ESS ~ 300) adds
+    # ~4%, so 30% is ~4.5 combined sigma and still catches a factor-sqrt(2) error.
+    big = binference.simulate.mock_1d(
+        2000, mock.bins, density=np.array([0.5, 0.15, 0.35]), noise=(0.3, 1.2), rng=12345
+    )
+    ref = binference.infer(big.likelihoods, method="gibbs", rng=1, n_samples=1000, check=False)
+    with pytest.warns(ApproximationWarning):
+        boot = Bootstrap(PopulationModel(big.likelihoods), rng=1).run(200)
+    np.testing.assert_allclose(boot.std, ref.std, rtol=0.3)
     with pytest.warns(ApproximationWarning):
         bb = Bootstrap(PopulationModel(mock.likelihoods), scheme="bayesian", rng=1).run(20)
     assert bb.info["scheme"] == "bayesian" and bb.info["n_not_converged"] == 0

@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from scipy import integrate, special, stats
+from scipy import integrate, stats
 
 from binference import Bins
 from binference import priors as P
@@ -473,4 +473,3 @@ def test_gp_spectral_density_rbf_1d():
 def test_reprs():
     for p in SIMPLEX_PRIORS + LOGISTIC_PRIORS + [P.GammaRates()]:
         assert type(p).__name__ in repr(p)
-    assert special.gammaln(1.0) == 0.0  # keep scipy.special import used

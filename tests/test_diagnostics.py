@@ -15,18 +15,40 @@ def ar1(phi, n, chains, rng):
     return x
 
 
-@pytest.mark.parametrize("phi", [0.0, 0.5, 0.9])
-def test_autocorr_time_and_ess_ar1(phi, rng):
+# Relative tolerances are 4x the replicate sd of each estimator (60 seeds, 4 x 20000
+# draws): tau 1.2%, 3.1%, 5.8% and ESS 1.3%, 2.3%, 4.8% at phi = 0, 0.5, 0.9.
+@pytest.mark.parametrize(
+    ("phi", "tol_tau", "tol_ess"), [(0.0, 0.05, 0.05), (0.5, 0.12, 0.1), (0.9, 0.25, 0.2)]
+)
+def test_autocorr_time_and_ess_ar1(phi, tol_tau, tol_ess, rng):
     x = ar1(phi, 20000, 4, rng)
     tau_true = (1 + phi) / (1 - phi)
-    # estimator noise grows with tau (roughly 7% sd at phi = 0.9 for these lengths)
-    assert d.autocorr_time(x) == pytest.approx(tau_true, rel=0.25)
+    assert d.autocorr_time(x) == pytest.approx(tau_true, rel=tol_tau)
     n = x.size
-    assert d.ess(x, "mean") == pytest.approx(n / tau_true, rel=0.3)
-    assert d.ess(x, "bulk") == pytest.approx(n / tau_true, rel=0.3)
+    assert d.ess(x, "mean") == pytest.approx(n / tau_true, rel=tol_ess)
+    assert d.ess(x, "bulk") == pytest.approx(n / tau_true, rel=tol_ess)
     assert np.isfinite(d.ess(x, "tail"))
     sd = x.std()
-    assert d.mcse(x) == pytest.approx(sd / np.sqrt(n / tau_true), rel=0.2)
+    assert d.mcse(x) == pytest.approx(sd / np.sqrt(n / tau_true), rel=0.1)
+
+
+def test_ess_rhat_and_mcse_match_arviz_on_a_fixed_array():
+    """Golden values for one fixed array (AR(1), phi = 0.6, 4 x 400, one chain offset).
+
+    Reference numbers from ArviZ 0.23.4 (az.ess with method "bulk", "tail" and "mean",
+    az.rhat with method "rank", az.mcse with method "mean") on this same array.
+    """
+    e = np.random.default_rng(2021).standard_normal((4, 400))
+    x = np.empty_like(e)
+    x[:, 0] = e[:, 0]
+    for t in range(1, 400):
+        x[:, t] = 0.6 * x[:, t - 1] + e[:, t]
+    x += np.array([0.0, 0.0, 0.0, 0.3])[:, None]
+    assert d.ess(x, "bulk") == pytest.approx(335.3651712242715, rel=1e-10)
+    assert d.ess(x, "tail") == pytest.approx(777.3811513039336, rel=1e-10)
+    assert d.ess(x, "mean") == pytest.approx(336.3372057270772, rel=1e-10)
+    assert d.rhat(x) == pytest.approx(1.0109863729663382, rel=1e-10)
+    assert d.mcse(x) == pytest.approx(0.06708114691315269, rel=1e-10)
 
 
 def test_rhat(rng):

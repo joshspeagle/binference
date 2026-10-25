@@ -251,8 +251,10 @@ def test_weak_data_smoothness_fits_stay_non_centred():
     bins = Bins.linear(0.0, 3.0, 6)
     density = binference.simulate.population(bins, "bimodal")
     mock = binference.simulate.mock_1d(30, bins, density=density, noise=(0.2, 0.4), rng=6)
-    eng = NUTS(PopulationModel(mock.likelihoods, P.LogisticRandomWalk(order=2)), rng=1)
-    eng.run(200)
+    # the centring is decided once, early in warm-up, so one draw after it suffices
+    model = PopulationModel(mock.likelihoods, P.LogisticRandomWalk(order=2))
+    eng = NUTS(model, rng=1, n_chains=2, n_warmup=60)
+    eng.run(1)
     penalised = ~eng.model.prior.null
     assert np.all(eng.model.prior.lam[penalised] == 1.0)
 

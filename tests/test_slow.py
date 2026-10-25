@@ -155,10 +155,15 @@ def test_gibbs_and_nuts_agree_on_larger_problem():
     mock = binference.simulate.mock_1d(5000, Bins.linear(0, 3, 15), noise=(0.05, 0.2), rng=11)
     g = binference.infer(mock.likelihoods, method="gibbs", rng=1, n_samples=4000, check=False)
     n = binference.infer(mock.likelihoods, rng=2, n_samples=1000, check=False)
-    tau = np.array([binference.diagnostics.autocorr_time(g.chains[:, :, k]) for k in range(15)])
-    se = np.sqrt(g.std**2 * tau / g.n_draws + n.std**2 / (0.5 * n.n_draws))
-    assert np.all(np.abs(g.mean - n.mean) < 5 * se)
-    np.testing.assert_allclose(g.std, n.std, rtol=0.25)
+    mcse = binference.diagnostics.mcse
+
+    def sd_mcse(x):  # MC error of the sd, from the MCSE of the squared deviations
+        return mcse((x - x.mean()) ** 2) / (2 * x.std())
+
+    for k in range(15):
+        a, b = g.chains[:, :, k], n.chains[:, :, k]
+        assert abs(a.mean() - b.mean()) < 5 * np.hypot(mcse(a), mcse(b)), k
+        assert abs(a.std() - b.std()) < 5 * np.hypot(sd_mcse(a), sd_mcse(b)), k
 
 
 # The recovery tests draw true values uniformly within bins (density given as bin
@@ -233,6 +238,10 @@ def test_vb_underestimates_widths_vs_nuts():
         warnings.simplefilter("ignore", binference.ApproximationWarning)
         v = binference.infer(mock.likelihoods, method="vb", rng=1)
     assert np.median(v.std / n.std) < 0.5
-    # but its mean is in the right place on well-constrained bins
+    # (the per-object PDFs are broad compared with the bins: most information is missing)
     model = PopulationModel(mock.likelihoods)
     assert model.missing_information(n.mean) > 0.9
+    # but its mean is in the right place: within one NUTS sd in every bin, while NUTS's
+    # own MC error is about 0.03 sd. A VB mean shrunk 20% toward uniform misses by up
+    # to 18 sd in the sparse upper bins.
+    assert np.all(np.abs(v.mean - n.mean) < n.std)
