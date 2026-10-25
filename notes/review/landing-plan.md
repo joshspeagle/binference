@@ -1,4 +1,4 @@
-# Landing plan: from the v0.1 branch to a tracked package on `main` (draft, 2026-10-25)
+# Landing plan: from the v0.1 branch to a tracked package on `main` (agreed 2026-10-25; DECISIONS #58–#60)
 
 Josh's brief (2026-10-25): the repository is now `joshspeagle/binference` (default
 branch `main`, docs deployed by GitHub Actions). Convert the work so far into the
@@ -97,7 +97,32 @@ Each becomes a well-specified issue labelled `deferred`, linked from the tracker
   concentrations, tree-matched coordinates, how priors use bins, the 1.3 architecture
   decisions.
 
-## Questions for Josh
+
+## Revision after Josh's answers (DECISIONS #58–#60)
+
+- Phase A lands the history as planned; Claude merges each PR once CI is green.
+- Phase C grows: the items first listed as deferred are implemented now, as extra PRs
+  placed by dependency:
+  - C3b Correlated Gaussians: exact 1-D/2-D, adaptive cubature vs QMC experiment (#2, #25).
+  - C7b Basis and internal resolution: linear B-spline mixture basis and internal
+    sub-grids, mapped back to reporting bins (#4, #5); within-bin selection at internal
+    resolution (#47).
+  - C7c Speed: fused single-pass kernel (optional numba), multi-core, float32 option,
+    sparse threshold (#54, #55).
+  - C9 also takes the measure in random-walk and tree priors and masked smoothness priors
+    (#19, #21).
+  - C11b Joint inference: selection draws and `Selection.from_injections`, selection and
+    response inferred jointly (Gibbs, NUTS), rates derived per draw replacing the rates
+    kind, explicit-total option (#9, #10, #28, #30).
+  - C12 also takes one result object with draws and a best fit, `_best` names, and
+    leave-one-out (#35, #51, #52); binning-bias diagnostic and planner (#6, #20).
+  - C13b Benchmark matrix and adaptive defaults (#14, #39, #42); golden-value tests where
+    reference outputs can be produced (#41).
+  - C14 also takes the survey as docs pages and per-field tutorials (#37, #43).
+- Phase D keeps only post-v1 items (#38, #40, #41 post-v1 part) and open questions.
+- Review reports are not committed; each PR carries its review summary (#60).
+
+## Questions for Josh (answered: DECISIONS #58–#60)
 
 1. History: land v0.1 and the notes as the four history-preserving PRs of Phase A, or
    one squashed PR?
