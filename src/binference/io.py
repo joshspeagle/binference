@@ -191,8 +191,6 @@ def load_result(path: str) -> PopulationResult:
         selection = (
             _selection_from_parts(meta["selection"], data, basis) if "selection" in meta else None
         )
-        # files written before C12a call the label draws "labels"
-        label_key = next((k for k in ("label_draws", "labels") if k in data.files), None)
         return PopulationResult(
             None,
             np.array(data["component_draws" if basis is not None else "draws"]),
@@ -209,7 +207,7 @@ def load_result(path: str) -> PopulationResult:
             ),  # files written before DECISIONS #70 call it log_prob
             approximate=meta["approximate"],
             info=info,
-            labels=None if label_key is None else np.array(data[label_key]),
+            labels=np.array(data["label_draws"]) if "label_draws" in data.files else None,
             label_index=np.array(data["label_index"]) if "label_index" in data.files else None,
             prior_repr=meta.get("prior"),
             basis=basis,

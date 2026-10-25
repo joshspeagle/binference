@@ -98,8 +98,13 @@ def test_check_flags_energy_tail_mixing_one_chain_and_unconverged_fits():
     stuck = np.repeat(good[:, :40], 10, axis=1)
     with pytest.warns(binference.ConvergenceWarning, match="tail ESS"):
         _external(stuck, m).check()
+
+
+def test_a_strict_check_raises_a_diagnostics_error():
+    _, res = _fit_with_selection()
+    stuck = np.repeat(np.random.default_rng(0).dirichlet(np.ones(4) * 50, (4, 40)), 10, axis=1)
     with pytest.raises(binference.DiagnosticsError):
-        _external(stuck, m).check(strict=True)
+        _external(stuck, res.model).check(strict=True)
 
 
 def test_summary_mixing_columns_describe_the_quantity_summarised():
@@ -151,9 +156,6 @@ def test_which_takes_both_spellings_everywhere():
     np.testing.assert_allclose(
         res.rebin([0, 0, 1, 1], which="rate"), res.rebin([[0, 1], [2, 3]], "rates")
     )
-    np.testing.assert_allclose(res.rebin(np.array([0.0, 0.0, 1.0, 1.0])), res.rebin([0, 0, 1, 1]))
-    with pytest.raises(ValueError, match="integer group"):
-        res.rebin(np.array([0.0, 0.5, 1.0, 1.0]))
     assert res.cov("rates").shape == (4, 4)
     np.testing.assert_allclose(res.functional(np.sum, which="rates"), res.total)
     res.plot(which="fractions")
@@ -165,6 +167,20 @@ def test_which_takes_both_spellings_everywhere():
     np.testing.assert_allclose(ax.lines[0].get_ydata()[:-1], est.rates)
     with pytest.raises(ValueError, match="which"):
         est.plot(which="bogus")
+
+
+def test_rebin_takes_integral_floats_and_refuses_others():
+    _, res = _fit_with_selection()
+    np.testing.assert_allclose(res.rebin(np.array([0.0, 0.0, 1.0, 1.0])), res.rebin([0, 0, 1, 1]))
+    with pytest.raises(ValueError, match="integer group"):
+        res.rebin(np.array([0.0, 0.5, 1.0, 1.0]))
+
+
+def test_plots_refuse_three_axes_and_warn_when_two_drop_overlays():
+    pytest.importorskip("matplotlib")
+    import matplotlib
+
+    matplotlib.use("Agg")
     grid3 = Bins.grid([0, 1, 2], [0, 1, 2], [0, 1, 2])
     cube = PopulationResult(None, np.full((5, 8), 1 / 8), method="external", bins=grid3)
     with pytest.raises(ValueError, match="1-D and 2-D"):

@@ -33,17 +33,9 @@ def _plt():
     return plt
 
 
-def _draws(result: Any, which: str) -> np.ndarray:
-    # draws of the quantity plotted, (n, K); which is already normalised (_which_name)
-    from .results import PointEstimate
-
-    if not isinstance(result, PointEstimate):
-        return result._which(which)
-    if which == "rates":
-        if result.rates is None:
-            raise ValueError("No rates in this result (a relative selection, or no model).")
-        return result.rates[None, :]
-    return (result.density() if which == "density" else result.rho)[None, :]
+#: axis labels and symbols of what can be plotted (``which``)
+_YLABEL = {"density": "density", "fractions": "fraction per bin", "rates": "rate"}
+_SYMBOL = {"density": "density", "fractions": "rho", "rates": "rate"}
 
 
 def _to_which(values: np.ndarray, bins: Any, which: str, total: float = 1.0) -> np.ndarray:
@@ -101,7 +93,7 @@ def plot_population(
             "plot supports 1-D and 2-D grids and categories; for more axes use "
             "result.density() or result.summary() (audit O-9)."
         )
-    X = _draws(result, which)
+    X = result._which(which)
     med = np.median(X, axis=0)
     # overlays of rates (and of densities of rate models) are scaled to the mean total
     scaled = which == "rates" or result.kind == "rates"
@@ -112,7 +104,7 @@ def plot_population(
         return _plot_2d(result, X, plt, ax)
     if ax is None:
         _, ax = plt.subplots(figsize=(7, 4))
-    ylabel = {"density": "density", "fractions": "fraction per bin", "rates": "rate"}[which]
+    ylabel = _YLABEL[which]
     if bins.is_categorical:
         x = np.arange(bins.K)
         lo, hi = np.quantile(X, [0.5 - levels[0] / 2, 0.5 + levels[0] / 2], axis=0)
@@ -245,7 +237,7 @@ def plot_corner(
 
     plt = _plt()
     X = result._which(which)
-    name = {"fractions": "rho", "rates": "rate", "density": "density"}[_which_name(which)]
+    name = _SYMBOL[_which_name(which)]
     if idx is None:
         idx = np.sort(np.argsort(-X.mean(axis=0))[:max_bins])
     idx = list(idx)
@@ -287,7 +279,7 @@ def plot_trace(
 
     plt = _plt()
     C = result._which(which).reshape(result.n_chains, -1, result.K)
-    name = {"fractions": "rho", "rates": "rate", "density": "density"}[_which_name(which)]
+    name = _SYMBOL[_which_name(which)]
     if idx is None:
         idx = np.sort(np.argsort(-C.reshape(-1, C.shape[-1]).mean(axis=0))[:max_bins])
     idx = list(idx)
