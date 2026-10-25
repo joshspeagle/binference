@@ -160,3 +160,13 @@ def test_joint_inference_of_population_and_response_is_calibrated():
     names = [f"rho[{k}]" for k in range(K)] + [f"eff[{k}]" for k in range(K)]
     p = SBCResult(np.array(ranks), n_draws, names).pvalues(n_bins=10)
     assert np.all(p > 1e-3 / p.size), dict(zip(names, p, strict=True))
+
+
+def test_objects_in_a_measured_bin_without_tallied_events_are_kept():
+    # an inferred response gives every measured bin some probability; the SBC met this
+    truth, measured = Bins.categories(2), Bins.categories(3)
+    resp = Response.from_counts([[5, 0], [3, 6], [0, 0]], [10, 10], truth, measured)
+    lk = Likelihoods.from_binned(resp, counts=[4, 5, 2])
+    assert lk.N == 3 and np.all(lk.toarray()[2] > 0)
+    with pytest.raises(ValueError, match="zero likelihood"):
+        Likelihoods.from_binned(resp.fixed(), counts=[4, 5, 2])
