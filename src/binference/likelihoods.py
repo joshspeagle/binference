@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import inspect
+import pickle
 from collections.abc import Callable, Sequence
 from functools import partial
 from typing import Any, Literal
@@ -808,6 +809,7 @@ class Likelihoods:
         fractional_weights: bool = False,
         min_samples: int = 20,
         floor: float = 0.0,
+        keep_samples: bool = True,
         warn_outside: bool = True,
     ) -> Likelihoods:
         r"""Build likelihoods from per-object posterior samples (DECISIONS #31).
@@ -857,6 +859,10 @@ class Likelihoods:
             Pseudo-samples added to every object, spread over the bins in
             proportion to the interim prior: a Dirichlet floor that keeps bins no
             sample reached from having zero likelihood. Off by default.
+        keep_samples : bool
+            Keep the samples inside the bins and their weights, so that
+            :meth:`PopulationResult.sample_values` resamples them within the drawn
+            bin (DECISIONS #50); ``False`` saves that copy of the samples.
         warn_outside : bool
             Warn when many objects have most of their samples outside the bins
             (see :meth:`from_gaussian`).
@@ -935,6 +941,14 @@ class Likelihoods:
             sample_count=np.bincount(obj_ids, minlength=n_obj),
         )
         lk.meta["sample_floor"] = float(floor)
+        if keep_samples:  # sorted by object and bin, each object's weights summing to one
+            key = rows.astype(np.int64) * bins.K + cols
+            order = np.argsort(key, kind="stable")
+            tot = np.bincount(rows, weights=w, minlength=n_obj)
+            share = np.divide(w, tot[rows], out=np.zeros_like(w), where=tot[rows] > 0)
+            G = np.cumsum(share[order])
+            zs = flat[inside].reshape(-1, bins.ndim)[order]
+            _keep_within(lk, n_obj, "samples", bins.K, key[order], zs, G)
         _record_outside(lk, outside, warn_outside)
         return lk
 
@@ -1052,6 +1066,7 @@ class Likelihoods:
                 logL, log_mass = _correlated_gaussian(mu, C, bins, tol, max_depth)
                 lk = cls(logL, bins, log=True, **tail)
                 lk.meta.update(source="gaussian")
+                _attach_per_object(lk, gaussian_mean=mu, gaussian_cov=np.array(C))
                 _record_outside(lk, _outside(special.logsumexp(log_mass, axis=1)), warn_outside)
                 return lk
             sigma = np.sqrt(var)  # independent axes (correlations below 1e-12): exact
@@ -1164,6 +1179,9 @@ class Likelihoods:
         if bins.is_categorical:
             raise ValueError("from_density needs grid bins.")
         posterior = _check_kind(kind, interim)
+        interim_z = None  # read before it is reduced to bin masses below
+        if posterior and bins.ndim == 1:
+            interim_z = _interim_at_points(Density.coerce(interim, interim_representation), bins)
         quad = {
             "coordinate": "z" if posterior else "measure",
             "tol": tol,
@@ -1207,6 +1225,12 @@ class Likelihoods:
             **_common(weights, selection, selection_mode, drop_empty, fractional_weights),
         )
         lk.meta["source"] = "density"
+        if bins.ndim == 1:  # the likelihood at points, for value draws (DECISIONS #50)
+            if callable(density):
+                n_in = log_avg.shape[0]
+                _keep_within(lk, n_in, "rows", n_in, density, log, interim_z)
+            elif all(_has_pdf(d) for d in dists):
+                _keep_within(lk, len(dists), "dists", dists, interim_z)
         if log_inside is not None:
             _record_outside(lk, _outside(log_inside), warn_outside)
         return lk
@@ -1299,6 +1323,8 @@ _PER_OBJECT_KEYS = (
     "outside_fraction",
     "gaussian_mean",
     "gaussian_sigma",
+    "gaussian_cov",
+    "value_row",
     "sample_sum",
     "sample_sq",
     "sample_count",
@@ -1317,6 +1343,55 @@ def _slice_per_object(meta: dict[str, Any], rows: Any) -> dict[str, Any]:
         if key in out:
             out[key] = _take_rows(out[key], rows)
     return out
+
+
+class _WithinBin:
+    """Within-bin data for :meth:`PopulationResult.sample_values` (DECISIONS #50). They
+    pickle when they can; a function that cannot (a lambda density) pickles as empty,
+    so that a model can still be sent elsewhere, and its value draws fall back to flat."""
+
+    __slots__ = ("data",)
+
+    def __init__(self, data: Any = None) -> None:
+        self.data = data
+
+    def __reduce__(self):
+        if self.data is not None and self.data[0] != "samples":  # arrays always pickle
+            try:
+                pickle.dumps(self.data)
+            except (pickle.PicklingError, AttributeError, TypeError):
+                return _WithinBin, ()
+        return _WithinBin, (self.data,)
+
+
+def _keep_within(lk: Likelihoods, n: int, kind: str, *data: Any) -> None:
+    """Keep the within-bin information of ``n`` input rows, indexed by the input row
+    (``meta["value_row"]`` maps the surviving rows to it; DECISIONS #50)."""
+    lk.meta["within"] = _WithinBin((kind, *data))
+    _attach_per_object(lk, value_row=np.arange(n))
+
+
+def _interim_at_points(density: Density, bins: Bins) -> tuple:
+    """What :func:`log_interim` reads: the density, and its log in ``u`` per bin of the
+    1-D ``bins`` when it is known only per bin (flat in ``u`` within each)."""
+    if density._log_pointwise() is not None:
+        return density, None, bins
+    with np.errstate(divide="ignore"):
+        return density, np.log(density.masses(bins) / bins.u_volumes), bins
+
+
+def log_interim(interim: tuple | None, z: np.ndarray) -> Any:
+    """The log interim density in ``z`` at the points ``z`` (any shape), up to a constant
+    per bin; 0 without one (likelihoods)."""
+    if interim is None:
+        return 0.0
+    density, log_u, bins = interim
+    x = np.ravel(z)
+    if log_u is None:
+        out = density._log_pointwise()(x)
+    else:
+        out = log_u[np.maximum(bins.index(x), 0)] + bins.measures[0].log_jacobian(x)
+    return np.reshape(out, np.shape(z))
 
 
 def _attach_per_object(lk: Likelihoods, **arrays: Any) -> None:

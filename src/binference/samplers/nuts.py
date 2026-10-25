@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import os
 import pickle
 import warnings
@@ -195,6 +196,17 @@ def _worker_threads(n_workers: int) -> int:
 
 
 _WORKER_MODEL: PopulationModel | None = None  # the base model, sent once per worker
+
+
+def _worker_model(model: PopulationModel) -> PopulationModel:
+    """The model without the data kept for value draws (DECISIONS #84), which workers
+    never use: kept samples need not be copied to each of them."""
+    lk = model.likelihoods
+    if "within" not in lk.meta:
+        return model
+    out = copy.copy(model)
+    out.likelihoods = lk._copy(meta={k: v for k, v in lk.meta.items() if k != "within"})
+    return out
 
 
 def _init_worker(model: PopulationModel, n_threads: int) -> None:
@@ -465,15 +477,16 @@ class NUTS(Engine):
         payloads = [(ch, self._lam, n_iter, adapt, self.max_depth, record) for ch in chains]
         try:
             if self._pool is None:
+                model = _worker_model(self._base_model)
                 try:  # e.g. a lambda in a prior cannot be sent to workers
-                    pickle.dumps((self._base_model, payloads[0]))
+                    pickle.dumps((model, payloads[0]))
                 except (pickle.PicklingError, AttributeError, TypeError) as err:
                     return self._serial_from_now(err)
                 n_workers = min(self.n_jobs, len(chains))
                 self._pool = ProcessPoolExecutor(
                     max_workers=n_workers,
                     initializer=_init_worker,
-                    initargs=(self._base_model, _worker_threads(n_workers)),
+                    initargs=(model, _worker_threads(n_workers)),
                 )
             # errors from the model come back as values (see _chain_worker), so only a
             # failure of the pool itself falls back to serial (audit N-7)

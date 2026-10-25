@@ -344,3 +344,7 @@ Append-only. One entry per working session (or per step within a long session).
 
 - #63 (C12a, audit O-1–O-21) merged after CI and the slow suite. Checking the audit against `main` found all but O-16 open and a new defect (attach redrew the total without the selection); /code-review caught that the new bins check refused a reloaded transform axis and that R-hat was checked for independent draws.
 - C12b (#64): selected population, full-sample counts, KKT in point-estimate checks, data support and the prior-vs-data ratio (DECISIONS #12, #41, #49, #53).
+
+## 2026-10-25: C12b merged; C12c
+
+- #65 (C12b) merged. /simplify moved the ratio to diagonal Hessians (same traces) and shared the check reporting; /code-review caught an infinite KKT gap passing, exposure selections and attached rate results accepted by full-sample counts, data support ignoring a selection on the truth, and truth overlays on the selected population not reweighted; all fixed with tests before the merge.
