@@ -19,7 +19,7 @@ lk = mock.likelihoods
 |---|---|---|---|
 | `"nuts"` (default) | posterior draws | yes | always a good choice; mixes well even with broad likelihoods |
 | `"gibbs"` | draws plus joint latent labels | yes | conjugate priors and narrow likelihoods; you want joint labels |
-| `"map"` / `"em"` | a point estimate with a certificate | n/a | quick looks, initialisation, very large problems |
+| `"map"` / `"em"` | a point estimate with a certificate (`"em"`: by EM itself rather than mix-SQP) | n/a | quick looks, initialisation, very large problems |
 | `"laplace"` | importance-corrected Gaussian draws | approximately | very large $N$ with few bins; check the Pareto $\hat k$ |
 | `"vb"` | mean-field variational draws | no | speed when error bars do not matter (they are too narrow) |
 | `"bootstrap"` | sampling distribution of the MAP | no (frequentist) | comparison with frequentist intervals |

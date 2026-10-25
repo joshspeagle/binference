@@ -112,13 +112,15 @@ problems = result.check()                  # warns and returns messages
 print(problems)
 ```
 
-`check()` flags $\hat R>1.01$, bulk ESS below 100 per chain, NUTS
-divergences, saturated trees and unreliable importance weights.
+`check()` flags $\hat R>1.01$ (split, so also for a single chain), bulk or tail ESS
+below 100 per chain for any Markov chain (also draws wrapped with
+`PopulationResult.from_samples`), NUTS divergences, saturated trees and E-BFMI below
+0.3, unreliable importance weights, and an optimiser that did not converge.
 These raise a `ConvergenceWarning`. Problems with the inputs raise an `InputWarning`
 instead: Monte Carlo noise of likelihoods built from samples, and binned counts that the
 response does not describe (a posterior predictive p-value below `predictive_p_min`, by
 default $10^{-3}$, over `predictive_draws=200` draws; see {doc}`inputs`).
-`check(strict=True)` raises instead. Where it can, the warning ends with a
+`check(strict=True)` raises a `binference.DiagnosticsError` instead. Where it can, the warning ends with a
 hint: a higher `target_accept` after divergences, `method="gibbs"` for
 conjugate priors with very small concentrations, and, when Gibbs mixes
 slowly, the fraction of missing information that explains why. A result
@@ -133,10 +135,11 @@ fig = result.plot_corner(idx=[4, 5, 6])                     # pairwise posterior
 axes = result.plot_trace(idx=[5])                           # chains
 ```
 
-`result.plot` shows densities per unit volume for 1-D bins (`which="fraction"`
-for fractions), images for 2-D grids and bars for categories.
-{func}`binference.plotting.plot_individual` compares one object's likelihood with
-its shrunken posterior.
+`result.plot` shows densities per unit volume for 1-D bins (`which="fractions"` or
+`"rates"`; singular spellings work too, as everywhere `which=` appears), images for
+2-D grids and bars for categories. `plot_corner`, `plot_trace`, `functional`, `rebin`,
+`cov` and `corr` take the same `which=`. `result.plot_individual(i)` compares one
+object's likelihood with its shrunken posterior.
 
 ## Saving and sharing
 

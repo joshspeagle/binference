@@ -25,6 +25,18 @@ First development version.
 - On log bins, the default base measures of `Dirichlet.from_base_measure` and
   `PolyaTree`, the default mean of the logistic priors and the "flat" interim prior
   are flat in log z (they were flat in z; DECISIONS #63).
+- Results (audit O-1–O-21, DECISIONS #82): a result keeps its selection through `save`,
+  `load` and `attach`, which refuses other bins or another selection;
+  `result_to_dict` is what `save` writes (`meta` plus arrays, `label_draws` apart from
+  the bin labels); `check()` also flags tail ESS, E-BFMI, one-chain R-hat and
+  unconverged optimisers and raises `DiagnosticsError` when strict; `summary` reports
+  the mixing of the quantity it summarises; `which=` takes `"fraction(s)"`/`"rate(s)"`
+  everywhere, including `functional`, `rebin`, `cov`, `corr`, `plot_corner` and
+  `plot_trace`; `method="em"` runs EM; `sample_assignments`, `sample_values` and
+  `realized_counts` default to 500 draws; `binference.plotting` and `binference.io`
+  load on first use; `result.plot_individual`; `PopulationEstimator` works with
+  scikit-learn model selection (`Likelihoods.shape`); the xarray export uses ArviZ's
+  statistic names, numeric bin centres and hyperparameter draws.
 
 ### Added
 
