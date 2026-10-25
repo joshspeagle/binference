@@ -280,4 +280,3 @@ Append-only. One entry per working session (or per step within a long session).
 
 - #34 (C5, binned measurements and classifier routes; DECISIONS #68) merged. Its reviews moved the label-shift check onto `Response.predictive_pvalue` with a Woodbury form (0.025 s at J = 100) and found the missing normalisation term of a response with efficiency below one, open-ended and weighted tallies, and the warning class.
 - C6 issue #35: selection modes renamed, combined selection, callables, absolute/relative scale, steep-S warning, mocks for selection on the truth, the measurement and both (DECISIONS #69). Calibration of the measurement-cut mock exposed an inverted open upper limit in `measured_range` (fixed with a test); with it, NUTS z-scores are calibrated, and S_k matches empirical pass rates.
-
