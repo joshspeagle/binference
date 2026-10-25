@@ -10,15 +10,22 @@ import numpy as np
 import scipy.sparse as sp
 from scipy import special
 
+from ._quadrature import _subbin_points
 from ._utils import check_positive_weights
 from .bins import Bins
+from .density import (
+    Density,
+    Representation,
+    _dist_bin_masses,
+    _equal_volumes,
+    _is_distribution,
+)
 from .selection import Selection, as_selection
 from .warnings import InputWarning
 
 __all__ = ["Likelihoods"]
 
-Representation = Literal["density", "mass"]
-InterimPrior = str | np.ndarray | Sequence[float] | Callable[[np.ndarray], np.ndarray]
+InterimPrior = Any  # anything Density.coerce accepts
 
 
 # ----------------------------------------------------------------------------
@@ -49,71 +56,21 @@ def _scale_columns(values, factors: np.ndarray):
     return np.asarray(values, dtype=float) * factors
 
 
-def _gauss_legendre_unit(n: int) -> tuple[np.ndarray, np.ndarray]:
-    """Nodes in [0, 1] and weights summing to one."""
-    x, w = np.polynomial.legendre.leggauss(int(n))
-    return 0.5 * (x + 1.0), 0.5 * w
-
-
-def _subbin_points(bins: Bins, n_sub: int) -> tuple[np.ndarray, np.ndarray]:
-    """Quadrature points inside every bin and their within-bin weights.
-
-    Returns ``points`` with shape ``(K * M,)`` (1-D) or ``(K * M, ndim)`` and
-    ``weights`` with shape ``(M,)``, where ``M = n_sub ** ndim``; points for
-    bin ``k`` occupy rows ``k * M : (k + 1) * M``.
-    """
-    u, wu = _gauss_legendre_unit(n_sub)
-    edges = bins.edges
-    per_axis = [e[:-1, None] + np.diff(e)[:, None] * u[None, :] for e in edges]  # (K_d, n)
-    cell_idx = bins.cell_index  # per axis, (K,)
-    if bins.ndim == 1:
-        return per_axis[0][cell_idx[0]].ravel(), wu
-    # tensor-product points per cell, in the order of the (active) bins
-    sub = np.meshgrid(*[np.arange(n_sub)] * bins.ndim, indexing="ij")
-    sub_idx = [s.ravel() for s in sub]  # (M,) per axis
-    pts = np.stack(
-        [per_axis[d][cell_idx[d][:, None], sub_idx[d][None, :]] for d in range(bins.ndim)],
-        axis=-1,
-    )  # (K, M, ndim)
-    w = np.ones(len(sub_idx[0]))
-    for d in range(bins.ndim):
-        w = w * wu[sub_idx[d]]
-    return pts.reshape(-1, bins.ndim), w
-
-
 def _interim_masses(
     interim_prior: InterimPrior,
     bins: Bins,
-    representation: Representation = "mass",
+    representation: Representation | None = None,
     n_sub: int = 5,
 ) -> np.ndarray:
-    """Interim-prior probability mass per bin (normalised to sum to one)."""
-    if isinstance(interim_prior, str):
-        if interim_prior != "flat":
-            raise ValueError("interim_prior must be 'flat', an array of length K, or a callable.")
-        masses = np.array(bins.volumes, dtype=float)
-    elif callable(interim_prior):
-        if bins.is_categorical:
-            masses = np.asarray(interim_prior(bins.centers), dtype=float).ravel()
-        else:
-            pts, w = _subbin_points(bins, n_sub)
-            dens = np.asarray(interim_prior(pts), dtype=float).ravel()
-            if dens.size != pts.shape[0]:
-                raise ValueError("Callable interim_prior must return one density per point.")
-            masses = (dens.reshape(bins.K, -1) @ w) * bins.volumes
-    else:
-        masses = np.asarray(interim_prior, dtype=float).ravel()
-        if masses.size != bins.K:
-            raise ValueError(f"interim_prior must have length K={bins.K}; got {masses.size}.")
-        if representation == "density":
-            masses = masses * bins.volumes
-        elif representation != "mass":
-            raise ValueError("interim_representation must be 'mass' or 'density'.")
-    if not np.all(np.isfinite(masses)) or np.any(masses < 0):
-        raise ValueError("interim_prior must be finite and non-negative.")
-    if masses.sum() <= 0:
-        raise ValueError("interim_prior has no mass on the bins.")
-    return masses / masses.sum()
+    """Normalised interim-prior mass per bin."""
+    return Density.coerce(interim_prior, representation).masses(bins, n_sub)
+
+
+def _check_kind(kind: str, interim_prior: Any) -> None:
+    if kind not in ("likelihood", "posterior"):
+        raise ValueError(f"kind must be 'likelihood' or 'posterior'; got {kind!r}.")
+    if kind == "posterior" and interim_prior is None:
+        raise ValueError("kind='posterior' requires an explicit interim_prior.")
 
 
 def _log_gauss_bin_mass(lo: np.ndarray, hi: np.ndarray, mu: np.ndarray, sig: np.ndarray):
@@ -399,17 +356,35 @@ class Likelihoods:
         meta["compressed_from"] = self.N
         return Likelihoods._from_parts(vals, ls / w, self._bins, w, self._selection, meta)
 
-    def stack(self, interim_prior: InterimPrior = "flat") -> np.ndarray:
+    def stack(
+        self,
+        interim_prior: InterimPrior | None = None,
+        interim_representation: Representation | None = None,
+    ) -> np.ndarray:
         """Naive "stacked" population estimate: the weighted mean of per-object posteriors.
 
-        Posteriors are formed under ``interim_prior`` (default: uniform density
-        in the bin coordinate). Stacking is one EM step from the interim prior;
-        it is biased and broadened by the measurement noise, and is provided
-        for comparison only.
+        Posteriors are formed under ``interim_prior``: by default the interim
+        prior the likelihoods were built with (so the stack reproduces the
+        input posteriors), else :meth:`Density.flat`. Stacking is exactly one
+        EM step from the interim prior, not the maximum-likelihood population;
+        it is biased toward the interim prior and broadened by the measurement
+        noise, and is provided for comparison only. Its distance from the
+        optimum is ``PopulationModel(lk).kkt_gap(lk.stack())``.
         """
-        Pi = _interim_masses(interim_prior, self._bins)
+        if interim_prior is None:
+            Pi = self.meta.get("interim_prior_masses")
+            if Pi is None:
+                Pi = Density.flat().masses(self._bins)
+        else:
+            Pi = _interim_masses(interim_prior, self._bins, interim_representation)
         P = _scale_columns(self._values, Pi)
         tot = np.asarray(P.sum(axis=1)).ravel()
+        if np.any(tot <= 0):
+            rows = np.flatnonzero(tot <= 0)[:5].tolist()
+            raise ValueError(
+                f"Rows {rows} have no support where the interim prior is positive, so their "
+                "posteriors are undefined."
+            )
         P = (sp.diags_array(1.0 / tot) @ P) if sp.issparse(P) else P / tot[:, None]
         out = np.asarray(P.T @ self._weights).ravel()
         return out / out.sum()
@@ -455,18 +430,15 @@ class Likelihoods:
             Posterior PDFs on the bins (rows need not be normalised).
         bins : Bins
             The bins the posteriors are tabulated on.
-        interim_prior : "flat", array_like (K,), or callable
-            The prior the posteriors were computed with. ``"flat"`` means a
-            uniform density in the bin coordinate; an array gives masses (or
-            densities, see ``interim_representation``) per bin; a callable is a
-            density evaluated by sub-bin quadrature. There is deliberately no
-            default.
+        interim_prior : Density, "flat", callable, distribution or array_like (K,)
+            The prior the posteriors were computed with, read by
+            :meth:`Density.coerce`. There is deliberately no default.
         representation : {"mass", "density"}
             Whether ``posteriors`` are probabilities per bin (``"mass"``,
             default) or densities evaluated at bin centres (``"density"``).
         interim_representation : {"mass", "density"}, optional
-            Same for an array-valued ``interim_prior``. Defaults to
-            ``representation``: masses with masses, densities with densities.
+            How an array ``interim_prior`` is read. Required for arrays on bins
+            of unequal volume, where the two readings differ.
         """
         P = posteriors
         if sp.issparse(P):
@@ -487,8 +459,6 @@ class Likelihoods:
         _check_posterior_representation(P, vol, representation)
         if representation == "density":
             P = _scale_columns(P, vol)
-        if interim_representation is None:
-            interim_representation = representation
         Pi = _interim_masses(interim_prior, bins, interim_representation)
         zero = Pi <= 0
         if np.any(zero):
@@ -521,7 +491,7 @@ class Likelihoods:
         interim_prior: InterimPrior,
         *,
         sample_weights: Any = None,
-        interim_representation: Representation = "mass",
+        interim_representation: Representation | None = None,
         weights: Any = None,
         selection: Any = None,
         selection_mode: str | None = None,
@@ -544,11 +514,12 @@ class Likelihoods:
             ``(S_i, ndim)`` arrays.
         bins : Bins
             Target bins (grids only).
-        interim_prior : "flat", array_like (K,), or callable
-            Prior under which the samples were drawn. ``"flat"`` means a
-            uniform density in the bin coordinate. There is deliberately no
-            default: samples drawn under an informative prior must have it
-            divided out.
+        interim_prior : Density, "flat", callable, distribution or array_like (K,)
+            Prior under which the samples were drawn, read by
+            :meth:`Density.coerce`. There is deliberately no default: samples
+            drawn under an informative prior must have it divided out.
+        interim_representation : {"mass", "density"}, optional
+            How an array ``interim_prior`` is read (see :meth:`from_posteriors`).
         sample_weights : array_like or sequence of arrays, optional
             Importance weights for the samples (same layout as ``samples``).
         sparse : bool, optional
@@ -674,6 +645,7 @@ class Likelihoods:
         *,
         kind: Literal["likelihood", "posterior"] = "likelihood",
         interim_prior: InterimPrior | None = None,
+        interim_representation: Representation | None = None,
         n_sub: int = 5,
         weights: Any = None,
         selection: Any = None,
@@ -694,33 +666,19 @@ class Likelihoods:
         kind : {"likelihood", "posterior"}
             Whether each distribution is the likelihood function of the object
             (default) or a posterior computed under ``interim_prior``.
-        interim_prior : required when ``kind="posterior"``.
+        interim_prior : required when ``kind="posterior"``; see :meth:`from_posteriors`.
+        interim_representation : {"mass", "density"}, optional
+            How an array ``interim_prior`` is read (see :meth:`from_posteriors`).
         """
         if bins.is_categorical:
             raise ValueError("from_distributions needs ordered (grid) bins.")
-        if kind == "posterior" and interim_prior is None:
-            raise ValueError("kind='posterior' requires an explicit interim_prior.")
-        if kind not in ("likelihood", "posterior"):
-            raise ValueError("kind must be 'likelihood' or 'posterior'.")
+        _check_kind(kind, interim_prior)
         dists = list(dists)
-        N = len(dists)
-        masses = np.empty((N, bins.K))
-        pts = wq = None
-        for i, dist in enumerate(dists):
-            if bins.ndim == 1 and hasattr(dist, "cdf"):
-                e = bins.edges[0]
-                c = np.asarray(dist.cdf(e), dtype=float)
-                masses[i] = np.clip(np.diff(c), 0.0, None)[bins.cells]
-                continue
-            if pts is None:
-                pts, wq = _subbin_points(bins, n_sub)
-            if hasattr(dist, "logpdf"):
-                dens = np.exp(np.asarray(dist.logpdf(pts), dtype=float))
-            elif hasattr(dist, "pdf"):
-                dens = np.asarray(dist.pdf(pts), dtype=float)
-            else:
+        masses = np.empty((len(dists), bins.K))
+        for i, d in enumerate(dists):
+            if not _is_distribution(d):
                 raise TypeError("Each distribution needs a cdf, logpdf or pdf method.")
-            masses[i] = (dens.reshape(bins.K, -1) @ wq) * bins.volumes
+            masses[i] = _dist_bin_masses(d, bins, n_sub)
         if kind == "likelihood":
             lk = cls(
                 masses,
@@ -735,7 +693,10 @@ class Likelihoods:
             lk = cls.from_posteriors(
                 masses,
                 bins,
-                interim_prior,
+                # the interim prior uses the same quadrature as the values
+                Density.from_masses(
+                    _interim_masses(interim_prior, bins, interim_representation, n_sub)
+                ),
                 representation="mass",
                 weights=weights,
                 selection=selection,
@@ -755,6 +716,7 @@ class Likelihoods:
         log: bool = False,
         kind: Literal["likelihood", "posterior"] = "likelihood",
         interim_prior: InterimPrior | None = None,
+        interim_representation: Representation | None = None,
         weights: Any = None,
         selection: Any = None,
         selection_mode: str | None = None,
@@ -765,14 +727,15 @@ class Likelihoods:
         ``func(points)`` must return an ``(N, M)`` array of (log-)likelihood (or
         posterior density) values for all objects at ``M`` points; ``points`` has
         shape ``(M,)`` for 1-D bins and ``(M, ndim)`` for grids. Values are
-        averaged over ``n_sub`` Gauss-Legendre points per bin (per axis).
+        averaged over ``n_sub`` Gauss-Legendre points per bin (per axis). With
+        ``kind="posterior"``, ``interim_prior`` and ``interim_representation``
+        are as in :meth:`from_posteriors`.
         """
         if bins.is_categorical:
             raise ValueError("from_function needs ordered (grid) bins.")
-        if kind == "posterior" and interim_prior is None:
-            raise ValueError("kind='posterior' requires an explicit interim_prior.")
+        _check_kind(kind, interim_prior)
         pts, wq = _subbin_points(bins, n_sub)
-        vals = np.asarray(func(pts), dtype=float)
+        vals = np.asarray(func(pts.copy()), dtype=float)
         if vals.ndim != 2 or vals.shape[1] != pts.shape[0]:
             raise ValueError("func(points) must return an array of shape (N, n_points).")
         N = vals.shape[0]
@@ -797,7 +760,10 @@ class Likelihoods:
             lk = cls.from_posteriors(
                 dens,
                 bins,
-                interim_prior,
+                # the interim prior uses the same quadrature as the values
+                Density.from_masses(
+                    _interim_masses(interim_prior, bins, interim_representation, n_sub)
+                ),
                 representation="density",
                 weights=weights,
                 selection=selection,
@@ -992,7 +958,7 @@ def _normalise_log(log_values: Any):
 
 def _check_posterior_representation(P, vol: np.ndarray, representation: str) -> None:
     """Warn if declared posterior masses look like densities (or vice versa)."""
-    if np.allclose(vol, vol[0]):
+    if _equal_volumes(vol):
         return  # representation cannot affect inference with equal volumes
     # sums of the values read as masses, and as densities integrated over bins
     if sp.issparse(P):

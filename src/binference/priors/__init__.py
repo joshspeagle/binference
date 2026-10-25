@@ -21,7 +21,7 @@ Hyperpriors for scale parameters: :class:`HalfNormal`, :class:`LogNormal`,
 :class:`InverseGamma`, :class:`Gamma`, :class:`Fixed`.
 """
 
-from .base import BoundPrior, Prior
+from .base import BoundPrior, PopulationPrior
 from .dirichlet import Dirichlet, DirichletTree, GeneralizedDirichlet, PolyaTree
 from .hyper import Fixed, Gamma, HalfNormal, Hyperprior, InverseGamma, LogNormal
 from .logistic import LogisticGP, LogisticNormal, LogisticRandomWalk
@@ -43,5 +43,5 @@ __all__ = [
     "LogisticNormal",
     "LogisticRandomWalk",
     "PolyaTree",
-    "Prior",
+    "PopulationPrior",
 ]

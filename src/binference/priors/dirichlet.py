@@ -13,7 +13,7 @@ with ``A_c`` the total concentration of node ``c``'s children.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
@@ -21,7 +21,8 @@ from scipy import special
 
 from .._simplex import helmert_basis, log_softmax
 from ..bins import Bins
-from .base import BoundPrior, Prior
+from ..density import Density
+from .base import BoundPrior, PopulationPrior
 
 __all__ = ["Dirichlet", "DirichletTree", "GeneralizedDirichlet", "PolyaTree"]
 
@@ -55,7 +56,7 @@ class _SimplexBound(BoundPrior):
     has_prior_transform = True
     conjugate = True
 
-    def __init__(self, prior: Prior, bins: Bins) -> None:
+    def __init__(self, prior: PopulationPrior, bins: Bins) -> None:
         super().__init__(prior, bins)
         self.dim = self.K - 1
         self.V = helmert_basis(self.K)
@@ -83,7 +84,7 @@ class _SimplexBound(BoundPrior):
 # ----------------------------------------------------------------------------
 # Dirichlet
 # ----------------------------------------------------------------------------
-class Dirichlet(Prior):
+class Dirichlet(PopulationPrior):
     r"""Dirichlet prior :math:`\rho \sim \mathrm{Dir}(\alpha)` on bin fractions.
 
     The default prior of binference (``alpha=1``, uniform on the simplex).
@@ -99,7 +100,7 @@ class Dirichlet(Prior):
     -----
     A symmetric ``alpha`` over bins of unequal volume is *not* consistent under
     merging bins; :meth:`from_base_measure` makes ``alpha`` proportional to a
-    base measure (bin volumes by default) instead.
+    base measure (flat in the measure coordinate by default) instead.
     """
 
     def __init__(self, alpha: float | Sequence[float] | np.ndarray | str = 1.0) -> None:
@@ -140,24 +141,28 @@ class Dirichlet(Prior):
         return cls(base + strength * c)
 
     @classmethod
-    def from_base_measure(
-        cls, concentration: float = 1.0, base: Sequence[float] | np.ndarray | None = None
-    ) -> Dirichlet:
-        """``alpha_k = concentration * base_k / sum(base)``; ``base`` defaults to bin volumes."""
+    def from_base_measure(cls, concentration: float = 1.0, base: Any = "flat") -> Dirichlet:
+        """``alpha_k = concentration * B_k``, with ``B`` the normalised bin masses of ``base``.
+
+        ``base`` is a :class:`~binference.Density` (or anything
+        :meth:`Density.coerce <binference.Density.coerce>` accepts; an array is
+        read as masses per bin). The default is flat in the measure coordinate,
+        proportional to bin volumes on linear bins.
+        """
         if concentration <= 0:
             raise ValueError("concentration must be positive.")
         obj = cls(1.0)
-        obj._base = (float(concentration), None if base is None else np.asarray(base, float))
+        obj._base = (float(concentration), Density.coerce(base, "mass", name="base"))
         return obj
 
     def resolve_alpha(self, bins: Bins) -> np.ndarray:
         K = bins.K
         if self._base is not None:
             conc, base = self._base
-            b = np.asarray(bins.volumes, float) if base is None else base
-            if b.shape != (K,) or np.any(b <= 0):
-                raise ValueError("base must be a positive array of length K.")
-            return conc * b / b.sum()
+            b = base.masses(bins)
+            if np.any(b <= 0):
+                raise ValueError("The base measure must give every bin positive mass.")
+            return conc * b
         if isinstance(self.alpha, str):
             return np.full(K, 1.0 / K)
         a = np.asarray(self.alpha, dtype=float)
@@ -172,7 +177,7 @@ class Dirichlet(Prior):
 
 
 class _BoundDirichlet(_SimplexBound):
-    def __init__(self, prior: Prior, bins: Bins, alpha: np.ndarray) -> None:
+    def __init__(self, prior: PopulationPrior, bins: Bins, alpha: np.ndarray) -> None:
         super().__init__(prior, bins)
         self.alpha = alpha
         self.A = float(alpha.sum())
@@ -339,7 +344,7 @@ class _TreeStructure:
 
 
 class _BoundTree(_SimplexBound):
-    def __init__(self, prior: Prior, bins: Bins, tree: _TreeStructure) -> None:
+    def __init__(self, prior: PopulationPrior, bins: Bins, tree: _TreeStructure) -> None:
         super().__init__(prior, bins)
         self.tree = tree
         self._a1 = tree.leaf_coef + 1.0
@@ -460,7 +465,7 @@ def _parse_nested(tree: Any) -> list[list[tuple[str, int]]]:
     return [n for n in nodes if n is not None]
 
 
-class DirichletTree(Prior):
+class DirichletTree(PopulationPrior):
     """Dirichlet-tree prior: independent Dirichlet splits along a tree of bins.
 
     Generalises the Dirichlet (a single node) and the generalised Dirichlet (a
@@ -578,22 +583,23 @@ class PolyaTree(DirichletTree):
         Overall concentration (larger = closer to the base measure).
     power : float
         Growth of concentration with depth.
-    base : None, array_like (K,), or callable
-        Base measure: bin volumes (uniform density) by default, explicit masses,
-        or a density evaluated at bin centres.
+    base : Density, "flat", callable or array_like (K,)
+        Base measure, read by :meth:`Density.coerce <binference.Density.coerce>`
+        (an array is masses per bin). The default is flat in the measure
+        coordinate.
     """
 
     def __init__(
         self,
         c: float = 1.0,
         power: float = 2.0,
-        base: Sequence[float] | np.ndarray | Callable[[np.ndarray], np.ndarray] | None = None,
+        base: Any = "flat",
     ) -> None:
         if c <= 0:
             raise ValueError("c must be positive.")
         self.c = float(c)
         self.power = float(power)
-        self.base = base
+        self.base = Density.coerce(base, "mass", name="base")
 
     def _params(self):
         return {"c": self.c, "power": self.power}
@@ -602,13 +608,8 @@ class PolyaTree(DirichletTree):
         if bins.is_categorical or bins.ndim != 1:
             raise ValueError("PolyaTree is defined on ordered one-dimensional bins.")
         K = bins.K
-        if self.base is None:
-            g0 = np.asarray(bins.volumes, dtype=float)
-        elif callable(self.base):
-            g0 = np.asarray(self.base(bins.centers), dtype=float) * bins.volumes
-        else:
-            g0 = np.asarray(self.base, dtype=float)
-        if g0.shape != (K,) or np.any(g0 <= 0):
+        g0 = self.base.masses(bins)
+        if np.any(g0 <= 0):
             raise ValueError("base must give a positive mass for every bin.")
         cum = np.concatenate(([0.0], np.cumsum(g0)))
         nodes: list[list[tuple[str, int]] | None] = []

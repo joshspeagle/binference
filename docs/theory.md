@@ -256,8 +256,9 @@ engine.
   - `Dirichlet.reference()` uses $\alpha_k=1/K$ (Berger, Bernardo & Sun 2015),
     which matters when there are many bins and few objects, since $\alpha=1$
     adds $K$ pseudo-counts.
-  - `from_base_measure` makes $\alpha_k\propto v_k$, which stays consistent
-    when bins are merged.
+  - `from_base_measure` makes $\alpha_k$ proportional to the bin masses of a base
+    density (by default flat in the measure coordinate, $\alpha_k\propto v_k$ on
+    linear bins), which stays consistent when bins are merged.
   - `from_counts(m, strength=λ)` encodes a reference sample with counts $m$
     as $\alpha=1+\lambda m$, a power prior that down-weights a reference that
     may not be representative.

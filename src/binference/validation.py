@@ -22,7 +22,7 @@ from scipy import special, stats
 from ._utils import RNGLike, as_generator, progress, spawn
 from .likelihoods import Likelihoods
 from .model import PopulationModel
-from .priors import Prior
+from .priors import PopulationPrior
 from .results import PopulationResult
 
 __all__ = ["CoverageResult", "ExactPosterior", "SBCResult", "coverage", "exact_posterior", "sbc"]
@@ -60,7 +60,7 @@ class ExactPosterior:
 
 def exact_posterior(
     model: PopulationModel | Likelihoods | Any,
-    prior: Prior | None = None,
+    prior: PopulationPrior | None = None,
     n_grid: int = 400,
     chunk: int = 20000,
 ) -> ExactPosterior:

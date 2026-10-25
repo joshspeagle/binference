@@ -260,3 +260,8 @@ Append-only. One entry per working session (or per step within a long session).
 
 - #19 (process/CI) and #20 (rename) merged; Phase A and B issues closed by their PRs.
 - C1 #22 (measures and masked grids): /simplify with four reviewers (one masked-state pair and a cached cell lookup; `cell_index`; measures compare by an identity key; unused `derivative`/`is_linear` dropped; `from_gaussian` gathers active cells only) and /code-review high (ten findings, all fixed: masked 1-D in the cdf constructor, plots and mock samples; mask shape; partly masked coarsen blocks refused; `from_centers` clamping; warning stacklevel; transform measures reload as tables, documented; DECISIONS #62 corrected).
+
+## 2026-10-25: C1 merged; C2 opened
+
+- #22 (measures and masks) merged after its reviews; phase B closed (#6).
+- C2 issue #23 and PR #24 (`Density`): one fixed density for interim priors, base measures, logistic means and mocks; flat in the measure coordinate by default (DECISIONS #63); array interim priors need a representation on unequal bins (I-1); `PopulationPrior`; `stack()` honours the recorded interim (I-5, I-6). /simplify (four reviewers) and /code-review high done, all findings addressed or answered in the PR.

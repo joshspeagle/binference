@@ -30,7 +30,8 @@ from scipy import special
 
 from .._simplex import helmert_basis, softmax
 from ..bins import Bins
-from .base import BoundPrior, Prior
+from ..density import Density
+from .base import BoundPrior, PopulationPrior
 from .hyper import Fixed, HalfNormal, Hyperprior, InverseGamma, as_hyperprior
 
 __all__ = ["LogisticGP", "LogisticNormal", "LogisticRandomWalk"]
@@ -115,7 +116,7 @@ class _BoundLogistic(BoundPrior):
 
     def __init__(
         self,
-        prior: Prior,
+        prior: PopulationPrior,
         bins: Bins,
         basis: _KronBasis,
         active: np.ndarray,
@@ -267,10 +268,10 @@ class _BoundLogistic(BoundPrior):
 
 
 def _resolve_mean(mean: Any, bins: Bins) -> np.ndarray:
-    """Prior mean of the log-fractions, centred; default: a flat density (log volumes)."""
+    """Prior mean of the log-fractions, centred; default: flat in the measure coordinate."""
     K = bins.K
     if mean is None:
-        m = np.log(np.asarray(bins.volumes, dtype=float))
+        m = np.log(Density.flat().masses(bins))
         return m - m.mean()
     m = np.asarray(mean, dtype=float).ravel()
     if m.shape != (K,) or not np.all(np.isfinite(m)):
@@ -281,7 +282,7 @@ def _resolve_mean(mean: Any, bins: Bins) -> np.ndarray:
 # ----------------------------------------------------------------------------
 # LogisticNormal
 # ----------------------------------------------------------------------------
-class LogisticNormal(Prior):
+class LogisticNormal(PopulationPrior):
     r"""Logistic-normal prior on the population fractions.
 
     :math:`\eta \sim \mathcal N(\mu, \Sigma)` and :math:`\rho = \mathrm{softmax}(\eta)`.
@@ -290,8 +291,8 @@ class LogisticNormal(Prior):
     ----------
     mean : array_like (K,), optional
         Prior mean of the log-fractions (up to a constant), e.g. the log of
-        reference fractions. Defaults to the log bin volumes: a flat density,
-        so the prior acts on the log-density whatever the binning.
+        reference fractions. Defaults to a density flat in the measure
+        coordinate, so the prior acts on the log-density whatever the binning.
     cov : array_like (K, K) or float, optional
         Covariance of :math:`\eta`. ``None`` means i.i.d. components with
         standard deviation ``scale``.
@@ -345,7 +346,7 @@ class _BoundLogisticNormal(_BoundLogistic):
 # ----------------------------------------------------------------------------
 # LogisticRandomWalk
 # ----------------------------------------------------------------------------
-class LogisticRandomWalk(Prior):
+class LogisticRandomWalk(PopulationPrior):
     r"""Random-walk (intrinsic GMRF) smoothness prior on log-fractions over a grid.
 
     The ``order``-th differences of :math:`\eta = \log\rho` (between adjacent
@@ -367,8 +368,8 @@ class LogisticRandomWalk(Prior):
         ``HalfNormal(1.0)`` prior by default.
     mean : array_like (K,), optional
         Mean of the log-fractions, e.g. ``log(reference)`` to shrink toward
-        reference fractions. Defaults to the log bin volumes (a flat density),
-        so differences penalise the log-density.
+        reference fractions. Defaults to a density flat in the measure
+        coordinate, so differences penalise the log-density.
     trend_scale : float
         Prior standard deviation of the unpenalised polynomial modes.
     """
@@ -437,7 +438,7 @@ class _BoundRandomWalk(_BoundLogistic):
 _KERNELS = {"rbf": None, "se": None, "matern12": 0.5, "matern32": 1.5, "matern52": 2.5}
 
 
-class LogisticGP(Prior):
+class LogisticGP(PopulationPrior):
     r"""Gaussian-process prior on log-fractions over a 1-D or N-D grid.
 
     Uses the Hilbert-space reduced-rank approximation (Solin & Sarkka 2020):
@@ -459,7 +460,7 @@ class LogisticGP(Prior):
         grid can resolve nor flatter than the data can constrain.
     mean : array_like (K,), optional
         Mean log-fractions (e.g. the log of reference fractions). Defaults to
-        the log bin volumes, i.e. a flat density: the GP acts on the
+        a density flat in the measure coordinate: the GP acts on the
         log-density.
     n_basis : int or sequence, optional
         Basis functions per axis (default ``min(K_d, 48)``); increase for

@@ -101,7 +101,7 @@ def test_from_posteriors_removes_interim_prior(rng):
     pi = np.array([0.1, 0.2, 0.3, 0.4])
     P = L * pi
     P /= P.sum(axis=1, keepdims=True)
-    lk = Likelihoods.from_posteriors(P, bins, pi)
+    lk = Likelihoods.from_posteriors(P, bins, pi, interim_representation="mass")
     ratio = lk.toarray() / L
     np.testing.assert_allclose(ratio / ratio[:, :1], 1.0, rtol=1e-12)
     # density representations give the same result
