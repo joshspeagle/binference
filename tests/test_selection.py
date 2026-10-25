@@ -76,3 +76,13 @@ def test_a_selection_is_immutable_and_survives_pickling():
         sel.values[0] = 1.0
     back = pickle.loads(pickle.dumps(sel))
     assert back == sel and back.scale == "relative" and not back.row.flags.writeable
+
+
+def test_an_open_end_of_the_measured_range_lets_everything_through():
+    from binference.simulate import _measured_pass
+
+    z = np.array([0.1, 1.0, 2.0])
+    below = _measured_pass(z, (0.05, 0.5), (None, 1.0))
+    above = _measured_pass(z, (0.05, 0.5), (1.0, None))
+    np.testing.assert_allclose(below + above, 1.0, rtol=1e-12)
+    assert np.all((below > 0) & (above > 0))

@@ -171,9 +171,15 @@ def _noise(noise: Any, n: int, rng: np.random.Generator, shape=()) -> np.ndarray
     return rng.uniform(lo, hi, size=(n, *shape))
 
 
+def _limits(measured_range):
+    # (lo, hi) with None for an open end
+    lo, hi = measured_range
+    return (-np.inf if lo is None else float(lo)), (np.inf if hi is None else float(hi))
+
+
 def _measured_pass(z, noise, measured_range):
     # P(lo <= z + sigma * e <= hi), averaged over the noise distribution
-    lo, hi = (-np.inf if b is None else float(b) for b in measured_range)
+    lo, hi = _limits(measured_range)
     if np.ndim(noise) == 0:
         sig, wts = np.array([float(noise)]), np.array([1.0])
     else:
@@ -323,7 +329,7 @@ def _gaussian_mock(bins, density, n_objects, noise, selection, measured_range, s
         if S is not None:
             keep &= gen.random(batch) < S[lab]
         if measured_range is not None:
-            lo, hi = (-np.inf if b is None else b for b in measured_range)
+            lo, hi = _limits(measured_range)
             keep &= (obs >= lo) & (obs <= hi)
         idx = np.flatnonzero(keep)[:need]
         # count only the draws needed to reach n_objects observed objects
