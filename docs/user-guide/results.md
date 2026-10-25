@@ -50,6 +50,22 @@ fraction draw given the number of objects and the selection (see
 `summary`. Convergence diagnostics for rate models are computed on the rates,
 so they also cover the total.
 
+With a selection function, `result.selected` holds draws of the **selected** population,
+$\phi = S\circ\rho/(S\cdot\rho)$: the bins of the objects that are observed, with each
+draw's own $S$ when the selection is inferred (`which="selected"` works wherever
+`which=` does). Two numbers say how much of $\rho$ the data actually determine.
+`result.data_support` gives each bin's objects' worth of likelihood,
+$\sum_i w_i\ell_{ik}$ with every object's likelihood normalised over the bins; the
+summary shows it as `support`, and a bin with less than about one object's worth is set
+by the prior (`check(support_min=1)` flags such bins). `result.prior_information_ratio()`
+is Efron's ratio of prior to data information, $\mathrm{tr}(-H_\text{prior})/
+\mathrm{tr}(-H_\text{data})$ in the sampled coordinates at the posterior mean: small when
+the data dominate, near one or more when the prior does.
+
+```python
+print(result.data_support.round(1), round(result.prior_information_ratio(), 3))
+```
+
 ## Individual objects
 
 The hierarchical model also says something about each object: its posterior
@@ -101,7 +117,10 @@ print(counts.std(axis=0)[:5].round(1), population_counts.std(axis=0)[:5].round(1
 ```
 
 With precise measurements the realised histogram is almost known, while the
-population fractions still carry multinomial uncertainty.
+population fractions still carry multinomial uncertainty. With an absolute selection,
+`realized_counts(full=True)` also counts the objects it missed, drawn per draw from
+their negative-binomial number and the bins $\propto\rho\circ(1-S)$: the histogram of
+the full sample.
 
 ## Diagnostics
 
@@ -166,5 +185,6 @@ print(est.assignment_probabilities(idx=[0]).round(2))
 ```
 
 A {class}`~binference.PointEstimate` offers the same per-object methods,
-evaluated at the point. `est.laplace()` turns it into an approximate
+evaluated at the point. `est.check()` warns when the optimiser did not converge or the
+KKT gap (per object) exceeds `kkt_max=1e-4`. `est.laplace()` turns it into an approximate
 posterior.

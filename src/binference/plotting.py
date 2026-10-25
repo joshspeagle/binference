@@ -34,8 +34,13 @@ def _plt():
 
 
 #: axis labels and symbols of what can be plotted (``which``)
-_YLABEL = {"density": "density", "fractions": "fraction per bin", "rates": "rate"}
-_SYMBOL = {"density": "density", "fractions": "rho", "rates": "rate"}
+_YLABEL = {
+    "density": "density",
+    "fractions": "fraction per bin",
+    "rates": "rate",
+    "selected": "selected fraction per bin",
+}
+_SYMBOL = {"density": "density", "fractions": "rho", "rates": "rate", "selected": "phi"}
 
 
 def _to_which(values: np.ndarray, bins: Any, which: str, total: float = 1.0) -> np.ndarray:
@@ -47,7 +52,7 @@ def _to_which(values: np.ndarray, bins: Any, which: str, total: float = 1.0) -> 
     """
     v = np.asarray(values, dtype=float)
     v = v / v.sum()
-    if which == "fractions":
+    if which in ("fractions", "selected"):
         return v
     v = v * total
     return v / bins.volumes if which == "density" else v

@@ -262,17 +262,24 @@ class _IndividualMixin:
             [kern.sample_labels(_draw_rows(L, s), rho, gen) for s, rho in enumerate(R)]
         )
 
-    def realized_counts(self, n_draws: int | None = N_DRAWS, rng: RNGLike = None) -> np.ndarray:
+    def realized_counts(
+        self, n_draws: int | None = N_DRAWS, rng: RNGLike = None, full: bool = False
+    ) -> np.ndarray:
         """Draws of the realised histogram of the observed objects' true bins.
 
         Unlike the population fractions (which include the shot noise of
         drawing ``N`` objects from a population), this is the distribution of
-        ``n_k = sum_i w_i 1[z_i = k]`` for *these* objects. Returns
-        ``(n_draws, K)`` weighted counts.
+        ``n_k = sum_i w_i 1[z_i = k]`` for *these* objects. With ``full=True`` the
+        objects the selection missed are added, drawn for each draw as
+        :math:`\\mathrm{NegBin}(W, S\\cdot\\rho)` of them in bins
+        :math:`\\propto \\rho\\circ(1 - S)`: the counts of the full sample (DECISIONS #53).
+        Returns ``(n_draws, K)`` weighted counts.
         """
         model = self._require_model()
         gen = as_generator(rng)
         L, R, _ = self._object_draws(n_draws)
+        if full:
+            missed = self._missed_counts(n_draws, gen)
         w = model._w
         unit = bool(np.all(w == 1))
         integer = is_integer_array(w)
@@ -285,7 +292,77 @@ class _IndividualMixin:
             else:
                 labels = self._labels_to_bins(kern.sample_labels(Ls, rho, gen), gen)
                 out[s] = np.bincount(labels, weights=w, minlength=self.bins.K)
+            if full:
+                out[s] += self._counts_to_bins(next(missed), gen)
         return out
+
+    def _missed_counts(self, n_draws: int | None, gen: np.random.Generator):
+        # per draw, the objects the selection missed in each column (absolute selection)
+        model = self._require_model()
+        if model.kind == "rates":
+            raise ValueError("Full-sample counts need detection probabilities, not exposures.")
+        Sd = self._inferred_selection()
+        S = None if Sd is None else _flat_draws(Sd, 1, n_draws)
+        if S is None and model.total_exposure is None:
+            raise ValueError(
+                "Full-sample counts need an absolute selection; this one is relative, so "
+                "the number of missed objects is not identified (DECISIONS #46)."
+            )
+        for s, rho in enumerate(self._select_draws(n_draws, components=True)):
+            Ss = model.total_exposure if S is None else S[s]
+            yield model._draw_missed(rho, np.zeros(rho.size), gen, S=Ss)
+
+    def _selected_of(self, W: np.ndarray) -> np.ndarray:
+        """The selected population :math:`\\phi = S\\circ w / (S\\cdot w)` per bin, for rows of
+        component weights ``W`` (all draws, or the estimate), with each draw's own S
+        when the selection is inferred (DECISIONS #49)."""
+        Sd = self._inferred_selection()
+        S = self.selection.values if Sd is None and self.selection is not None else None
+        if Sd is not None:
+            S = _flat_draws(Sd, 1, None)
+        if S is None:
+            return self._to_bins(W)
+        P = W * S
+        return self._to_bins(P / P.sum(axis=-1, keepdims=True))
+
+    @property
+    def data_support(self) -> np.ndarray:
+        """Objects' worth of likelihood in each bin, :math:`\\sum_i w_i \\ell_{ik}` with each
+        object's likelihood normalised over the bins: below about one, a bin's fraction
+        is set by the prior (DECISIONS #41)."""
+        model = self._require_model()
+        L = model.likelihoods.values
+        tot = kern.matvec(L, np.ones(L.shape[1]))
+        w = np.divide(model._w, tot, out=np.zeros_like(tot), where=tot > 0)
+        return self._to_bins(kern.rmatvec(L, w))
+
+    def prior_information_ratio(self, h: float = 1e-4) -> float:
+        r"""Efron's (2016) ratio of prior to data information,
+        :math:`\mathrm{tr}(-H_\text{prior}) / \mathrm{tr}(-H_\text{data})`.
+
+        The Hessians are of the log densities in the prior's unconstrained coordinates
+        at the posterior mean (the mode for point estimates), by central differences
+        of the gradient with step ``h``; the prior's is of its density in those
+        coordinates, so a Dirichlet(:math:`\alpha`) counts as :math:`\alpha` objects
+        per bin. Small values mean the data dominate (DECISIONS #41).
+        """
+        from .samplers._curvature import fd_hessian
+
+        model = self._require_model()
+        x = model.from_value(self._center_value())
+        d = model.prior.dim
+
+        def prior_grad(xp):
+            eta, cache = model.prior.forward(xp)
+            v = model._value(eta)
+            return model.prior.log_prior_and_grad(xp, cache, v, np.zeros_like(v))
+
+        def total_grad(xp):
+            return model.log_density_unconstrained_and_grad(np.concatenate([xp, x[d:]]))
+
+        Hp = fd_hessian(prior_grad, x[:d], h=h)
+        Ht = fd_hessian(total_grad, x[:d], h=h)
+        return float(np.trace(-Hp) / np.trace(Hp - Ht))
 
     def sample_values(
         self,
@@ -448,10 +525,13 @@ def _flat_draws(A: Any, n_tail: int, n_draws: int | None) -> np.ndarray:
 
 
 def _which_name(which: str) -> str:
-    """``"fractions"``, ``"rates"`` or ``"density"``, singular spellings accepted (O-12)."""
+    """``"fractions"``, ``"rates"``, ``"density"`` or ``"selected"``, singular spellings
+    accepted (O-12)."""
     name = {"fraction": "fractions", "rate": "rates"}.get(which, which)
-    if name not in ("fractions", "rates", "density"):
-        raise ValueError(f"which must be 'fractions', 'rates' or 'density'; got {which!r}.")
+    if name not in ("fractions", "rates", "density", "selected"):
+        raise ValueError(
+            f"which must be 'fractions', 'rates', 'density' or 'selected'; got {which!r}."
+        )
     return name
 
 
@@ -800,7 +880,20 @@ class PopulationResult(_IndividualMixin):
                     "likelihoods)."
                 )
             return rates
+        if which == "selected":
+            return self.selected
         return self.density()
+
+    @property
+    def selected(self) -> np.ndarray:
+        """Draws ``(n_draws, K)`` of the selected population
+        :math:`\\phi = S\\circ\\rho / (S\\cdot\\rho)`, the bins of the observed objects;
+        :math:`\\rho` itself without a selection (DECISIONS #49)."""
+        return self._selected_of(self._weight_draws())
+
+    def _center_value(self) -> np.ndarray:
+        # the posterior mean of the model's columns (fractions or rates)
+        return self._params.reshape(-1, self._params.shape[-1]).mean(axis=0)
 
     @property
     def mean(self) -> np.ndarray:
@@ -962,6 +1055,7 @@ class PopulationResult(_IndividualMixin):
         ess_min: float = 100.0,
         predictive_p_min: float = 1e-3,
         predictive_draws: int = 200,
+        support_min: float | None = None,
     ):
         """Check diagnostics and warn (or raise with ``strict=True``) about problems.
 
@@ -970,7 +1064,8 @@ class PopulationResult(_IndividualMixin):
         the response does not describe) an :class:`~binference.InputWarning`.
         For binned inputs with more measured than truth bins, the counts are
         tested with :meth:`Response.predictive_pvalue` over ``predictive_draws``
-        draws, and flagged below ``predictive_p_min``.
+        draws, and flagged below ``predictive_p_min``. With ``support_min``, bins whose
+        :attr:`data_support` is below it (in objects) are flagged as set by the prior.
 
         Returns a list of messages (empty if everything looks fine).
         """
@@ -1050,6 +1145,14 @@ class PopulationResult(_IndividualMixin):
                     "> 1 at the fitted population"
                 )
                 input_hints.append("draw more samples per object, or use wider bins or floor=")
+        if lk is not None and support_min is not None:
+            low = np.flatnonzero(self.data_support < support_min)
+            if low.size:
+                inputs.append(
+                    f"{low.size} bins have data support below {support_min:g} objects "
+                    f"(first: {low[:5].tolist()}): their fractions are set by the prior"
+                )
+                input_hints.append("merge sparse bins, or read their fractions as the prior's")
         if lk is not None and "measured_bin" in lk.meta:
             ppp = self._predictive_pvalue(lk, predictive_draws)
             if ppp is not None and ppp < predictive_p_min:
@@ -1106,6 +1209,8 @@ class PopulationResult(_IndividualMixin):
         }
         mixing = self._mixing_of(which)  # of the quantity summarised (audit O-8)
         cols.update({k: v for k, v in mixing.items() if k != "ess_tail"})
+        if self.model is not None:  # objects' worth of likelihood per bin (DECISIONS #41)
+            cols["support"] = self.data_support
         flag = " [approximate]" if self.approximate else ""
         source = None if self.model is None else self.model.likelihoods.meta.get("source")
         inputs = "" if source is None else f"; inputs: {source}"
@@ -1256,7 +1361,41 @@ class PointEstimate(_IndividualMixin):
             return self.density()[None, :]
         if which == "rates" and self.rates is None:
             raise ValueError("No rates in this result (a relative selection, or no model).")
+        if which == "selected":
+            return self.selected[None, :]
         return (self.rho if which == "fractions" else self.rates)[None, :]
+
+    @property
+    def selection(self) -> Selection | None:
+        """The selection function of the fit."""
+        return None if self.model is None else self.model.selection_spec
+
+    @property
+    def selected(self) -> np.ndarray:
+        """The selected population at the estimate (see :attr:`PopulationResult.selected`)."""
+        return self._selected_of(self._weight_draws())[0]
+
+    def _center_value(self) -> np.ndarray:
+        return self.value
+
+    def check(self, kkt_max: float = 1e-4, strict: bool = False) -> list[str]:
+        """Warn (or raise with ``strict=True``) when the optimiser did not converge or the
+        KKT gap (per object; see :meth:`PopulationModel.kkt_gap`) exceeds ``kkt_max``.
+
+        The default is ten times the round-off floor at which MAP stops (DECISIONS #12).
+        Returns the messages (empty if the estimate looks fine).
+        """
+        msgs = []
+        if not self.converged:
+            msgs.append("the optimiser did not converge")
+        if np.isfinite(self.kkt_gap) and self.kkt_gap > kkt_max:
+            msgs.append(f"KKT gap {self.kkt_gap:.1e} > {kkt_max:.0e}: not at the optimum")
+        if msgs:
+            text = "; ".join(msgs)
+            if strict:
+                raise DiagnosticsError(f"Diagnostics failed: {text}")
+            warn(f"Diagnostics: {text}.", ConvergenceWarning)
+        return msgs
 
     def _weight_draws(self) -> np.ndarray:
         v = self.value

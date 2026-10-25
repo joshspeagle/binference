@@ -339,3 +339,8 @@ Append-only. One entry per working session (or per step within a long session).
 ## 2026-10-25: C11b-3 merged; C12 (results)
 
 - #60 (C11b-3) merged. /code-review caught that `fixed()` dropped the tallies, so the plug-in's label-shift check lost the covariance calibrated in DECISIONS #68, and that responses without lost events got a spurious random efficiency; both fixed before the merge. The single interface for jointly inferred blocks is deferred (#61).
+
+## 2026-10-25: C12a merged; C12b
+
+- #63 (C12a, audit O-1–O-21) merged after CI and the slow suite. Checking the audit against `main` found all but O-16 open and a new defect (attach redrew the total without the selection); /code-review caught that the new bins check refused a reloaded transform axis and that R-hat was checked for independent draws.
+- C12b (#64): selected population, full-sample counts, KKT in point-estimate checks, data support and the prior-vs-data ratio (DECISIONS #12, #41, #49, #53).

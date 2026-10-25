@@ -40,6 +40,11 @@ First development version.
 
 ### Added
 
+- **Results** (DECISIONS #12, #41, #49, #53, #83): `result.selected` (the selected
+  population, also `which="selected"`), `realized_counts(full=True)` (with the missed
+  objects), `data_support` and the `support` summary column, `prior_information_ratio()`
+  (Efron's ratio), `check(support_min=)`, and `PointEstimate.check()` for the KKT gap.
+
 - **Measures** (DECISIONS #21): each grid axis has a `Measure`, the coordinate
   `u = T(z)` in which the population is flat within a bin: linear, log, a transform with
   its inverse, or the cumulative integral of a positive density. `Bins.log` uses the log
