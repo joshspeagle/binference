@@ -226,24 +226,10 @@ class _IndividualMixin:
             raise ValueError("New likelihoods must use the same bins (and basis) as the fit.")
         return lk
 
-    @property
-    def best(self) -> PointEstimate:
-        """The best fit: :class:`~binference.samplers.MAP` with its defaults, which is the
-        mode of :math:`\rho` on the simplex for conjugate priors and the mode in the
-        unconstrained coordinates otherwise (DECISIONS #15, #35). Computed on first use
-        and kept; a point estimate's best fit is itself. Per-object outputs at it carry
-        a ``_best`` suffix (``assignment_probabilities_best`` and so on; DECISIONS #51).
-        """
-        if isinstance(self, PointEstimate):
-            return self
-        if "best" not in self._cache:
-            from .samplers import MAP
-
-            self._cache["best"] = MAP(self._require_model()).run()
-        return self._cache["best"]
+    best: PointEstimate
 
     def assignment_probabilities_loo(
-        self, idx: Any = None, n_draws: int | None = N_DRAWS, chunk: int = 256
+        self, idx: Any = None, n_draws: int | None = N_DRAWS, chunk: int = 4096
     ) -> tuple[np.ndarray, np.ndarray]:
         r"""Each object's posterior over bins under the population fitted without it,
         :math:`P(z_i = k \mid D_{-i})`: leave-one-out, for calibration checks
@@ -265,20 +251,19 @@ class _IndividualMixin:
         if m < 5:
             raise ValueError(f"Leave-one-out needs posterior draws (at least 5); this has {m}.")
         rows = np.atleast_1d(np.arange(model.N)[slice(None) if idx is None else idx])
-        log_norm = 0.0 if norm is None else np.log(norm)[:, None]
+        L = _objects(L, model.N, idx)
+        log_norm = 0.0 if norm is None else np.log(norm)
         out, k_hat = np.empty((rows.size, R.shape[1])), np.empty(rows.size)
         for sl in chunk_slices(rows.size, chunk):
-            r = rows[sl]
-            block = L[:, r] if L.ndim == 3 else L[r]
-            block = block.toarray() if hasattr(block, "toarray") else np.asarray(block)
-            P = block * R[:, None, :] if L.ndim == 3 else block[None] * R[:, None, :]
-            T = P.sum(axis=-1)  # (draws, objects): p(d_i | rho_s) up to its norm
-            with np.errstate(divide="ignore", invalid="ignore"):
-                logp = np.log(T) - log_norm
-                resp = np.where(T[..., None] > 0, P / T[..., None], 0.0)
-            for j, i in enumerate(r):
-                lw, k_hat[sl][j] = diag.psis(-model._w[i] * logp[:, j])
-                out[sl][j] = np.exp(lw) @ resp[:, j]
+            block = L[:, sl] if L.ndim == 3 else L[sl]
+            T = np.einsum("snk,sk->ns", block, R) if L.ndim == 3 else np.asarray(block @ R.T)
+            with np.errstate(divide="ignore"):
+                logp = np.log(T) - log_norm  # (objects, draws): log p(d_i | rho_s)
+            W = np.empty_like(T)
+            for j, i in enumerate(rows[sl]):
+                lw, k_hat[sl.start + j] = diag.psis(-model._w[i] * logp[j])
+                W[j] = np.exp(lw)
+            out[sl] = _mean_responsibilities(block, R, chunk, W)
         bad = k_hat >= diag.psis_threshold(m)
         if bad.any():
             warn(
@@ -288,6 +273,31 @@ class _IndividualMixin:
                 ConvergenceWarning,
             )
         return self._to_bins(out), k_hat
+
+    # per-object outputs at the best fit (DECISIONS #51)
+    def assignment_probabilities_best(self, idx: Any = None, **kwargs: Any) -> np.ndarray:
+        """:meth:`assignment_probabilities` at the best fit, :attr:`best`."""
+        return self.best.assignment_probabilities(idx, **kwargs)
+
+    def sample_assignments_best(self, idx: Any = None, **kwargs: Any) -> np.ndarray:
+        """:meth:`sample_assignments` at the best fit, :attr:`best`."""
+        return self.best.sample_assignments(idx, **kwargs)
+
+    def sample_values_best(self, idx: Any = None, **kwargs: Any) -> np.ndarray:
+        """:meth:`sample_values` at the best fit, :attr:`best`."""
+        return self.best.sample_values(idx, **kwargs)
+
+    def realized_counts_best(self, **kwargs: Any) -> np.ndarray:
+        """:meth:`realized_counts` at the best fit, :attr:`best`."""
+        return self.best.realized_counts(**kwargs)
+
+    def predict_proba_best(self, likelihoods: Likelihoods | Any, **kwargs: Any) -> np.ndarray:
+        """:meth:`predict_proba` at the best fit, :attr:`best`."""
+        return self.best.predict_proba(likelihoods, **kwargs)
+
+    def log_predictive_best(self, likelihoods: Likelihoods | Any, **kwargs: Any) -> np.ndarray:
+        """:meth:`log_predictive` at the best fit, :attr:`best`."""
+        return self.best.log_predictive(likelihoods, **kwargs)
 
     def assignment_probabilities(
         self, idx: Any = None, n_draws: int | None = N_DRAWS, chunk: int = 4096
@@ -562,55 +572,37 @@ class _IndividualMixin:
         return L, R, (R.sum(axis=1) if S is not None else R @ model.selection), lk.log_scale
 
 
-def _at_best(name: str) -> Callable:
-    def method(self, *args: Any, **kwargs: Any):
-        return getattr(self.best, name)(*args, **kwargs)
-
-    method.__name__ = method.__qualname__ = f"{name}_best"
-    method.__doc__ = f":meth:`{name}` at the best fit, :attr:`best` (DECISIONS #51)."
-    return method
-
-
-#: per-object outputs also offered at the best fit, with a ``_best`` suffix
-BEST_OUTPUTS = (
-    "assignment_probabilities",
-    "sample_assignments",
-    "sample_values",
-    "realized_counts",
-    "predict_proba",
-    "log_predictive",
-)
-for _name in BEST_OUTPUTS:
-    setattr(_IndividualMixin, f"{_name}_best", _at_best(_name))
-
-
-def _mean_responsibilities(L: Any, R: np.ndarray, chunk: int) -> np.ndarray:
+def _mean_responsibilities(
+    L: Any, R: np.ndarray, chunk: int, W: np.ndarray | None = None
+) -> np.ndarray:
     """Per-object posteriors over the columns, averaged over the draws of column weights
-    ``R``, ``chunk`` objects at a time (``L`` may hold rows per draw, ``(n, N, K)``)."""
-    n = L.shape[-2]
+    ``R`` (equally, or with weights ``W`` ``(n, draws)`` per object summing to one),
+    ``chunk`` objects at a time (``L`` may hold rows per draw, ``(n, N, K)``)."""
+    n, m = L.shape[-2], R.shape[0]
+    W = np.full((n, m), 1.0 / m) if W is None else W
     out = np.zeros((n, L.shape[-1]))
     for sl in chunk_slices(n, chunk):
         block = L[:, sl] if L.ndim == 3 else L[sl]
         block = block.toarray() if hasattr(block, "toarray") else np.asarray(block)
         rows = np.arange(sl.start, sl.stop)
-        if block.ndim == 2:  # rows shared by the draws: mean_s L R_s / (L.R_s), two products
+        if block.ndim == 2:  # rows shared by the draws: sum_s w_s L R_s / (L.R_s), 2 products
             T = block @ R.T
             tiny = np.finfo(float).tiny  # 1/T overflows below: those rows go draw by draw
-            inv = np.divide(1.0, T, out=np.zeros_like(T), where=T > tiny)  # no support: zero
+            inv = np.divide(W[sl], T, out=np.zeros_like(T), where=T > tiny)  # no support: 0
             out[sl] = block * (inv @ R)
             slow = np.any((T > 0) & (T <= tiny), axis=1)
             if not slow.any():
                 continue
             rows, block = (
                 rows[slow],
-                np.broadcast_to(block[slow], (len(R), slow.sum(), out.shape[1])),
+                np.broadcast_to(block[slow], (m, slow.sum(), out.shape[1])),
             )
             out[rows] = 0.0
         for s, rho in enumerate(R):  # draw by draw
             P = block[s] * rho
             tot = P.sum(axis=1, keepdims=True)
-            out[rows] += P / np.where(tot > 0, tot, 1.0)
-    return out / R.shape[0]
+            out[rows] += W[rows, s, None] * P / np.where(tot > 0, tot, 1.0)
+    return out
 
 
 def _objects(L: Any, N: int, idx: Any) -> Any:
@@ -1048,6 +1040,18 @@ class PopulationResult(_IndividualMixin):
     def selection(self) -> Selection | None:
         """The selection function of the fit, kept through :meth:`save` and :func:`load`."""
         return self._selection
+
+    @property
+    def best(self) -> PointEstimate:
+        """The best fit: :class:`~binference.samplers.MAP` with its defaults, which is the
+        mode of :math:`\rho` on the simplex for conjugate priors and the mode in the
+        unconstrained coordinates otherwise (DECISIONS #15, #35). Computed on first use
+        and kept; per-object outputs at it carry a ``_best`` suffix (DECISIONS #51)."""
+        if "best" not in self._cache:
+            from .samplers import MAP
+
+            self._cache["best"] = MAP(self._require_model()).run()
+        return self._cache["best"]
 
     def attach(self, likelihoods_or_model: Any) -> PopulationResult:
         """Attach likelihoods (or a model) to a loaded result to enable per-object methods.
@@ -1645,6 +1649,11 @@ class PointEstimate(_IndividualMixin):
         """The selection function of the fit (a point estimate is not saved, so it is
         always the model's)."""
         return None if self.model is None else self.model.selection_spec
+
+    @property
+    def best(self) -> PointEstimate:
+        """The best fit of a point estimate is itself."""
+        return self
 
     @property
     def selected(self) -> np.ndarray:

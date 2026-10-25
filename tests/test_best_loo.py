@@ -36,7 +36,10 @@ def _mc_se(r, chains, w=None):
     # autocorrelation: the importance-sampling variance times n / ESS
     w = np.full(len(r), 1 / len(r)) if w is None else w
     p = w @ r
-    tau = [len(r) / ess(r[:, k].reshape(chains, -1)) if r[:, k].std() > 0 else 1 for k in range(5)]
+    tau = [
+        len(r) / ess(r[:, k].reshape(chains, -1)) if r[:, k].std() > 0 else 1
+        for k in range(r.shape[1])
+    ]
     return np.sqrt((w[:, None] ** 2 * (r - p) ** 2).sum(0) * tau)
 
 
@@ -46,10 +49,14 @@ def test_leave_one_out_posteriors_match_a_refit_without_the_object():
     full = Gibbs(binference.PopulationModel(lk), n_chains=4, n_warmup=200, rng=0).run(2000)
     p_loo, k_hat = full.assignment_probabilities_loo(idx=[0], n_draws=None)
     rest = Gibbs(binference.PopulationModel(lk[1:]), n_chains=4, n_warmup=200, rng=1).run(2000)
-    r_ref = rest.samples * L0 / (rest.samples @ L0)[:, None]  # object 0 under each draw
+
+    def resp(rho):  # object 0's posterior over bins under each draw
+        return rho * L0 / (rho @ L0)[:, None]
+
+    r_ref = resp(rest.samples)
     p_ref = r_ref.mean(0)
     # the same importance weights, to give leave-one-out its Monte Carlo error
-    r_in = full.samples * L0 / (full.samples @ L0)[:, None]
+    r_in = resp(full.samples)
     w = np.exp(psis(-np.log(full.samples @ L0))[0])
     se = np.hypot(_mc_se(r_ref, 4), _mc_se(r_in, 4, w))
     assert k_hat[0] < 0.7
