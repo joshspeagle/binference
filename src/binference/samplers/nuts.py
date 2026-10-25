@@ -55,7 +55,7 @@ def _conditional_log_scale_sd(model, prior, pts: list[np.ndarray]) -> np.ndarray
     cov = covariance_from_hessian(H)
     if cov is None:
         return np.full(n_act, np.inf)
-    _, dlogs = prior.scales(prior.theta_from_x(np.mean(pts, axis=0)))
+    _, dlogs = prior.log_scales(prior.theta_from_x(np.mean(pts, axis=0)))
     G = dlogs[prior.free]  # (n_free, n_active): d log s_j / d log theta
     return np.sqrt(np.maximum(np.einsum("aj,ab,bj->j", G, cov, G), 0.0))
 

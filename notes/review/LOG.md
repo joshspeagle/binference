@@ -295,3 +295,8 @@ Append-only. One entry per working session (or per step within a long session).
 
 - #40 (C8, MAP; DECISIONS #71) merged. Its code review found that the C7 rates KKT gap and the prior gradient at zero both misread active constraints (−b dropped for a zero rate; α < 1 never converging on the simplex); both now evaluate the prior gradient at the boundary point the MAP objective uses.
 - C9 split in two: C9a (mechanical prior fixes, DECISIONS #72) and C9b (the GP defaults P-1–P-3, P-5, P-7, which need measurements and choices).
+
+## 2026-10-25: C9b (GP defaults)
+
+- Calibrated the HSGP basis against exact kernels (field SD and covariance within 5%): the basis needed is m ≈ f·c·S/ℓ with f = 1.27, 1.73, 2.13, 8.3 for RBF and Matérn-5/2, -3/2, -1/2, constant in ℓ; the bin-to-bin step SD of rough kernels needs a basis set by the grid instead. Default: one sine per bin and the length-scale prior raised to what that resolves (DECISIONS #73); the larger-basis alternative is in QUESTIONS.
+- The centred form's underflow fix needed log-space arithmetic, not only log scales: a centred coefficient underflows with its scale, and 0·inf is NaN.

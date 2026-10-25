@@ -1,4 +1,4 @@
-"""Tests for the prior fixes of audit P-4 to P-22 (DECISIONS #72)."""
+"""Tests for the prior fixes of audit P-1 to P-22 (DECISIONS #72, #73)."""
 
 import numpy as np
 import pytest
@@ -100,7 +100,7 @@ def test_every_argument_that_changes_a_prior_shows_in_its_repr():
         (P.LogisticNormal(), P.LogisticNormal(mean=[0.0, 1.0, 2.0])),
         (P.LogisticRandomWalk(), P.LogisticRandomWalk(trend_scale=1.0)),
         (P.LogisticGP(), P.LogisticGP(n_basis=10)),
-        (P.LogisticGP(), P.LogisticGP(boundary_factor=3.0)),
+        (P.LogisticGP(), P.LogisticGP(boundary_factor=2.0)),
     ]
     for a, b in pairs:
         assert repr(a) != repr(b)
@@ -140,3 +140,45 @@ def test_more_arguments_are_checked_when_the_prior_is_made():
         P.LogisticNormal(mean=[0.0, np.nan, 1.0])
     with pytest.raises(ValueError, match="concentrations"):
         P.PolyaTree(power=400.0).bind(Bins.linear(0, 1, 64))
+
+
+def test_a_gp_on_log_bins_is_stationary_in_log_z():
+    # equal steps in log z have equal prior spread; in z the low bins were frozen together
+    r = (
+        P.LogisticGP(length_scale=0.5)
+        .bind(Bins.log(1.0, 1e4, 40))
+        .sample(4000, np.random.default_rng(0))
+    )
+    steps = np.std(np.diff(np.log(r), axis=1), axis=0)
+    # each SD has a Monte Carlo error of about 1.1%; the edges differ by the approximation
+    np.testing.assert_allclose(steps[5:-5], np.median(steps), rtol=0.1)
+
+
+@pytest.mark.parametrize("K", [2, 3, 5])
+def test_a_gp_on_a_coarse_grid_gets_a_broad_length_scale_prior(K):
+    h = dict(P.LogisticGP().bind(Bins.linear(0, 1, K)).hypers)["length_scale"]
+    assert isinstance(h, P.LogNormal) and h.sigma == 1.0 and h.median() == pytest.approx(0.5)
+
+
+def test_centred_gp_gradients_agree_with_the_density_where_scales_underflow():
+    # RBF scales of high-frequency modes underflow; the value used to be floored but not the
+    # gradient (audit P-5)
+    b = P.LogisticGP(kernel="rbf").bind(Bins.linear(0, 1, 48))
+    b = b.with_centering(np.zeros(b.n_active))
+    rng = np.random.default_rng(1)
+    u = np.log([1.0, 2.0])
+    log_s = b.log_scales(np.exp(u))[0]
+    assert log_s.min() < np.log(1e-150)  # below the old floor
+    # centred coefficients drawn at their own scales, so the density is finite
+    x = np.concatenate([np.exp(log_s) * rng.normal(size=b.n_active), u])
+
+    def f(xx):
+        eta, cache = b.forward(xx)
+        return b.log_prior_and_grad(xx, cache, np.exp(eta), np.zeros(48))
+
+    g = f(x)[1]
+    for i in (b.n_active, b.n_active + 1):  # amplitude and length scale
+        e = np.zeros_like(x)
+        e[i] = 1e-6
+        fd = (f(x + e)[0] - f(x - e)[0]) / 2e-6
+        np.testing.assert_allclose(g[i], fd, rtol=1e-5)
