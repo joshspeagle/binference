@@ -18,6 +18,8 @@ def test_namespace():
 
 def test_citation_file_version_matches_package():
     cff = Path(__file__).parents[1] / "CITATION.cff"
+    if not cff.exists():
+        pytest.skip("CITATION.cff is not next to the tests (installed package)")
     line = next(ln for ln in cff.read_text().splitlines() if ln.startswith("version:"))
     assert line.split(":", 1)[1].strip().strip("'\"") == pastry.__version__
 

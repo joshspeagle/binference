@@ -33,7 +33,8 @@ pytest --cov=pastry         # coverage report
 
 ## Style
 
-* `ruff check` and `ruff format` (line length 99) are enforced in CI.
+* `ruff check` and `ruff format` (line length 99) run through the pre-commit hooks
+  (`pre-commit run --all-files`), locally and in CI.
 * Use the notation of the specification ([`docs/design/spec.md`](docs/design/spec.md) §3) in code,
   docstrings and docs:
   * $L_{ik}$ for bin-averaged likelihoods;

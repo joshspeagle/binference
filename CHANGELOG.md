@@ -11,7 +11,7 @@ First development version.
 
 ### Changed (landing on `main`)
 
-- Python ≥ 3.13, NumPy ≥ 2.1, SciPy ≥ 1.14, matplotlib ≥ 3.9 (DECISIONS #41).
+- Python ≥ 3.13, NumPy ≥ 2.1, SciPy ≥ 1.14.1, matplotlib ≥ 3.9.2 (DECISIONS #41, #61).
 - CI runs the pre-commit hooks, the fast suite on three systems with Python 3.13 and
   3.14, minimum dependencies, the README and user-guide code, the docs build and a
   clean-wheel import; pushes to `main` publish the docs to GitHub Pages.

@@ -1,6 +1,6 @@
 # Installation
 
-pastry needs Python ≥ 3.13 with NumPy ≥ 2.1, SciPy ≥ 1.14 and the small
+pastry needs Python ≥ 3.13 with NumPy ≥ 2.1, SciPy ≥ 1.14.1 and the small
 pure-Python package threadpoolctl, which keeps parallel chains from
 oversubscribing the cores. Plotting needs matplotlib, and export to
 ArviZ-style `DataTree`s needs xarray. Both are optional extras.
