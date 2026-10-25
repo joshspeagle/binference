@@ -207,3 +207,8 @@ Append-only. One entry per working session (or per step within a long session).
 - Experiments: `2.3_samples_mc.py` (log-likelihood MC error ∝ N/S), `2.3_classifier_routes.py` (routes A/B/C under miscalibration, wrong π_train, label-shift violation; coverage of response-uncertainty treatments; Gibbs-over-R comparison run inline and recorded in the briefing).
 - Finding: averaging the likelihood over response draws undercovers badly with many response entries; Gibbs with R as parameters is calibrated. Same risk in DECISIONS #10's selection-draw default (flagged in QUESTIONS).
 - Published `2.3b-redesign.html`; started `api-ledger.md`. Page checked at 375 px (no overflow, no console errors; explorer reacts as described).
+
+## 2026-10-25: step 2.3b decisions
+
+- Josh accepted: shared density class + PopulationPrior (#26), Response + from_binned (#27), response inferred jointly by default with a fixed option (#28), classifier route set by the inputs and reported, label-shift check (#29), selection treated the same way, revising #10 (#30).
+- Pending: samples (Josh asked whether the Monte Carlo integral and the multinomial view are the same; answered: identical for histogram bins with an interim flat inside bins, MC form generalises), constructor naming proposal (from_table / from_density / from_samples / from_gaussian / from_binned).
