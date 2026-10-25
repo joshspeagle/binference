@@ -37,7 +37,7 @@ def _log_gamma_variates(a: Any, rng: np.random.Generator, shape: tuple) -> np.nd
     ordinary draws underflow to exactly 0 (about 12% of ``Gamma(0.003)`` draws).
     """
     a = np.broadcast_to(np.asarray(a, dtype=float), shape)
-    if np.min(a) >= 1.0:
+    if a.size == 0 or np.min(a) >= 1.0:
         return np.log(rng.standard_gamma(a))
     return np.log(rng.standard_gamma(a + 1.0)) + np.log(rng.random(shape)) / a
 
@@ -65,9 +65,11 @@ class PopulationPrior:
         raise NotImplementedError
 
     def _params(self) -> dict[str, Any]:
-        # every constructor argument, read from the attribute of the same name (audit P-14)
-        names = list(inspect.signature(type(self).__init__).parameters)[1:]
-        return {k: getattr(self, k) for k in names}
+        # the constructor arguments, read from the attributes of the same name (audit P-14);
+        # a subclass that stores an argument under another name simply omits it
+        params = list(inspect.signature(type(self).__init__).parameters.values())[1:]
+        named = (p.name for p in params if p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD))
+        return {k: getattr(self, k) for k in named if hasattr(self, k)}
 
     def __repr__(self) -> str:
         args = ", ".join(f"{k}={_short(v)}" for k, v in self._params().items())
@@ -75,11 +77,6 @@ class PopulationPrior:
 
 
 def _short(v: Any) -> str:
-    if isinstance(v, list | tuple):
-        try:
-            v = np.asarray(v, dtype=float)
-        except (TypeError, ValueError):  # ragged (a tree) or not numbers
-            return repr(v)
     if isinstance(v, np.ndarray):
         if v.size <= 4:
             return np.array2string(v, precision=3, separator=", ")

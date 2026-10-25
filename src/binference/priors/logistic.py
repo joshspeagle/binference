@@ -227,9 +227,7 @@ class _BoundLogistic(BoundPrior):
         s0, _ = self.scales(theta0)
 
         def A(z):
-            v = np.zeros(self.basis.J)
-            v[self.active] = s0 * z
-            out = self.basis.matvec(v)
+            out = self._eta(s0 * z) - self.mu
             return out - out.mean()
 
         def AT(y):
@@ -257,8 +255,14 @@ class _BoundLogistic(BoundPrior):
 
     def sample(self, n, rng):
         theta = np.stack([h.sample(n, rng) for _, h in self.hypers], axis=1)
-        s = np.stack([self.scales(t)[0] for t in theta])
+        s = np.array([self.scales(t)[0] for t in theta]).reshape(n, self.n_active)
         return softmax(self._eta(s * rng.standard_normal((n, self.n_active))), axis=-1)
+
+
+def _check_mean(mean: Any) -> Any:
+    if mean is not None and not np.all(np.isfinite(np.asarray(mean, dtype=float))):
+        raise ValueError("mean must be finite.")
+    return mean
 
 
 def _resolve_mean(mean: Any, bins: Bins) -> np.ndarray:
@@ -268,8 +272,8 @@ def _resolve_mean(mean: Any, bins: Bins) -> np.ndarray:
         m = np.log(Density.flat().masses(bins))
         return m - m.mean()
     m = np.asarray(mean, dtype=float).ravel()
-    if m.shape != (K,) or not np.all(np.isfinite(m)):
-        raise ValueError(f"mean must be a finite array of length K={K}.")
+    if m.shape != (K,):
+        raise ValueError(f"mean must have K={K} values; got {m.size}.")
     return m - m.mean()
 
 
@@ -299,7 +303,7 @@ class LogisticNormal(PopulationPrior):
     """
 
     def __init__(self, mean: Any = None, cov: Any = None, scale: Any = None) -> None:
-        self.mean = mean
+        self.mean = _check_mean(mean)
         self.cov = cov
         # basis and scales of a covariance matrix, or None (i.i.d. with a common variance)
         self._eig = None if cov is None else _zero_sum_eigen(cov)
@@ -340,7 +344,8 @@ def _zero_sum_eigen(cov: Any) -> tuple[np.ndarray, np.ndarray] | None:
     K = C.shape[0]
     P = np.eye(K) - 1.0 / K
     lam, U = np.linalg.eigh(P @ C @ P)
-    if lam.max() <= 0 or lam.min() < -1e-8 * lam.max():
+    # a constant matrix leaves only round-off, so judge against the size of cov itself
+    if lam.max() <= 1e-12 * np.abs(C).max() or lam.min() < -1e-8 * lam.max():
         raise ValueError(
             "cov must be positive semi-definite on zero-sum vectors and not constant."
         )
@@ -407,7 +412,7 @@ class LogisticRandomWalk(PopulationPrior):
         check_positive(trend_scale, "trend_scale")
         self.order = int(order)
         self.scale = as_hyperprior(HalfNormal(1.0) if scale is None else scale)
-        self.mean = mean
+        self.mean = _check_mean(mean)
         self.trend_scale = float(trend_scale)
 
     def bind(self, bins: Bins) -> _BoundRandomWalk:
@@ -516,7 +521,7 @@ class LogisticGP(PopulationPrior):
             self._ls = [as_hyperprior(v) for v in length_scale]
         else:
             self._ls = as_hyperprior(length_scale)
-        self.mean = mean
+        self.mean = _check_mean(mean)
         self.n_basis = n_basis
         self.boundary_factor = float(boundary_factor)
 

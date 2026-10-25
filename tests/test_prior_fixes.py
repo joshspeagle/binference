@@ -37,7 +37,12 @@ def test_the_trend_scale_means_the_same_whatever_the_number_of_bins():
 
 @pytest.mark.parametrize(
     "cov",
-    [-1.0, np.diag([1, 1, -5, 1, 1.0]), np.ones((4, 4)), np.array([[1.0, 2.0], [0.0, 1.0]])],
+    [
+        -1.0,
+        np.diag([1, 1, -5, 1, 1.0]),
+        *(2.0 * np.ones((k, k)) for k in (3, 4, 5)),  # constant: no field at all
+        np.array([[1.0, 2.0], [0.0, 1.0]]),
+    ],
 )
 def test_a_logistic_normal_refuses_an_invalid_covariance(cov):
     with pytest.raises(ValueError, match="cov"):
@@ -107,3 +112,31 @@ def test_gamma_rates_have_a_prior_transform():
     u = np.array([[0.1, 0.9], [0.5, 0.5]])
     expected = stats.gamma.ppf(u, a=[0.5, 2.0], scale=1 / np.array([1.0, 3.0]))
     np.testing.assert_allclose(b.prior_transform(u), expected, rtol=1e-10)
+
+
+def test_a_custom_prior_has_a_repr_without_matching_attributes():
+    class Mine(P.LogisticNormal):
+        def __init__(self, width=1.0):
+            super().__init__(cov=width)
+
+    class Bare(P.PopulationPrior):
+        pass
+
+    assert repr(Mine()).startswith("Mine(") and repr(Bare()) == "Bare()"
+
+
+def test_priors_draw_zero_samples():
+    for prior in (P.Dirichlet(), P.PolyaTree(), P.LogisticNormal(), P.GammaRates()):
+        assert prior.bind(Bins.linear(0, 1, 5)).sample(0, np.random.default_rng(0)).shape == (
+            0,
+            5,
+        )
+
+
+def test_more_arguments_are_checked_when_the_prior_is_made():
+    with pytest.raises(ValueError, match="order"):
+        P.GeneralizedDirichlet(order=[0, 2, 2])
+    with pytest.raises(ValueError, match="mean"):
+        P.LogisticNormal(mean=[0.0, np.nan, 1.0])
+    with pytest.raises(ValueError, match="concentrations"):
+        P.PolyaTree(power=400.0).bind(Bins.linear(0, 1, 64))

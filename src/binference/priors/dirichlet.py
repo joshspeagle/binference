@@ -604,8 +604,12 @@ class PolyaTree(_TreePrior):
                     children.append(("leaf", clo))
                 else:
                     children.append(("node", build(clo, chi, level + 1)))
-                a[j] = self.c * level**self.power * 2.0 * mass(clo, chi) / mass(lo, hi)
+                with np.errstate(over="ignore"):  # inf is refused below
+                    depth = np.power(float(level), self.power)
+                a[j] = self.c * depth * 2.0 * mass(clo, chi) / mass(lo, hi)
             return idx
 
         build(0, K, 1)
+        for a in alphas:  # a large power can overflow level**power
+            check_positive(a, "PolyaTree concentrations (c * level**power)")
         return _TreeStructure(nodes, alphas, K)
