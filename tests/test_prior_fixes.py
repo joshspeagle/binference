@@ -182,3 +182,11 @@ def test_centred_gp_gradients_agree_with_the_density_where_scales_underflow():
         e[i] = 1e-6
         fd = (f(x + e)[0] - f(x - e)[0]) / 2e-6
         np.testing.assert_allclose(g[i], fd, rtol=1e-5)
+
+
+def test_an_n_d_gp_keeps_only_the_modes_inside_the_ellipsoid():
+    one = P.LogisticGP().bind(Bins.linear(0, 1, 12))
+    assert one.n_active == 12  # every mode in 1-D
+    two = P.LogisticGP().bind(Bins.grid(np.linspace(0, 1, 11), np.linspace(0, 1, 11)))
+    j = np.arange(1, 11) / 10
+    assert two.n_active == np.sum(j[:, None] ** 2 + j[None, :] ** 2 <= 1 + 1e-12) < 100

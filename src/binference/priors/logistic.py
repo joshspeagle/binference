@@ -204,7 +204,7 @@ class _BoundLogistic(BoundPrior):
                 a = np.log(np.abs(z)) - one_m * log_s  # log |z_j| / s_j**(1 - lam_j)
                 q = np.exp(2.0 * a)
                 z_prec = np.sign(z) * np.exp(a - one_m * log_s)  # z_j / s_j**(2 (1 - lam_j))
-        else:
+        else:  # fully non-centred: the same values, without the logarithms
             q, z_prec = z * z, z
         log_s_term = float(one_m @ log_s)
         lp = -0.5 * float(q.sum()) - log_s_term
@@ -450,21 +450,27 @@ class _BoundRandomWalk(_BoundLogistic):
         super().__init__(prior, bins, basis, active, mu, hypers)
         self.null = null
         # log s_j = log(tau) - log(lam_j) / 2 on penalised modes, log(null_sd) on the others
-        self._dlogs = np.where(null, 0.0, 1.0)[None, :]
+        self._pen = np.where(null, 0.0, 1.0)  # 1 on the modes the scale tau multiplies
         self._log_base = np.where(null, np.log(null_sd), -0.5 * np.log(np.where(null, 1.0, lam)))
 
     def log_scales(self, theta):
-        return self._log_base + self._dlogs[0] * np.log(theta[0]), self._dlogs
+        return self._log_base + self._pen * np.log(theta[0]), self._pen[None, :]
 
 
 # ----------------------------------------------------------------------------
 # LogisticGP (Hilbert-space approximation)
 # ----------------------------------------------------------------------------
-_KERNELS = {"rbf": None, "se": None, "matern12": 0.5, "matern32": 1.5, "matern52": 2.5}
-# the shortest length scale m sine functions on a box of half-width c*S resolve is
-# f * c * S / m: the centred field SD within 5% and the covariance within 5% of the
-# variance of the exact kernel, measured for ell/S from 0.02 to 0.2 (DECISIONS #73)
-_RESOLUTION = {"rbf": 1.3, "se": 1.3, "matern52": 1.8, "matern32": 2.2, "matern12": 8.5}
+# kernel: (Matérn smoothness nu, or None for the RBF; f), where the shortest length scale m
+# sines on a box of half-width c*S resolve is f * c * S / m: the centred field SD within 5%
+# and the covariance within 5% of the variance of the exact kernel, measured for ell/S from
+# 0.02 to 0.2 (DECISIONS #73)
+_KERNELS = {
+    "rbf": (None, 1.3),
+    "se": (None, 1.3),
+    "matern52": (2.5, 1.8),
+    "matern32": (1.5, 2.2),
+    "matern12": (0.5, 8.5),
+}
 
 
 class LogisticGP(PopulationPrior):
@@ -560,9 +566,16 @@ class LogisticGP(PopulationPrior):
         basis = _KronBasis(factors)
         grids = np.meshgrid(*omegas, indexing="ij")
         omega = np.stack([g.ravel() for g in grids], axis=1)  # (J, D)
+        # on N-D grids keep the modes inside the ellipsoid sum_d (j_d / m_d)^2 <= 1; the corner
+        # modes have negligible scales at every length scale the basis resolves
+        frac = np.meshgrid(*[np.arange(1, m + 1) / m for m in nb], indexing="ij")
+        active = np.flatnonzero(sum(g.ravel() ** 2 for g in frac) <= 1.0 + 1e-12)
+        nu, f = _KERNELS[self.kernel]
         if self._ls is None:
-            f = _RESOLUTION[self.kernel] * self.boundary_factor
-            ls_h = [_default_length_scale(u, f / m) for u, m in zip(bins.u_edges, nb, strict=True)]
+            ls_h = [
+                _default_length_scale(u, f * self.boundary_factor * 0.5 * (u[-1] - u[0]) / m)
+                for u, m in zip(bins.u_edges, nb, strict=True)
+            ]
         elif isinstance(self._ls, list):
             if len(self._ls) != D:
                 raise ValueError(f"Need one length scale per axis ({D}).")
@@ -573,9 +586,7 @@ class LogisticGP(PopulationPrior):
             (f"length_scale_{d}" if D > 1 else "length_scale", h) for d, h in enumerate(ls_h)
         ]
         mu = _resolve_mean(self.mean, bins)
-        return _BoundGP(
-            self, bins, basis, np.arange(basis.J), mu, hypers, omega, _KERNELS[self.kernel]
-        )
+        return _BoundGP(self, bins, basis, active, mu, hypers, omega[active], nu)
 
 
 class _BoundGP(_BoundLogistic):
@@ -616,10 +627,10 @@ class _BoundGP(_BoundLogistic):
         return 0.5 * log_S, dlogs
 
 
-def _default_length_scale(u: np.ndarray, per_half_range: float) -> Hyperprior:
+def _default_length_scale(u: np.ndarray, resolved: float) -> Hyperprior:
     # 1% below what the grid and the basis resolve, 1% above the range (audit P-2, P-7)
     span = float(u[-1] - u[0])
-    lower = max(2.0 * float(np.min(np.diff(u))), per_half_range * 0.5 * span)
+    lower = max(2.0 * float(np.min(np.diff(u))), resolved)
     if span < 4.0 * lower:  # an inverse gamma between them would all but fix the length
         return LogNormal(np.log(0.5 * span), 1.0)
     return InverseGamma.from_quantiles(lower, span)
