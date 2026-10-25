@@ -549,5 +549,11 @@ class NUTS(Engine):
             u = X[..., self.model.prior.n_active :]
             info["hyperparameters"] = {name: np.exp(u[..., j]) for j, name in enumerate(hyper)}
         return PopulationResult(
-            self.model, vals, method="nuts", kind=self.model.kind, x=X, log_prob=LP, info=info
+            self.model,
+            vals,
+            method="nuts",
+            kind=self.model.kind,
+            x=X,
+            log_density_unconstrained=LP,
+            info=info,
         )

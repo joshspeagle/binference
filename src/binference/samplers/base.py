@@ -38,23 +38,17 @@ class Engine:
         return f"{type(self).__name__}({self.model!r})"
 
 
-class ImpossibleObjectError(ValueError):
-    """An object has zero likelihood under the current population (EM cannot continue)."""
-
-
-def em_update(model: PopulationModel, value: np.ndarray) -> np.ndarray:
+def em_update(model: PopulationModel, value: np.ndarray) -> np.ndarray | None:
     """One EM step for conjugate priors (fractions or rates, with selection).
 
-    Raises :class:`ImpossibleObjectError` where an object has zero likelihood,
-    rather than taking zero counts that would reset the step to the prior's
-    mode (audit M-1).
+    Returns ``None`` where an object has zero likelihood, rather than taking zero
+    counts that would reset the step to the prior's mode (audit M-1).
     """
     ll, nhat, _ = kern.loglike_and_counts(model._L, model._w, value)
     if not np.isfinite(ll):
-        raise ImpossibleObjectError("An object has zero likelihood under this population.")
-    if model.kind == "rates":
-        return model.prior.map_from_counts(nhat, exposure=model._exposure())
-    return model.prior.map_from_counts(model._complete_counts(value, nhat))
+        return None
+    exposure = model._exposure() if model.kind == "rates" else None
+    return model.prior.map_from_counts(model._complete_counts(value, nhat), exposure=exposure)
 
 
 def interior_start(model: PopulationModel, n_iter: int = 50) -> np.ndarray:

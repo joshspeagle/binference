@@ -90,7 +90,9 @@ First development version.
   Bootstrap replicates drop zero-weight objects in every engine, so EM no longer
   resets to the prior's mode or collapses rates to zero (M-1); EM stops with a warning
   where an object becomes impossible. The rates starting point is W ρ / S (M-7).
-  `LogisticGP()` works on two bins (M-14).
+  `LogisticGP()` works on two bins (M-14). `PopulationResult.log_prob` is now
+  `log_density_unconstrained` (old files still load); `MAP.run` no longer takes
+  `weights=`.
 - **Correlated Gaussians** (DECISIONS #2, #25, #66): `from_gaussian(..., cov=)` takes full
   per-object covariances, averaged over N-D bins by adaptive cubature in log space.
 - `weights` are integer multiplicities; non-integer weights need `fractional_weights=True`

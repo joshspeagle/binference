@@ -336,7 +336,7 @@ class PopulationResult(_IndividualMixin):
         kind: str = "fractions",
         bins: Bins | None = None,
         x: np.ndarray | None = None,
-        log_prob: np.ndarray | None = None,
+        log_density_unconstrained: np.ndarray | None = None,
         approximate: bool = False,
         info: dict[str, Any] | None = None,
         labels: np.ndarray | None = None,
@@ -355,7 +355,9 @@ class PopulationResult(_IndividualMixin):
         if self.bins is None:
             self.bins = Bins.categories(d.shape[-1])
         self.x = x
-        self.log_prob = log_prob
+        #: log posterior density of each draw in the unconstrained coordinates
+        #: (with the Jacobian; DECISIONS #15), for samplers that compute it
+        self.log_density_unconstrained = log_density_unconstrained
         self.method = method
         self.approximate = approximate
         self.info = dict(info or {})

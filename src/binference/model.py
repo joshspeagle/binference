@@ -37,6 +37,7 @@ from .bins import Bins
 from .likelihoods import Likelihoods, _scale_columns
 from .priors import Dirichlet, PopulationPrior
 from .priors.base import BoundPrior
+from .priors.dirichlet import _BoundDirichlet
 from .selection import Selection, as_selection
 
 __all__ = ["PopulationModel"]
@@ -111,6 +112,12 @@ class PopulationModel:
         # VB) impute missed objects with probability 1 - S, so they use S rescaled
         # to a maximum of one, which leaves the posterior unchanged.
         self._detect = None if sel is None else sel.values / sel.values.max()
+        self._S = np.ones(self.K) if sel is None else sel.values  # exposure, for rates
+        self._set_likelihoods(likelihoods)
+
+    def _set_likelihoods(self, likelihoods: Likelihoods) -> None:
+        # the data and what is derived from them, in one place
+        self.likelihoods = likelihoods
         # effective per-object likelihoods: columns scaled by the selection on the truth
         self._L = self.effective_likelihoods(likelihoods)
         self._w = likelihoods.weights
@@ -151,7 +158,13 @@ class PopulationModel:
 
     # ------------------------------------------------- likelihood internals
     def _exposure(self) -> np.ndarray:
-        return np.ones(self.K) if self.selection is None else self.selection
+        return self._S
+
+    def _selection_term(self, value: np.ndarray) -> float:
+        # -S.lambda for rates, -W log(S.rho) for fractions with selection
+        if self.kind == "rates":
+            return -float(self._S @ value)
+        return 0.0 if self.selection is None else -self.W * np.log(float(self.selection @ value))
 
     def _ll_and_deta(self, value: np.ndarray) -> tuple[float, np.ndarray]:
         ll, nhat, _ = kern.loglike_and_counts(self._L, self._w, value)
@@ -208,16 +221,14 @@ class PopulationModel:
         """A shallow copy with other object weights, keeping only the rows they leave positive.
 
         Rows of zero weight are dropped, so a bin they alone support cannot make
-        the likelihood -inf (audit M-1); the one place weights are overridden
-        (bootstrap replicates) for every engine.
+        the likelihood -inf (audit M-1); the one way engines override weights
+        (bootstrap replicates).
         """
         w = np.asarray(weights, dtype=float)
-        keep = np.flatnonzero(w > 0)
+        keep = w > 0
+        lk = self.likelihoods if keep.all() else self.likelihoods.subset(np.flatnonzero(keep))
         new = copy.copy(self)
-        new._L = self._L[keep] if not hasattr(self._L, "tocsr") else self._L.tocsr()[keep]
-        new._w = w[keep]
-        new.W = float(new._w.sum())
-        new._ll_const = float(new._w @ self.likelihoods.log_scale[keep])
+        new._set_likelihoods(lk._reweighted(w[keep]))
         return new
 
     def _complete_counts(self, value: np.ndarray, nhat: np.ndarray) -> np.ndarray:
@@ -227,7 +238,7 @@ class PopulationModel:
         maximum of one, which leaves the posterior unchanged; used by EM, VB and
         the interior start (DECISIONS #57).
         """
-        if self.kind == "rates" or self.selection is None:
+        if self.selection is None or self.kind == "rates":  # Poisson thinning imputes nothing
             return nhat
         S = self._detect
         rho = value / value.sum()
@@ -259,8 +270,11 @@ class PopulationModel:
         With ``absolute=True`` the per-object log-scales of the likelihoods are
         included, so values are comparable across binnings and models.
         """
-        ll, _ = self._ll_and_deta(np.asarray(value, dtype=float))
-        return ll + (self._ll_const if absolute else 0.0)
+        v = np.asarray(value, dtype=float)
+        ll = kern.loglike(self._L, self._w, v)
+        if not np.isfinite(ll):
+            return -np.inf
+        return ll + self._selection_term(v) + (self._ll_const if absolute else 0.0)
 
     def log_prior(self, value: np.ndarray) -> float:
         """Prior log-density of fractions (on the simplex) or rates, where defined.
@@ -320,8 +334,8 @@ class PopulationModel:
         certificate checks the rest.
         """
         v = np.asarray(value, dtype=float)
-        s = kern.matvec(self._L, v)
-        if np.any(s <= 0) or not np.all(np.isfinite(s)):
+        s = kern.evidence(self._L, v)
+        if s is None:
             return np.inf  # an object is impossible here (audit M-3)
         G = kern.rmatvec(self._L, self._w / s)
         pos = v > 0
@@ -337,7 +351,7 @@ class PopulationModel:
             viol = np.where(pos, np.abs(G), np.maximum(G, 0.0)) / self._exposure()
             return float(viol.max())
         mu = float(v[pos] @ G[pos])
-        return float(max(0.0, float(np.max(G - mu))) / max(self.W, 1.0))
+        return max(0.0, float(np.max(G - mu))) / max(self.W, 1.0)
 
     def missing_information(
         self,
@@ -354,8 +368,8 @@ class PopulationModel:
         (integrated autocorrelation time roughly ``(1 + f) / (1 - f)``). With a
         selection function the missed objects count as missing data, as EM and
         Gibbs impute them; ``include_prior`` adds a Dirichlet prior's term, as in
-        the MAP EM (audit M-2). Computed on a random subset of at most
-        ``max_objects`` objects.
+        the MAP EM (audit M-2; other priors add none). Computed on the support
+        of ``value`` and on a random subset of at most ``max_objects`` objects.
         """
         v = np.asarray(value, dtype=float)
         N = self.N
@@ -365,36 +379,31 @@ class PopulationModel:
             w = self._w[idx] * (self.W / self._w[idx].sum())
         else:
             L, w = self._L, self._w
-        R = kern.responsibilities(L, v, chunk=None)
+        # on the support: a value at zero is an active constraint, along which the
+        # information is degenerate rather than missing
+        on = v > 1e-9 * v.max()
+        if on.sum() < 2:
+            return 0.0
+        R = kern.responsibilities(L, v, chunk=None)[:, on]
         nhat = w @ R
         Im = np.diag(nhat) - (R * w[:, None]).T @ R
         if self.kind == "rates":  # Poisson thinning imputes nothing
-            I_c = np.diag(np.maximum(nhat, 1e-300))
+            I_c = np.diag(nhat)
             I_obs = I_c - Im
         else:
-            # on the support: a fraction at zero is an active constraint, along which the
-            # information is degenerate rather than missing
-            on = v > 1e-9 * v.max()
-            v, Im = v[on], Im[np.ix_(on, on)]
-            rho = v / v.sum()
+            rho = v[on] / v[on].sum()
             C = np.diag(rho) - np.outer(rho, rho)
-            alpha = getattr(self.prior, "alpha", None)
+            # a Dirichlet prior adds (A - K) to the complete-data count, as in the MAP EM
             extra = (
-                float(np.sum(alpha) - self.K)
-                if include_prior and alpha is not None and np.ndim(alpha) == 1
+                float(np.sum(self.prior.alpha[on]) - on.sum())
+                if include_prior and isinstance(self.prior, _BoundDirichlet)
                 else 0.0
             )
-            if self.selection is None:
-                I_c = (self.W + extra) * C
-                I_obs = I_c - Im
-            else:
-                S = self._detect[on]
-                # missed objects in bins off the support are ignored with them
-                phi = S * rho / float(S @ rho)
-                I_c = (self.W / float(S @ rho) + extra) * C
-                I_obs = self.W * (np.diag(phi) - np.outer(phi, phi)) - Im + extra * C
-            if rho.size < 2:
-                return 0.0
+            # complete data: the observed objects and, with selection, the imputed missed ones
+            S = np.ones(on.sum()) if self.selection is None else self._detect[on]
+            phi = S * rho / float(S @ rho)
+            I_c = (self.W / float(S @ rho) + extra) * C
+            I_obs = self.W * (np.diag(phi) - np.outer(phi, phi)) - Im + extra * C
             V = helmert_basis(rho.size)
             I_c, I_obs = V.T @ I_c @ V, V.T @ I_obs @ V
         I_c = 0.5 * (I_c + I_c.T) + 1e-12 * np.trace(I_c) / len(I_c) * np.eye(len(I_c))

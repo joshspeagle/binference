@@ -13,7 +13,7 @@ from ..model import PopulationModel
 from ..priors.dirichlet import _BoundDirichlet
 from ..results import PointEstimate
 from ..warnings import ConvergenceWarning, InputWarning
-from .base import Engine, ImpossibleObjectError, em_update, interior_start
+from .base import Engine, em_update, interior_start
 
 __all__ = ["MAP"]
 
@@ -208,13 +208,9 @@ class MAP(Engine):
             return "simplex"
         return "unconstrained"
 
-    def run(self, weights: np.ndarray | None = None) -> PointEstimate:
-        """Find the mode. ``weights`` optionally overrides object weights (used by Bootstrap).
-
-        Rows given zero weight are dropped, so the estimate equals that of the
-        likelihoods without them (audit M-1).
-        """
-        m = self.model if weights is None else self.model._with_weights(weights)
+    def run(self) -> PointEstimate:
+        """Find the mode."""
+        m = self.model
         space = self._resolve_space()
         if space == "simplex":
             if self._mixsqp_applies():
@@ -254,21 +250,7 @@ class MAP(Engine):
             x /= x.sum()
         if not converged:
             warn(f"mix-SQP did not converge in {n_iter} iterations.", ConvergenceWarning)
-        return self._estimate(m, x, n_iter, converged, "mixsqp")
-
-    def _estimate(self, m, v, n_iter, converged, algorithm, log_posterior=None) -> PointEstimate:
-        # a mode on the simplex (or orthant), with its certificate
-        return PointEstimate(
-            m,
-            v,
-            method="map",
-            log_posterior=_objective(m, v) if log_posterior is None else log_posterior,
-            log_likelihood=m.log_likelihood(v),
-            kkt_gap=m.kkt_gap(v),
-            n_iter=n_iter,
-            converged=converged,
-            info={"space": "simplex", "algorithm": algorithm},
-        )
+        return _estimate(m, x, n_iter, converged, "mixsqp")
 
     # ------------------------------------------------------------------- EM
     def _run_em(self, m: PopulationModel) -> PointEstimate:
@@ -279,28 +261,26 @@ class MAP(Engine):
 
         def F(x):
             out = em_update(m, x)
+            if out is None:
+                return None
             return out / out.sum() if fractions else out
 
         f_old = _objective(m, v)
-        converged = stopped = False
+        converged = False
         n_iter = 0
         for n_iter in range(1, self.max_iter + 1):  # noqa: B007 (used after the loop)
-            try:
-                if self.accelerate:
-                    v_new, f_new = self._squarem_step(m, F, v, fractions)
-                else:
-                    v_new = F(v)
-                    f_new = _objective(m, v_new)
-            except ImpossibleObjectError:
-                f_new = -np.inf
-            if not np.isfinite(f_new):
+            if self.accelerate:
+                v_new, f_new = self._squarem_step(m, F, v, fractions)
+            else:
+                v_new = F(v)
+                f_new = -np.inf if v_new is None else _objective(m, v_new)
+            if v_new is None:
                 warn(
                     "EM reached a population under which an object has zero likelihood (a "
                     "component clipped to zero, e.g. by concentrations below one); "
                     "space='unconstrained' keeps the mode interior.",
                     ConvergenceWarning,
                 )
-                stopped = True
                 break
             dv = np.max(np.abs(v_new - v)) / max(np.max(np.abs(v_new)), 1e-300)
             df = abs(f_new - f_old) / (abs(f_old) + 1.0)
@@ -308,18 +288,20 @@ class MAP(Engine):
             if df <= self.tol and dv <= 1e-7:
                 converged = True
                 break
-        if not converged and not stopped:
+        else:
             msg = f"EM did not converge in {self.max_iter} iterations"
             if m.K <= 500:  # EM is slow when information is missing
                 f = m.missing_information(v, include_prior=True)
                 msg += f" (missing information {f:.3f})"
             warn(msg + "; raise max_iter.", ConvergenceWarning)
-        algorithm = "squarem" if self.accelerate else "em"
-        return self._estimate(m, v, n_iter, converged, algorithm, log_posterior=f_old)
+        return _estimate(m, v, n_iter, converged, "squarem" if self.accelerate else "em")
 
     def _squarem_step(self, m, F, v, fractions):
+        # one SQUAREM step; (None, -inf) when a plain EM step meets an impossible object
         r1 = F(v)
-        r2 = F(r1)
+        r2 = None if r1 is None else F(r1)
+        if r2 is None:
+            return None, -np.inf
         d1 = r1 - v
         d2 = r2 - 2.0 * r1 + v
         n2 = float(np.sqrt(np.sum(d2**2)))
@@ -333,9 +315,11 @@ class MAP(Engine):
                 if fractions:
                     cand = cand / cand.sum()
                 cand = F(cand)  # stabilisation step keeps EM's monotonicity guarantees
-                fc = _objective(m, cand)
-                if fc >= f2 - 1e-12 * abs(f2):
-                    return cand, fc
+                # an extrapolation that makes an object impossible is rejected
+                if cand is not None:
+                    fc = _objective(m, cand)
+                    if fc >= f2 - 1e-12 * abs(f2):
+                        return cand, fc
             if step == -1.0:
                 break
             step = (step - 1.0) / 2.0
@@ -371,18 +355,29 @@ class MAP(Engine):
                 ConvergenceWarning,
             )
         v = m.to_value(x)
-        return PointEstimate(
-            m,
-            v,
-            method="map",
-            x=x,
-            log_posterior=lp,
-            log_likelihood=m.log_likelihood(v),
-            kkt_gap=np.nan,
-            n_iter=int(res.nit),
-            converged=converged,
-            info={"space": "unconstrained", "algorithm": "l-bfgs-b", "grad_norm": gnorm},
+        return _estimate(
+            m, v, int(res.nit), converged, "l-bfgs-b", x=x, log_posterior=lp, grad_norm=gnorm
         )
+
+
+def _estimate(m, v, n_iter, converged, algorithm, x=None, log_posterior=None, grad_norm=None):
+    # a mode with its certificate: on the simplex (or orthant), or in unconstrained x
+    simplex = x is None
+    info = {"space": "simplex" if simplex else "unconstrained", "algorithm": algorithm}
+    if grad_norm is not None:
+        info["grad_norm"] = grad_norm
+    return PointEstimate(
+        m,
+        v,
+        method="map",
+        x=x,
+        log_posterior=_objective(m, v) if log_posterior is None else log_posterior,
+        log_likelihood=m.log_likelihood(v),
+        kkt_gap=m.kkt_gap(v) if simplex else np.nan,
+        n_iter=n_iter,
+        converged=converged,
+        info=info,
+    )
 
 
 def _objective(m: PopulationModel, v: np.ndarray) -> float:

@@ -3,12 +3,14 @@
 import numpy as np
 import pytest
 
+import binference
 from binference._simplex import helmert_basis, log_softmax, softmax
 
 
-def ilr_inv(eta):
-    # the map priors use: rho = softmax(V eta) with the Helmert basis V
-    return softmax(eta @ helmert_basis(eta.shape[-1] + 1).T, axis=-1)
+def ilr_inv(x):
+    # the map simplex priors use from unconstrained x to fractions
+    prior = binference.priors.Dirichlet(1.0).bind(binference.Bins.categories(x.size + 1))
+    return softmax(prior.forward(x)[0])
 
 
 @pytest.mark.parametrize("K", [2, 3, 7, 20])

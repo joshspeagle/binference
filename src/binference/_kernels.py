@@ -18,6 +18,8 @@ import scipy.sparse as sp
 from ._utils import chunk_slices
 
 __all__ = [
+    "evidence",
+    "loglike",
     "loglike_and_counts",
     "matvec",
     "responsibilities",
@@ -37,6 +39,23 @@ def matvec(L, x: np.ndarray) -> np.ndarray:
 def rmatvec(L, y: np.ndarray) -> np.ndarray:
     """``L.T @ y`` for dense or sparse ``L``."""
     return np.asarray(L.T @ y).ravel()
+
+
+def evidence(L, rho: np.ndarray) -> np.ndarray | None:
+    """Per-object evidences ``L_i . rho``, or ``None`` if some object is impossible.
+
+    Rows are normalised to a maximum of one, so an object whose evidence is below
+    1e-250 (log-likelihood < -575) is effectively impossible; the one test used by
+    the log-likelihood, EM and the KKT gap (it also keeps ``w / s`` finite).
+    """
+    s = matvec(L, rho)
+    return s if s.min() > 1e-250 else None  # the comparison also catches NaN
+
+
+def loglike(L, w: np.ndarray, rho: np.ndarray) -> float:
+    """``sum_i w_i log(L_i . rho)`` (``-inf`` if some object is impossible), one pass."""
+    s = evidence(L, rho)
+    return -np.inf if s is None else float(np.dot(w, np.log(s)))
 
 
 def loglike_and_counts(L, w: np.ndarray, rho: np.ndarray) -> tuple[float, np.ndarray, np.ndarray]:
@@ -60,11 +79,9 @@ def loglike_and_counts(L, w: np.ndarray, rho: np.ndarray) -> tuple[float, np.nda
     s : (N,) array
         ``L_i . rho``.
     """
-    s = matvec(L, rho)
-    # rows are normalised to a maximum of one, so an object whose evidence is below
-    # 1e-250 (log-likelihood < -575) is effectively impossible; this also keeps w / s finite
-    if not s.min() > 1e-250:  # also catches NaN
-        return -np.inf, np.zeros_like(rho), s
+    s = evidence(L, rho)
+    if s is None:
+        return -np.inf, np.zeros_like(rho), matvec(L, rho)
     ll = float(np.dot(w, np.log(s)))
     if not math.isfinite(ll):
         return -np.inf, np.zeros_like(rho), s

@@ -355,8 +355,8 @@ def test_mixsqp_matches_em_and_is_certified(alpha, sparse):
     # weighted fits (used by the bootstrap) agree too
     w = np.random.default_rng(0).poisson(1.0, lk.N).astype(float)
     np.testing.assert_allclose(
-        MAP(m).run(weights=w).rho,
-        MAP(m, algorithm="em", max_iter=200000).run(weights=w).rho,
+        MAP(m._with_weights(w)).run().rho,
+        MAP(m._with_weights(w), algorithm="em", max_iter=200000).run().rho,
         atol=1e-3,
     )
 
