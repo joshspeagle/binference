@@ -48,11 +48,54 @@ def test_mock_1d_samples():
     assert np.corrcoef(a, b)[0, 1] > 0.85
 
 
-def test_mock_selection_and_outliers():
+@pytest.mark.parametrize("kind", ["callable", "masses"])
+def test_mock_1d_posteriors_and_samples_follow_the_interim_prior_given(kind):
+    bins = Bins.linear(0, 3, 6)
+    e = bins.edges[0]
+    if kind == "callable":
+        interim, Pi = (lambda z: np.exp(-2 * z)), -np.diff(np.exp(-2 * e))
+    else:
+        interim = Pi = np.arange(1.0, 7.0)  # masses: flat within each bin
+    Pi = Pi / Pi.sum()
+    mock = mock_1d(200, bins, noise=(0.1, 0.4), interim=interim, n_samples=200, rng=8)
+    np.testing.assert_allclose(mock.interim, Pi, rtol=1e-6)
+    post = mock.likelihoods.toarray() * Pi
+    np.testing.assert_allclose(mock.posteriors, post / post.sum(1, keepdims=True), rtol=1e-6)
+    # each object's samples fall in the bins with its exact posterior masses, from the
+    # likelihood times the interim density on a fine grid in each bin
+    z = e[:-1, None] + np.diff(e)[:, None] * (np.arange(2000) + 0.5) / 2000
+    obs, sig = mock.measurements["mean"], mock.measurements["sigma"]
+    dens = np.exp(-2 * z) if kind == "callable" else np.broadcast_to(Pi[:, None], z.shape)
+    like = np.exp(-0.5 * ((z[None] - obs[:, None, None]) / sig[:, None, None]) ** 2)
+    p = (like * dens).sum(-1)
+    p /= p.sum(1, keepdims=True)
+    counts = np.stack([np.bincount(bins.index(s), minlength=6) for s in mock.samples])
+    S = mock.samples.shape[1]
+    # sum over objects of multinomial counts: mean S sum_i p_ik, variance S sum_i p(1 - p)
+    zscore = (counts.sum(0) - S * p.sum(0)) / np.sqrt(S * (p * (1 - p)).sum(0) + 1e-12)
+    assert np.all(np.abs(zscore) < 4)
+
+
+def test_mock_selection_thins_each_bin_and_adds_the_outlier_fraction():
     S = np.linspace(1.0, 0.2, 30)
-    mock = mock_1d(400, selection=S, outlier_fraction=0.1, rng=4)
+    f_out, N = 0.1, 20000
+    mock = mock_1d(N, selection=S, outlier_fraction=f_out, rng=4)
     assert mock.likelihoods.selection.mode == "on_truth"
-    assert mock.truth.n_drawn > 400
+    t = mock.truth
+    # observed bin fractions are rho_k S_k / (rho . S): binomial errors per bin
+    p = t.rho * S / (t.rho @ S)
+    z = (t.counts - N * p) / np.sqrt(N * p * (1 - p))
+    assert np.all(np.abs(z) < 4), z
+    # n_drawn is negative binomial: draws needed for N successes at rate rho . S
+    q = t.rho @ S
+    assert abs(t.n_drawn - N / q) < 4 * np.sqrt(N * (1 - q)) / q
+    # outliers are replaced by U(0, 3) draws regardless of selection; an outlier lands
+    # more than 5 sigma from its true value with probability p_far, an inlier never does
+    obs, sig, v = mock.measurements["mean"], mock.measurements["sigma"], t.values
+    near = np.minimum(v + 5 * sig, 3.0) - np.maximum(v - 5 * sig, 0.0)
+    p_far = f_out * (1 - near / 3.0)
+    n_far = np.sum(np.abs(obs - v) > 5 * sig)
+    assert abs(n_far - p_far.sum()) < 4 * np.sqrt(np.sum(p_far * (1 - p_far)))
 
 
 def test_mock_2d_categorical_unfolding():

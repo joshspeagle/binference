@@ -62,13 +62,26 @@ GRAD_PRIORS = [
 ]
 
 
-@pytest.mark.parametrize("prior", GRAD_PRIORS, ids=repr)
+@pytest.fixture
+def lk_grid(rng):
+    bins = Bins.grid(np.linspace(0.0, 1.0, 6), np.linspace(0.0, 1.0, 5))  # 5 x 4 cells
+    return binference.simulate.mock_2d(80, bins, noise=(0.1, 0.3), rng=rng).likelihoods
+
+
+# smoothness priors on a 2-D grid, with amplitude and per-axis length scales inferred
+GRID_PRIORS = [P.LogisticRandomWalk(order=1), P.LogisticRandomWalk(order=2), P.LogisticGP()]
+GRAD_CASES = [pytest.param(p, "lk6", id=repr(p)) for p in GRAD_PRIORS]
+GRAD_CASES += [pytest.param(p, "lk_grid", id=f"2d-{p!r}") for p in GRID_PRIORS]
+
+
+@pytest.mark.parametrize(("prior", "data"), GRAD_CASES)
 @pytest.mark.parametrize("mode", [None, "on_measurement", "on_truth"])
-def test_gradients_match_finite_differences(prior, mode, lk6, rng):
-    S = None if mode is None else np.array([0.9, 0.7, 0.5, 0.4, 0.3, 0.2])
-    m = PopulationModel(lk6, prior, selection=S, selection_mode=mode)
+def test_gradients_match_finite_differences(prior, data, mode, request, rng):
+    lk = request.getfixturevalue(data)
+    S = None if mode is None else np.linspace(0.9, 0.2, lk.bins.K)
+    m = PopulationModel(lk, prior, selection=S, selection_mode=mode)
     for _ in range(2):
-        x = m.from_value(m.prior.sample(1, rng)[0] * (lk6.N if m.kind == "rates" else 1))
+        x = m.from_value(m.prior.sample(1, rng)[0] * (lk.N if m.kind == "rates" else 1))
         x = x + rng.normal(scale=0.05, size=x.size)
         lp, g = m.log_density_unconstrained_and_grad(x)
         assert np.isfinite(lp)

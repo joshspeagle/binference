@@ -13,7 +13,7 @@ from binference import priors as P
 from binference.samplers import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
 from binference.warnings import ApproximationWarning, InputWarning
 
-from .conftest import assert_matches_reference
+from .conftest import assert_matches_reference, sd_mcse
 
 
 @pytest.fixture(scope="module")
@@ -175,7 +175,19 @@ def test_nuts_validation():
         _ = NUTS(m).result
 
 
-def test_nuts_logistic_prior_runs():
+def test_nuts_chains_start_at_a_given_init_jittered_only_when_it_is_one_point(k3_problem):
+    m = PopulationModel(k3_problem[0].likelihoods)  # its mode is near (1.3, -0.4)
+    starts = np.array([[2.0, -2.0], [-2.0, 2.0]])
+    eng = NUTS(m, n_chains=2, n_warmup=0, init=starts, rng=0)
+    eng.warmup()
+    np.testing.assert_array_equal([c.x for c in eng._chains], starts)
+    eng = NUTS(m, n_chains=2, n_warmup=0, init=starts[0], jitter=0.1, rng=0)
+    eng.warmup()
+    x = np.array([c.x for c in eng._chains])
+    assert np.all(np.abs(x - starts[0]) < 0.6) and not np.allclose(x[0], x[1])
+
+
+def test_nuts_with_a_logistic_prior_matches_a_long_run():
     mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 8), rng=4)
     res = binference.infer(
         mock.likelihoods,
@@ -188,6 +200,19 @@ def test_nuts_logistic_prior_runs():
     )
     assert res.samples.shape == (400, 8)
     assert "scale" in res.info["hyperparameters"]
+    # Reference: the same call with rng=99, 4 chains x 10000 draws after 1000 warm-up
+    # (ESS > 46000 per bin, R-hat < 1.0002), so its own MC error is negligible here;
+    # infer(mock.likelihoods, P.LogisticRandomWalk(order=2), rng=99, n_chains=4,
+    #       n_warmup=1000, n_samples=10000) -> .mean, .std, rounded to 6 digits
+    mean = [0.028023, 0.261029, 0.163405, 0.175175, 0.270258, 0.091127, 0.009948, 0.001036]
+    sd = [0.013765, 0.031731, 0.030073, 0.028615, 0.031246, 0.020168, 0.005868, 0.00146]
+    for k in range(8):
+        x = res.chains[:, :, k]
+        assert abs(x.mean() - mean[k]) < 5 * binference.diagnostics.mcse(x), k
+        # MC error of the sd from the MCSE of the squared deviations, which underestimates
+        # it by up to 1.3x on the skewed edge bins of short runs (measured over 40 seeds):
+        # 6 such sigma are 4.6 true sigma
+        assert abs(x.std() - sd[k]) < 6 * sd_mcse(x), k
 
 
 # -------------------------------------------------------------------- Gibbs
@@ -330,7 +355,9 @@ def test_map_mle_matches_scipy(k3_problem):
 
 
 def test_map_squarem_faster_than_em():
-    mock = binference.simulate.mock_1d(1000, Bins.linear(0, 3, 15), noise=(0.3, 0.6), rng=1)
+    # 300 objects keep plain EM to ~11000 iterations (~0.3 s) and SQUAREM still needs
+    # ~40 times fewer
+    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 15), noise=(0.3, 0.6), rng=1)
     m = PopulationModel(mock.likelihoods)
     fast = MAP(m, algorithm="em", accelerate=True).run()
     with warnings.catch_warnings():
@@ -460,6 +487,26 @@ def test_laplace_uncorrected_is_flagged(k3_problem):
     assert res.approximate
 
 
+def test_laplace_clips_negative_curvature_to_a_wide_positive_variance(k3_problem, monkeypatch):
+    from binference.samplers import laplace
+
+    real = laplace.fd_hessian
+
+    def indefinite(fn, x, h):  # flip the curvature along the first eigenvector of -H
+        lam, U = np.linalg.eigh(-real(fn, x, h=h))
+        lam[0] = -lam[0]
+        return -(U * lam) @ U.T
+
+    monkeypatch.setattr(laplace, "fd_hessian", indefinite)
+    with pytest.warns(ApproximationWarning, match="not positive definite; clipping"):
+        _, cov, H = Laplace(PopulationModel(k3_problem[0].likelihoods)).mode_and_covariance()
+    lam, U = np.linalg.eigh(-H)
+    assert lam[0] < 0 < lam[1]
+    floor = 1e-8 * max(1.0, lam[1])
+    np.testing.assert_allclose(cov @ U[:, 0], U[:, 0] / floor, rtol=1e-6)
+    np.testing.assert_allclose(cov @ U[:, 1], U[:, 1] / lam[1], rtol=1e-6)
+
+
 # ----------------------------------------------------------------------- VB
 def test_vb_exact_for_onehot_and_overconfident_otherwise(onehot, k3_problem):
     lk, counts = onehot
@@ -477,15 +524,68 @@ def test_vb_exact_for_onehot_and_overconfident_otherwise(onehot, k3_problem):
         MeanFieldVB(PopulationModel(lk, P.LogisticNormal()))
 
 
+def test_vb_means_with_a_selection_are_close_to_the_exact_posterior(k3_selection_problem):
+    mock, exact = k3_selection_problem
+    with pytest.warns(ApproximationWarning):
+        vb = MeanFieldVB(PopulationModel(mock.likelihoods), rng=1).run(4000)
+    # VB's means carry a bias of a few 1e-3 here (the plug-in of the missed objects and
+    # the mean-field factorisation; measured 0.003); its Monte Carlo error is 0.025 /
+    # sqrt(4000) = 4e-4. Ignoring the selection moves the means by 0.2.
+    np.testing.assert_allclose(vb.mean, exact.mean, atol=0.01)
+
+
+def test_vb_rates_with_a_selection_match_gibbs():
+    # likelihoods much narrower than the bins: the mean-field factorisation is nearly
+    # exact (exact for one-hot likelihoods); the plug-in of the missed objects adds a bias
+    # of at most 0.5% of the rate (three seeds), allowed for at 1% beside the MC error
+    bins = Bins([0.0, 1.0, 2.0, 3.0])
+    S = np.array([0.9, 0.5, 0.25])
+    mock = binference.simulate.mock_1d(
+        250, bins, density=np.array([0.4, 0.35, 0.25]), noise=(0.05, 0.2), selection=S, rng=777
+    )
+    m = PopulationModel(mock.likelihoods, P.GammaRates(1.0, 1e-3))
+    with pytest.warns(ApproximationWarning):
+        vb = MeanFieldVB(m, rng=1).run(4000)
+    g = Gibbs(m, n_warmup=200, rng=6).run(2000)
+    R = g.rates.reshape(g.n_chains, -1, 3)
+    se = np.hypot(
+        [binference.diagnostics.mcse(R[:, :, k]) for k in range(3)],
+        vb.rates.std(0) / np.sqrt(4000),
+    )
+    assert np.all(np.abs(vb.rates.mean(0) - g.rates.mean(0)) <= 4 * se + 0.01 * g.rates.mean(0))
+
+
 # ---------------------------------------------------------------- Bootstrap
 def test_bootstrap(k3_problem):
-    mock, exact = k3_problem
+    mock, _ = k3_problem
     with pytest.warns(ApproximationWarning):
         res = Bootstrap(PopulationModel(mock.likelihoods), rng=1).run(60)
     assert res.samples.shape == (60, 3) and res.approximate
-    assert np.all(res.std < 2.5 * exact.std) and np.all(res.std > 0.3 * exact.std)
+    # At large N the bootstrap sd matches the posterior sd. With B = 200 replicates the
+    # sd has relative MC error ~ 1/sqrt(2B) = 5% (ratios 0.91-1.10 over 8 seeds), so
+    # |log ratio| < 0.2 is 4 sigma and catches a factor sqrt(2) either way (0.35).
+    big = binference.simulate.mock_1d(
+        2000, mock.bins, density=np.array([0.5, 0.15, 0.35]), noise=(0.3, 1.2), rng=12345
+    )
+    ref = binference.validation.exact_posterior(big.likelihoods)
+    with pytest.warns(ApproximationWarning):
+        boot = Bootstrap(PopulationModel(big.likelihoods), rng=1).run(200)
+    assert np.all(np.abs(np.log(boot.std / ref.std)) < 0.2)
     with pytest.warns(ApproximationWarning):
         bb = Bootstrap(PopulationModel(mock.likelihoods), scheme="bayesian", rng=1).run(20)
     assert bb.info["scheme"] == "bayesian" and bb.info["n_not_converged"] == 0
     with pytest.raises(ValueError):
         Bootstrap(PopulationModel(mock.likelihoods), scheme="parametric")
+
+
+def test_bootstrap_of_a_logistic_prior_refits_each_reweighted_catalogue():
+    # a smooth prior has no EM update: each replicate is a weighted L-BFGS fit
+    mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 6), noise=(0.1, 0.3), rng=9)
+    m = PopulationModel(mock.likelihoods, P.LogisticRandomWalk())
+    with pytest.warns(ApproximationWarning):
+        res = Bootstrap(m, rng=1).run(20)
+    X = res.samples
+    assert X.shape == (20, 6) and np.all(np.isfinite(X)) and res.info["n_not_converged"] == 0
+    np.testing.assert_allclose(X.sum(1), 1.0)
+    assert np.unique(X.round(8), axis=0).shape[0] == 20  # every replicate is its own fit
+    assert not np.any(np.all(np.isclose(X, res.info["estimate"]), axis=1))

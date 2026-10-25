@@ -92,8 +92,11 @@ def test_individual_outputs(fitted, small_1d):
     np.testing.assert_allclose(counts.sum(1), lk.W)
     vals = fitted.sample_values(idx=[0, 1, 2], n_draws=20, rng=3)
     assert vals.shape == (20, 3)
-    e = fitted.bins.edges[0]
-    assert np.all((vals >= e[0]) & (vals <= e[-1]))
+    # sample_values draws the labels first, as sample_assignments does, so the same seed
+    # reproduces them: each value must lie in its own drawn bin
+    labels = fitted.sample_assignments(idx=[0, 1, 2], n_draws=20, rng=3)
+    e = fitted.bins.edges[0]  # closed on both sides: a draw clipped onto an edge is in
+    assert np.all((vals >= e[labels]) & (vals <= e[labels + 1]))
 
 
 def test_realized_counts_narrower_than_population_for_precise_data():

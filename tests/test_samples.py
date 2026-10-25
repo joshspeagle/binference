@@ -151,3 +151,23 @@ def test_samples_are_stored_sparsely_only_below_the_measured_fill():
     fill = binference._kernels.SPARSE_FILL
     assert a.is_sparse and a.nnz < fill * a.N * a.K
     assert not b.is_sparse and b.nnz > fill * b.N * b.K
+
+
+def test_integer_sample_weights_of_ragged_samples_act_as_repeated_samples():
+    rng = np.random.default_rng(6)
+    bins = Bins.linear(0, 1, 5)
+    samples = [rng.uniform(0, 1, 30), rng.uniform(0, 1, 70)]  # ragged
+    sw = [rng.integers(1, 5, 30).astype(float), rng.integers(1, 5, 70).astype(float)]
+    kw = {"min_samples": 0, "warn_outside": False, "sparse": False}
+    weighted = Likelihoods.from_samples(samples, bins, "flat", sample_weights=sw, **kw)
+    repeated = Likelihoods.from_samples(
+        [np.repeat(s, w.astype(int)) for s, w in zip(samples, sw, strict=True)], bins, "flat", **kw
+    )
+    unweighted = Likelihoods.from_samples(samples, bins, "flat", **kw)
+
+    def shape(lk):  # rows up to their scale
+        L = lk.toarray()
+        return L / L.sum(axis=1, keepdims=True)
+
+    np.testing.assert_allclose(shape(weighted), shape(repeated), rtol=1e-12)
+    assert not np.allclose(shape(weighted), shape(unweighted), rtol=0.05)

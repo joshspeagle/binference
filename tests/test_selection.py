@@ -156,3 +156,15 @@ def test_a_response_with_rounded_efficiencies_still_binds():
         binference.Response(R, Bins.categories(3)), counts=[5, 3]
     )
     assert lk.selection.values.max() <= 1.0
+
+
+def test_a_selection_must_match_the_bins_and_agree_on_its_mode():
+    lk = mock_1d(50, Bins.linear(0, 3, 3), rng=2).likelihoods.with_selection(None)
+    with pytest.raises(ValueError, match="selection must have length K=3; got 2"):
+        PopulationModel(lk, selection=[0.5, 1.0], selection_mode="on_truth")
+    with pytest.raises(ValueError, match="selection_mode was given without a selection"):
+        PopulationModel(lk, selection_mode="on_truth")
+    sel = Selection([0.5, 0.7, 1.0], "on_truth")
+    with pytest.raises(ValueError, match="conflicts with the mode of the Selection"):
+        PopulationModel(lk, selection=sel, selection_mode="on_measurement")
+    assert PopulationModel(lk, selection=sel, selection_mode="on_truth").selection_spec is sel

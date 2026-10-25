@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from scipy import integrate, special, stats
+from scipy import integrate, stats
 
 from binference import Bins
 from binference import priors as P
@@ -260,16 +260,28 @@ LOGISTIC_PRIORS = [
 ]
 
 
+# 5 x 4 cells of unequal widths: per-axis differences, Kronecker bases, the 2-D spectral
+# density and one inferred length scale per axis (ARD)
+GRID_2D = Bins.grid(np.linspace(0.0, 1.0, 6), np.linspace(0.0, 2.0, 5))
+LOGISTIC_PRIORS_2D = [
+    P.LogisticRandomWalk(order=1),
+    P.LogisticRandomWalk(order=2, scale=0.7),
+    P.LogisticGP(),
+    P.LogisticGP(kernel="rbf", amplitude=1.0, length_scale=[0.5, 1.2]),
+]
+LOGISTIC_CASES = [pytest.param(p, Bins.linear(0.0, 3.0, 6), id=repr(p)) for p in LOGISTIC_PRIORS]
+LOGISTIC_CASES += [pytest.param(p, GRID_2D, id=f"2d-{p!r}") for p in LOGISTIC_PRIORS_2D]
+
+
 @pytest.mark.parametrize("centred", [False, True], ids=["noncentred", "partial"])
-@pytest.mark.parametrize("prior", LOGISTIC_PRIORS, ids=repr)
-def test_logistic_gradients(prior, centred, rng):
-    bins = Bins.linear(0.0, 3.0, 6)
+@pytest.mark.parametrize(("prior", "bins"), LOGISTIC_CASES)
+def test_logistic_gradients(prior, bins, centred, rng):
     b = prior.bind(bins)
     if centred:
         b = b.with_centering(rng.random(b.n_active))
     for _ in range(3):
         x = rng.normal(scale=0.5, size=b.dim)
-        d_eta = rng.normal(size=6)
+        d_eta = rng.normal(size=bins.K)
         d_eta -= d_eta.mean()  # likelihood gradients w.r.t. softmax logits sum to zero
 
         def f(xx, d_eta=d_eta):
@@ -406,6 +418,49 @@ def test_gp_matches_exact_kernel():
     np.testing.assert_allclose(Pm @ cov @ Pm, Pm @ exact @ Pm, atol=0.06 * amp**2)
 
 
+@pytest.mark.parametrize("kernel", ["rbf", "matern32"])
+def test_2d_gp_matches_exact_ard_kernel(kernel):
+    """The Kronecker basis and the 2-D spectral density reproduce k(r), r^2 = sum (dx_d/l_d)^2.
+
+    For the RBF that is the product of the 1-D kernels; the Matern is not separable.
+    """
+    bins = Bins.grid(np.linspace(0.0, 1.0, 13), np.linspace(0.0, 2.0, 11))
+    amp, ell = 1.3, np.array([0.25, 0.6])  # a different length scale per axis
+    prior = P.LogisticGP(kernel=kernel, amplitude=amp, length_scale=list(ell), n_basis=30)
+    b = prior.bind(bins)
+    s = np.exp(b.log_scales(np.r_[amp, ell])[0])
+    cols = b.basis.matvec(np.diag(s))  # (J, K): the scaled basis functions
+    cov = cols.T @ cols
+    x = bins.centers  # (K, 2)
+    r = np.sqrt((((x[:, None] - x[None, :]) / ell) ** 2).sum(-1))
+    if kernel == "rbf":
+        exact = amp**2 * np.exp(-0.5 * r**2)
+    else:
+        exact = amp**2 * (1 + np.sqrt(3) * r) * np.exp(-np.sqrt(3) * r)
+    Pm = np.eye(bins.K) - 1.0 / bins.K
+    # the basis truncation leaves 6e-3 (Matern) and 2e-11 (RBF); the product of 1-D
+    # Materns would be off by 5e-2, swapped length scales by 0.6
+    np.testing.assert_allclose(Pm @ cov @ Pm, Pm @ exact @ Pm, atol=0.02 * amp**2)
+
+
+def test_logistic_normal_samples_have_the_given_moments(rng):
+    """Zero-sum log-fractions of prior draws have the centred mean and covariance."""
+    K, n = 5, 20000
+    mean = np.array([0.5, -1.0, 0.0, 1.0, -0.5])
+    i = np.arange(K)
+    cov = 0.8 * np.exp(-np.abs(i[:, None] - i[None, :]) / 2.0) + 0.2 * np.eye(K)
+    b = P.LogisticNormal(mean=mean, cov=cov).bind(Bins.linear(0.0, 1.0, K))
+    eta = np.log(b.sample(n, rng))
+    eta -= eta.mean(axis=1, keepdims=True)
+    Pm = np.eye(K) - 1.0 / K
+    mu, C = Pm @ mean, Pm @ cov @ Pm
+    # 5 standard errors per entry: of a mean, sqrt(C_ii / n); of a Gaussian covariance,
+    # sqrt((C_ii C_jj + C_ij^2) / n)
+    np.testing.assert_array_less(np.abs(eta.mean(0) - mu), 5 * np.sqrt(np.diag(C) / n))
+    se = np.sqrt((np.outer(np.diag(C), np.diag(C)) + C**2) / n)
+    np.testing.assert_array_less(np.abs(np.cov(eta.T) - C), 5 * se)
+
+
 def test_gp_spectral_density_rbf_1d():
     bins = Bins.linear(0.0, 2.0, 10)
     b = P.LogisticGP(kernel="rbf", amplitude=1.0, length_scale=0.5).bind(bins)
@@ -418,4 +473,3 @@ def test_gp_spectral_density_rbf_1d():
 def test_reprs():
     for p in SIMPLEX_PRIORS + LOGISTIC_PRIORS + [P.GammaRates()]:
         assert type(p).__name__ in repr(p)
-    assert special.gammaln(1.0) == 0.0  # keep scipy.special import used

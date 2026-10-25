@@ -358,3 +358,9 @@ Append-only. One entry per working session (or per step within a long session).
 ## 2026-10-25: C12e (binning-bias check)
 
 - C12e (#70, DECISIONS #86): `result.binning_bias(build)` with `n_crit` as the planning number. The default threshold is 2 s.d., not 1: two models of the same flat population differed by up to 1.0 s.d. One question parked (exact large-N calculation, suggested spacing).
+- #71 (C12e) merged; C12 is complete. /simplify made `build` optional for Gaussian inputs and reported `n_crit` only for flagged bins; /code-review caught an unvalidated `build`, selections from injections and the flattened fit selection, method names, bins without spread and tables printing inf as nan; CI then caught a test whose `build` returned other data, so its warning depended on the platform's numerics.
+
+## 2026-10-25: C13 (tests)
+
+- Checked the test audit against `main`: of 33 items in T-1–T-3 and T-9–T-13, 4 were fixed, 9 partly and 20 open. Split in two: C13-1 (#72) the fast-test gaps (T-3, T-9, T-10, T-11, T-13), C13-2 (#73) the statistical power and the new SBC cases (T-1, T-2).
+- C13-1: three agents wrote the tests in separate worktrees (T-3 and T-10; T-9; T-11 and T-13), each check confirmed by a temporary mutation that makes it fail. The bootstrap KKT test needed a selection and a non-flat Dirichlet: without them MAP runs mix-SQP, which revives zero components, so the old start passed too. The 2-D GP covariance is compared with k(r) on the scaled distance (the Matérn here is not separable). The ESS, R-hat and MCSE now match ArviZ 0.23.4 to 1e-10 on a fixed array. The fast suite: 609 tests in 88 s, none over 4 s (the centring test went from 11 s to 0.2 s). Found on the way: an RBF GP with inferred hyperparameters and partial centring on a 2-D grid has gradients near 3e11, too ill-conditioned for finite differences (not tested; a follow-up).
