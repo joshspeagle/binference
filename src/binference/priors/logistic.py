@@ -29,11 +29,12 @@ import numpy as np
 from scipy import special
 
 from .._simplex import helmert_basis, softmax
-from .._utils import check_positive
+from .._utils import check_positive, warn
 from ..bins import Bins
 from ..density import Density
+from ..warnings import InputWarning
 from .base import BoundPrior, PopulationPrior, _per_item
-from .hyper import Fixed, HalfNormal, Hyperprior, InverseGamma, as_hyperprior
+from .hyper import Fixed, HalfNormal, Hyperprior, InverseGamma, LogNormal, as_hyperprior
 
 __all__ = ["LogisticGP", "LogisticNormal", "LogisticRandomWalk"]
 
@@ -155,12 +156,15 @@ class _BoundLogistic(BoundPrior):
     def recentre(self, x: np.ndarray, lam: np.ndarray) -> np.ndarray:
         """Map unconstrained ``x`` in this parametrisation to the one with weights ``lam``."""
         x = np.array(x, dtype=float, copy=True)
-        s, _ = self.scales(self._theta(x[self.n_active :]))
-        x[: self.n_active] *= s ** (self.lam - np.clip(lam, 0.0, 1.0))
+        log_s, _ = self.log_scales(self._theta(x[self.n_active :]))
+        z = x[: self.n_active]
+        with np.errstate(divide="ignore", over="ignore"):  # in log space, as the density
+            z[:] = np.sign(z) * np.exp(np.log(np.abs(z)) + (self.lam - np.clip(lam, 0, 1)) * log_s)
         return x
 
-    # subclasses implement: scales(theta) -> (s, dlogs) with dlogs (n_hypers, n_active)
-    def scales(self, theta: np.ndarray) -> tuple[np.ndarray, np.ndarray]:  # pragma: no cover
+    # subclasses implement: log_scales(theta) -> (log s, dlogs), dlogs (n_hypers, n_active);
+    # logarithms, because the scales of high-frequency modes underflow (audit P-5)
+    def log_scales(self, theta: np.ndarray) -> tuple[np.ndarray, np.ndarray]:  # pragma: no cover
         raise NotImplementedError
 
     def _theta(self, u: np.ndarray) -> np.ndarray:
@@ -183,33 +187,34 @@ class _BoundLogistic(BoundPrior):
     def forward(self, x):
         z = x[: self.n_active]
         u = x[self.n_active :]
-        s, dlogs = self.scales(self._theta(u))
-        m = s if np.all(self.lam == 1.0) else s**self.lam
+        log_s, dlogs = self.log_scales(self._theta(u))
+        m = np.exp(self.lam * log_s)
         c = m * z
-        return self._eta(c), (z, s, m, c, dlogs, u)
+        return self._eta(c), (z, log_s, m, c, dlogs, u)
 
     def log_prior_and_grad(self, x, cache, value, d_eta):
-        z, s, m, c, dlogs, u = cache
+        z, log_s, m, c, dlogs, u = cache
         if u.size and np.max(np.abs(u)) > 350.0:  # outside the clipped range of _theta
             return -np.inf, np.zeros(self.dim)
         bt = self.basis.rmatvec(d_eta)[self.active]
         lam = self.lam
         one_m = 1.0 - lam
-        # prior z_j ~ N(0, s_j**(2 (1 - lam_j))). Fully non-centred modes (lam_j = 1)
-        # need no scale terms; flooring the scales keeps underflowed ones finite.
+        # prior z_j ~ N(0, s_j**(2 (1 - lam_j))). From the log scales, so that value and
+        # gradient agree however small a scale is (audit P-5), and in log space, since a
+        # centred coefficient underflows to zero with its scale
         if one_m.any():
-            s_safe = np.maximum(s, 1e-150)
-            prec = s_safe ** (-2.0 * one_m)
-            log_s_term = float(one_m @ np.log(s_safe))
-        else:
-            prec = np.ones_like(s)
-            log_s_term = 0.0
-        q = z * z * prec
+            with np.errstate(divide="ignore", over="ignore"):
+                a = np.log(np.abs(z)) - one_m * log_s  # log |z_j| / s_j**(1 - lam_j)
+                q = np.exp(2.0 * a)
+                z_prec = np.sign(z) * np.exp(a - one_m * log_s)  # z_j / s_j**(2 (1 - lam_j))
+        else:  # fully non-centred: the same values, without the logarithms
+            q, z_prec = z * z, z
+        log_s_term = float(one_m @ log_s)
         lp = -0.5 * float(q.sum()) - log_s_term
         if not np.isfinite(lp):
             return -np.inf, np.zeros(self.dim)
         lp -= 0.5 * self.n_active * np.log(2 * np.pi)
-        g_z = m * bt - z * prec
+        g_z = m * bt - z_prec
         g_u = np.empty(self.n_free)
         common = lam * bt * c + one_m * (q - 1.0)
         for j, i in enumerate(self.free):
@@ -224,7 +229,7 @@ class _BoundLogistic(BoundPrior):
         target = np.log(r / r.sum())
         target = target - target.mean() - (self.mu - self.mu.mean())
         theta0 = np.array([h.median() for _, h in self.hypers])
-        s0, _ = self.scales(theta0)
+        s0 = np.exp(self.log_scales(theta0)[0])
 
         def A(z):
             out = self._eta(s0 * z) - self.mu
@@ -255,7 +260,8 @@ class _BoundLogistic(BoundPrior):
 
     def sample(self, n, rng):
         theta = np.stack([h.sample(n, rng) for _, h in self.hypers], axis=1)
-        s = np.array([self.scales(t)[0] for t in theta]).reshape(n, self.n_active)
+        log_s = np.array([self.log_scales(t)[0] for t in theta]).reshape(n, self.n_active)
+        s = np.exp(log_s)
         return softmax(self._eta(s * rng.standard_normal((n, self.n_active))), axis=-1)
 
 
@@ -356,11 +362,10 @@ def _zero_sum_eigen(cov: Any) -> tuple[np.ndarray, np.ndarray] | None:
 class _BoundLogisticNormal(_BoundLogistic):
     def __init__(self, prior, bins, basis, active, mu, hypers, s0):
         super().__init__(prior, bins, basis, active, mu, hypers)
-        self.s0 = s0
+        self.log_s0 = np.log(s0)
 
-    def scales(self, theta):
-        s = theta[0] * self.s0
-        return s, np.ones((1, self.s0.size))
+    def log_scales(self, theta):
+        return np.log(theta[0]) + self.log_s0, np.ones((1, self.log_s0.size))
 
 
 # ----------------------------------------------------------------------------
@@ -447,20 +452,28 @@ class _BoundRandomWalk(_BoundLogistic):
     def __init__(self, prior, bins, basis, active, mu, hypers, lam, null, null_sd):
         super().__init__(prior, bins, basis, active, mu, hypers)
         self.null = null
-        self.inv_sqrt_lam = np.where(null, 0.0, 1.0 / np.sqrt(np.where(null, 1.0, lam)))
-        self.null_sd = null_sd
+        # log s_j = log(tau) - log(lam_j) / 2 on penalised modes, log(null_sd) on the others
+        self._pen = np.where(null, 0.0, 1.0)  # 1 on the modes the scale tau multiplies
+        self._log_base = np.where(null, np.log(null_sd), -0.5 * np.log(np.where(null, 1.0, lam)))
 
-    def scales(self, theta):
-        tau = theta[0]
-        s = np.where(self.null, self.null_sd, tau * self.inv_sqrt_lam)
-        dlogs = np.where(self.null, 0.0, 1.0)[None, :]
-        return s, dlogs
+    def log_scales(self, theta):
+        return self._log_base + self._pen * np.log(theta[0]), self._pen[None, :]
 
 
 # ----------------------------------------------------------------------------
 # LogisticGP (Hilbert-space approximation)
 # ----------------------------------------------------------------------------
-_KERNELS = {"rbf": None, "se": None, "matern12": 0.5, "matern32": 1.5, "matern52": 2.5}
+# kernel: (Matérn smoothness nu, or None for the RBF; f), where the shortest length scale m
+# sines on a box of half-width c*S resolve is f * c * S / m: the centred field SD within 5%
+# and the covariance within 5% of the variance of the exact kernel, measured for ell/S from
+# 0.02 to 0.2 (DECISIONS #73)
+_KERNELS = {
+    "rbf": (None, 1.3),
+    "se": (None, 1.3),
+    "matern52": (2.5, 1.8),
+    "matern32": (1.5, 2.2),
+    "matern12": (0.5, 8.5),
+}
 
 
 class LogisticGP(PopulationPrior):
@@ -469,7 +482,10 @@ class LogisticGP(PopulationPrior):
     Uses the Hilbert-space reduced-rank approximation (Solin & Sarkka 2020):
     a fixed sine basis on a box ``boundary_factor`` times larger than the grid,
     with weights scaled by the kernel's spectral density, so amplitude and
-    (per-axis) length scales are inferred jointly with the field.
+    (per-axis) length scales are inferred jointly with the field. The field
+    is stationary in the measure coordinate of the bins (log z for
+    :meth:`Bins.log <binference.Bins.log>`), so length scales are in that
+    coordinate.
 
     Parameters
     ----------
@@ -479,19 +495,31 @@ class LogisticGP(PopulationPrior):
         Marginal standard deviation of the log-density field; inferred with a
         ``HalfNormal(2.0)`` prior by default.
     length_scale : Hyperprior, float, or sequence or array (one per axis)
-        Length scale(s) in the units of the bin coordinates. Default: per axis,
-        an inverse gamma with 1% prior mass below two (narrowest) bin widths
-        and 1% above the axis range, so the field is neither rougher than the
-        grid can resolve nor flatter than the data can constrain.
+        Length scale(s) in the measure coordinate. Default: per axis, an
+        inverse gamma with 1% prior mass below the shortest length scale the
+        grid and the basis resolve (the larger of two bin widths and
+        ``f * boundary_factor * S / n_basis``, with ``S`` half the range and
+        ``f`` = 1.3, 1.8, 2.2 and 8.5 for the RBF, Matérn-5/2, -3/2 and -1/2
+        kernels) and 1% above the axis range, so the field is neither rougher
+        than the prior can represent nor flatter than the data can constrain.
+        Where that lower bound exceeds a quarter of the range (coarse grids),
+        a ``LogNormal`` with standard deviation 1 in log length and median the
+        larger of the bound and half the range instead. A fixed length scale
+        below the bound raises an :class:`~binference.InputWarning`.
     mean : array_like (K,), optional
         Mean log-fractions (e.g. the log of reference fractions). Defaults to
         a density flat in the measure coordinate: the GP acts on the
         log-density.
     n_basis : int or sequence, optional
-        Basis functions per axis (default ``min(K_d, 48)``); increase for
-        length scales shorter than a few bins.
+        Basis functions per axis. Default: one per bin, up to a total of 1024
+        (``min(K_d, floor(1024 ** (1 / D)))``: up to 1024 on 1-D grids, 32 per
+        axis on 2-D grids); increase it for shorter length scales, which also
+        lowers the default length-scale prior.
     boundary_factor : float
-        Ratio of the approximation box to the grid half-width (default 1.5).
+        Ratio of the approximation box to the grid half-width (default 3: the
+        centred covariance is within 4% of the exact kernel's for length
+        scales up to the range, where 1.5 pulled the edge bins towards the
+        mean).
     """
 
     def __init__(
@@ -501,7 +529,7 @@ class LogisticGP(PopulationPrior):
         length_scale: Any = None,
         mean: Any = None,
         n_basis: int | Sequence[int] | None = None,
-        boundary_factor: float = 1.5,
+        boundary_factor: float = 3.0,
     ) -> None:
         if kernel not in _KERNELS:
             raise ValueError(f"kernel must be one of {sorted(_KERNELS)}.")
@@ -528,15 +556,15 @@ class LogisticGP(PopulationPrior):
     def bind(self, bins: Bins) -> _BoundGP:
         _require_full_grid(bins)
         D = bins.ndim
-        if self.n_basis is None:
-            nb = [min(n, 48) for n in bins.shape]
+        if self.n_basis is None:  # one per bin, at most 1024 modes in all
+            nb = [min(n, int(1024 ** (1 / D) + 1e-9)) for n in bins.shape]
         else:
             nb = list(_per_item(self.n_basis, D, "n_basis (one per axis)"))
         factors, omegas = [], []
-        for d, e in enumerate(bins.edges):
-            lo, hi = float(e[0]), float(e[-1])
+        for d, u in enumerate(bins.u_edges):  # in the measure coordinate (audit P-1)
+            lo, hi = float(u[0]), float(u[-1])
             c, L = 0.5 * (lo + hi), self.boundary_factor * 0.5 * (hi - lo)
-            x = 0.5 * (e[1:] + e[:-1])
+            x = 0.5 * (u[1:] + u[:-1])
             j = np.arange(1, nb[d] + 1)
             factors.append(
                 np.sin(np.pi * j[None, :] * (x[:, None] - c + L) / (2 * L)) / np.sqrt(L)
@@ -545,15 +573,15 @@ class LogisticGP(PopulationPrior):
         basis = _KronBasis(factors)
         grids = np.meshgrid(*omegas, indexing="ij")
         omega = np.stack([g.ravel() for g in grids], axis=1)  # (J, D)
+        nu, f = _KERNELS[self.kernel]
+        # the shortest length scale the basis resolves on each axis
+        resolved = [
+            f * self.boundary_factor * 0.5 * (u[-1] - u[0]) / m
+            for u, m in zip(bins.u_edges, nb, strict=True)
+        ]
         if self._ls is None:
             ls_h = [
-                # between two bin widths and the range; half the range when two bin
-                # widths reach it (two bins, M-14)
-                InverseGamma.from_quantiles(
-                    _lower_scale(float(np.min(np.diff(e))), float(e[-1] - e[0])),
-                    float(e[-1] - e[0]),
-                )
-                for e in bins.edges
+                _default_length_scale(u, r) for u, r in zip(bins.u_edges, resolved, strict=True)
             ]
         elif isinstance(self._ls, list):
             if len(self._ls) != D:
@@ -561,13 +589,18 @@ class LogisticGP(PopulationPrior):
             ls_h = self._ls
         else:
             ls_h = [self._ls] * D
+        for d, (h, r) in enumerate(zip(ls_h, resolved, strict=True)):
+            if h.fixed and h.median() < r:
+                warn(
+                    f"length_scale {h.median():g} on axis {d} is below the {r:.3g} that "
+                    f"{nb[d]} basis functions resolve; the field loses variance. Raise n_basis.",
+                    InputWarning,
+                )
         hypers = [("amplitude", self.amplitude)] + [
             (f"length_scale_{d}" if D > 1 else "length_scale", h) for d, h in enumerate(ls_h)
         ]
         mu = _resolve_mean(self.mean, bins)
-        return _BoundGP(
-            self, bins, basis, np.arange(basis.J), mu, hypers, omega, _KERNELS[self.kernel]
-        )
+        return _BoundGP(self, bins, basis, np.arange(basis.J), mu, hypers, omega, nu)
 
 
 class _BoundGP(_BoundLogistic):
@@ -588,7 +621,7 @@ class _BoundGP(_BoundLogistic):
                 + nu * np.log(2 * nu)
             )
 
-    def scales(self, theta):
+    def log_scales(self, theta):
         amp = theta[0]
         ell = theta[1 : 1 + self.D]
         a2 = self.omega2 * ell[None, :] ** 2  # (J, D)
@@ -601,14 +634,17 @@ class _BoundGP(_BoundLogistic):
             log_su = self._logc - k * np.log(2 * self.nu + r2)
             dlog_dr2 = -k / (2 * self.nu + r2)
         log_S = 2 * np.log(amp) + np.sum(np.log(ell)) + log_su
-        s = np.exp(0.5 * log_S)
-        dlogs = np.empty((1 + self.D, s.size))
+        dlogs = np.empty((1 + self.D, log_S.size))
         dlogs[0] = 1.0
         for d in range(self.D):
             dlogs[1 + d] = 0.5 * (1.0 + 2.0 * a2[:, d] * dlog_dr2)
-        return s, dlogs
+        return 0.5 * log_S, dlogs
 
 
-def _lower_scale(width: float, span: float) -> float:
-    # the default length scale's lower quantile: two bin widths, or half the span
-    return 2.0 * width if 2.0 * width < span else 0.5 * span
+def _default_length_scale(u: np.ndarray, resolved: float) -> Hyperprior:
+    # 1% below what the grid and the basis resolve, 1% above the range (audit P-2, P-7)
+    span = float(u[-1] - u[0])
+    lower = max(2.0 * float(np.min(np.diff(u))), resolved)
+    if span < 4.0 * lower:  # an inverse gamma between them would all but fix the length
+        return LogNormal(np.log(max(lower, 0.5 * span)), 1.0)
+    return InverseGamma.from_quantiles(lower, span)

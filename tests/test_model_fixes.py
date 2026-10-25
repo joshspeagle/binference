@@ -140,13 +140,6 @@ def test_the_rates_start_is_the_observed_composition_over_the_exposure():
     np.testing.assert_allclose(start.sum(), mle.sum(), rtol=0.1)
 
 
-def test_the_gp_length_scale_default_changes_only_where_two_widths_reach_the_range():
-    from binference.priors.logistic import _lower_scale
-
-    assert _lower_scale(1.0, 3.0) == 2.0  # three equal bins: two widths, as before
-    assert _lower_scale(1.0, 2.0) == 1.0  # two equal bins: half the range
-
-
 def test_a_gp_prior_works_on_two_bins():
     mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 2), rng=4)
     est = binference.infer(mock.likelihoods, P.LogisticGP(), method="map")

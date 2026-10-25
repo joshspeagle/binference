@@ -14,7 +14,8 @@ Known weaknesses worth discussing when we reach them:
 - [ ] Laplace is usually flagged approximate for K ≳ 10. (Phase 4)
 - [ ] Partial-centring rule: threshold 0.28 sits in a band where small problems (K ≈ 6–10) overlap; occasional divergences remain. (Phase 4.2)
 - [ ] Binning bias: the population is assumed flat within bins. (Phase 2.2)
-- [ ] HSGP basis size default `min(K, 48)` is slightly below the Riutort-Mayol guideline for the shortest length scales. (Phase 3.2)
+- [x] HSGP basis size default `min(K, 48)` is slightly below the Riutort-Mayol guideline for the shortest length scales. (Phase 3.2) → DECISIONS #73; the remaining choice is the next item.
+- [ ] **GP basis size vs shortest length scale** (C9b, DECISIONS #73). With the box three times the half-range, resolving two bin widths needs 1.3K (RBF) to 2.2K (Matérn-3/2) sines per axis, and about 8.5K for Matérn-1/2. Default chosen: `n_basis = K_d` (as many coefficients as bins, like the random walk) and the default length-scale prior's lower 1% quantile raised to what that basis resolves: about 2, 2.7, 3.3 and 12.8 bin widths for RBF, Matérn-5/2, -3/2, -1/2. Alternative: a basis of up to about 2–3·K per axis (NUTS dimension up to three times larger) keeping the old two-width bound. Josh: keep the default, or prefer the larger basis?
 - [ ] Single-chain runs: the curvature at one warm-up point is a noisy basis for adaptation. (Phase 4.2)
 
 New items:

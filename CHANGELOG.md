@@ -119,6 +119,13 @@ First development version.
   `GeneralizedDirichlet` and `PolyaTree` are no longer subclasses of `DirichletTree`
   (P-13). `LogisticRandomWalk(2).bind` at K = 1000 and 20,000 GP draws are about twice
   as fast (P-20).
+- **GP prior** (DECISIONS #73): `LogisticGP` is stationary in the measure coordinate
+  (log z on `Bins.log`; length scales are in that coordinate; P-1). Defaults:
+  `boundary_factor=3` (was 1.5; P-3), `n_basis` one per bin up to 1024 modes in all
+  (was at most 48 per axis), and a
+  length-scale prior whose lower 1% quantile is the shortest length scale that basis
+  resolves (P-2), or `LogNormal(log(range/2), 1)` on coarse grids (P-7). Partially
+  centred GP densities and gradients agree where scales underflow (P-5).
 - **Correlated Gaussians** (DECISIONS #2, #25, #66): `from_gaussian(..., cov=)` takes full
   per-object covariances, averaged over N-D bins by adaptive cubature in log space.
 - `weights` are integer multiplicities; non-integer weights need `fractional_weights=True`

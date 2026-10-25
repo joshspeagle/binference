@@ -89,6 +89,10 @@ print(binference.infer(lk, gp, method="map").rho[:3].round(4))
 - **Grids.** All of them work on 1-D bins and N-D grids. The random walk
   then uses the sum of per-axis difference penalties, and the GP takes one
   length scale per axis.
+- **GP length scales** are in the measure coordinate ($\log z$ on `Bins.log`).
+  The default prior keeps them above what the basis of `n_basis` sines per
+  axis (default: one per bin) can represent; for rougher fields raise
+  `n_basis`, which lowers that bound too.
 - **Hyperparameters.** Pass a number to fix one, or a hyperprior:
   ```python
   gp_fixed = priors.LogisticGP(amplitude=1.5, length_scale=priors.LogNormal(np.log(0.5), 0.5))

@@ -326,9 +326,16 @@ instead.
     $\phi_j(x)=L^{-1/2}\sin\big(\pi j(x+L)/2L\big)$, and $s_j^2$ is the
     kernel's spectral density at frequency $\pi j/2L$.
   - Matérn-1/2, 3/2 and 5/2 and squared-exponential kernels are available.
+  - The field is stationary in the measure coordinate $u$ ($\log z$ on
+    log bins), and the box is three times the grid's half-width in $u$.
   - Amplitude and length scales (one per axis) are inferred. The default
-    length-scale prior is an inverse gamma with 1% mass below two bin widths
-    and 1% above the range.
+    basis has one sine per bin, up to 1024 modes in all, and the default length-scale prior is an
+    inverse gamma with 1% mass below the shortest length scale the grid and
+    the basis resolve (the larger of two bin widths and
+    $f\,cS/m$, with $c$ the box factor, $S$ the half-range and $m$ the number
+    of sines; $f$ = 1.3, 1.8, 2.2, 8.5 for the RBF and Matérn-5/2, -3/2, -1/2
+    kernels) and 1% above the range; on coarse grids, where that bound
+    exceeds a quarter of the range, a log-normal around half the range.
 - **`LogisticNormal(mean, cov)`** takes a general covariance.
 
 The overall level of $\eta$ is not identified by $\rho$, so the constant mode

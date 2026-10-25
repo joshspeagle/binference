@@ -256,7 +256,7 @@ LOGISTIC_PRIORS = [
     P.LogisticRandomWalk(order=1),
     P.LogisticRandomWalk(order=2, scale=0.7),
     P.LogisticGP(),
-    P.LogisticGP(kernel="rbf", amplitude=1.0, length_scale=0.8),
+    P.LogisticGP(kernel="rbf", amplitude=1.0, length_scale=1.0),
 ]
 
 
@@ -315,13 +315,13 @@ def test_partial_centring_is_a_reparametrisation(prior, rng):
         eta, cache = bound.forward(xx)
         return bound.log_prior_and_grad(xx, cache, softmax(eta), np.zeros(6))[0]
 
-    s, _ = b.scales(b.theta_from_x(x))
-    np.testing.assert_allclose(lp(b, x) - lp(c, y), float((1 - lam) @ np.log(s)), atol=1e-10)
+    log_s, _ = b.log_scales(b.theta_from_x(x))
+    np.testing.assert_allclose(lp(b, x) - lp(c, y), float((1 - lam) @ log_s), atol=1e-10)
     x2 = x.copy()
     x2[: b.n_active] = rng.normal(size=b.n_active)
-    s2, _ = b.scales(b.theta_from_x(x2))
+    log_s2, _ = b.log_scales(b.theta_from_x(x2))
     y2 = b.recentre(x2, lam)
-    np.testing.assert_allclose(lp(b, x2) - lp(c, y2), float((1 - lam) @ np.log(s2)), atol=1e-10)
+    np.testing.assert_allclose(lp(b, x2) - lp(c, y2), float((1 - lam) @ log_s2), atol=1e-10)
     with pytest.raises(ValueError):
         b.with_centering(np.ones(b.n_active + 1))
 
@@ -354,14 +354,17 @@ def test_inverse_gamma_from_quantiles():
         P.InverseGamma.from_quantiles(1.0, 2.0, tail=0.6)
 
 
-def test_gp_default_length_scale_prior_tracks_the_grid():
-    b = P.LogisticGP().bind(Bins.linear(0.0, 3.0, 30))
+def test_gp_default_length_scale_prior_tracks_the_grid_and_the_basis():
     from scipy import stats
 
-    h = dict(b.hypers)["length_scale"]
-    d = stats.invgamma(h.a, scale=h.b)
-    assert d.cdf(0.2) == pytest.approx(0.01, abs=1e-6)  # two bin widths
-    assert d.sf(3.0) == pytest.approx(0.01, abs=1e-6)  # the range
+    # 30 bins of width 0.1: the default 30 sines on a box of half-width 3 * 1.5 resolve
+    # 2.2 * 3 * 1.5 / 30 = 0.33 (Matérn-3/2); 120 sines resolve two bin widths
+    for n_basis, lower in ((None, 0.33), (120, 0.2)):
+        b = P.LogisticGP(n_basis=n_basis).bind(Bins.linear(0.0, 3.0, 30))
+        h = dict(b.hypers)["length_scale"]
+        d = stats.invgamma(h.a, scale=h.b)
+        assert d.cdf(lower) == pytest.approx(0.01, abs=1e-6)
+        assert d.sf(3.0) == pytest.approx(0.01, abs=1e-6)  # the range
 
 
 def test_logistic_priors_need_grids():
@@ -393,7 +396,7 @@ def test_gp_matches_exact_kernel():
     bins = Bins.linear(0.0, 1.0, 30)
     ell, amp = 0.15, 1.3
     b = P.LogisticGP(kernel="matern32", amplitude=amp, length_scale=ell, n_basis=30).bind(bins)
-    s, _ = b.scales(np.array([amp, ell]))
+    s = np.exp(b.log_scales(np.array([amp, ell]))[0])
     Bm = b.basis.factors[0]
     cov = (Bm * s**2) @ Bm.T
     x = bins.centers
@@ -406,7 +409,7 @@ def test_gp_matches_exact_kernel():
 def test_gp_spectral_density_rbf_1d():
     bins = Bins.linear(0.0, 2.0, 10)
     b = P.LogisticGP(kernel="rbf", amplitude=1.0, length_scale=0.5).bind(bins)
-    s, _ = b.scales(np.array([1.0, 0.5]))
+    s = np.exp(b.log_scales(np.array([1.0, 0.5]))[0])
     w = np.sqrt(b.omega2[:, 0])
     expected = np.sqrt(np.sqrt(2 * np.pi) * 0.5 * np.exp(-0.5 * (0.5 * w) ** 2))
     np.testing.assert_allclose(s, expected, rtol=1e-12)
