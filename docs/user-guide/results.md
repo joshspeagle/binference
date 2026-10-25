@@ -55,12 +55,14 @@ $\phi = S\circ\rho/(S\cdot\rho)$: the bins of the objects that are observed, wit
 draw's own $S$ when the selection is inferred (`which="selected"` works wherever
 `which=` does). Two numbers say how much of $\rho$ the data actually determine.
 `result.data_support` gives each bin's objects' worth of likelihood,
-$\sum_i w_i\ell_{ik}$ with every object's likelihood normalised over the bins; the
+$\sum_i w_i\ell_{ik}$ with every object's likelihood (times a selection on the truth)
+normalised over the bins; the
 summary shows it as `support`, and a bin with less than about one object's worth is set
 by the prior (`check(support_min=1)` flags such bins). `result.prior_information_ratio()`
 is Efron's ratio of prior to data information, $\mathrm{tr}(-H_\text{prior})/
-\mathrm{tr}(-H_\text{data})$ in the sampled coordinates at the posterior mean: small when
-the data dominate, near one or more when the prior does.
+\mathrm{tr}(-H_\text{data})$ in the sampled coordinates at the mean of the draws: small when
+the data dominate, near one or more when the prior does. It is NaN when the data show no
+curvature, and comparable only between fits with the same family of prior.
 
 ```python
 print(result.data_support.round(1), round(result.prior_information_ratio(), 3))

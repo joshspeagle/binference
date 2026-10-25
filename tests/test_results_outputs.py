@@ -59,6 +59,11 @@ def test_full_sample_counts_add_the_missed_objects():
     rel = Gibbs(relative, n_warmup=0, rng=0).run(2)
     with pytest.raises(ValueError, match="relative"):
         rel.realized_counts(full=True)
+    exposure = binference.PopulationModel(
+        res.model.likelihoods, selection=Selection(S * 10, "on_truth", scale="exposure")
+    )
+    with pytest.raises(ValueError, match="exposures"):
+        Gibbs(exposure, n_warmup=0, rng=0).run(2).realized_counts(full=True)
 
 
 def test_a_point_estimate_check_flags_its_kkt_gap_and_convergence():
@@ -71,6 +76,9 @@ def test_a_point_estimate_check_flags_its_kkt_gap_and_convergence():
         bad.check()
     with pytest.raises(binference.DiagnosticsError, match="did not converge"):
         bad.check(strict=True)
+    good.kkt_gap = np.inf  # an object impossible at the estimate
+    with pytest.warns(binference.ConvergenceWarning, match="KKT gap inf"):
+        good.check()
 
 
 def test_data_support_counts_objects_worth_of_likelihood_per_bin():
@@ -78,6 +86,9 @@ def test_data_support_counts_objects_worth_of_likelihood_per_bin():
     L = lk.toarray()
     np.testing.assert_allclose(res.data_support, (L / L.sum(1, keepdims=True)).sum(0))
     np.testing.assert_allclose(res.summary()["support"], res.data_support)
+    _, sel = _fit()  # a selection on the truth weighs each object's likelihood by it
+    LS = L * S
+    np.testing.assert_allclose(sel.data_support, (LS / LS.sum(1, keepdims=True)).sum(0))
     with pytest.warns(binference.BinferenceWarning) as caught:  # short chains warn too
         res.check(support_min=res.data_support.max() + 1)
     assert any("data support below" in str(w.message) for w in caught)
@@ -91,3 +102,11 @@ def test_the_prior_information_ratio_falls_with_the_data_and_rises_with_the_prio
             ratios[n, alpha] = res.prior_information_ratio()
     assert ratios[400, 1.0] < ratios[100, 1.0] < ratios[100, 10.0]
     np.testing.assert_allclose(ratios[100, 1.0] / ratios[400, 1.0], 4.0, rtol=0.3)
+
+
+def test_a_truth_overlay_on_the_selected_population_is_reweighted_by_the_selection():
+    from binference.plotting import _overlay
+
+    _, res = _fit()
+    rho = np.array([0.1, 0.2, 0.3, 0.4])
+    np.testing.assert_allclose(_overlay(res, rho, "selected", 1.0), rho * S / (rho @ S))

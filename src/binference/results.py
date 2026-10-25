@@ -277,9 +277,9 @@ class _IndividualMixin:
         """
         model = self._require_model()
         gen = as_generator(rng)
+        S = self._missed_selection(n_draws) if full else None
         L, R, _ = self._object_draws(n_draws)
-        if full:
-            S, comps = self._missed_inputs(n_draws)
+        comps = self._select_draws(n_draws, components=True)  # R holds rho*S when S is inferred
         w = model._w
         unit = bool(np.all(w == 1))
         integer = is_integer_array(w)
@@ -298,10 +298,11 @@ class _IndividualMixin:
                 out[s] += self._counts_to_bins(missed, gen)
         return out
 
-    def _missed_inputs(self, n_draws: int | None) -> tuple[np.ndarray, np.ndarray]:
-        # the detection probabilities (one row, or one per draw) and the component draws
+    def _missed_selection(self, n_draws: int | None) -> np.ndarray:
+        # the detection probabilities: one row, or one per draw when inferred
         model = self._require_model()
-        if model.kind == "rates":
+        sel = model.selection_spec
+        if self.kind == "rates" or (sel is not None and sel.scale == "exposure"):
             raise ValueError("Full-sample counts need detection probabilities, not exposures.")
         Sd = self._inferred_selection()
         S = model.total_exposure if Sd is None else _flat_draws(Sd, 1, n_draws)
@@ -310,7 +311,7 @@ class _IndividualMixin:
                 "Full-sample counts need an absolute selection; this one is relative, so "
                 "the number of missed objects is not identified (DECISIONS #46)."
             )
-        return S, self._select_draws(n_draws, components=True)
+        return S
 
     def _selected_of(self, W: np.ndarray) -> np.ndarray:
         """The selected population :math:`\\phi = S\\circ w / (S\\cdot w)` per bin, for rows of
@@ -333,7 +334,7 @@ class _IndividualMixin:
         is set by the prior (DECISIONS #41)."""
         if "data_support" not in self._cache:
             model = self._require_model()
-            L = model.likelihoods.values
+            L = model._L  # with a selection on the truth applied, as the fit sees them
             tot = kern.matvec(L, np.ones(L.shape[1]))
             w = np.divide(model._w, tot, out=np.zeros_like(tot), where=tot > 0)
             self._cache["data_support"] = self._to_bins(kern.rmatvec(L, w))
@@ -344,18 +345,22 @@ class _IndividualMixin:
         :math:`\mathrm{tr}(-H_\text{prior}) / \mathrm{tr}(-H_\text{data})`.
 
         The Hessians are of the log densities in the prior's unconstrained coordinates
-        at the posterior mean (the mode for point estimates), by central differences
-        of the gradient with step ``h``; the prior's is of its density in those
+        at the mean of the unconstrained draws (the optimum for point estimates; for
+        engines that keep no unconstrained draws, the image of the posterior mean, with
+        any jointly inferred selection or response at its injection or tally values),
+        by central differences of the gradient with step ``h``; the prior's is of its
+        density in those
         coordinates, so a Dirichlet(:math:`\alpha`) counts as :math:`\alpha` objects
         per bin. The traces depend on those coordinates, so compare ratios across fits
         of one prior family, not across families. Small values mean the data dominate
-        (DECISIONS #41). Costs :math:`4d` gradient evaluations for ``d`` prior
+        (DECISIONS #41); NaN when the data show no curvature (e.g. an empty bin at a
+        boundary optimum). Costs :math:`4d` gradient evaluations for ``d`` prior
         coordinates, half of them of the full log density.
         """
         from .samplers._curvature import fd_hessian_diag
 
         model = self._require_model()
-        x = model.from_value(self._center_value())
+        x = self._center_x()
         d = model.prior.dim
 
         def prior_grad(xp):
@@ -369,7 +374,8 @@ class _IndividualMixin:
         idx = range(d)
         Hp = fd_hessian_diag(prior_grad, x[:d], idx, h=h)
         Ht = fd_hessian_diag(total_grad, x[:d], idx, h=h)
-        return float(np.sum(-Hp) / np.sum(Hp - Ht))
+        data = float(np.sum(Hp - Ht))
+        return float(np.sum(-Hp) / data) if data > 0 else float("nan")
 
     def sample_values(
         self,
@@ -910,11 +916,16 @@ class PopulationResult(_IndividualMixin):
         """Draws ``(n_draws, K)`` of the selected population
         :math:`\\phi = S\\circ\\rho / (S\\cdot\\rho)`, the bins of the observed objects;
         :math:`\\rho` itself without a selection (DECISIONS #49)."""
-        return self._selected_of(self._weight_draws())
+        if "selected" not in self._cache:
+            self._cache["selected"] = self._selected_of(self._weight_draws())
+        return self._cache["selected"]
 
-    def _center_value(self) -> np.ndarray:
-        # the posterior mean of the model's columns (fractions or rates)
-        return self._params.reshape(-1, self._params.shape[-1]).mean(axis=0)
+    def _center_x(self) -> np.ndarray:
+        # the mean of the unconstrained draws, else the image of the mean columns
+        model = self._require_model()
+        if self.x is not None and self.x.shape[-1] == model.dim:
+            return self.x.reshape(-1, model.dim).mean(axis=0)
+        return model.from_value(self._params.reshape(-1, self._params.shape[-1]).mean(axis=0))
 
     @property
     def mean(self) -> np.ndarray:
@@ -1387,8 +1398,11 @@ class PointEstimate(_IndividualMixin):
         """The selected population at the estimate (see :attr:`PopulationResult.selected`)."""
         return self._selected_of(self._weight_draws())[0]
 
-    def _center_value(self) -> np.ndarray:
-        return self.value
+    def _center_x(self) -> np.ndarray:
+        model = self._require_model()
+        if self.x is not None and np.shape(self.x)[-1] == model.dim:
+            return np.asarray(self.x, dtype=float).ravel()
+        return model.from_value(self.value)
 
     def check(self, kkt_max: float = 1e-4, strict: bool = False) -> list[str]:
         """Warn (or raise with ``strict=True``) when the optimiser did not converge or the
@@ -1400,7 +1414,7 @@ class PointEstimate(_IndividualMixin):
         msgs = []
         if not self.converged:
             msgs.append("the optimiser did not converge")
-        if np.isfinite(self.kkt_gap) and self.kkt_gap > kkt_max:
+        if self.kkt_gap > kkt_max:  # inf (an impossible object) fails; NaN passes
             msgs.append(f"KKT gap {self.kkt_gap:.1e} > {kkt_max:.0e}: not at the optimum")
         _report([(msgs, [], ConvergenceWarning)], strict)
         return msgs

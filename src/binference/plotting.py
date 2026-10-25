@@ -43,19 +43,22 @@ _YLABEL = {
 _SYMBOL = {"density": "density", "fractions": "rho", "rates": "rate", "selected": "phi"}
 
 
-def _to_which(values: np.ndarray, bins: Any, which: str, total: float = 1.0) -> np.ndarray:
+def _overlay(result: Any, values: Any, which: str, total: float) -> np.ndarray:
     """Overlay values (fractions or rates) on the scale of the plotted posterior.
 
     Overlays are normalised and multiplied by ``total``, the posterior mean total
     when rates are plotted or the model is a rate model (1 otherwise), so only
-    their shape is compared.
+    their shape is compared; the selected population of an overlay is taken under
+    the fit's selection.
     """
     v = np.asarray(values, dtype=float)
     v = v / v.sum()
-    if which in ("fractions", "selected"):
+    if which == "selected":
+        return result._selected_of(v[None, :]).mean(axis=0)
+    if which == "fractions":
         return v
     v = v * total
-    return v / bins.volumes if which == "density" else v
+    return v / result.bins.volumes if which == "density" else v
 
 
 def plot_population(
@@ -77,16 +80,17 @@ def plot_population(
     ----------
     result : PopulationResult or PointEstimate
     ax : matplotlib Axes, optional
-    which : {"density", "fractions", "rates"}
-        Plot densities per unit volume (n(z)-style), fractions per bin, or rates
-        (the singular spellings are accepted too).
+    which : {"density", "fractions", "rates", "selected"}
+        Plot densities per unit volume (n(z)-style), fractions per bin, rates, or the
+        selected population per bin (the singular spellings are accepted too).
     levels : sequence of float
         Central credible levels shown as nested bands.
     truth, stack : array_like (K,), optional
         True fractions and a naive stacked estimate to overlay. Only their
         shape is used: for rates (and rate models) they are scaled to the
-        posterior mean total. 2-D grids show the median and the relative uncertainty as
-        images (an array of two axes) and take no overlays.
+        posterior mean total; for the selected population they are reweighted by the
+        fit's selection (bins without a basis). 2-D grids show the median and the
+        relative uncertainty as images (an array of two axes) and take no overlays.
     """
     from .results import _which_name
 
@@ -117,11 +121,11 @@ def plot_population(
         if X.shape[0] > 1:
             ax.errorbar(x, med, yerr=[med - lo, hi - med], fmt="none", ecolor=INK, capsize=3)
         if truth is not None:
-            ax.plot(x, _to_which(truth, bins, which, total), "D", color=INK, ms=6, label="truth")
+            ax.plot(x, _overlay(result, truth, which, total), "D", color=INK, ms=6, label="truth")
         if stack is not None:
             ax.plot(
                 x,
-                _to_which(stack, bins, which, total),
+                _overlay(result, stack, which, total),
                 "s",
                 color=STACK_COLOR,
                 ms=6,
@@ -158,12 +162,12 @@ def plot_population(
         else:
             ax.plot(centers, med, color=color, lw=1.5, label=lab)
         if truth is not None:
-            t = _to_which(truth, bins, which, total)
+            t = _overlay(result, truth, which, total)
             ax.step(
                 edges, _step_y(bins, t), where="post", color=INK, lw=1.5, ls="--", label="truth"
             )
         if stack is not None:
-            s = _to_which(stack, bins, which, total)
+            s = _overlay(result, stack, which, total)
             ax.step(
                 edges,
                 _step_y(bins, s),
