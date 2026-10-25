@@ -92,5 +92,4 @@ class MeanFieldVB(Engine):
             kind=self.model.kind,
             approximate=True,
             info=info,
-            rng=self._result_rng(),
         )

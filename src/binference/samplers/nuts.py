@@ -630,5 +630,4 @@ class NUTS(Engine):
             x=X,
             log_density_unconstrained=LP,
             info=info,
-            rng=self._result_rng(),
         )

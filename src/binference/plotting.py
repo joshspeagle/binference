@@ -33,7 +33,7 @@ def _plt():
 def _draws(result: Any, which: str) -> np.ndarray:
     from .results import PointEstimate
 
-    if isinstance(result, PointEstimate):
+    if isinstance(result, PointEstimate) and which != "rate":
         base = result.density() if which == "density" else result.rho
         return base[None, :]
     if which == "density":
@@ -43,8 +43,8 @@ def _draws(result: Any, which: str) -> np.ndarray:
     if which == "rate":
         rates = result.rates
         if rates is None:
-            raise ValueError("No rates in this result.")
-        return rates
+            raise ValueError("No rates in this result (a relative selection, or no model).")
+        return np.atleast_2d(rates)
     raise ValueError("which must be 'density', 'fraction' or 'rate'.")
 
 
@@ -52,7 +52,8 @@ def _to_which(values: np.ndarray, bins: Any, which: str, total: float = 1.0) -> 
     """Overlay values (fractions or rates) on the scale of the plotted posterior.
 
     Overlays are normalised and multiplied by ``total``, the posterior mean total
-    rate for rate models (1 otherwise), so only their shape is compared.
+    when rates are plotted or the model is a rate model (1 otherwise), so only
+    their shape is compared.
     """
     v = np.asarray(values, dtype=float)
     v = v / v.sum()
@@ -87,8 +88,8 @@ def plot_population(
         Central credible levels shown as nested bands.
     truth, stack : array_like (K,), optional
         True fractions and a naive stacked estimate to overlay. Only their
-        shape is used: for rate models they are scaled to the posterior mean
-        total rate.
+        shape is used: for rates (and rate models) they are scaled to the
+        posterior mean total.
     """
     plt = _plt()
     bins = result.bins

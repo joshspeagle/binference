@@ -118,7 +118,10 @@ $\Lambda\mid\rho \sim \mathrm{Gamma}(W, S\cdot\rho)$. `result.total` holds
 one such draw per draw of $\rho$ and `result.rates` the rates
 $\lambda_k = \Lambda\rho_k$, the expected **number** of objects per bin
 (per unit exposure); a point estimate gives $\hat\Lambda = W / (S\cdot\rho)$.
-With a relative selection the total is not identified and both are `None`.
+$S$ is taken at face value here: a selection normalised to a maximum of one
+must be declared `scale="relative"`, and then the total is not identified and
+both are `None`. With non-integer weights $W$ is their sum and the Gamma is a
+pseudo-posterior, like the fractions' (see {doc}`inputs`).
 
 ```python
 fit = binference.infer(
