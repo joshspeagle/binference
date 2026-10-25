@@ -19,13 +19,14 @@ __all__ = ["Bootstrap"]
 class Bootstrap(Engine):
     """Bootstrap over objects of the MAP / maximum-likelihood estimator.
 
-    ``kind="nonparametric"`` resamples objects with replacement;
-    ``kind="bayesian"`` reweights them with Dirichlet weights (Rubin 1981).
+    ``scheme="nonparametric"`` resamples objects with replacement;
+    ``scheme="bayesian"`` reweights them with Dirichlet weights (Rubin 1981).
     Integer weights are multiplicities, so a row of weight ``w`` stands for
     ``w`` objects that are resampled individually. For rate models the number
     of objects is itself random: objects get Poisson(1) counts (or Gamma(1)
     weights), so the total rate varies between replicates. Every replicate is
-    fitted from an interior starting point.
+    fitted from an interior starting point; ``info["n_not_converged"]`` counts
+    the replicates whose fit did not converge (a warning names it).
 
     The result is the sampling distribution of an estimator, not a posterior:
     it is flagged ``approximate=True``. Useful for frequentist intervals and
@@ -39,23 +40,23 @@ class Bootstrap(Engine):
         self,
         model: PopulationModel,
         *,
-        kind: str = "nonparametric",
+        scheme: str = "nonparametric",
         tol: float = 1e-8,
         max_iter: int = 5000,
         rng: RNGLike = None,
         progress: bool = False,
     ) -> None:
         super().__init__(model, rng=rng, progress=progress)
-        if kind not in ("nonparametric", "bayesian"):
-            raise ValueError("kind must be 'nonparametric' or 'bayesian'.")
-        self.kind = kind
+        if scheme not in ("nonparametric", "bayesian"):
+            raise ValueError("scheme must be 'nonparametric' or 'bayesian'.")
+        self.scheme = scheme
         self.tol = float(tol)
         self.max_iter = int(max_iter)
 
     def _replicate_weights(self, w: np.ndarray, integer: bool, rates: bool) -> np.ndarray:
         rng = self.rng
         N = w.size
-        if self.kind == "nonparametric":
+        if self.scheme == "nonparametric":
             if integer:  # resample the underlying objects, not the rows
                 if rates:
                     return rng.poisson(w).astype(float)
@@ -74,13 +75,12 @@ class Bootstrap(Engine):
         w = m.likelihoods.weights
         integer = is_integer_array(w)
         rates = m.kind == "rates"
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", ConvergenceWarning)
-            base = MAP(m, tol=self.tol, max_iter=self.max_iter).run()
+        base = MAP(m, tol=self.tol, max_iter=self.max_iter).run()  # warns if it fails
         # EM cannot revive components that are exactly (or nearly) zero, and maximum
         # likelihood estimates on grids are often sparse: start replicates inside
         start = 0.5 * base.value + 0.5 * base.value.mean()
         out = np.empty((int(n_samples), m.K))
+        n_not_converged = 0
         for b in progress(range(int(n_samples)), n_samples, "Bootstrap", self.progress):
             wb = self._replicate_weights(w, integer, rates)
             with warnings.catch_warnings():
@@ -90,6 +90,13 @@ class Bootstrap(Engine):
                 engine._diagnostics = False  # only the value is used
                 est = engine.run()
             out[b] = est.value
+            n_not_converged += not est.converged
+        if n_not_converged:  # their warnings were silenced one by one (audit G-8)
+            warn(
+                f"{n_not_converged} of {int(n_samples)} bootstrap fits did not converge; raise "
+                "max_iter.",
+                ConvergenceWarning,
+            )
         warn(
             "Bootstrap replicates describe the sampling distribution of the MAP estimator, not "
             "the posterior.",
@@ -101,5 +108,9 @@ class Bootstrap(Engine):
             method="bootstrap",
             kind=m.kind,
             approximate=True,
-            info={"kind": self.kind, "estimate": base.value},
+            info={
+                "scheme": self.scheme,
+                "estimate": base.value,
+                "n_not_converged": n_not_converged,
+            },
         )

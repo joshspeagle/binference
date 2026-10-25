@@ -305,3 +305,10 @@ Append-only. One entry per working session (or per step within a long session).
 
 - #42 (C9a, priors) merged; #44 (C9b, GP defaults) in review, retargeted to `main`. Its code review removed an ellipsoidal mode cut added in /simplify (it dropped each axis's top mode and lost field variance), so the default basis is bounded at 1024 modes instead.
 - C10 (NUTS, Laplace; DECISIONS #74), stacked on C9b. Reordering the Laplace eigenvectors alone moved k̂ from 0.67 to 0.80 on a selection test with the same seed, so that test had passed by luck at the threshold; it now ignores the approximation warning, since it asserts z-scores.
+
+## 2026-10-25: C11 (Gibbs, VB, bootstrap, validation)
+
+- C11 stacked on C10 (DECISIONS #75). The new SBC low-ESS warning fired in two existing tests with short single chains, as intended; they now expect or silence it. The boundary quadrature is exact to 0.01 SD in means down to α = 0.2, but at α = 0.2 the tail mass below a 6e-9 quantile is 17% off at 400 nodes and 22% at the default 200, so the docstring states that limit instead of a stronger substitution.
+- #46 (C10, NUTS and Laplace; DECISIONS #74) merged after CI on macOS and the minimum-dependency job: its thread test first assumed a visible BLAS pool, and now asserts the limit only where threadpoolctl sees one.
+- C11's /simplify (three reviewers: reuse with simplification, efficiency, altitude) and /code-review high replaced the row-repeating sparse label draw with conditional binomials over each row's nonzeros (a flat row no longer densifies a chunk), lowered the exact posterior's default grid to 200 nodes (tests reading the mode off the nodes keep 500–600), started Gibbs chains from counts that include missed objects, stopped silencing the bootstrap's base-fit warning, and rejected SBC `n_bins` above n_draws + 1.
+- The slow SBC tests met the new low-ESS warning (Gibbs: 46 of 200 fits below ESS 99); `test_sbc` filters it, since over-dispersed ranks only make its uniformity test stricter.

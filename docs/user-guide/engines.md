@@ -147,8 +147,8 @@ print(lap.approximate, round(lap.info["k_hat"], 2))
   object's bin as independent of $\rho$, so its intervals are too narrow,
   often by a factor of several when likelihoods are broad. It always warns
   and is flagged `approximate`.
-- **`"bootstrap"`** resamples objects (`kind="nonparametric"`) or reweights
-  them (`kind="bayesian"`) and refits the MAP. Integer weights count
+- **`"bootstrap"`** resamples objects (`scheme="nonparametric"`) or reweights
+  them (`scheme="bayesian"`) and refits the MAP. Integer weights count
   objects, so a compressed row of weight 5 stands for five objects that are
   resampled one by one. For rate models the number of objects varies between
   replicates (Poisson resampling), so the total rate does too. The result is

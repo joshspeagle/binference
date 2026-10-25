@@ -47,6 +47,10 @@ def _fit(method, **kw):
     ],
     ids=["nuts-dirichlet", "gibbs-dirichlet", "gibbs-gdirichlet", "nuts-randomwalk"],
 )
+# low ESS over-disperses the ranks, which only makes the uniformity test stricter
+@pytest.mark.filterwarnings(
+    "ignore:In .* fits the smallest bulk ESS:binference.ConvergenceWarning"
+)
 def test_sbc(method, kw, prior):
     sim = binference.simulate.prior_predictive(prior, BINS4, n_objects=40, noise=0.2)
     res = binference.validation.sbc(

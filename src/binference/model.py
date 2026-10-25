@@ -241,6 +241,26 @@ class PopulationModel:
         rho = value / value.sum()
         return nhat + self.W * rho * (1.0 - S) / float(S @ rho)
 
+    def _draw_missed(
+        self, value: np.ndarray, counts: np.ndarray, rng: np.random.Generator
+    ) -> np.ndarray:
+        r"""Counts with the missed objects drawn given the fractions (fractions with selection).
+
+        Their number is :math:`\mathrm{NegBin}(W, S\cdot\rho)` (failures before
+        :math:`W` successes) and their bins :math:`\mathrm{Mult}(\rho\circ(1-S))`, with
+        :math:`S` rescaled to a maximum of one; Gibbs's counterpart of
+        :meth:`_complete_counts` (audit G-7).
+        """
+        if self.selection is None or self.kind == "rates":
+            return counts
+        S = self._detect
+        rho = value / value.sum()
+        n_missed = rng.negative_binomial(self.W, float(np.clip(S @ rho, 1e-300, 1.0)))
+        if n_missed == 0:
+            return counts
+        q = rho * (1.0 - S)
+        return counts + rng.multinomial(n_missed, q / q.sum())
+
     def to_value(self, x: np.ndarray) -> np.ndarray:
         """Fractions (or rates, for rate priors) at unconstrained ``x``."""
         eta, _ = self.prior.forward(np.asarray(x, dtype=float))
