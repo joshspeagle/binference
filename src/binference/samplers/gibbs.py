@@ -82,6 +82,11 @@ class Gibbs(Engine):
                 f"Gibbs sampling needs a conjugate prior; {model.prior_spec!r} is not. "
                 "Use NUTS instead."
             )
+        if model.selection_uncertain and model.selection_spec.injections[3] is not None:
+            raise TypeError(
+                "Gibbs sampling infers independent Betas only; a smooth injection model is not "
+                "conjugate. Use NUTS instead."
+            )
         w = model.likelihoods.weights
         if not is_integer_array(w):
             raise ValueError(
@@ -162,7 +167,7 @@ class Gibbs(Engine):
             unit_weights=self._unit,
         )
         missed = m._draw_missed(value, counts, rng, S=S) - counts  # with the absolute S
-        injected, recovered, (a, b) = m.selection_spec.injections
+        injected, recovered, (a, b), _ = m.selection_spec.injections
         S = rng.beta(a + recovered + counts, b + injected - recovered + missed)
         self._sel[c] = np.maximum(S, S_FLOOR)  # an underflow to zero would void its bin
         self._state[c] = m.prior.posterior_sample(counts + missed, rng)

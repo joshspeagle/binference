@@ -173,6 +173,7 @@ class MAP(Engine):
     """
 
     name = "map"
+    joint_selection = True  # in the unconstrained space
 
     def __init__(
         self,
@@ -190,6 +191,11 @@ class MAP(Engine):
         super().__init__(model, rng=rng, progress=progress)
         if space not in ("auto", "simplex", "unconstrained"):
             raise ValueError("space must be 'auto', 'simplex' or 'unconstrained'.")
+        if space == "simplex" and model.selection_uncertain:
+            raise ValueError(
+                "space='simplex' cannot infer a selection from injections; use "
+                "space='unconstrained' (DECISIONS #80)."
+            )
         if algorithm not in ("auto", "mixsqp", "em"):
             raise ValueError("algorithm must be 'auto', 'mixsqp' or 'em'.")
         self.algorithm = algorithm
@@ -213,7 +219,7 @@ class MAP(Engine):
                     InputWarning,
                 )
             return "simplex"
-        if self.space == "unconstrained":
+        if self.space == "unconstrained" or m.selection_uncertain:
             return "unconstrained"
         if simplex_ok and not m.prior.unbounded_density():
             return "simplex"
@@ -248,7 +254,10 @@ class MAP(Engine):
             **extra,
         }
         full = self._diagnostics
-        ll = m.log_likelihood(v) if full else np.nan
+        S = None if simplex else m.selection_at(x)  # an inferred selection, at the mode
+        if S is not None:
+            info["selection_draws"] = S[None, None]
+        ll = m.log_likelihood(v, S=S) if full else np.nan
         return PointEstimate(
             m,
             v,

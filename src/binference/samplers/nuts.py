@@ -250,7 +250,8 @@ class NUTS(Engine):
         pins the hyperparameters down poorly (few basis coefficients per
         hyperparameter, e.g. a handful of bins), the coefficients stay
         non-centred, which avoids funnels. This changes the sampling
-        coordinates, not the posterior.
+        coordinates, not the posterior. Not done when the selection is
+        inferred (DECISIONS #80).
     init : array_like (dim,) or (n_chains, dim), optional
         Starting points in the model's unconstrained coordinates; a single
         point gets ``jitter`` added for each chain. Every start must have a
@@ -289,6 +290,7 @@ class NUTS(Engine):
     """
 
     name = "nuts"
+    joint_selection = True
 
     def __init__(
         self,
@@ -410,7 +412,9 @@ class NUTS(Engine):
         # curvature at every chain's position for small problems, one chain otherwise
         n_pts = len(chains) if d <= _DENSE_MAX_DIM else 1
         model = base
-        if self.reparametrize and prior0.n_active > 0:
+        # the centring acts on the prior's coordinates alone; with an inferred selection
+        # they are followed by logit S, so the chains stay non-centred (DECISIONS #80)
+        if self.reparametrize and prior0.n_active > 0 and not base.selection_uncertain:
             fn0 = base.log_density_unconstrained_and_grad
             n_act = prior0.n_active
             # only the field's diagonal curvature is needed here (audit N-10)
@@ -618,9 +622,11 @@ class NUTS(Engine):
                 (E - E.mean(axis=1, keepdims=True)) ** 2, axis=1
             )
         info["ebfmi"] = ebfmi
+        if base.selection_uncertain:
+            info["selection_draws"] = base.selection_at(X)
         hyper = getattr(base.prior, "hyper_names", [])
         if hyper:
-            u = X[..., base.prior.n_active :]
+            u = X[..., base.prior.n_active : base.prior.dim]
             info["hyperparameters"] = {name: np.exp(u[..., j]) for j, name in enumerate(hyper)}
         return PopulationResult(
             base,

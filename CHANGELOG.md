@@ -33,9 +33,11 @@ First development version.
   its inverse, or the cumulative integral of a positive density. `Bins.log` uses the log
   measure; bin centres are midpoints in `u`; `Bins.from_centers` takes midpoints in `u`
   (positive edges for log-spaced centres, I-16). Geometric hand-built edges warn.
-- **Selection from injections** (DECISIONS #10, #30, #79): `Selection.from_injections`
+- **Selection from injections** (DECISIONS #10, #30, #79, #80): `Selection.from_injections`
   gives a completeness with Beta posteriors per bin, inferred jointly with the population
-  by Gibbs; `at_mean()` fixes it for the other engines.
+  by Gibbs, NUTS, Laplace and `MAP(space="unconstrained")` (logit S as extra
+  coordinates); `smooth=τ` ties neighbouring bins by a random walk on logit S;
+  `at_mean()` fixes it for VB and the bootstrap.
 - **Totals and rates from fractions** (DECISIONS #9, #78): every fractions result has
   `total` (draws of Λ ~ Gamma(W, S·ρ), exact under a scale-free prior) and `rates`
   (Λρ), with an absolute or no selection; point estimates give W/(S·ρ̂).

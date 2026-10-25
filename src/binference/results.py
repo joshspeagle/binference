@@ -831,10 +831,7 @@ class PopulationResult(_IndividualMixin):
                 tau = (1.0 + f) / max(1.0 - f, 1e-12)
                 tau_text = f"~{tau:.0f}" if tau < 1000 else "over 1000"
                 hint += f" (missing information {f:.2f}: autocorrelation time {tau_text})"
-            if self.model is not None and self.model.selection_uncertain:
-                hints.append(hint + "; run longer (only Gibbs infers this selection)")
-            else:
-                hints.append(hint + "; run longer or use method='nuts'")
+            hints.append(hint + "; run longer or use method='nuts'")
         if d.get("n_divergent", 0):
             n_div = int(d["n_divergent"])
             share = 100.0 * n_div / max(self.n_draws, 1)
@@ -1064,8 +1061,9 @@ class PointEstimate(_IndividualMixin):
         """Total rate at the optimum (see :attr:`rates`)."""
         if self.kind == "rates":
             return float(self.value.sum())
-        S = None if self.model is None else self.model.total_exposure
-        return None if S is None else float(self.model.W / (S @ self.value))
+        S = self.info.get("selection_draws")  # an inferred selection, at the mode
+        S = (None if self.model is None else self.model.total_exposure) if S is None else S
+        return None if S is None else float(self.model.W / (np.ravel(S) @ self.value))
 
     def _rho_draws(self) -> np.ndarray:
         return self.rho[None, :]
