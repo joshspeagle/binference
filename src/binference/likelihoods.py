@@ -191,14 +191,32 @@ def _correlated_gaussian(mu, C, bins, tol, max_depth) -> tuple[np.ndarray, np.nd
     log_norm = -np.log(np.diagonal(chol, axis1=1, axis2=2)).sum(axis=1)
     log_norm -= 0.5 * bins.ndim * np.log(2 * np.pi)
     logf = partial(_log_mvn_rows, mu=mu, inv_chol=inv_chol, log_norm=log_norm)
-    rows = mu.shape[0]
-    log_avg = bin_log_average(logf, bins, rows=rows, tol=tol, max_depth=max_depth)
+    # a strongly correlated Gaussian is a ridge narrower than the bins that both
+    # quadrature rules can miss alike; cells that may hold mass are split until they
+    # are no wider than twice the narrowest principal standard deviation
+    lam, vec = np.linalg.eigh(C)
+    split = partial(_ridge_split, mu=mu, vec=vec, sd=np.sqrt(lam), floor=np.log(tol) * 2)
+    quad = {"rows": mu.shape[0], "tol": tol, "max_depth": max_depth, "must_split": split}
+    log_avg = bin_log_average(logf, bins, **quad)
     if all(m == Measure.linear() for m in bins.measures):
         return log_avg, log_avg + np.log(bins.volumes)
     # the masses only feed the outside fraction, so a looser tolerance is enough
-    loose = max(tol, 1e-2)
-    log_z = bin_log_average(logf, bins, rows=rows, coordinate="z", tol=loose, max_depth=max_depth)
+    log_z = bin_log_average(logf, bins, coordinate="z", **{**quad, "tol": max(tol, 1e-2)})
     return log_avg, log_z + np.log(bins.volumes)
+
+
+def _ridge_split(z_lo, z_hi, r, mu, vec, sd, floor) -> np.ndarray:
+    # cells wider than 2 narrowest principal sds that may hold more mass than exp(floor).
+    # The cell's mass is at most the probability that the Gaussian's projection on each
+    # principal axis falls in the cell's projected interval, which the 1-D CDF gives exactly.
+    V, s = vec[r], sd[r]  # (P, d, d) eigenvectors in columns, (P, d) principal sds
+    centre = np.einsum("pdk,pd->pk", V, 0.5 * (z_lo + z_hi) - mu[r]) / s
+    half = np.einsum("pdk,pd->pk", np.abs(V), 0.5 * (z_hi - z_lo)) / s
+    near, far = np.maximum(np.abs(centre) - half, 0.0), np.abs(centre) + half
+    with np.errstate(divide="ignore"):
+        log_bound = np.log(special.ndtr(-near) - special.ndtr(-far) + (near == 0) * 0.5)
+    wide = (z_hi - z_lo).max(axis=1) > 2 * s[:, 0]
+    return wide & (log_bound.min(axis=1) > floor)
 
 
 def _log_mvn_rows(z, r, mu, inv_chol, log_norm) -> np.ndarray:
@@ -800,16 +818,19 @@ class Likelihoods:
                 raise ValueError(
                     f"cov must have shape ({nd}, {nd}) or (N, {nd}, {nd}); got {np.shape(cov)}."
                 )
-            if not np.allclose(C, np.swapaxes(C, 1, 2)):
-                raise ValueError("cov must be symmetric positive definite for every object.")
-            off = C * (1 - np.eye(nd))
-            if np.any(off):  # correlated: adaptive cubature
+            var = np.diagonal(C, axis1=1, axis2=2)
+            if not np.all(np.isfinite(C)) or np.any(var <= 0):
+                raise ValueError("cov must be finite with strictly positive variances.")
+            scale = np.sqrt(var[:, :, None] * var[:, None, :])
+            if np.any(np.abs(C - np.swapaxes(C, 1, 2)) > 1e-10 * scale):
+                raise ValueError("cov must be symmetric for every object.")
+            if np.any(np.abs(C) * (1 - np.eye(nd)) > 1e-12 * scale):  # correlated: cubature
                 logL, log_mass = _correlated_gaussian(mu, C, bins, tol, max_depth)
                 lk = cls(logL, bins, log=True, **tail)
                 lk.meta.update(source="gaussian")
                 _record_outside(lk, _outside(special.logsumexp(log_mass, axis=1)), warn_outside)
                 return lk
-            sigma = np.sqrt(np.diagonal(C, axis1=1, axis2=2))  # independent axes: exact
+            sigma = np.sqrt(var)  # independent axes (correlations below 1e-12): exact
         sig = np.asarray(sigma, dtype=float)
         if sig.ndim == 1 and bins.ndim > 1:
             if sig.shape[0] == mu.shape[0] == bins.ndim:
@@ -1082,12 +1103,7 @@ class Likelihoods:
 # ----------------------------------------------------------------------------
 #: ``meta`` entries holding one value per object (row); they follow subsets and
 #: dropped rows, and are discarded when rows are merged by ``compress``.
-_PER_OBJECT_KEYS = (
-    "n_eff",
-    "outside_fraction",
-    "gaussian_mean",
-    "gaussian_sigma",
-)
+_PER_OBJECT_KEYS = ("n_eff", "outside_fraction", "gaussian_mean", "gaussian_sigma")
 
 
 def _slice_per_object(meta: dict[str, Any], rows: Any) -> dict[str, Any]:

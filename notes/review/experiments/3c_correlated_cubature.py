@@ -4,7 +4,9 @@ Compares binference's adaptive cubature (Gauss-Legendre 5 vs 3, split while the
 difference exceeds tol, in log space) with SciPy's multivariate normal CDF (Genz
 quasi-Monte Carlo) used through rectangle inclusion-exclusion. Reference: the
 cubature at tol=1e-10. Reports the largest error relative to each object's
-largest bin, the error on the smallest bins, and the time.
+largest bin, the error on the smallest bins, and the time. The covariances are
+A A^T + 0.002 I with A ~ N(0, 0.08^2): moderately correlated, with no thin ridges
+(the ridge rule added in code review is tested in tests/test_correlated.py).
 """
 
 import time

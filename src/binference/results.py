@@ -212,7 +212,8 @@ class _IndividualMixin:
         likelihood there:
 
         * exactly (truncated Gaussians) for likelihoods built with
-          :meth:`Likelihoods.from_gaussian`;
+          :meth:`Likelihoods.from_gaussian` and independent errors (``sigma``);
+          correlated errors (``cov``) take the top-hat route below;
         * by inverse-CDF sampling on ``n_sub`` sub-points per bin (1-D bins)
           if ``loglike(z, i)`` is given, returning the log-likelihood of object
           ``i`` (an index into the likelihoods) at the points ``z``;
@@ -231,7 +232,7 @@ class _IndividualMixin:
         labels = self.sample_assignments(idx=rows, n_draws=n_draws, rng=gen)
         multi = bins.grid_index(labels)
         meta = model.likelihoods.meta
-        if "gaussian_sigma" in meta:  # independent axes: exact truncated normals
+        if "gaussian_mean" in meta:
             from scipy import stats
 
             mu = np.asarray(meta["gaussian_mean"])[rows]  # (n, ndim)
