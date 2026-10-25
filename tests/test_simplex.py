@@ -3,7 +3,12 @@
 import numpy as np
 import pytest
 
-from binference._simplex import clr, helmert_basis, ilr, ilr_inv, log_softmax, softmax
+from binference._simplex import helmert_basis, log_softmax, softmax
+
+
+def ilr_inv(eta):
+    # the map priors use: rho = softmax(V eta) with the Helmert basis V
+    return softmax(eta @ helmert_basis(eta.shape[-1] + 1).T, axis=-1)
 
 
 @pytest.mark.parametrize("K", [2, 3, 7, 20])
@@ -17,13 +22,6 @@ def test_helmert_orthonormal_zero_sum(K):
 def test_helmert_needs_two_bins():
     with pytest.raises(ValueError):
         helmert_basis(1)
-
-
-def test_ilr_round_trip(rng):
-    for K in (2, 5, 13):
-        rho = rng.dirichlet(np.ones(K))
-        np.testing.assert_allclose(ilr_inv(ilr(rho)), rho, rtol=1e-12)
-        np.testing.assert_allclose(clr(rho).sum(), 0.0, atol=1e-12)
 
 
 def test_softmax_stable():

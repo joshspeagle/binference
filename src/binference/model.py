@@ -31,7 +31,7 @@ import numpy as np
 from scipy import linalg
 
 from . import _kernels as kern
-from ._simplex import softmax
+from ._simplex import helmert_basis, softmax
 from ._utils import RNGLike, as_generator
 from .bins import Bins
 from .likelihoods import Likelihoods, _scale_columns
@@ -172,8 +172,14 @@ class PopulationModel:
         return softmax(eta)
 
     # ------------------------------------------------ unconstrained space
-    def log_prob_and_grad(self, x: np.ndarray) -> tuple[float, np.ndarray]:
-        """Log posterior density (up to a constant) and gradient in unconstrained space."""
+    def log_density_unconstrained_and_grad(self, x: np.ndarray) -> tuple[float, np.ndarray]:
+        """Log posterior density and its gradient in the unconstrained coordinates ``x``.
+
+        This is the density of ``x`` (the prior's isometric log-ratios, whitened
+        fields or log-rates), so it includes the Jacobian of the map from ``x``
+        to the fractions or rates (DECISIONS #15); its mode differs from that of
+        :meth:`log_posterior`. NUTS, Laplace and L-BFGS use it. Up to a constant.
+        """
         x = np.asarray(x, dtype=float)
         eta, cache = self.prior.forward(x)
         value = self._value(eta)
@@ -185,15 +191,47 @@ class PopulationModel:
         lp, g = self.prior.log_prior_and_grad(x, cache, value, d_eta)
         return ll + lp + self._ll_const, g
 
-    def log_prob(self, x: np.ndarray) -> float:
-        """Log posterior density (up to a constant) in unconstrained space."""
-        return self.log_prob_and_grad(x)[0]
+    def log_density_unconstrained(self, x: np.ndarray) -> float:
+        """Log posterior density in the unconstrained coordinates ``x`` (with the Jacobian).
+
+        See :meth:`log_density_unconstrained_and_grad`.
+        """
+        return self.log_density_unconstrained_and_grad(x)[0]
 
     def _with_bound_prior(self, prior: BoundPrior) -> PopulationModel:
         """A shallow copy sharing the data but using another parametrisation of the prior."""
         new = copy.copy(self)
         new.prior = prior
         return new
+
+    def _with_weights(self, weights: np.ndarray) -> PopulationModel:
+        """A shallow copy with other object weights, keeping only the rows they leave positive.
+
+        Rows of zero weight are dropped, so a bin they alone support cannot make
+        the likelihood -inf (audit M-1); the one place weights are overridden
+        (bootstrap replicates) for every engine.
+        """
+        w = np.asarray(weights, dtype=float)
+        keep = np.flatnonzero(w > 0)
+        new = copy.copy(self)
+        new._L = self._L[keep] if not hasattr(self._L, "tocsr") else self._L.tocsr()[keep]
+        new._w = w[keep]
+        new.W = float(new._w.sum())
+        new._ll_const = float(new._w @ self.likelihoods.log_scale[keep])
+        return new
+
+    def _complete_counts(self, value: np.ndarray, nhat: np.ndarray) -> np.ndarray:
+        r"""Expected counts with the missed objects imputed (fractions with selection).
+
+        Adds :math:`W\rho_k(1 - S_k)/(S\cdot\rho)`, with :math:`S` rescaled to a
+        maximum of one, which leaves the posterior unchanged; used by EM, VB and
+        the interior start (DECISIONS #57).
+        """
+        if self.kind == "rates" or self.selection is None:
+            return nhat
+        S = self._detect
+        rho = value / value.sum()
+        return nhat + self.W * rho * (1.0 - S) / float(S @ rho)
 
     def to_value(self, x: np.ndarray) -> np.ndarray:
         """Fractions (or rates, for rate priors) at unconstrained ``x``."""
@@ -225,11 +263,21 @@ class PopulationModel:
         return ll + (self._ll_const if absolute else 0.0)
 
     def log_prior(self, value: np.ndarray) -> float:
-        """Prior log-density of fractions (on the simplex) or rates, where defined."""
+        """Prior log-density of fractions (on the simplex) or rates, where defined.
+
+        A density in the fractions (or rates) themselves, without the Jacobian of
+        any reparametrisation (DECISIONS #15).
+        """
         return float(self.prior.log_density(np.asarray(value, dtype=float)))
 
     def log_posterior(self, value: np.ndarray) -> float:
-        """Unnormalised log posterior density in fraction (or rate) space."""
+        """Unnormalised log posterior density of fractions (on the simplex) or rates.
+
+        A density in the fractions or rates themselves, without the Jacobian of
+        the unconstrained coordinates, so its mode is the MAP estimate on the
+        simplex (``MAP(space="simplex")``); compare
+        :meth:`log_density_unconstrained` (DECISIONS #15).
+        """
         return self.log_likelihood(value) + self.log_prior(value)
 
     def expected_counts(self, value: np.ndarray) -> np.ndarray:
@@ -260,15 +308,21 @@ class PopulationModel:
 
     # -------------------------------------------------------- diagnostics
     def kkt_gap(self, value: np.ndarray, include_prior: bool = True) -> float:
-        """Violation of the first-order optimality conditions at ``value``.
+        r"""Violation of the first-order optimality conditions at ``value``.
 
         Zero (to numerical precision) at the maximum-likelihood / MAP estimate
-        on the simplex (or the positive orthant for rates); normalised by the
-        total weight. Self-consistency of the EM fixed point is necessary but
-        not sufficient for optimality; this certificate checks the rest.
+        on the simplex (or the positive orthant for rates), and infinite where
+        an object has zero likelihood. For fractions it is normalised by the
+        total weight; for rates it is relative to the exposure,
+        :math:`\hat n_k/(\lambda_k S_k) - 1` without a prior, so it does not
+        depend on the exposure's units (DECISIONS #56). Self-consistency of the
+        EM fixed point is necessary but not sufficient for optimality; this
+        certificate checks the rest.
         """
         v = np.asarray(value, dtype=float)
         s = kern.matvec(self._L, v)
+        if np.any(s <= 0) or not np.all(np.isfinite(s)):
+            return np.inf  # an object is impossible here (audit M-3)
         G = kern.rmatvec(self._L, self._w / s)
         pos = v > 0
         if self.kind == "rates":
@@ -278,44 +332,72 @@ class PopulationModel:
         if include_prior and self.prior.has_density:
             G = G + self.prior.grad_log_density(v)
         if self.kind == "rates":
-            viol = np.where(pos, np.abs(G), np.maximum(G, 0.0))
-            return float(viol.max() / max(self.W, 1.0))
+            # relative to the exposure: n_k / (lambda_k S_k) - 1 without a prior, free of
+            # the exposure's units (audit M-4)
+            viol = np.where(pos, np.abs(G), np.maximum(G, 0.0)) / self._exposure()
+            return float(viol.max())
         mu = float(v[pos] @ G[pos])
-        return float(max(0.0, np.max(G - mu)) / max(self.W, 1.0))
+        return float(max(0.0, float(np.max(G - mu))) / max(self.W, 1.0))
 
     def missing_information(
-        self, value: np.ndarray, max_objects: int = 20000, rng: RNGLike = 0
+        self,
+        value: np.ndarray,
+        max_objects: int = 20000,
+        rng: RNGLike = 0,
+        include_prior: bool = False,
     ) -> float:
         """Largest fraction of missing information at ``value`` (0 to 1).
 
         Close to 0 when per-object PDFs are narrow compared with the bins and
         close to 1 when they are broad. It predicts the convergence rate of EM
         and the lag-one autocorrelation of the slowest mode of the Gibbs sampler
-        (integrated autocorrelation time roughly ``(1 + f) / (1 - f)``).
-        Computed on a random subset of at most ``max_objects`` objects.
+        (integrated autocorrelation time roughly ``(1 + f) / (1 - f)``). With a
+        selection function the missed objects count as missing data, as EM and
+        Gibbs impute them; ``include_prior`` adds a Dirichlet prior's term, as in
+        the MAP EM (audit M-2). Computed on a random subset of at most
+        ``max_objects`` objects.
         """
         v = np.asarray(value, dtype=float)
         N = self.N
         if N > max_objects:
-            sel = np.sort(as_generator(rng).choice(N, size=max_objects, replace=False))
-            L = self._L[sel]
-            w = self._w[sel] * (self.W / self._w[sel].sum())
+            idx = np.sort(as_generator(rng).choice(N, size=max_objects, replace=False))
+            L = self._L[idx]
+            w = self._w[idx] * (self.W / self._w[idx].sum())
         else:
             L, w = self._L, self._w
         R = kern.responsibilities(L, v, chunk=None)
         nhat = w @ R
         Im = np.diag(nhat) - (R * w[:, None]).T @ R
-        if self.kind == "rates":
-            Ic = np.diag(np.maximum(nhat, 1e-300))
-            M_ic, M_im = Ic, Im
+        if self.kind == "rates":  # Poisson thinning imputes nothing
+            I_c = np.diag(np.maximum(nhat, 1e-300))
+            I_obs = I_c - Im
         else:
-            r = v / v.sum()
-            Ic = self.W * (np.diag(r) - np.outer(r, r))
-            from ._simplex import helmert_basis
-
-            V = helmert_basis(self.K)
-            M_ic, M_im = V.T @ Ic @ V, V.T @ Im @ V
-        M_ic = 0.5 * (M_ic + M_ic.T) + 1e-12 * np.trace(M_ic) / M_ic.shape[0] * np.eye(len(M_ic))
-        M_im = 0.5 * (M_im + M_im.T)
-        lam = linalg.eigh(M_im, M_ic, eigvals_only=True)
-        return float(np.clip(lam.max(), 0.0, 1.0))
+            # on the support: a fraction at zero is an active constraint, along which the
+            # information is degenerate rather than missing
+            on = v > 1e-9 * v.max()
+            v, Im = v[on], Im[np.ix_(on, on)]
+            rho = v / v.sum()
+            C = np.diag(rho) - np.outer(rho, rho)
+            alpha = getattr(self.prior, "alpha", None)
+            extra = (
+                float(np.sum(alpha) - self.K)
+                if include_prior and alpha is not None and np.ndim(alpha) == 1
+                else 0.0
+            )
+            if self.selection is None:
+                I_c = (self.W + extra) * C
+                I_obs = I_c - Im
+            else:
+                S = self._detect[on]
+                # missed objects in bins off the support are ignored with them
+                phi = S * rho / float(S @ rho)
+                I_c = (self.W / float(S @ rho) + extra) * C
+                I_obs = self.W * (np.diag(phi) - np.outer(phi, phi)) - Im + extra * C
+            if rho.size < 2:
+                return 0.0
+            V = helmert_basis(rho.size)
+            I_c, I_obs = V.T @ I_c @ V, V.T @ I_obs @ V
+        I_c = 0.5 * (I_c + I_c.T) + 1e-12 * np.trace(I_c) / len(I_c) * np.eye(len(I_c))
+        I_obs = 0.5 * (I_obs + I_obs.T)
+        lam = linalg.eigh(I_obs, I_c, eigvals_only=True)
+        return float(np.clip(1.0 - lam.min(), 0.0, 1.0))

@@ -520,7 +520,11 @@ class LogisticGP(PopulationPrior):
         ls = self.length_scale
         if ls is None:
             ls_h = [
-                InverseGamma.from_quantiles(2.0 * float(np.min(np.diff(e))), float(e[-1] - e[0]))
+                # between two bin widths and the range (half the range for two bins, M-14)
+                InverseGamma.from_quantiles(
+                    min(2.0 * float(np.min(np.diff(e))), 0.5 * float(e[-1] - e[0])),
+                    float(e[-1] - e[0]),
+                )
                 for e in bins.edges
             ]
         elif isinstance(ls, Sequence) and not isinstance(ls, str):

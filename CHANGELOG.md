@@ -81,6 +81,16 @@ First development version.
   within bins).
   `simulate.mock_1d(measured_range=...)` simulates selection on the measurement, alone
   or with `selection=` (combined). `sbc`/`coverage` name rates `lambda[k]` (G-10).
+- **Model** (DECISIONS #15, #56, #57, #70): `PopulationModel.log_prob` and
+  `log_prob_and_grad` are renamed `log_density_unconstrained` and
+  `log_density_unconstrained_and_grad`; the theory page explains the two densities
+  and their modes. `kkt_gap` is infinite where an object is impossible and, for rates,
+  relative to the exposure (audit M-3, M-4); `missing_information` is correct with a
+  selection function and on the support, with `include_prior=` for the MAP EM (M-2).
+  Bootstrap replicates drop zero-weight objects in every engine, so EM no longer
+  resets to the prior's mode or collapses rates to zero (M-1); EM stops with a warning
+  where an object becomes impossible. The rates starting point is W ρ / S (M-7).
+  `LogisticGP()` works on two bins (M-14).
 - **Correlated Gaussians** (DECISIONS #2, #25, #66): `from_gaussian(..., cov=)` takes full
   per-object covariances, averaged over N-D bins by adaptive cubature in log space.
 - `weights` are integer multiplicities; non-integer weights need `fractional_weights=True`

@@ -18,7 +18,7 @@ import numpy as np
 
 from ._utils import frozen
 
-__all__ = ["clr", "helmert_basis", "ilr", "ilr_inv", "log_softmax", "softmax"]
+__all__ = ["helmert_basis", "log_softmax", "softmax"]
 
 
 @lru_cache(maxsize=64)
@@ -52,23 +52,3 @@ def log_softmax(x: np.ndarray, axis: int = -1) -> np.ndarray:
     m = np.max(x, axis=axis, keepdims=True)
     z = x - m
     return z - np.log(np.sum(np.exp(z), axis=axis, keepdims=True))
-
-
-def clr(rho: np.ndarray) -> np.ndarray:
-    """Centred log-ratio transform (last axis)."""
-    lr = np.log(rho)
-    return lr - np.mean(lr, axis=-1, keepdims=True)
-
-
-def ilr(rho: np.ndarray) -> np.ndarray:
-    """Isometric log-ratio coordinates of ``rho`` (last axis, length K -> K-1)."""
-    rho = np.asarray(rho, dtype=float)
-    V = helmert_basis(rho.shape[-1])
-    return clr(rho) @ V
-
-
-def ilr_inv(eta: np.ndarray) -> np.ndarray:
-    """Inverse ILR map (last axis, length K-1 -> K)."""
-    eta = np.asarray(eta, dtype=float)
-    V = helmert_basis(eta.shape[-1] + 1)
-    return softmax(eta @ V.T, axis=-1)

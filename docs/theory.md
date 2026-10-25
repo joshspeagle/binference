@@ -131,10 +131,20 @@ g_k=\frac1W\sum_i\frac{w_iL_{ik}}{L_i\cdot\hat\rho}\le1,\quad\text{with equality
 $$
 
 so binference reports the **optimality gap** $\max_kg_k-1$ for every point
-estimate (`PointEstimate.kkt_gap`). With a $\mathrm{Dir}(\alpha)$ prior the
-MAP update adds $\alpha_k-1$ pseudo-counts. EM is slow when likelihoods are
-broad (a large fraction of missing information), so binference accelerates it
-with SQUAREM (Varadhan & Roland 2008).
+estimate (`PointEstimate.kkt_gap`); it is infinite where an object has zero
+likelihood. For rates the gap is relative to the exposure,
+$\hat n_k/(\lambda_kS_k)-1$, so it does not depend on the exposure's units. With
+a $\mathrm{Dir}(\alpha)$ prior the MAP update adds $\alpha_k-1$ pseudo-counts. EM
+is slow when likelihoods are broad (a large fraction of missing information), so
+binference accelerates it with SQUAREM (Varadhan & Roland 2008).
+
+The **fraction of missing information** (`PopulationModel.missing_information`) is
+$1-\lambda_{\min}(I_{\rm obs}, I_c)$, the rate of EM: $I_{\rm obs}$ is the
+observed information in the logits and $I_c$ the complete-data information, which
+with a selection function counts the imputed missed objects,
+$W/(S\cdot\rho)$ objects in all. It is computed on the support of $\rho$ (a
+fraction at zero is an active constraint, not missing information), and with
+`include_prior=True` it adds a Dirichlet prior's term, as in the MAP EM.
 
 For $\alpha_k\ge1$ the log posterior is concave on the simplex, and binference
 uses mix-SQP instead (Kim et al. 2020). Each iteration solves a quadratic
@@ -359,6 +369,21 @@ $\sum_k\alpha_k\log\rho_k$, whose mode is the MAP with $\alpha_k$ in place of
 $\alpha_k-1$. This is the centre used by the Laplace engine. Logistic priors
 are already unconstrained, with log-hyperparameters appended. Rates use
 $\log\lambda$.
+
+### Two densities, two modes
+
+The same posterior has a density in each coordinate system, and the two differ by
+the Jacobian above, so they have different modes (DECISIONS #15):
+
+| density | coordinates | Jacobian | mode | used by |
+|---|---|---|---|---|
+| `PopulationModel.log_posterior(value)` | fractions $\rho$ on the simplex (rates $\lambda$) | no | `MAP(space="simplex")` | EM, mix-SQP, reported log posteriors of point estimates on the simplex |
+| `PopulationModel.log_density_unconstrained(x)` | unconstrained $x$ | yes | `MAP(space="unconstrained")` | NUTS, Laplace, L-BFGS |
+
+Neither mode is "the" answer: the posterior *mean* and quantiles are the same in
+any coordinates. The simplex mode can sit on the boundary (a fraction exactly
+zero); the unconstrained mode is always interior, which is why the Laplace
+approximation is centred there.
 
 The gradient of the log-likelihood with respect to the logits is
 $\hat n-W\rho$, or $\hat n-W\rho\odot S/(S\cdot\rho)$ with selection, or

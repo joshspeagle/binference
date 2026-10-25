@@ -18,7 +18,6 @@ import scipy.sparse as sp
 from ._utils import chunk_slices
 
 __all__ = [
-    "is_sparse",
     "loglike_and_counts",
     "matvec",
     "responsibilities",
@@ -28,10 +27,6 @@ __all__ = [
 ]
 
 DEFAULT_CHUNK = 65536
-
-
-def is_sparse(L) -> bool:
-    return sp.issparse(L)
 
 
 def matvec(L, x: np.ndarray) -> np.ndarray:
