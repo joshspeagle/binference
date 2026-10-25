@@ -153,7 +153,8 @@ class _BoundLogistic(BoundPrior):
     def _theta(self, u: np.ndarray) -> np.ndarray:
         theta = np.array([h.median() if h.fixed else 0.0 for _, h in self.hypers])
         if self.n_free:
-            theta[self.free] = np.exp(u)
+            # clipping keeps absurd excursions (e.g. in a diverging trajectory) finite
+            theta[self.free] = np.exp(np.clip(u, -350.0, 350.0))
         return theta
 
     def theta_from_x(self, x: np.ndarray) -> np.ndarray:
@@ -182,13 +183,24 @@ class _BoundLogistic(BoundPrior):
 
     def log_prior_and_grad(self, x, cache, value, d_eta):
         z, s, m, c, dlogs, u = cache
+        if u.size and np.max(np.abs(u)) > 350.0:  # outside the clipped range of _theta
+            return -np.inf, np.zeros(self.dim)
         bt = self.basis.rmatvec(d_eta)[self.active]
         lam = self.lam
         one_m = 1.0 - lam
-        # prior z_j ~ N(0, s_j**(2 (1 - lam_j)))
-        prec = s ** (-2.0 * one_m)
+        # prior z_j ~ N(0, s_j**(2 (1 - lam_j))). Fully non-centred modes (lam_j = 1)
+        # need no scale terms; flooring the scales keeps underflowed ones finite.
+        if one_m.any():
+            s_safe = np.maximum(s, 1e-150)
+            prec = s_safe ** (-2.0 * one_m)
+            log_s_term = float(one_m @ np.log(s_safe))
+        else:
+            prec = np.ones_like(s)
+            log_s_term = 0.0
         q = z * z * prec
-        lp = -0.5 * float(q.sum()) - float(one_m @ np.log(s))
+        lp = -0.5 * float(q.sum()) - log_s_term
+        if not np.isfinite(lp):
+            return -np.inf, np.zeros(self.dim)
         lp -= 0.5 * self.n_active * np.log(2 * np.pi)
         g_z = m * bt - z * prec
         g_u = np.empty(self.n_free)
@@ -247,9 +259,12 @@ class _BoundLogistic(BoundPrior):
         return out
 
 
-def _resolve_mean(mean: Any, K: int) -> np.ndarray:
+def _resolve_mean(mean: Any, bins: Bins) -> np.ndarray:
+    """Prior mean of the log-fractions, centred; default: a flat density (log volumes)."""
+    K = bins.K
     if mean is None:
-        return np.zeros(K)
+        m = np.log(np.asarray(bins.volumes, dtype=float))
+        return m - m.mean()
     m = np.asarray(mean, dtype=float).ravel()
     if m.shape != (K,) or not np.all(np.isfinite(m)):
         raise ValueError(f"mean must be a finite array of length K={K}.")
@@ -267,8 +282,9 @@ class LogisticNormal(Prior):
     Parameters
     ----------
     mean : array_like (K,), optional
-        Prior mean of the log-fractions (up to a constant), e.g. the log of a
-        reference distribution. Defaults to uniform.
+        Prior mean of the log-fractions (up to a constant), e.g. the log of
+        reference fractions. Defaults to the log bin volumes: a flat density,
+        so the prior acts on the log-density whatever the binning.
     cov : array_like (K, K) or float, optional
         Covariance of :math:`\eta`. ``None`` means i.i.d. components with
         standard deviation ``scale``.
@@ -289,7 +305,7 @@ class LogisticNormal(Prior):
 
     def bind(self, bins: Bins) -> _BoundLogisticNormal:
         K = bins.K
-        mu = _resolve_mean(self.mean, K)
+        mu = _resolve_mean(self.mean, bins)
         if self.cov is None or np.ndim(self.cov) == 0:
             base = 1.0 if self.cov is None else float(np.sqrt(self.cov))
             B = helmert_basis(K)
@@ -343,8 +359,9 @@ class LogisticRandomWalk(Prior):
         Standard deviation of the differences; inferred with a
         ``HalfNormal(1.0)`` prior by default.
     mean : array_like (K,), optional
-        Mean of the log-fractions, e.g. ``log(reference)`` to shrink toward a
-        reference distribution.
+        Mean of the log-fractions, e.g. ``log(reference)`` to shrink toward
+        reference fractions. Defaults to the log bin volumes (a flat density),
+        so differences penalise the log-density.
     trend_scale : float
         Prior standard deviation of the unpenalised polynomial modes.
     """
@@ -380,7 +397,7 @@ class LogisticRandomWalk(Prior):
             null = (null[:, None] & nd[None, :]).ravel()
         # drop the global constant mode (index 0: product of constants)
         active = np.arange(1, basis.J)
-        mu = _resolve_mean(self.mean, bins.K)
+        mu = _resolve_mean(self.mean, bins)
         return _BoundRandomWalk(
             self,
             bins,
@@ -435,7 +452,9 @@ class LogisticGP(Prior):
         and 1% above the axis range, so the field is neither rougher than the
         grid can resolve nor flatter than the data can constrain.
     mean : array_like (K,), optional
-        Mean log-fractions (e.g. the log of a reference distribution).
+        Mean log-fractions (e.g. the log of reference fractions). Defaults to
+        the log bin volumes, i.e. a flat density: the GP acts on the
+        log-density.
     n_basis : int or sequence, optional
         Basis functions per axis (default ``min(K_d, 48)``); increase for
         length scales shorter than a few bins.
@@ -507,7 +526,7 @@ class LogisticGP(Prior):
         hypers = [("amplitude", self.amplitude)] + [
             (f"length_scale_{d}" if D > 1 else "length_scale", h) for d, h in enumerate(ls_h)
         ]
-        mu = _resolve_mean(self.mean, bins.K)
+        mu = _resolve_mean(self.mean, bins)
         return _BoundGP(
             self, bins, basis, np.arange(basis.J), mu, hypers, omega, _KERNELS[self.kernel]
         )

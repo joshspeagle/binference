@@ -25,6 +25,12 @@ __all__ = ["PointEstimate", "PopulationResult", "Summary"]
 # ----------------------------------------------------------------------------
 # Summary table
 # ----------------------------------------------------------------------------
+def _small_concentration(model: Any) -> bool:
+    """Whether a conjugate prior's density is unbounded at the boundary (long log tails)."""
+    prior = getattr(model, "prior", None)
+    return bool(prior is not None and prior.conjugate and prior.unbounded_density())
+
+
 class Summary:
     """A small per-bin summary table with a readable ``repr``.
 
@@ -147,7 +153,8 @@ class _IndividualMixin:
             acc = np.zeros((block.shape[0], model.K))
             for rho in R:
                 P = block * rho
-                acc += P / P.sum(axis=1, keepdims=True)
+                tot = P.sum(axis=1, keepdims=True)
+                acc += P / np.where(tot > 0, tot, 1.0)  # rows with no support stay zero
             out[sl] = acc / R.shape[0]
         return out
 
@@ -195,20 +202,63 @@ class _IndividualMixin:
         idx: Any = None,
         n_draws: int | None = None,
         rng: RNGLike = None,
+        loglike: Callable[[np.ndarray, int], np.ndarray] | None = None,
+        n_sub: int = 64,
     ) -> np.ndarray:
-        """Joint draws of continuous true values of objects ``idx``.
+        """Joint draws of the continuous true values of objects ``idx``.
 
-        Labels are drawn as in :meth:`sample_assignments` and values are then
-        drawn uniformly within each bin (the top-hat population model). Returns
-        ``(n_draws, n_objects)`` (1-D) or ``(n_draws, n_objects, ndim)``.
+        Labels are drawn as in :meth:`sample_assignments`. Within the drawn bin
+        the population is flat, so a true value follows the object's own
+        likelihood there:
+
+        * exactly (truncated Gaussians) for likelihoods built with
+          :meth:`Likelihoods.from_gaussian`;
+        * by inverse-CDF sampling on ``n_sub`` sub-points per bin (1-D bins)
+          if ``loglike(z, i)`` is given, returning the log-likelihood of object
+          ``i`` (an index into the likelihoods) at the points ``z``;
+        * otherwise uniformly within the bin, the top-hat approximation, which
+          is accurate only when likelihoods are nearly flat within bins.
+
+        With weighted (compressed) rows each row is treated as one object.
+        Returns ``(n_draws, n_objects)`` (1-D) or ``(n_draws, n_objects, ndim)``.
         """
         model = self._require_model()
         bins = model.bins
         if bins.is_categorical:
             raise ValueError("Categorical bins have no continuous values; use sample_assignments.")
         gen = as_generator(rng)
-        labels = self.sample_assignments(idx=idx, n_draws=n_draws, rng=gen)
+        rows = np.atleast_1d(np.arange(model.N)[slice(None) if idx is None else idx])
+        labels = self.sample_assignments(idx=rows, n_draws=n_draws, rng=gen)
         multi = np.unravel_index(labels, bins.shape)
+        meta = model.likelihoods.meta
+        if "gaussian_mean" in meta:
+            from scipy import stats
+
+            mu = np.asarray(meta["gaussian_mean"])[rows]  # (n, ndim)
+            sig = np.asarray(meta["gaussian_sigma"])[rows]
+            vals = []
+            for d, e in enumerate(bins.edges):
+                j = multi[d]
+                m_, s_ = mu[None, :, d], sig[None, :, d]
+                a, b = (e[j] - m_) / s_, (e[j + 1] - m_) / s_
+                vals.append(stats.truncnorm.rvs(a, b, loc=m_, scale=s_, random_state=gen))
+            return vals[0] if bins.ndim == 1 else np.stack(vals, axis=-1)
+        if loglike is not None:
+            if bins.ndim != 1:
+                raise ValueError("loglike-based sampling supports 1-D bins only.")
+            e = bins.edges[0]
+            u = (np.arange(n_sub) + 0.5) / n_sub
+            out = np.empty(labels.shape)
+            for c, i in enumerate(rows):
+                for k in np.unique(labels[:, c]):
+                    sel = labels[:, c] == k
+                    z = e[k] + (e[k + 1] - e[k]) * u
+                    lw = np.asarray(loglike(z, int(i)), dtype=float).ravel()
+                    w = np.exp(lw - np.max(lw))
+                    cell = gen.choice(n_sub, size=int(sel.sum()), p=w / w.sum())
+                    width = (e[k + 1] - e[k]) / n_sub
+                    out[sel, c] = z[cell] + width * (gen.random(cell.size) - 0.5)
+            return out
         vals = []
         for d, e in enumerate(bins.edges):
             j = multi[d]
@@ -234,11 +284,12 @@ class _IndividualMixin:
         acc = np.zeros_like(L)
         for rho in R:
             P = L * rho
-            acc += P / P.sum(axis=1, keepdims=True)
+            tot = P.sum(axis=1, keepdims=True)
+            acc += P / np.where(tot > 0, tot, 1.0)
         return acc / R.shape[0]
 
     def log_predictive(self, likelihoods: Likelihoods | Any, n_draws: int | None = 500):
-        """Log posterior-predictive density of new objects, ``log E[L_i . rho]``.
+        r"""Log posterior-predictive density of new objects, :math:`\log E[L_i\cdot\rho]`.
 
         Includes the per-object log-scales of the likelihoods, so values can be
         compared across priors and binnings (e.g. for cross-validation).
@@ -251,9 +302,9 @@ class _IndividualMixin:
             if isinstance(likelihoods, Likelihoods)
             else Likelihoods(likelihoods, model.bins)
         )
-        R = self._select_draws(n_draws)
+        R = self._select_draws(n_draws)  # fractions (rates rescale out of the ratio)
         S = np.asarray(model.effective_likelihoods(lk) @ R.T)  # (N_new, n_draws)
-        if model.selection is not None and model.kind == "fractions":
+        if model.selection is not None:  # a new *detected* object: divide by S . rho
             S = S / (R @ model.selection)[None, :]
         with np.errstate(divide="ignore"):
             lp = special.logsumexp(np.log(S), axis=1) - np.log(R.shape[0])
@@ -497,7 +548,8 @@ class PopulationResult(_IndividualMixin):
         if "diagnostics" in self._cache:
             return self._cache["diagnostics"]
         out: dict[str, Any] = {}
-        C = self.chains
+        # for rate models diagnose the rates, which also carry the total
+        C = self._draws if self.kind == "rates" else self.chains
         if C.shape[1] >= 8:
             out["ess_bulk"] = np.array([diag.ess(C[:, :, k], "bulk") for k in range(self.K)])
             out["ess_tail"] = np.array([diag.ess(C[:, :, k], "tail") for k in range(self.K)])
@@ -517,6 +569,17 @@ class PopulationResult(_IndividualMixin):
         self._cache["diagnostics"] = out
         return out
 
+    def _missing_information(self) -> float | None:
+        """Fraction of missing information at the posterior mean (cached in ``info``)."""
+        if "missing_information" not in self.info and self.model is not None and self.K <= 500:
+            value = self._draws.reshape(-1, self.K).mean(axis=0)
+            try:
+                self.info["missing_information"] = self.model.missing_information(value)
+            except (np.linalg.LinAlgError, ValueError):
+                return None
+            self._cache.pop("diagnostics", None)
+        return self.info.get("missing_information")
+
     def check(self, strict: bool = False, rhat_max: float = 1.01, ess_min: float = 100.0):
         """Check diagnostics and warn (or raise with ``strict=True``) about problems.
 
@@ -524,6 +587,7 @@ class PopulationResult(_IndividualMixin):
         """
         d = self.diagnostics
         msgs = []
+        hints = []
         if "rhat" in d and np.nanmax(d["rhat"]) > rhat_max:
             msgs.append(f"max R-hat = {np.nanmax(d['rhat']):.3f} > {rhat_max}")
         if "ess_bulk" in d:
@@ -533,8 +597,22 @@ class PopulationResult(_IndividualMixin):
                     f"min bulk ESS = {np.nanmin(d['ess_bulk']):.0f} "
                     f"({per_chain:.0f} per chain < {ess_min:.0f})"
                 )
+        if msgs and self.method == "gibbs":
+            hint = "Gibbs mixes slowly when likelihoods are broad compared with the bins"
+            f = self._missing_information()
+            if f is not None:
+                tau = (1.0 + f) / max(1.0 - f, 1e-12)
+                tau_text = f"~{tau:.0f}" if tau < 1000 else "over 1000"
+                hint += f" (missing information {f:.2f}: autocorrelation time {tau_text})"
+            hints.append(hint + "; run longer or use method='nuts'")
         if d.get("n_divergent", 0):
-            msgs.append(f"{d['n_divergent']} divergent transitions")
+            n_div = int(d["n_divergent"])
+            share = 100.0 * n_div / max(self.n_draws, 1)
+            msgs.append(f"{n_div} divergent transitions ({share:.2g}% of draws)")
+            hints.append(
+                "try a higher target_accept, e.g. 0.95; divergences that persist mark a "
+                "region the sampler cannot explore (see the pitfalls guide)"
+            )
         if d.get("k_hat", 0) > 0.7:
             msgs.append(f"Pareto k-hat = {d['k_hat']:.2f} > 0.7 (importance sampling unreliable)")
         if d.get("max_depth_fraction", 0) > 0.05:
@@ -542,8 +620,16 @@ class PopulationResult(_IndividualMixin):
                 f"{100 * d['max_depth_fraction']:.0f}% of NUTS iterations hit the maximum tree "
                 "depth"
             )
+            if _small_concentration(self.model):
+                hints.append(
+                    "this prior gives nearly empty bins very long tails in log space "
+                    "(e.g. concentrations below one); method='gibbs' samples such "
+                    "conjugate priors efficiently"
+                )
         if msgs:
             text = "; ".join(msgs)
+            if hints:
+                text += ". Hint: " + "; ".join(hints)
             if strict:
                 raise RuntimeError(f"Diagnostics failed: {text}")
             warnings.warn(f"Diagnostics: {text}.", ConvergenceWarning, stacklevel=2)

@@ -157,7 +157,7 @@ def test_from_samples_histogram_and_meta(rng):
     bins = Bins.linear(0, 1, 4)
     samples = [rng.uniform(0, 1, 400), rng.uniform(0.0, 0.5, 300), np.array([0.1, 0.2, 1.5])]
     with pytest.warns(InputWarning):  # third object has few samples (median check)
-        lk = Likelihoods.from_samples(samples, bins, min_samples=500)
+        lk = Likelihoods.from_samples(samples, bins, "flat", min_samples=500)
     assert lk.N == 3
     assert lk.meta["source"] == "samples"
     np.testing.assert_allclose(lk.meta["n_eff"], [400, 300, 3])
@@ -172,17 +172,17 @@ def test_from_samples_flat_vs_interim(rng):
     lk = Likelihoods.from_samples(samples, bins, "flat")
     # uniform samples under a flat interim prior -> flat likelihood (up to Monte Carlo noise)
     np.testing.assert_allclose(lk.toarray(), 1.0, atol=0.05)
-    lk_s = Likelihoods.from_samples(samples, bins, sparse=True)
+    lk_s = Likelihoods.from_samples(samples, bins, "flat", sparse=True)
     assert lk_s.is_sparse
     # with weights
-    lk_w = Likelihoods.from_samples(samples, bins, sample_weights=np.ones_like(samples))
+    lk_w = Likelihoods.from_samples(samples, bins, "flat", sample_weights=np.ones_like(samples))
     np.testing.assert_allclose(lk_w.toarray(), lk.toarray())
 
 
 def test_from_samples_2d(rng):
     bins = Bins.grid([0, 0.5, 1.0], [0, 0.5, 1.0])
     s = rng.uniform(0, 1, size=(3, 500, 2))
-    lk = Likelihoods.from_samples(s, bins)
+    lk = Likelihoods.from_samples(s, bins, "flat")
     assert lk.K == 4 and lk.N == 3
 
 

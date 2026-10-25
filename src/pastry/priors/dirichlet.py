@@ -210,6 +210,9 @@ class _BoundDirichlet(_SimplexBound):
     def posterior_sample(self, counts, rng, exposure=None):
         return _dirichlet_draw(self.alpha + counts, rng)
 
+    def unbounded_density(self):
+        return bool(np.any(self.alpha < 1.0))
+
     def map_from_counts(self, counts, exposure=None):
         x = np.maximum(np.asarray(counts, float) + self.alpha - 1.0, 0.0)
         tot = x.sum()
@@ -354,6 +357,13 @@ class _BoundTree(_SimplexBound):
     def sample(self, n, rng):
         theta = self.tree.draw_theta(self.tree.slot_alpha, rng, size=n)
         return np.maximum(self.tree.compose(theta), _TINY)
+
+    def unbounded_density(self):
+        # log-density coefficients of the branch probabilities: negative ones (e.g.
+        # Polya trees, whose concentrations grow with depth) make it unbounded
+        t = self.tree
+        coef = t.slot_mem @ t.leaf_coef + t.slot_nodes @ t.node_coef
+        return bool(np.any(coef < 0.0))
 
     def log_density(self, value):
         t = self.tree

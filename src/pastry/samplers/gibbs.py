@@ -126,7 +126,7 @@ class Gibbs(Engine):
             m._L, self._w_int, value, rng, chunk=self.chunk, unit_weights=self._unit
         )
         if m.kind == "fractions" and m.selection is not None:
-            S = m.selection
+            S = m._detect
             rho = value / value.sum()
             p_det = float(np.clip(S @ rho, 1e-300, 1.0))
             n_missed = rng.negative_binomial(m.W, p_det) if p_det < 1.0 else 0

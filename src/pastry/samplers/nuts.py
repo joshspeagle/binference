@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import pickle
 import warnings
 from collections.abc import Iterator
 from typing import Any
@@ -28,6 +29,35 @@ __all__ = ["NUTS"]
 # Dimension limits for the warm-up geometry adaptation (see NUTS docstring).
 _DENSE_MAX_DIM = 200
 _HESSIAN_MAX_DIM = 500
+# Partial centring re-creates a funnel when the field itself pins the scale
+# hyperparameters down poorly (few modes per hyperparameter). The prior then stays
+# non-centred unless the median spread of the modes' log-scales given the field is
+# below this. In validation runs 0.28 separated K <= 6, N <= 40 (0.33-0.62; divergences
+# when centred) from K >= 10 (0.11-0.25; 3-20x more ESS/s when centred).
+_CENTRING_MAX_SD = 0.28
+
+
+def _conditional_log_scale_sd(model, prior, pts: list[np.ndarray]) -> np.ndarray:
+    """Spread of each mode's log-scale given the field, from the hyperparameter curvature.
+
+    In the centred form the field stays put while the hyperparameters move, so the
+    curvature of the hyperparameter block alone says how well the field pins them.
+    (The marginal spread from the full Hessian is unreliable: weakly identified
+    length scales can make it arbitrarily large.) Modes with fixed scales get 0.
+    """
+    n_act = prior.n_active
+    if prior.n_free == 0:
+        return np.zeros(n_act)
+    zeros = np.zeros(n_act)
+    fn = model._with_bound_prior(prior.with_centering(zeros)).log_prob_and_grad
+    cols = range(n_act, model.dim)
+    H = np.mean([fd_hessian(fn, prior.recentre(x, zeros), cols=cols)[n_act:] for x in pts], axis=0)
+    cov = covariance_from_hessian(H)
+    if cov is None:
+        return np.full(n_act, np.inf)
+    _, dlogs = prior.scales(prior.theta_from_x(np.mean(pts, axis=0)))
+    G = dlogs[prior.free]  # (n_free, n_active): d log s_j / d log theta
+    return np.sqrt(np.maximum(np.einsum("aj,ab,bj->j", G, cov, G), 0.0))
 
 
 class _Chain:
@@ -137,6 +167,17 @@ def _advance_chain(chain: _Chain, n_iter: int, adapt: bool, max_depth: int, reco
     return xs, lps, st, n_div
 
 
+def _limit_threads(n_threads: int) -> None:
+    """Worker initializer: share the cores between chains rather than oversubscribe.
+
+    Forked workers inherit the parent's BLAS thread pool, so every chain would
+    otherwise run as many BLAS threads as there are cores.
+    """
+    from threadpoolctl import threadpool_limits
+
+    threadpool_limits(limits=n_threads)
+
+
 def _chain_worker(payload):
     """Run in a worker process: advance one chain and send it back without the model."""
     chain, model, n_iter, adapt, max_depth, record = payload
@@ -178,8 +219,11 @@ class NUTS(Engine):
         For logistic priors, switch each basis coefficient between the
         non-centred and centred forms according to how strongly the data
         constrain it (partial non-centring with weights ``1 / -H_jj`` from the
-        curvature at the chains' positions early in warm-up). This changes
-        the sampling coordinates, not the posterior.
+        curvature at the chains' positions early in warm-up). If the field
+        pins the hyperparameters down poorly (few basis coefficients per
+        hyperparameter, e.g. a handful of bins), the coefficients stay
+        non-centred, which avoids funnels. This changes the sampling
+        coordinates, not the posterior.
     init : array_like (dim,) or (n_chains, dim), optional
         Starting points in unconstrained coordinates. By default chains start
         at the posterior mode (in unconstrained coordinates) plus ``jitter``.
@@ -187,8 +231,10 @@ class NUTS(Engine):
         Standard deviation of the Gaussian jitter around the mode.
     n_jobs : int
         Number of worker processes for the chains (``-1``: one per CPU). The
-        default ``1`` runs the chains in this process. Parallel and serial runs
-        give identical draws for the same ``rng``.
+        default ``1`` runs the chains in this process. The workers share the
+        cores' BLAS threads instead of oversubscribing them. Parallel and
+        serial runs use the same random streams, so their draws agree up to
+        rounding differences in multithreaded linear algebra.
     rng : int, Generator or None
         Random number generator (SPEC 7); each chain gets an independent child.
     progress : bool
@@ -319,10 +365,20 @@ class NUTS(Engine):
         if self.reparametrize and prior0.n_active > 0:
             fn0 = base.log_prob_and_grad
             n_act = prior0.n_active
-            diag = np.mean(
-                [np.diag(fd_hessian(fn0, x, cols=range(n_act))) for x in pts[:n_pts]], axis=0
-            )
+            if d <= _HESSIAN_MAX_DIM:
+                H0 = np.mean([fd_hessian(fn0, x) for x in pts[:n_pts]], axis=0)
+                diag = np.diag(H0)[:n_act]
+            else:
+                diag = np.mean(
+                    [np.diag(fd_hessian(fn0, x, cols=range(n_act))) for x in pts[:n_pts]], axis=0
+                )
             lam = np.clip(1.0 / np.maximum(-diag, 1.0), 0.0, 1.0)
+            # one decision for all modes that share the hyperparameters: mixing centred
+            # and non-centred modes under one length scale mixed worst in validation
+            sd_c = _conditional_log_scale_sd(base, prior0, pts)
+            scaled = sd_c > 0.0
+            if np.any(scaled) and np.median(sd_c[scaled]) > _CENTRING_MAX_SD:
+                lam[scaled] = 1.0
             model = base._with_bound_prior(prior0.with_centering(lam))
             pts = [prior0.recentre(x, lam) for x in pts]
         self.model = model
@@ -348,22 +404,37 @@ class NUTS(Engine):
 
         assert self._chains is not None
         chains = self._chains
+        fn = self.model.log_prob_and_grad
         for ch in chains:
             ch.fn = None  # the model is sent once per chain, not twice
         payloads = [(ch, self.model, n_iter, adapt, self.max_depth, record) for ch in chains]
         try:
-            with ProcessPoolExecutor(max_workers=min(self.n_jobs, len(chains))) as ex:
+            pickle.dumps(payloads[0])  # e.g. a lambda in a prior cannot be sent to workers
+            n_workers = min(self.n_jobs, len(chains))
+            n_threads = max(1, (os.cpu_count() or 1) // n_workers)
+            with ProcessPoolExecutor(
+                max_workers=n_workers, initializer=_limit_threads, initargs=(n_threads,)
+            ) as ex:
                 results = list(ex.map(_chain_worker, payloads))
-        except (OSError, BrokenProcessPool, NotImplementedError) as err:
-            for ch in chains:
-                ch.fn = self.model.log_prob_and_grad
+        except (
+            OSError,
+            BrokenProcessPool,
+            NotImplementedError,
+            pickle.PicklingError,
+            AttributeError,
+            TypeError,
+        ) as err:
             warnings.warn(
-                f"Could not run chains in parallel ({err}); running them serially.",
+                f"Could not run chains in parallel ({type(err).__name__}: {err}); "
+                "running them serially.",
                 RuntimeWarning,
                 stacklevel=4,
             )
+            self.n_jobs = 1  # do not try again for this engine
             return None
-        fn = self.model.log_prob_and_grad
+        finally:
+            for ch in chains:
+                ch.fn = fn
         self._chains = []
         outs = []
         for ch, out in results:

@@ -155,8 +155,13 @@ class SBCResult:
         return plot_sbc(self, **kwargs)
 
 
+def _draws_of_value(res: PopulationResult) -> np.ndarray:
+    """Draws on the scale the model is parametrised in: rates for rate models."""
+    return res.rates if res.kind == "rates" else res.samples
+
+
 def _thin_draws(res: PopulationResult, n_draws: int) -> np.ndarray:
-    X = res.samples
+    X = _draws_of_value(res)
     if X.shape[0] < n_draws:
         raise ValueError(f"Need at least {n_draws} posterior draws per fit; got {X.shape[0]}.")
     idx = np.linspace(0, X.shape[0] - 1, n_draws).round().astype(int)
@@ -178,9 +183,10 @@ def sbc(
     Parameters
     ----------
     simulate : callable
-        ``simulate(rng) -> (likelihoods, rho_true)`` drawing a population from
+        ``simulate(rng) -> (likelihoods, true_value)`` drawing a population from
         the prior and a catalogue from it (see
-        :func:`pastry.simulate.prior_predictive`).
+        :func:`pastry.simulate.prior_predictive`). The true value is the
+        fractions, or the rates for rate models.
     fit : callable
         ``fit(likelihoods, rng) -> PopulationResult`` running the inference to
         be validated (with the same prior as the simulator).
@@ -253,7 +259,8 @@ def coverage(
 ) -> CoverageResult:
     """Empirical coverage of central credible intervals over simulated data sets.
 
-    ``functionals`` maps names to functions of the fractions (e.g. a mean
+    ``functionals`` maps names to functions of the fractions, or of the rates
+    for rate models (e.g. a mean
     redshift); their intervals are checked alongside every bin fraction.
     """
     gen = as_generator(rng)
@@ -265,7 +272,7 @@ def coverage(
         r_sim, r_fit = spawn(gen, 2)
         lk, truth = simulate(r_sim)
         res = fit(lk, r_fit)
-        X = res.samples
+        X = _draws_of_value(res)
         Q = [X[:, k] for k in range(X.shape[1])]
         tq = list(truth)
         for f in functionals.values():

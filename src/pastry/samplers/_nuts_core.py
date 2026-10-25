@@ -225,7 +225,9 @@ def find_reasonable_eps(x, lp, g, metric: Metric, fn: LogpGrad, rng) -> float:
         _, p1, _, lp1 = leapfrog(x, p, g, e, metric, fn)
         if not np.isfinite(lp1):
             return -np.inf
-        return lp1 - metric.kinetic(p1) - H0
+        with np.errstate(over="ignore", invalid="ignore"):  # trial steps may blow up
+            h = lp1 - metric.kinetic(p1) - H0
+        return h if math.isfinite(h) else -np.inf
 
     h = dH(eps)
     a = 1.0 if h > np.log(0.5) else -1.0

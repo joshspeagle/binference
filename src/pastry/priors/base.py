@@ -92,6 +92,14 @@ class BoundPrior:
         """Log-density of fractions (on the simplex) or rates."""
         raise NotImplementedError(f"{type(self.prior).__name__} has no closed-form density.")
 
+    def unbounded_density(self) -> bool:
+        """Whether the density of the fractions (or rates) is unbounded at the boundary.
+
+        Then its mode can lie on the boundary (components exactly zero), and
+        NUTS meets very long tails in log space for components without data.
+        """
+        return False
+
     def grad_log_density(self, value: np.ndarray) -> np.ndarray:
         """Gradient of :meth:`log_density` with respect to the fractions/rates.
 

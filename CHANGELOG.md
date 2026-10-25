@@ -32,19 +32,23 @@ First development version.
     (Hilbert-space GP) on N-D grids, with inferred hyperparameters.
   - Rates: `GammaRates`.
 - **Engines.**
-  - `NUTS` (default): multinomial NUTS with windowed metric adaptation, and
-    partial non-centring and curvature-based metric initialisation for
-    smoothness priors. Its chains are resumable and can run in parallel
-    processes.
+  - `NUTS` (default): multinomial NUTS with windowed metric adaptation.
+    Smoothness priors get partial non-centring (where the data constrain
+    their scales) and a curvature-based dense metric. Chains are resumable
+    and can run in parallel processes, which share the cores' BLAS threads
+    (via `threadpoolctl`) rather than oversubscribing them.
   - Data-augmentation `Gibbs` for conjugate priors, with selection augmentation.
-  - `MAP`/EM (SQUAREM-accelerated) with an optimality certificate.
+  - `MAP` with an optimality certificate: mix-SQP for Dirichlet priors
+    (including maximum likelihood under selection), SQUAREM-accelerated EM
+    for the other conjugate priors, L-BFGS otherwise.
   - `Laplace` with PSIS importance correction.
-  - `MeanFieldVB` (flagged as approximate) and `Bootstrap`.
+  - `MeanFieldVB` (flagged as approximate) and `Bootstrap` (nonparametric or
+    Bayesian, over objects, with variable totals for rate models).
 - **Interfaces.** `pastry.infer` and the scikit-learn-style `PopulationEstimator`.
 - **Results.** `PopulationResult` and `PointEstimate` provide:
   - summaries, intervals (central and HDI), functionals and rebinning;
   - per-object assignment probabilities, values and realised counts;
-  - posterior predictive scores, diagnostics and checks;
+  - posterior predictive scores, diagnostics and checks with hints;
   - plots, save/load and xarray `DataTree` export.
 - **Diagnostics.** Rank-normalised split R-hat, bulk and tail ESS,
   autocorrelation time, MCSE and PSIS.

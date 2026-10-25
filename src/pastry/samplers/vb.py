@@ -63,7 +63,7 @@ class MeanFieldVB(Engine):
             t = np.exp(elog - np.max(elog))
             _, nhat, _ = kern.loglike_and_counts(m._L, m._w, t)
             if m.kind == "fractions" and m.selection is not None:
-                S = m.selection
+                S = m._detect
                 rho = mean_old / mean_old.sum()
                 nhat = nhat + m.W * rho * (1.0 - S) / float(S @ rho)
             state = prior.vb_update(nhat, exposure=exposure)

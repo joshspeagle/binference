@@ -20,14 +20,20 @@ SCHEMA_VERSION = 1
 
 def _bins_to_parts(bins: Bins) -> tuple[dict[str, Any], dict[str, np.ndarray]]:
     if bins.is_categorical:
-        return {"bins": "categories", "labels": [str(lab) for lab in bins.labels]}, {}
+        labels = list(bins.labels)
+        if all(isinstance(lab, int | np.integer) for lab in labels):
+            return {"bins": "categories", "labels": [int(lab) for lab in labels]}, {}
+        return {"bins": "categories", "labels": [str(lab) for lab in labels]}, {}
     arrays = {f"edges_{d}": np.asarray(e) for d, e in enumerate(bins.edges)}
     return {"bins": "grid", "ndim": bins.ndim}, arrays
 
 
 def _bins_from_parts(meta: dict[str, Any], arrays: Any) -> Bins:
     if meta["bins"] == "categories":
-        return Bins.categories(meta["labels"])
+        labels = meta["labels"]
+        if all(isinstance(lab, int) for lab in labels) and labels == list(range(len(labels))):
+            return Bins.categories(len(labels))
+        return Bins.categories(labels)
     return Bins.grid(*[np.asarray(arrays[f"edges_{d}"]) for d in range(int(meta["ndim"]))])
 
 
@@ -47,7 +53,8 @@ def result_to_dict(result: PopulationResult) -> dict[str, Any]:
         out["log_prob"] = result.log_prob
     if result.labels is not None:
         out["labels"] = result.labels
-        out["label_index"] = result.label_index
+        if result.label_index is not None:
+            out["label_index"] = result.label_index
     return out
 
 
@@ -68,6 +75,9 @@ def save_result(result: PopulationResult, path: str) -> None:
             scalars[k] = v.item() if hasattr(v, "item") else v
         elif isinstance(v, np.ndarray) and v.dtype.kind in "biuf":
             arrays[f"info_{k}"] = v
+        elif k == "hyperparameters" and isinstance(v, dict):
+            for name, draws in v.items():
+                arrays[f"hyper_{name}"] = np.asarray(draws, dtype=float)
     meta["info"] = scalars
     payload: dict[str, Any] = {"draws": result._draws, "meta": np.array(json.dumps(meta))}
     payload.update(arrays)
@@ -75,7 +85,8 @@ def save_result(result: PopulationResult, path: str) -> None:
         payload["log_prob"] = np.asarray(result.log_prob)
     if result.labels is not None:
         payload["labels"] = np.asarray(result.labels)
-        payload["label_index"] = np.asarray(result.label_index)
+        if result.label_index is not None:
+            payload["label_index"] = np.asarray(result.label_index)
     np.savez_compressed(path, **payload)
 
 
@@ -93,9 +104,14 @@ def load_result(path: str) -> PopulationResult:
             raise ValueError("This file was written by a newer version of pastry.")
         bins = _bins_from_parts(meta, data)
         info: dict[str, Any] = dict(meta.get("info", {}))
+        hyper = {}
         for key in data.files:
             if key.startswith("info_"):
                 info[key[5:]] = np.array(data[key])
+            elif key.startswith("hyper_"):
+                hyper[key[6:]] = np.array(data[key])
+        if hyper:
+            info["hyperparameters"] = hyper
         return PopulationResult(
             None,
             np.array(data["draws"]),

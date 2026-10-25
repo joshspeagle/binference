@@ -139,13 +139,14 @@ def test_hessian_helpers():
 
 
 def test_nuts_reparametrises_logistic_priors_without_touching_the_model():
-    mock = pastry.simulate.mock_1d(300, Bins.linear(0, 3, 8), rng=2)
+    mock = pastry.simulate.mock_1d(5000, Bins.linear(0, 3, 8), noise=(0.05, 0.1), rng=2)
     m = PopulationModel(mock.likelihoods, P.LogisticRandomWalk(order=1))
-    eng = NUTS(m, n_chains=2, n_warmup=60, rng=1)
+    eng = NUTS(m, n_chains=2, n_warmup=150, rng=1)
     assert eng.metric == "dense" and eng.target_accept == 0.9
     res = eng.run(40)
     assert np.all(m.prior.lam == 1.0)  # the user's model keeps its parametrisation
-    assert not np.all(eng.model.prior.lam == 1.0)
+    assert eng.model is not m
+    assert not np.all(eng.model.prior.lam == 1.0)  # strong data: some modes centred
     assert res.model is eng.model
     # draws map to the same fractions under the engine's parametrisation
     np.testing.assert_allclose(eng.model.to_value(res.x[0, -1]), res.chains[0, -1])
@@ -210,6 +211,26 @@ def test_gibbs_selection_matches_exact(k3_selection_problem):
         mock.likelihoods, rng=5, n_chains=2, n_warmup=300, n_samples=1500, check=False
     )
     assert_matches_reference(nuts, exact.mean, exact.std)
+
+
+@pytest.mark.parametrize("mode", ["true", "observed"])
+def test_fraction_selection_only_depends_on_ratios(k3_selection_problem, mode):
+    """S and 3 S (values above one) give the same posterior for fractions."""
+    mock, _ = k3_selection_problem
+    lk = mock.likelihoods.with_selection(None)
+    S = np.array([0.9, 0.5, 0.25])
+    fits = {}
+    for scale in (1.0, 3.0):
+        m = PopulationModel(lk, selection=scale * S, selection_mode=mode)
+        est = MAP(m).run()
+        gibbs = Gibbs(m, n_chains=2, n_warmup=200, rng=3).run(1500)
+        fits[scale] = (est.rho, gibbs.mean, gibbs.std)
+        assert np.all(gibbs.samples > 0)
+    np.testing.assert_allclose(fits[3.0][0], fits[1.0][0], rtol=1e-6)
+    np.testing.assert_allclose(fits[3.0][1], fits[1.0][1], atol=0.02)
+    exact_m = PopulationModel(lk, selection=S, selection_mode=mode)
+    nuts = NUTS(exact_m, n_chains=2, n_warmup=300, rng=4).run(800)
+    np.testing.assert_allclose(fits[3.0][1], nuts.mean, atol=0.02)
 
 
 def test_gibbs_rates_agree_with_nuts(k3_selection_problem):
@@ -300,12 +321,74 @@ def test_map_mle_matches_scipy(k3_problem):
 def test_map_squarem_faster_than_em():
     mock = pastry.simulate.mock_1d(1000, Bins.linear(0, 3, 15), noise=(0.3, 0.6), rng=1)
     m = PopulationModel(mock.likelihoods)
-    fast = MAP(m, accelerate=True).run()
+    fast = MAP(m, algorithm="em", accelerate=True).run()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", pastry.ConvergenceWarning)
-        slow = MAP(m, accelerate=False, max_iter=100000).run()
+        slow = MAP(m, algorithm="em", accelerate=False, max_iter=100000).run()
     np.testing.assert_allclose(fast.rho, slow.rho, atol=2e-4)
     assert fast.n_iter * 5 < slow.n_iter
+
+
+@pytest.mark.parametrize("alpha", [1.0, 2.5])
+@pytest.mark.parametrize("sparse", [False, True])
+def test_mixsqp_matches_em_and_is_certified(alpha, sparse):
+    mock = pastry.simulate.mock_1d(1500, Bins.linear(0, 3, 20), noise=(0.2, 0.5), rng=3)
+    lk = mock.likelihoods.to_sparse(1e-8) if sparse else mock.likelihoods
+    m = PopulationModel(lk, P.Dirichlet(alpha))
+    sqp = MAP(m).run()
+    assert sqp.info["algorithm"] == "mixsqp"
+    assert sqp.converged and sqp.kkt_gap < 1e-7 and sqp.n_iter < 50
+    em = MAP(m, algorithm="em", max_iter=200000).run()
+    # EM crawls along flat directions of sparse maximum-likelihood solutions, so the
+    # better-certified mix-SQP optimum is the reference
+    np.testing.assert_allclose(sqp.rho, em.rho, atol=1e-3)
+    assert sqp.log_posterior >= em.log_posterior - 1e-8
+    # weighted fits (used by the bootstrap) agree too
+    w = np.random.default_rng(0).poisson(1.0, lk.N).astype(float)
+    np.testing.assert_allclose(
+        MAP(m).run(weights=w).rho,
+        MAP(m, algorithm="em", max_iter=200000).run(weights=w).rho,
+        atol=1e-3,
+    )
+
+
+def test_mixsqp_low_rank_path_and_fallbacks():
+    mock = pastry.simulate.mock_1d(6000, Bins.linear(0, 3, 30), noise=(0.1, 0.3), rng=4)
+    m = PopulationModel(mock.likelihoods)  # tall and dense: low-rank Hessian
+    est = MAP(m).run()
+    assert est.info["algorithm"] == "mixsqp" and est.kkt_gap < 1e-7
+    # informative priors with selection fall back to EM; asking for mix-SQP there is an error
+    sel = PopulationModel(
+        mock.likelihoods,
+        P.Dirichlet(2.0),
+        selection=np.linspace(1, 0.5, 30),
+        selection_mode="true",
+    )
+    assert MAP(sel).run().info["algorithm"] == "squarem"
+    with pytest.raises(ValueError, match="mix-SQP"):
+        MAP(sel, algorithm="mixsqp").run()
+    with pytest.raises(ValueError):
+        MAP(m, algorithm="newton")
+
+
+def test_mixsqp_stops_at_the_round_off_floor():
+    # the KKT gap of this optimum cannot be pushed much below 1e-8 in floating point
+    mock = pastry.simulate.mock_1d(800, Bins.linear(0, 3, 15), rng=6)
+    est = MAP(PopulationModel(mock.likelihoods)).run()  # warnings are errors here
+    assert est.converged and est.n_iter < 50 and est.kkt_gap < 1e-6
+
+
+@pytest.mark.parametrize("mode", ["true", "observed"])
+def test_mixsqp_with_selection_solves_for_observed_fractions(mode):
+    mock = pastry.simulate.mock_1d(3000, Bins.linear(0, 3, 20), noise=(0.1, 0.3), rng=2)
+    S = np.linspace(0.2, 1.0, 20) ** 2
+    m = PopulationModel(mock.likelihoods, selection=3.0 * S, selection_mode=mode)
+    sqp = MAP(m).run()
+    assert sqp.info["algorithm"] == "mixsqp"
+    assert sqp.converged and sqp.n_iter < 50 and sqp.kkt_gap < 1e-7
+    em = MAP(m, algorithm="em", max_iter=200000, tol=1e-14).run()
+    np.testing.assert_allclose(sqp.rho, em.rho, atol=1e-4)
+    assert sqp.log_posterior >= em.log_posterior - 1e-8
 
 
 def test_map_is_em_fixed_point(k3_problem):
