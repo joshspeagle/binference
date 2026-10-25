@@ -218,3 +218,7 @@ Append-only. One entry per working session (or per step within a long session).
 
 - Published `1.1-scope.html`: pitch, the six principles checked against code and decisions (filterable cards), four proposed new principles, use cases today vs after the redesign, scope moves, docs-drift list, questions. Found: principle 6 drift (MAP returns `PointEstimate` without summaries/intervals/functionals). Checked at 375 px.
 - Josh: vision = sklearn-easy for novices, all knobs for experts, blazing fast, the right thing so easy that not doing it feels criminal. Decisions #33–#37 (rewrite value statement, adopt principles + 'fast', one result object with draws + best fit by default, scope moves, field-neutral). `vision.md` written. Step 1.1 done; next 1.2.
+
+## 2026-10-25: step 1.2 page
+
+- Published `1.2-landscape.html`: one model / ten names, field-by-field bars to beat, six error-bar failures vs pastry, filterable scorecard of the survey's recommendations (done / changed / not done), items not yet discussed (overdispersion, PDF calibration, implicit interim priors, scale, run control, exports), frankenz recap. Found: `requires-python >=3.11` vs SPEC 0 (≥3.13 after 2026-Q4); no golden-value tests against R/Julia solvers.
