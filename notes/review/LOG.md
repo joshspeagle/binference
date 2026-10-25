@@ -229,3 +229,4 @@ Append-only. One entry per working session (or per step within a long session).
 
 - Published `1.4-decision-log.html`: D1–D16 sorted into settled (6), at their step (8), decide now (D5, D8, going public early).
 - Josh on 1.4: D8 → convert notes/survey into thorough docs (#43), raw material as a bundle; no JOSS, journal or arXiv instead (#44); D5 name reopened: brainstorm in `naming.md` (shortlist quincunx, propto, popover, populace, polyurn; PyPI checked).
+- Naming round 2: Josh likes popover/populace directions and binference-style twists; round-2 shortlist in naming.md.

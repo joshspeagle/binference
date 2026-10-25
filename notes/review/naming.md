@@ -35,3 +35,22 @@ millefeuille (free; unspellable).
 Rejected: galton (eugenics), plinko/plinkr (trademark), beanmachine (Meta's
 Bean Machine PPL), pluribus, deem, glean (taken / Mozilla Glean), historian,
 pollster, census, tally, sieve, winnow, strata, mosaic, quilt (taken).
+
+## Round 2 (2026-10-25)
+
+Josh: no to quincunx, propto, polyurn; popover could work; populace (or a twist)
+could work; wants more in the poprocks / popover vein, more plain-but-twisted
+names like populace, and "inference" twists such as binference.
+
+| Name | PyPI | Family | Story / risks |
+|---|---|---|---|
+| poprocks | free | pop candy | crackling crystals; pop(ulation) + "rocks". Pop Rocks is a registered candy trademark |
+| cakepop | free | pastry | cake pops are crumbs pressed back into one whole: messy pieces → one population; keeps the pastry lineage |
+| popover | free | pastry | round 1: pastry + posterior "over" the population; web-UI collision |
+| populi | free | twist on populace | "vox populi", of the people; short (POP-yoo-lee); note vox-pop is taken |
+| popscope | free | plain + twist | an instrument (-scope) for seeing a population through noisy measurements |
+| popstats | free | plain | population statistics; generic |
+| binference | free | inference twist | bin + inference; says exactly what it does; tied to bins (fine: bins are the interface, #17) |
+| binsight | free | bin twist | bin + insight; upbeat, a little marketing-ish |
+| popinfer / popinf | free | inference twist | plain; bland |
+| popsterior | free | portmanteau | population posterior; memorable, maybe too jokey |
