@@ -121,7 +121,8 @@ First development version.
   as fast (P-20).
 - **GP prior** (DECISIONS #73): `LogisticGP` is stationary in the measure coordinate
   (log z on `Bins.log`; length scales are in that coordinate; P-1). Defaults:
-  `boundary_factor=3` (was 1.5; P-3), `n_basis` one per bin (was at most 48), and a
+  `boundary_factor=3` (was 1.5; P-3), `n_basis` one per bin up to 1024 modes in all
+  (was at most 48 per axis), and a
   length-scale prior whose lower 1% quantile is the shortest length scale that basis
   resolves (P-2), or `LogNormal(log(range/2), 1)` on coarse grids (P-7). Partially
   centred GP densities and gradients agree where scales underflow (P-5).

@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from scipy import stats
 
+import binference
 from binference import Bins
 from binference import priors as P
 from binference.priors.hyper import Fixed, as_hyperprior
@@ -71,8 +72,8 @@ def test_gp_per_axis_arguments_must_match_the_axes():
     bins = Bins.grid([np.linspace(0, 1, 6), np.linspace(0, 1, 5)])
     with pytest.raises(ValueError, match="n_basis"):
         P.LogisticGP(n_basis=[4, 4, 4]).bind(bins)
-    b = P.LogisticGP(length_scale=np.array([0.3, 0.5])).bind(bins)  # an array, like a list
-    assert [h.value for _, h in b.hypers[1:]] == [0.3, 0.5]
+    b = P.LogisticGP(length_scale=np.array([1.0, 1.5])).bind(bins)  # an array, like a list
+    assert [h.value for _, h in b.hypers[1:]] == [1.0, 1.5]
 
 
 def test_hyperpriors_accept_numpy_scalars_but_not_booleans():
@@ -145,7 +146,7 @@ def test_more_arguments_are_checked_when_the_prior_is_made():
 def test_a_gp_on_log_bins_is_stationary_in_log_z():
     # equal steps in log z have equal prior spread; in z the low bins were frozen together
     r = (
-        P.LogisticGP(length_scale=0.5)
+        P.LogisticGP(length_scale=1.0)
         .bind(Bins.log(1.0, 1e4, 40))
         .sample(4000, np.random.default_rng(0))
     )
@@ -157,7 +158,8 @@ def test_a_gp_on_log_bins_is_stationary_in_log_z():
 @pytest.mark.parametrize("K", [2, 3, 5])
 def test_a_gp_on_a_coarse_grid_gets_a_broad_length_scale_prior(K):
     h = dict(P.LogisticGP().bind(Bins.linear(0, 1, K)).hypers)["length_scale"]
-    assert isinstance(h, P.LogNormal) and h.sigma == 1.0 and h.median() == pytest.approx(0.5)
+    # centred on half the range, or on the shortest resolved length if that is longer
+    assert isinstance(h, P.LogNormal) and h.sigma == 1.0 and h.median() >= 0.5
 
 
 def test_centred_gp_gradients_agree_with_the_density_where_scales_underflow():
@@ -184,9 +186,36 @@ def test_centred_gp_gradients_agree_with_the_density_where_scales_underflow():
         np.testing.assert_allclose(g[i], fd, rtol=1e-5)
 
 
-def test_an_n_d_gp_keeps_only_the_modes_inside_the_ellipsoid():
-    one = P.LogisticGP().bind(Bins.linear(0, 1, 12))
-    assert one.n_active == 12  # every mode in 1-D
-    two = P.LogisticGP().bind(Bins.grid(np.linspace(0, 1, 11), np.linspace(0, 1, 11)))
-    j = np.arange(1, 11) / 10
-    assert two.n_active == np.sum(j[:, None] ** 2 + j[None, :] ** 2 <= 1 + 1e-12) < 100
+def test_the_default_gp_basis_has_one_sine_per_bin_up_to_1024_modes():
+    assert P.LogisticGP().bind(Bins.linear(0, 1, 12)).n_active == 12
+    grid = Bins.grid(np.linspace(0, 1, 41), np.linspace(0, 1, 11))
+    assert P.LogisticGP().bind(grid).n_active == 32 * 10  # 32 per axis in 2-D
+
+
+def test_the_wider_gp_box_keeps_the_edges_free_at_long_length_scales():
+    # at ell = half the range the box of 1.5 half-widths pulled the edge bins to the mean
+    # (edge SD 0.68-0.80 of exact, audit P-3); the default box keeps them within 5%
+    K, ell = 40, 0.5
+    b = P.LogisticGP(kernel="matern32", amplitude=1.0, length_scale=ell).bind(Bins.linear(0, 1, K))
+    s = np.exp(b.log_scales(np.array([1.0, ell]))[0])
+    B = b.basis.factors[0]
+    Pm = np.eye(K) - 1.0 / K
+    hs = Pm @ (B * s**2) @ B.T @ Pm
+    r = np.abs(np.subtract.outer(b.bins.centers, b.bins.centers)) / ell
+    exact = Pm @ ((1 + np.sqrt(3) * r) * np.exp(-np.sqrt(3) * r)) @ Pm
+    np.testing.assert_allclose(np.diag(hs)[[0, -1]], np.diag(exact)[[0, -1]], rtol=0.05)
+
+
+def test_a_fixed_gp_length_scale_below_the_resolution_warns():
+    with pytest.warns(binference.InputWarning, match="n_basis"):
+        P.LogisticGP(length_scale=0.05).bind(Bins.linear(0, 1, 40))
+
+
+def test_recentring_a_gp_from_centred_coordinates_stays_finite():
+    b = P.LogisticGP(kernel="rbf").bind(Bins.linear(0, 1, 48))
+    c = b.with_centering(np.zeros(b.n_active))
+    u = np.log([1.0, 2.0])
+    log_s = c.log_scales(np.exp(u))[0]
+    x = np.concatenate([np.exp(log_s) * np.random.default_rng(2).normal(size=b.n_active), u])
+    y = c.recentre(x, np.ones(b.n_active))  # warnings are errors here
+    assert np.all(np.isfinite(y))

@@ -29,9 +29,10 @@ import numpy as np
 from scipy import special
 
 from .._simplex import helmert_basis, softmax
-from .._utils import check_positive
+from .._utils import check_positive, warn
 from ..bins import Bins
 from ..density import Density
+from ..warnings import InputWarning
 from .base import BoundPrior, PopulationPrior, _per_item
 from .hyper import Fixed, HalfNormal, Hyperprior, InverseGamma, LogNormal, as_hyperprior
 
@@ -156,7 +157,9 @@ class _BoundLogistic(BoundPrior):
         """Map unconstrained ``x`` in this parametrisation to the one with weights ``lam``."""
         x = np.array(x, dtype=float, copy=True)
         log_s, _ = self.log_scales(self._theta(x[self.n_active :]))
-        x[: self.n_active] *= np.exp((self.lam - np.clip(lam, 0.0, 1.0)) * log_s)
+        z = x[: self.n_active]
+        with np.errstate(divide="ignore", over="ignore"):  # in log space, as the density
+            z[:] = np.sign(z) * np.exp(np.log(np.abs(z)) + (self.lam - np.clip(lam, 0, 1)) * log_s)
         return x
 
     # subclasses implement: log_scales(theta) -> (log s, dlogs), dlogs (n_hypers, n_active);
@@ -500,19 +503,23 @@ class LogisticGP(PopulationPrior):
         kernels) and 1% above the axis range, so the field is neither rougher
         than the prior can represent nor flatter than the data can constrain.
         Where that lower bound exceeds a quarter of the range (coarse grids),
-        ``LogNormal(log(range / 2), 1)`` instead.
+        a ``LogNormal`` with standard deviation 1 in log length and median the
+        larger of the bound and half the range instead. A fixed length scale
+        below the bound raises an :class:`~binference.InputWarning`.
     mean : array_like (K,), optional
         Mean log-fractions (e.g. the log of reference fractions). Defaults to
         a density flat in the measure coordinate: the GP acts on the
         log-density.
     n_basis : int or sequence, optional
-        Basis functions per axis (default ``K_d``, so the prior has as many
-        field coefficients as bins); increase it for shorter length scales,
-        which also lowers the default length-scale prior.
+        Basis functions per axis. Default: one per bin, up to a total of 1024
+        (``min(K_d, floor(1024 ** (1 / D)))``: up to 1024 on 1-D grids, 32 per
+        axis on 2-D grids); increase it for shorter length scales, which also
+        lowers the default length-scale prior.
     boundary_factor : float
-        Ratio of the approximation box to the grid half-width (default 3, so
-        that length scales up to about a third of the range are approximated
-        without pulling the field towards the mean at the edges).
+        Ratio of the approximation box to the grid half-width (default 3: the
+        centred covariance is within 4% of the exact kernel's for length
+        scales up to the range, where 1.5 pulled the edge bins towards the
+        mean).
     """
 
     def __init__(
@@ -549,8 +556,8 @@ class LogisticGP(PopulationPrior):
     def bind(self, bins: Bins) -> _BoundGP:
         _require_full_grid(bins)
         D = bins.ndim
-        if self.n_basis is None:
-            nb = list(bins.shape)
+        if self.n_basis is None:  # one per bin, at most 1024 modes in all
+            nb = [min(n, int(1024 ** (1 / D) + 1e-9)) for n in bins.shape]
         else:
             nb = list(_per_item(self.n_basis, D, "n_basis (one per axis)"))
         factors, omegas = [], []
@@ -566,15 +573,15 @@ class LogisticGP(PopulationPrior):
         basis = _KronBasis(factors)
         grids = np.meshgrid(*omegas, indexing="ij")
         omega = np.stack([g.ravel() for g in grids], axis=1)  # (J, D)
-        # on N-D grids keep the modes inside the ellipsoid sum_d (j_d / m_d)^2 <= 1; the corner
-        # modes have negligible scales at every length scale the basis resolves
-        frac = np.meshgrid(*[np.arange(1, m + 1) / m for m in nb], indexing="ij")
-        active = np.flatnonzero(sum(g.ravel() ** 2 for g in frac) <= 1.0 + 1e-12)
         nu, f = _KERNELS[self.kernel]
+        # the shortest length scale the basis resolves on each axis
+        resolved = [
+            f * self.boundary_factor * 0.5 * (u[-1] - u[0]) / m
+            for u, m in zip(bins.u_edges, nb, strict=True)
+        ]
         if self._ls is None:
             ls_h = [
-                _default_length_scale(u, f * self.boundary_factor * 0.5 * (u[-1] - u[0]) / m)
-                for u, m in zip(bins.u_edges, nb, strict=True)
+                _default_length_scale(u, r) for u, r in zip(bins.u_edges, resolved, strict=True)
             ]
         elif isinstance(self._ls, list):
             if len(self._ls) != D:
@@ -582,11 +589,18 @@ class LogisticGP(PopulationPrior):
             ls_h = self._ls
         else:
             ls_h = [self._ls] * D
+        for d, (h, r) in enumerate(zip(ls_h, resolved, strict=True)):
+            if h.fixed and h.median() < r:
+                warn(
+                    f"length_scale {h.median():g} on axis {d} is below the {r:.3g} that "
+                    f"{nb[d]} basis functions resolve; the field loses variance. Raise n_basis.",
+                    InputWarning,
+                )
         hypers = [("amplitude", self.amplitude)] + [
             (f"length_scale_{d}" if D > 1 else "length_scale", h) for d, h in enumerate(ls_h)
         ]
         mu = _resolve_mean(self.mean, bins)
-        return _BoundGP(self, bins, basis, active, mu, hypers, omega[active], nu)
+        return _BoundGP(self, bins, basis, np.arange(basis.J), mu, hypers, omega, nu)
 
 
 class _BoundGP(_BoundLogistic):
@@ -632,5 +646,5 @@ def _default_length_scale(u: np.ndarray, resolved: float) -> Hyperprior:
     span = float(u[-1] - u[0])
     lower = max(2.0 * float(np.min(np.diff(u))), resolved)
     if span < 4.0 * lower:  # an inverse gamma between them would all but fix the length
-        return LogNormal(np.log(0.5 * span), 1.0)
+        return LogNormal(np.log(max(lower, 0.5 * span)), 1.0)
     return InverseGamma.from_quantiles(lower, span)

@@ -329,7 +329,7 @@ instead.
   - The field is stationary in the measure coordinate $u$ ($\log z$ on
     log bins), and the box is three times the grid's half-width in $u$.
   - Amplitude and length scales (one per axis) are inferred. The default
-    basis has $K_d$ sines per axis, and the default length-scale prior is an
+    basis has one sine per bin, up to 1024 modes in all, and the default length-scale prior is an
     inverse gamma with 1% mass below the shortest length scale the grid and
     the basis resolve (the larger of two bin widths and
     $f\,cS/m$, with $c$ the box factor, $S$ the half-range and $m$ the number

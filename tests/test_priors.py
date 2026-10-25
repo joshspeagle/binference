@@ -256,7 +256,7 @@ LOGISTIC_PRIORS = [
     P.LogisticRandomWalk(order=1),
     P.LogisticRandomWalk(order=2, scale=0.7),
     P.LogisticGP(),
-    P.LogisticGP(kernel="rbf", amplitude=1.0, length_scale=0.8),
+    P.LogisticGP(kernel="rbf", amplitude=1.0, length_scale=1.0),
 ]
 
 
