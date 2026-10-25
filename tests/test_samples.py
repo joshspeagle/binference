@@ -27,9 +27,13 @@ def test_a_pointwise_interim_is_divided_out_exactly_within_bins():
     samples = _posterior_samples(rng, 20, 20000, like, interim, 0.0, 1.0)
     exact = Likelihoods.from_gaussian([0.45], 0.3, bins).toarray()[0]
     pointwise = Likelihoods.from_samples(samples, bins, interim).toarray().mean(axis=0)
-    per_bin = Likelihoods.from_samples(
-        samples, bins, Density.from_masses(Density.from_function(interim).masses(bins))
-    ).toarray().mean(axis=0)
+    per_bin = (
+        Likelihoods.from_samples(
+            samples, bins, Density.from_masses(Density.from_function(interim).masses(bins))
+        )
+        .toarray()
+        .mean(axis=0)
+    )
     np.testing.assert_allclose(pointwise, exact, atol=0.01)  # MC error ~ 0.002
     assert abs(per_bin[1] - exact[1]) > 0.05  # the per-bin division is biased here
 
