@@ -30,6 +30,10 @@ __all__ = [
 
 DEFAULT_CHUNK = 65536
 
+#: below this fraction of non-zero entries, sparse storage is chosen: the largest fill at
+#: which it beat dense in every measured case (DECISIONS #77)
+SPARSE_FILL = 0.1
+
 
 def matvec(L, x: np.ndarray) -> np.ndarray:
     """``L @ x`` for dense or sparse ``L``."""

@@ -44,8 +44,11 @@ The engines spend these differently:
    on macOS and Windows, put the call under `if __name__ == "__main__":`.
 2. **Use sparse likelihoods.** Narrow PDFs on many bins are mostly zeros.
    `lk.to_sparse(rtol=1e-8)` drops entries below `rtol` times each row's
-   maximum. `from_samples` returns sparse matrices automatically when fewer
-   than 30% of the entries are non-zero.
+   maximum. On four cores with banded rows ($N=2\times10^5$, $K=100$ and
+   $N=5\times10^4$, $K=1000$), sparse storage beat dense up to 20% and 10%
+   non-zero entries with BLAS threads, and up to 40% and 30% on one thread; at
+   5% it was 3–3.5× faster with threads and 9–12× on one. `from_samples`
+   returns sparse matrices automatically below 10%.
 3. **Compress duplicates.** `lk.compress()` merges identical rows into one
    weighted row. Binned photometry, discrete measurements and unfolding data
    often shrink by orders of magnitude, and inference is unchanged.
@@ -72,7 +75,11 @@ chunks, so their memory use does not grow with $N$.
 
 ## Roadmap
 
-The NumPy implementation keeps installation trivial. An optional JAX backend
+On four cores with BLAS threads, a fused kernel compiled with numba (one pass
+over the rows, in parallel) was slower than this NumPy path for $N\le2\times10^5$
+and 16% faster at $N=10^6$, $K=50$; float32 storage changed the time by less
+than 10% and let the expected counts drift by up to $5\times10^{-4}$ (relative)
+at $N=10^6$. Neither is offered (DECISIONS #77). The NumPy implementation keeps installation trivial. An optional JAX backend
 (vectorised chains, GPUs) is on the roadmap for problems with $10^8$
 likelihood entries and beyond; see the
 [implementation plan](../design/implementation-plan.md).

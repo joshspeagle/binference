@@ -1,0 +1,14 @@
+threads: BLAS 1, numba 4
+N=   20000 K=  80 float64: two-pass    1.13 ms (ll 0e+00, n 0e+00)  chunked    1.21 ms (ll 2e-16, n 5e-15)  threads    3.84 ms (ll 2e-16, n 5e-15)  numba-1    1.36 ms (ll 8e-15, n 1e-14)  numba-P    0.57 ms (ll 3e-16, n 5e-15)
+N=   20000 K=  80 float32: two-pass    2.33 ms (ll 2e-09, n 2e-06)  chunked    2.07 ms (ll 2e-09, n 4e-07)  threads    5.17 ms (ll 2e-09, n 2e-07)  numba-1    3.59 ms (ll 1e-08, n 1e-05)  numba-P    1.17 ms (ll 1e-08, n 2e-06)
+N=  200000 K= 100 float64: two-pass   16.70 ms (ll 0e+00, n 0e+00)  chunked   24.29 ms (ll 4e-16, n 2e-14)  threads   29.94 ms (ll 4e-16, n 2e-14)  numba-1   24.77 ms (ll 8e-15, n 7e-14)  numba-P    9.13 ms (ll 7e-16, n 2e-14)
+N=  200000 K= 100 float32: two-pass   23.48 ms (ll 2e-09, n 7e-06)  chunked   24.12 ms (ll 2e-09, n 1e-07)  threads   29.98 ms (ll 2e-09, n 1e-07)  numba-1   46.62 ms (ll 1e-08, n 1e-04)  numba-P   17.13 ms (ll 1e-08, n 2e-05)
+N= 1000000 K=  50 float64: two-pass   89.71 ms (ll 0e+00, n 0e+00)  chunked   76.01 ms (ll 2e-16, n 3e-13)  threads   91.06 ms (ll 4e-16, n 3e-13)  numba-1   84.68 ms (ll 4e-14, n 3e-13)  numba-P   41.46 ms (ll 1e-14, n 2e-13)
+N= 1000000 K=  50 float32: two-pass   97.52 ms (ll 3e-09, n 3e-04)  chunked   97.85 ms (ll 3e-09, n 9e-07)  threads  108.03 ms (ll 3e-09, n 4e-07)  numba-1  139.80 ms (ll 8e-09, n 5e-04)  numba-P   66.46 ms (ll 8e-09, n 1e-04)
+threads: BLAS default, numba 4
+N=   20000 K=  80 float64: two-pass    0.88 ms (ll 0e+00, n 0e+00)  chunked    1.23 ms (ll 0e+00, n 5e-15)  threads    3.03 ms (ll 0e+00, n 5e-15)  numba-1    1.40 ms (ll 8e-15, n 1e-14)  numba-P    1.22 ms (ll 6e-16, n 5e-15)
+N=   20000 K=  80 float32: two-pass    0.81 ms (ll 2e-09, n 2e-06)  chunked    2.02 ms (ll 2e-09, n 4e-07)  threads    4.88 ms (ll 2e-09, n 2e-07)  numba-1    3.85 ms (ll 1e-08, n 1e-05)  numba-P    1.18 ms (ll 1e-08, n 2e-06)
+N=  200000 K= 100 float64: two-pass    8.88 ms (ll 0e+00, n 0e+00)  chunked   23.51 ms (ll 2e-16, n 4e-14)  threads   31.23 ms (ll 2e-16, n 4e-14)  numba-1   26.84 ms (ll 7e-15, n 7e-14)  numba-P   10.39 ms (ll 1e-16, n 3e-14)
+N=  200000 K= 100 float32: two-pass    9.62 ms (ll 2e-09, n 1e-04)  chunked   23.95 ms (ll 2e-09, n 1e-07)  threads   34.60 ms (ll 2e-09, n 1e-07)  numba-1   45.51 ms (ll 1e-08, n 1e-04)  numba-P   17.16 ms (ll 1e-08, n 2e-05)
+N= 1000000 K=  50 float64: two-pass   48.04 ms (ll 0e+00, n 0e+00)  chunked   74.84 ms (ll 2e-16, n 3e-13)  threads   86.37 ms (ll 4e-16, n 3e-13)  numba-1   60.14 ms (ll 4e-14, n 3e-13)  numba-P   40.47 ms (ll 1e-14, n 2e-13)
+N= 1000000 K=  50 float32: two-pass   46.20 ms (ll 3e-09, n 5e-04)  chunked   95.23 ms (ll 3e-09, n 9e-07)  threads  108.33 ms (ll 3e-09, n 4e-07)  numba-1  143.16 ms (ll 8e-09, n 5e-04)  numba-P   67.15 ms (ll 8e-09, n 1e-04)

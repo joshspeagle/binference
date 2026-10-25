@@ -138,3 +138,16 @@ def test_a_transform_measure_works_on_an_axis_of_small_values():
     m = binference.Measure.transform(np.sqrt, np.square)
     z = np.array([1e-9, 1e-8, 3e-8])
     np.testing.assert_allclose(m.log_jacobian(z), np.log(0.5 / np.sqrt(z)), rtol=1e-6)
+
+
+def test_samples_are_stored_sparsely_only_below_the_measured_fill():
+    # sparse storage pays only at low fill (DECISIONS #77); the broad case is 28% full
+    rng = np.random.default_rng(0)
+    bins = binference.Bins.linear(0, 1, 100)
+    narrow = rng.uniform(0.1, 0.9, 200)[:, None] + 0.005 * rng.standard_normal((200, 50))
+    broad = rng.uniform(0.3, 0.7, 200)[:, None] + 0.05 * rng.standard_normal((200, 400))
+    a = binference.Likelihoods.from_samples(narrow, bins, interim="flat")
+    b = binference.Likelihoods.from_samples(broad, bins, interim="flat")
+    fill = binference._kernels.SPARSE_FILL
+    assert a.is_sparse and a.nnz < fill * a.N * a.K
+    assert not b.is_sparse and b.nnz > fill * b.N * b.K
