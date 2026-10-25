@@ -181,6 +181,16 @@ def _rows_logpdf(dists: list[Any], ndim: int) -> Callable[[np.ndarray, np.ndarra
     return logpdf
 
 
+def _log_mvn_rows(z: np.ndarray, r: np.ndarray, mu: np.ndarray, chol: np.ndarray) -> np.ndarray:
+    # log N(z[p] | mu[r[p]], L L^T) with L = chol[r[p]], for points z of shape (P, M, ndim)
+    L = chol[r]
+    diff = np.swapaxes(z - mu[r][:, None, :], 1, 2)  # (P, ndim, M)
+    y = np.linalg.solve(L, diff)  # L is lower triangular
+    logdet = np.log(np.diagonal(L, axis1=1, axis2=2)).sum(axis=1)
+    nd = z.shape[-1]
+    return -0.5 * (y**2).sum(axis=1) - logdet[:, None] - 0.5 * nd * np.log(2 * np.pi)
+
+
 def _log_gauss_rows(z: np.ndarray, r: np.ndarray, mu: np.ndarray, sig: np.ndarray) -> np.ndarray:
     m, s = mu[r, None], sig[r, None]
     return -0.5 * ((z - m) / s) ** 2 - np.log(s) - 0.5 * np.log(2 * np.pi)
@@ -711,9 +721,10 @@ class Likelihoods:
     def from_gaussian(
         cls,
         mean: Any,
-        sigma: Any,
-        bins: Bins,
+        sigma: Any = None,
+        bins: Bins | None = None,
         *,
+        cov: Any = None,
         weights: Any = None,
         selection: Any = None,
         selection_mode: str | None = None,
@@ -730,7 +741,9 @@ class Likelihoods:
         uniformly in the measure coordinate by adaptive quadrature to ``tol``
         with at most ``max_depth`` refinements (see :meth:`from_density`). For
         N-D grids, measurement errors are independent per axis (``mean`` and
-        ``sigma`` of shape ``(N, ndim)``).
+        ``sigma`` of shape ``(N, ndim)``) unless ``cov`` gives each object's full
+        covariance; correlated Gaussians are averaged over each bin by adaptive
+        cubature in log space, to ``tol``, in any number of dimensions (DECISIONS #25).
         Each object's fraction of mass outside the active bins is recorded in
         ``meta["outside_fraction"]``; ``warn_outside`` warns when more than 10% of
         the objects have more than 90% of their mass outside.
@@ -743,15 +756,39 @@ class Likelihoods:
             Measurement uncertainties (strictly positive).
         bins : Bins
             Grid bins.
+        cov : array_like, shape (ndim, ndim) or (N, ndim, ndim), optional
+            Full covariance matrices (symmetric positive definite), in place of
+            ``sigma``.
         """
+        if not isinstance(bins, Bins):
+            raise TypeError("bins must be a binference.Bins instance.")
         if bins.is_categorical:
             raise ValueError("from_gaussian needs ordered (grid) bins.")
+        if (sigma is None) == (cov is None):
+            raise ValueError("Pass exactly one of sigma and cov.")
         mu = np.asarray(mean, dtype=float)
         if bins.ndim == 1 and (mu.ndim <= 1 or (mu.ndim == 2 and mu.shape[1] == 1)):
             mu = mu.reshape(-1, 1)
         if mu.ndim != 2 or mu.shape[1] != bins.ndim:
             shapes = "(N,) or (N, 1)" if bins.ndim == 1 else f"(N, {bins.ndim})"
             raise ValueError(f"mean must have shape {shapes}; got {np.shape(mean)}.")
+        if not np.all(np.isfinite(mu)):
+            raise ValueError("mean must be finite.")
+        tail = _common(weights, selection, selection_mode, drop_empty, fractional_weights)
+        if cov is not None:
+            nd, N = bins.ndim, mu.shape[0]
+            C = np.asarray(cov, dtype=float)
+            if C.shape == (nd, nd):
+                C = np.broadcast_to(C, (N, nd, nd))
+            if C.shape != (N, nd, nd):
+                raise ValueError(
+                    f"cov must have shape ({nd}, {nd}) or (N, {nd}, {nd}); got {np.shape(cov)}."
+                )
+            if nd > 1:
+                return cls._from_correlated_gaussian(
+                    mu, C, bins, tol, max_depth, warn_outside, tail
+                )
+            sigma = np.sqrt(C[:, 0, 0])
         sig = np.asarray(sigma, dtype=float)
         if sig.ndim == 1 and bins.ndim > 1:
             if sig.shape[0] == mu.shape[0] == bins.ndim:
@@ -771,8 +808,6 @@ class Likelihoods:
             sig = np.broadcast_to(sig, mu.shape)
         except ValueError:
             raise ValueError(f"sigma cannot be broadcast to shape {mu.shape}.") from None
-        if not np.all(np.isfinite(mu)):
-            raise ValueError("mean must be finite.")
         if not np.all(np.isfinite(sig)) or np.any(sig <= 0):
             raise ValueError("sigma must be finite and strictly positive.")
         # per axis: exact log masses, and bin averages (in u on non-linear measures),
@@ -797,19 +832,32 @@ class Likelihoods:
                 )
             logL = logL + avg[:, j]
             log_mass = log_mass + lm[:, j]
-        lk = cls(
-            logL,
-            bins,
-            log=True,
-            weights=weights,
-            selection=selection,
-            selection_mode=selection_mode,
-            drop_empty=drop_empty,
-            fractional_weights=fractional_weights,
-        )
+        lk = cls(logL, bins, log=True, **tail)
         lk.meta.update(source="gaussian")
         # kept so that true values can be drawn from the likelihood within bins
         _attach_per_object(lk, gaussian_mean=mu, gaussian_sigma=np.array(sig))
+        _record_outside(lk, _outside(special.logsumexp(log_mass, axis=1)), warn_outside)
+        return lk
+
+    @classmethod
+    def _from_correlated_gaussian(cls, mu, C, bins, tol, max_depth, warn_outside, tail):
+        # per-object multivariate normal likelihoods, averaged by adaptive cubature
+        try:
+            chol = np.linalg.cholesky(C)
+        except np.linalg.LinAlgError:
+            raise ValueError("cov must be symmetric positive definite for every object.") from None
+        if not np.allclose(C, np.swapaxes(C, 1, 2)):
+            raise ValueError("cov must be symmetric positive definite for every object.")
+        logf = partial(_log_mvn_rows, mu=mu, chol=chol)
+        quad = {"rows": mu.shape[0], "tol": tol, "max_depth": max_depth}
+        log_avg = bin_log_average(logf, bins, **quad)
+        if all(m == Measure.linear() for m in bins.measures):
+            log_mass = log_avg + np.log(bins.volumes)
+        else:
+            log_mass = bin_log_average(logf, bins, coordinate="z", **quad) + np.log(bins.volumes)
+        lk = cls(log_avg, bins, log=True, **tail)
+        lk.meta.update(source="gaussian")
+        _attach_per_object(lk, gaussian_mean=mu, gaussian_cov=C)
         _record_outside(lk, _outside(special.logsumexp(log_mass, axis=1)), warn_outside)
         return lk
 
@@ -1035,7 +1083,13 @@ class Likelihoods:
 # ----------------------------------------------------------------------------
 #: ``meta`` entries holding one value per object (row); they follow subsets and
 #: dropped rows, and are discarded when rows are merged by ``compress``.
-_PER_OBJECT_KEYS = ("n_eff", "outside_fraction", "gaussian_mean", "gaussian_sigma")
+_PER_OBJECT_KEYS = (
+    "n_eff",
+    "outside_fraction",
+    "gaussian_mean",
+    "gaussian_sigma",
+    "gaussian_cov",
+)
 
 
 def _slice_per_object(meta: dict[str, Any], rows: Any) -> dict[str, Any]:

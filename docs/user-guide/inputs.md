@@ -122,6 +122,11 @@ lk = binference.Likelihoods.from_gaussian(z_obs, sigma, bins)
 print(lk.N, lk.K)
 ```
 
+On N-D grids, measurement errors are independent per axis by default (`sigma` of shape
+`(N, ndim)`). For correlated errors pass each object's covariance matrix instead,
+`from_gaussian(mean, bins=grid, cov=cov)` with `cov` of shape `(ndim, ndim)` or
+`(N, ndim, ndim)`; the bin averages are then computed by adaptive cubature to `tol`.
+
 ## Posteriors computed under an interim prior
 
 Most photometric-redshift codes, classifiers and per-object fits report

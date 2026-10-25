@@ -231,7 +231,7 @@ class _IndividualMixin:
         labels = self.sample_assignments(idx=rows, n_draws=n_draws, rng=gen)
         multi = bins.grid_index(labels)
         meta = model.likelihoods.meta
-        if "gaussian_mean" in meta:
+        if "gaussian_sigma" in meta:  # independent axes: exact truncated normals
             from scipy import stats
 
             mu = np.asarray(meta["gaussian_mean"])[rows]  # (n, ndim)
