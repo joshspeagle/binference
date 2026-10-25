@@ -614,4 +614,3 @@ gwpopulation's docs "guide" pages are just `automodule` directives over module d
 ### Gaps
 - GitHub issue trackers could not be searched from this session (issue search returned no results), so user-reported pain points are inferred from code, docs and changelogs rather than from issue threads.
 - I did not verify the quality of the rendered documentation sites (only repository docs sources were read).
-

@@ -251,3 +251,7 @@ Append-only. One entry per working session (or per step within a long session).
 
 - Josh renamed the repository to binference (default branch main, docs via Actions) and asked for a plan to bring the work to main through issues and reviewed, stacked PRs (telescopic as model). Drafted `landing-plan.md` and `briefings/landing-plan.html`: phases A (history, 4 PRs), B (process/CI, rename), C (14 PRs: decisions + all 127 audit findings), D (deferred issues); five questions open.
 - Josh: land history (#58), Claude merges on green CI (#58), implement every decision and finding now (#59), minimal tooling, review summaries in PRs (#60). Plan revised; starting Phase A.
+
+## 2026-10-25: landing, phases A and B started
+
+- Tracking issue #4 with phases #5–#8; Phase A PRs #13–#16 (history), #13 merged; #14 needed fix-forward commits for CI (ruff pin, Markdown excluded from ruff, docs step skipped before docs existed). B1 #19 (process/CI) and B2 #20 (rename) opened; B1 went through /simplify (two reviewers) and /code-review (medium); fixes applied (DECISIONS #61).

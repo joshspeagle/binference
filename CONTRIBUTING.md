@@ -12,6 +12,7 @@ cd binference
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pre-commit install          # ruff lint + format on every commit
+pre-commit run --all-files  # the same checks as CI's lint job
 ```
 
 ## Tests
@@ -32,7 +33,8 @@ pytest --cov=binference         # coverage report
 
 ## Style
 
-* `ruff check` and `ruff format` (line length 99) are enforced in CI.
+* `ruff check` and `ruff format` (line length 99) run through the pre-commit hooks
+  (`pre-commit run --all-files`), locally and in CI.
 * Use the notation of the specification ([`docs/design/spec.md`](docs/design/spec.md) §3) in code,
   docstrings and docs:
   * $L_{ik}$ for bin-averaged likelihoods;
@@ -65,7 +67,7 @@ pytest --cov=binference         # coverage report
 
 ```bash
 pip install -e ".[docs]"
-sphinx-build -b html docs docs/_build/html
+sphinx-build -W --keep-going -b html docs docs/_build/html
 ```
 
 The tutorials in `docs/tutorials/` are MyST notebooks executed at build time,
@@ -81,8 +83,5 @@ so keep each under a minute or two.
 * Describe how you validated a statistical change: exact comparisons, SBC, coverage.
 * Pull requests merge with a merge commit once CI is green. History is never rewritten:
   bring `main` into a branch with a merge, not a rebase.
-* CI runs lint (ruff, pinned to the pre-commit version), the fast suite on Linux, macOS
-  and Windows with Python 3.13 and 3.14, a minimum-dependency job, the code of the README
-  and user guide, the docs build with the tutorials executed, and a wheel built and
-  imported in a clean environment. The slow suite runs weekly, by hand, and on pull
-  requests labelled `slow`. Pushes to `main` publish the docs to GitHub Pages.
+* CI is defined in `.github/workflows/ci.yml`; label a pull request `slow` to run the
+  slow statistical suite on it. Pushes to `main` publish the docs to GitHub Pages.
