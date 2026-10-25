@@ -100,3 +100,4 @@ Seven auditor reports land in `audit/` (see `audit/README.md`). Per DECISIONS #1
 | 1.4 Decision log D1–D16 | L1 | done (decisions #43–#45; name → binference) | `briefings/1.4-decision-log.html` (+ .md) | |
 | 2.4 Selection (code) | L2–L3 | done (decisions #46–#49) | `briefings/2.4-selection.html` (+ .md) | |
 | 2.5 Population, sample, objects | L2 | done (decisions #50–#53) | `briefings/2.5-individuals.html` (+ .md) | |
+| 2.6 Model and kernels | L2–L3 | briefing ready | `briefings/2.6-model-core.html` (+ .md) | |

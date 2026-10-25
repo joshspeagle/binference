@@ -1,0 +1,288 @@
+<title>Pastry Model Core</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Literata:opsz,wght@7..72,500;7..72,600&display=swap">
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [["$", "$"], ["\\(", "\\)"]], displayMath: [["$$", "$$"]] },
+    svg: { fontCache: "global" },
+    options: { skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"] }
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
+<style>
+/* Layout: sticky section index on the left, a single reading column on the right; explorers break out to full column width. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #18202b;
+  --muted: #5a6573;
+  --rule: #d9dee5;
+  --accent: #1f5fa8;      /* ink blue: the model, exact quantities */
+  --warm: #b4691f;        /* amber: approximations, the flat-within-bin assumption */
+  --good: #2e7d4f;
+  --alt: #8a3b8f;         /* purple: ignoring selection */
+  --code-bg: #eef1f5;
+  --font-display: "Literata", Georgia, serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
+    --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
+  --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body);
+  font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+.page { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 40px; }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-top: 40px; font-size: 13.5px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+nav.toc a { color: var(--muted); text-decoration: none; display: flex; gap: 8px; padding: 4px 8px; border-radius: 4px; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink); background: var(--code-bg); outline: none; }
+nav.toc .n { font-family: var(--font-mono); width: 1.6em; color: var(--muted); }
+nav.toc .now { color: var(--accent); font-weight: 600; }
+nav.toc .done::after { content: "discussed"; margin-left: auto; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--good); }
+main { min-width: 0; padding-top: 40px; }
+header.top { border-bottom: 1px solid var(--rule); padding-bottom: 24px; margin-bottom: 8px; }
+.eyebrow { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 2.3rem; line-height: 1.15; margin: 6px 0 12px; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.55rem; margin: 0 0 8px; text-wrap: balance; }
+h3 { font-size: 1rem; font-weight: 600; margin: 22px 0 6px; }
+.lede { max-width: 66ch; color: var(--muted); margin: 0; }
+section { padding: 36px 0 8px; border-bottom: 1px solid var(--rule); }
+section > p, section > ul, section > ol { max-width: 68ch; }
+.sec-head { display: flex; align-items: baseline; gap: 12px; }
+.sec-head .n { font-family: var(--font-mono); color: var(--muted); font-size: 14px; }
+.files { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+.eq { overflow-x: auto; padding: 4px 0; }
+.callout { border: 1px solid var(--rule); background: var(--surface); padding: 14px 18px; border-radius: 6px; max-width: 68ch; }
+.callout.approx { border-color: var(--warm); }
+.callout.approx strong { color: var(--warm); }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+details.code { margin: 14px 0; max-width: 820px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+details.code summary { cursor: pointer; padding: 8px 14px; font-size: 13.5px; color: var(--muted); }
+details.code summary b { font-family: var(--font-mono); font-weight: 500; color: var(--ink); }
+details.code pre { margin: 0; padding: 12px 14px; overflow-x: auto; background: var(--code-bg); border-top: 1px solid var(--rule); font-family: var(--font-mono); font-size: 12.8px; line-height: 1.5; border-radius: 0 0 6px 6px; }
+.cm { color: var(--muted); }
+.explorer { margin: 22px 0 10px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 18px; }
+.explorer h3 { margin-top: 0; font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px 20px; margin: 10px 0 14px; }
+.controls label { display: grid; gap: 2px; font-size: 13px; color: var(--muted); }
+.controls .val { font-family: var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+canvas { width: 100%; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+.legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+.stats { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 12px; font-size: 13.5px; }
+.stats b { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+.note { font-size: 13.5px; color: var(--muted); max-width: 70ch; }
+table.tbl { border-collapse: collapse; font-size: 13.5px; margin: 10px 0; }
+.tblwrap { overflow-x: auto; }
+table.tbl th, table.tbl td { padding: 6px 12px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+table.tbl th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+pre.mermaid { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 12px; overflow-x: auto; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 10px; }
+.pair figure { margin: 0; min-width: 0; } .pair figcaption { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 4px; }
+.qs { list-style: none; padding: 0; display: grid; gap: 10px; max-width: 72ch; }
+.qs li { display: grid; grid-template-columns: auto 1fr; gap: 12px; border: 1px solid var(--rule); background: var(--surface); padding: 10px 14px; border-radius: 6px; }
+.qs .tag { font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding-top: 2px; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; max-width: 100%; padding: 2px 0; }
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 12px 0; max-width: 820px; }
+.mode { border: 1px solid var(--rule); background: var(--surface); border-radius: 6px; padding: 12px 14px; min-width: 0; }
+.mode h4 { margin: 0 0 6px; font-size: 14px; } .mode h4 code { font-size: 13px; }
+.mode dl { margin: 0; display: grid; gap: 6px; font-size: 14px; } .mode dt { color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; } .mode dd { margin: 0; min-width: 0; }
+input[type=range] { height: 28px; }
+@media (max-width: 860px) {
+  .page { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--rule); margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  nav.toc .eyebrow { display: none; }
+  nav.toc ol { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  nav.toc ol::-webkit-scrollbar { display: none; }
+  nav.toc a { white-space: nowrap; border: 1px solid var(--rule); border-radius: 999px; padding: 6px 12px; }
+  nav.toc .done::after { content: "✓"; letter-spacing: 0; margin-left: 2px; font-size: 12px; }
+  main { padding-top: 20px; }
+  h1 { font-size: 1.7rem; } h2 { font-size: 1.3rem; }
+  section { padding-top: 28px; scroll-margin-top: 64px; }
+  .explorer { padding: 14px 12px; margin-left: -4px; margin-right: -4px; }
+  .sec-head { flex-wrap: wrap; gap: 4px 10px; }
+}
+section { scroll-margin-top: 16px; }
+.sel { font: inherit; width: 100%; padding: 6px; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); color: var(--ink); }
+</style>
+<style>
+.chip { display: inline-block; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; margin-left: 6px; vertical-align: 2px; white-space: nowrap; }
+.chip.holds { color: var(--good); } .chip.revise { color: var(--warm); } .chip.new { color: var(--accent); } .chip.drift { color: var(--alt); }
+details.pr { border: 1px solid var(--rule); background: var(--surface); border-radius: 6px; margin: 10px 0; max-width: 72ch; }
+details.pr summary { cursor: pointer; padding: 10px 14px; font-weight: 600; list-style: none; }
+details.pr summary::-webkit-details-marker { display: none; }
+details.pr summary::before { content: "▸"; color: var(--muted); margin-right: 8px; display: inline-block; transition: transform .15s; }
+details.pr[open] summary::before { transform: rotate(90deg); }
+details.pr .body { padding: 0 14px 12px; font-size: 15px; }
+details.pr .body p { margin: 6px 0; }
+.filt { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.filt button { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); cursor: pointer; }
+.filt button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+</style>
+<style>.qs li > span { min-width: 0; overflow-wrap: anywhere; }</style>
+<div class="page">
+<nav class="toc" aria-label="Sections">
+  <div class="eyebrow" style="padding:0 8px 8px">Step 2.6</div>
+  <ol>
+    <li><a href="#m1"><span class="n">1</span>The model object</a></li>
+    <li><a href="#m2"><span class="n">2</span>One evaluation</a></li>
+    <li><a href="#m3"><span class="n">3</span>Kernels &amp; speed</a></li>
+    <li><a href="#m4"><span class="n">4</span>Simplex</a></li>
+    <li><a href="#m5"><span class="n">5</span>Diagnostics</a></li>
+    <li><a href="#m6"><span class="n">6</span>Audit</a></li>
+    <li><a href="#m7"><span class="n">7</span>To decide</a></li>
+  </ol>
+</nav>
+<main>
+<header class="top">
+  <div class="eyebrow">pastry walkthrough · Phase 2 · level L2–L3</div>
+  <h1>The model object and its kernels</h1>
+  <p class="lede">The code under everything: <code>model.py</code> (317 lines), <code>_kernels.py</code> (176) and <code>_simplex.py</code> (73). The math was step 2.1; this is how it is laid out, how fast it is, and what the model-map audit found.</p>
+</header>
+
+<section id="m1">
+  <div class="sec-head"><span class="n">§1</span><h2>What a PopulationModel holds</h2></div>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>Attribute</th><th>What</th></tr>
+    <tr><td><code>likelihoods</code></td><td>the user's <code>Likelihoods</code> (rows scaled to max 1, log-scales kept)</td></tr>
+    <tr><td><code>prior_spec</code>, <code>prior</code></td><td>the user's prior (default <code>Dirichlet(1.0)</code>, D3) and its version bound to the bins</td></tr>
+    <tr><td><code>selection_spec</code>, <code>selection</code>, <code>selection_mode</code>, <code>_detect</code></td><td>the selection object, its values, its mode, and S/max S for imputation (2.4)</td></tr>
+    <tr><td><code>_L</code></td><td>the effective matrix: columns × S for on-truth selection; otherwise the stored rows themselves (shared, not copied)</td></tr>
+    <tr><td><code>_w</code>, <code>W</code>, <code>_ll_const</code></td><td>weights, their sum, and Σ w<sub>i</sub> log-scale<sub>i</sub> (restores absolute log-likelihoods)</td></tr>
+  </table></div>
+  <p>Its methods come in three groups:</p>
+  <ul>
+    <li><strong>Unconstrained space</strong> (what NUTS, Laplace and L-BFGS see): <code>log_prob_and_grad</code>, <code>log_prob</code>, <code>to_value</code>, <code>to_rho</code>, <code>transform</code>, <code>from_value</code>.</li>
+    <li><strong>Fraction/rate space</strong>: <code>log_likelihood</code>, <code>log_prior</code>, <code>log_posterior</code>, <code>expected_counts</code>, <code>responsibilities</code>, <code>sample_prior</code>, <code>prior_transform</code>, <code>stack</code>.</li>
+    <li><strong>Diagnostics</strong>: <code>kkt_gap</code>, <code>missing_information</code>.</li>
+  </ul>
+  <p class="note"><code>log_prob</code> (in x, Jacobian included) and <code>log_posterior</code> (on the simplex) are different densities with similar names; this is exactly what #15 asks to make explicit.</p>
+</section>
+
+<section id="m2">
+  <div class="sec-head"><span class="n">§2</span><h2>One evaluation of <code>log_prob_and_grad(x)</code></h2></div>
+  <ol>
+    <li><code>prior.forward(x)</code> → logits η (fractions) or log-rates, plus a cache.</li>
+    <li>value = softmax(η) or exp(η); non-finite → −∞.</li>
+    <li><code>_ll_and_deta(value)</code>: the kernel's two passes over $L$ give $\ell$ and $\hat n$; then the selection or rate terms: $-W\log(S\cdot\rho)$ with $\hat n - W\rho S/(S\cdot\rho)$, or $-S\cdot\lambda$ with $\hat n - S\lambda$.</li>
+    <li><code>prior.log_prior_and_grad(x, cache, value, d_eta)</code>: adds the prior density in x (Jacobian included) and chains $\partial\ell/\partial\eta$ back to x (for ILR: $V^{\top}(\cdot)$).</li>
+    <li>Returns $\ell + \log p_x + $ <code>_ll_const</code>.</li>
+  </ol>
+  <p>About a dozen lines; every gradient engine uses only this. Two notes:</p>
+  <ul>
+    <li><strong>Impossible objects.</strong> If any $L_i\cdot\rho \le 10^{-250}$ the whole evaluation is −∞ with a zero gradient. NUTS treats it as a divergence and rejects. The test counts every row, including rows with weight 0 (audit M-1).</li>
+    <li><strong><code>transform(X)</code></strong> maps draws one at a time in Python. Fine for 4000 draws; worth vectorising for long runs and large K.</li>
+  </ul>
+</section>
+
+<section id="m3">
+  <div class="sec-head"><span class="n">§3</span><h2>The kernels, and how fast they are</h2></div>
+  <div class="files">_kernels.py · loglike_and_counts, responsibilities, sample_labels (dense / CSR), sample_counts</div>
+  <ul>
+    <li><strong>Likelihood + gradient:</strong> $s = L\rho$, $\ell = w\cdot\log s$, $\hat n = \rho\odot L^{\top}(w/s)$. Two reads of $L$, dense or CSR, no Python loop.</li>
+    <li><strong>Responsibilities</strong> and <strong>label draws</strong> work in chunks of 65,536 rows. Dense labels use a per-row cumulative sum and one uniform per object; CSR labels normalise each row first and search one global cumulative sum (no per-row Python).</li>
+    <li><strong>Counts with integer weights</strong> draw $\mathrm{Mult}(w_i, r_i)$ per compressed row.</li>
+  </ul>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>N × K</th><th>dense float64</th><th>implied bandwidth</th><th>CSR (58% non-zero)</th></tr>
+    <tr><td>20,000 × 80</td><td>1.2 ms</td><td>22 GB/s</td><td>1.6 ms</td></tr>
+    <tr><td>200,000 × 100</td><td>26 ms</td><td>12 GB/s</td><td>44 ms</td></tr>
+    <tr><td>1,000,000 × 50</td><td>93 ms</td><td>9 GB/s</td><td>110 ms</td></tr>
+  </table></div>
+  <p class="note">One likelihood + gradient, single BLAS thread, this container. Gaussian rows with σ of about 1–8 bins (hence 58% non-zero after a 1e-8 cut). Script: <code>experiments/2.6_kernel_speed.py</code>.</p>
+  <p><strong>What this means for "blazing fast" (#33):</strong></p>
+  <ul>
+    <li>The evaluation is <strong>memory-bound</strong>: its cost is reading $L$ twice. NUTS needs hundreds of evaluations per draw at large K, so at 10⁶ objects a run is minutes. The levers, in order: read $L$ once per evaluation (a fused kernel: about 2×), compress duplicate rows (already there), use several cores, and use a GPU (post-v1).</li>
+    <li><strong>Sparse storage pays only when rows are mostly zero.</strong> At 58% non-zero it is slower than dense; <code>from_samples</code> switches at 30%. The threshold should come from a benchmark.</li>
+    <li><strong>A dtype trap.</strong> A float32 matrix mixed with float64 vectors was 4–9× slower here (NumPy silently converts L on every call). With consistent float32 inputs it matched float64 speed in this container and halves memory. <code>Likelihoods</code> stores float64 today, so nobody hits the trap; a float32 option must keep every array in the same dtype.</li>
+  </ul>
+</section>
+
+<section id="m4">
+  <div class="sec-head"><span class="n">§4</span><h2>Simplex helpers</h2></div>
+  <div class="files">_simplex.py · helmert_basis (cached), softmax, log_softmax, clr, ilr, ilr_inv</div>
+  <ul>
+    <li>The Helmert basis $V$ ($K\times(K-1)$, orthonormal, columns summing to zero) is built once per K and frozen.</li>
+    <li>Softmax and log-softmax subtract the maximum first; <code>clr</code> takes logs, so it needs strictly positive ρ (the samplers never produce exact zeros).</li>
+    <li>The Jacobian $\sqrt K\prod_k\rho_k$ is documented in the module docstring; the prior classes apply it (2.1 §7).</li>
+    <li>Parked from 2.1: tree-matched balance bases instead of Helmert for tree priors and many-empty-bin grids (3.1 / 4.2).</li>
+  </ul>
+</section>
+
+<section id="m5">
+  <div class="sec-head"><span class="n">§5</span><h2>The two diagnostics</h2></div>
+  <h3><code>kkt_gap(value)</code></h3>
+  <p>With $G_k = \partial\log p/\partial\rho_k$ (likelihood, selection and, by default, prior), the gap is $\max_k(G_k - \rho\cdot G)/W$: zero at the optimum, and how far the best single-bin move would improve things otherwise (2.1 §6). Audit:</p>
+  <ul>
+    <li><strong>M-3:</strong> at a point where an object is impossible, the arithmetic produces NaN and Python's <code>max(0.0, nan)</code> returns 0.0, a false "optimal". Fix: return ∞ when any $L_i\cdot\rho = 0$.</li>
+    <li><strong>M-4:</strong> for rates the gap has units of 1/λ, so the same 1% error reads 1.8e-8 or 1.8e-2 depending on the exposure's units. Fix: a relative form, $\hat n_k/(\lambda_k S_k) - 1$, the analogue of the fractions version.</li>
+  </ul>
+  <h3><code>missing_information(value)</code></h3>
+  <p>The largest generalised eigenvalue of (missing information, complete information) in ILR coordinates, on at most 20,000 objects. It predicts EM's linear rate and the Gibbs autocorrelation, so it is a natural input to the adaptive engine choice (#14). Audit M-2: with selection it uses the wrong complete and observed information (0.50 where the true EM rate is 0.85), and it ignores the prior. The corrected formula (complete information $W/(S\cdot\rho)\,(\mathrm{diag}\,\rho-\rho\rho^{\top})$, observed $W(\mathrm{diag}\,\phi-\phi\phi^{\top}) - I_m$, plus the prior's $(A-K)(\cdot)$ term) matched the numerical EM rate to 4 decimals.</p>
+</section>
+
+<section id="m6">
+  <div class="sec-head"><span class="n">§6</span><h2>The model-map audit, in one place</h2></div>
+  <p>The core math checks out everywhere (finite differences and brute-force optimisation to 1e-8). The findings are at the edges; all are fixed after the walkthrough (#13).</p>
+  <div class="filt" role="group" aria-label="Filter findings">
+    <button data-f="all" aria-pressed="true">all</button><button data-f="bug" aria-pressed="false">bugs</button><button data-f="num" aria-pressed="false">numerics &amp; speed</button><button data-f="tidy" aria-pressed="false">consistency</button>
+  </div>
+  <div class="tblwrap"><table class="tbl" id="aud">
+    <tr><th>ID</th><th>Finding</th></tr>
+    <tr data-s="bug"><td>M-1</td><td><strong>Major.</strong> Rows with weight 0 still count in the impossibility test, so bootstrap EM resets to the prior mode or, for rates, to all zeros (79 of 200 replicates, silently)</td></tr>
+    <tr data-s="bug"><td>M-2</td><td><code>missing_information</code> wrong with selection; ignores the prior</td></tr>
+    <tr data-s="bug"><td>M-3</td><td><code>kkt_gap</code> = 0 where the likelihood is −∞</td></tr>
+    <tr data-s="num"><td>M-4</td><td>rates KKT gap depends on exposure units</td></tr>
+    <tr data-s="num"><td>M-5</td><td>mix-SQP spends ~90% of its time in an SVD and a 50-step EM warm start it doesn't need (10.2 s total, ~1 s solving, N = 2×10⁵)</td></tr>
+    <tr data-s="num"><td>M-6</td><td>EM/SQUAREM stop on step size, not optimality; rates always use EM</td></tr>
+    <tr data-s="bug"><td>M-7</td><td>rates start value off by 1/(S·φ) with selection</td></tr>
+    <tr data-s="tidy"><td>M-8</td><td><code>PointEstimate.log_posterior</code> has three meanings</td></tr>
+    <tr data-s="tidy"><td>M-9</td><td><code>tol</code> means something different in each algorithm</td></tr>
+    <tr data-s="tidy"><td>M-10</td><td>weight overrides implemented three times (one helper would also fix M-1)</td></tr>
+    <tr data-s="tidy"><td>M-11</td><td>selection imputation written out three times</td></tr>
+    <tr data-s="tidy"><td>M-12</td><td>dead code, small cleanups</td></tr>
+    <tr data-s="bug"><td>M-13</td><td><code>nnls</code> failure not caught</td></tr>
+    <tr data-s="bug"><td>M-14</td><td><code>LogisticGP()</code> crashes for K = 2 (priors slice)</td></tr>
+  </table></div>
+  <p class="note">MAP, EM, SQUAREM and mix-SQP themselves are the subject of 4.4; their findings are listed here because they share the kernels.</p>
+</section>
+
+<section id="m7">
+  <div class="sec-head"><span class="n">§7</span><h2>To decide</h2></div>
+  <ul class="qs">
+    <li><span class="tag">§3</span><span>Speed plan for v1: a fused single-pass kernel (optional compiled extra, e.g. numba, with the NumPy path as fallback), multi-core by default where safe, and benchmarks of dense vs sparse thresholds in the 4.6 matrix?</span></li>
+    <li><span class="tag">§3</span><span>Offer float32 storage (half the memory) with all arrays kept in one dtype, after checking the accuracy of log-likelihood sums?</span></li>
+    <li><span class="tag">§5</span><span>KKT gap: ∞ at impossible points; relative form for rates (M-3, M-4)?</span></li>
+    <li><span class="tag">§6</span><span>One rule for the rewrite: each concept implemented once (weights, imputation, tolerance), as M-10/M-11 suggest?</span></li>
+  </ul>
+</section>
+</main>
+</div>
+<script>
+(function () {
+  const btns = document.querySelectorAll(".filt button"), rows = document.querySelectorAll("#aud tr[data-s]");
+  btns.forEach((b) => b.addEventListener("click", () => {
+    btns.forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+    const f = b.dataset.f; rows.forEach((r) => { r.style.display = (f === "all" || r.dataset.s === f) ? "" : "none"; });
+  }));
+})();
+</script>

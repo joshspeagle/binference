@@ -241,3 +241,7 @@ Append-only. One entry per working session (or per step within a long session).
 
 - Published `2.5-individuals.html`: realised counts, assignment probabilities, value draws, predictive methods; explorer of one object's value posterior (histogram vs B-spline, numbers verified in Node; corrected a claim that broad errors remove the effect).
 - Josh: value draws from within-bin info (#50), `_best` suffix for plug-in per-object outputs (#51), leave-one-out on the to-do list (#52), full-sample realised counts (#53). Step 2.5 done; next 2.6.
+
+## 2026-10-25: step 2.6 page
+
+- Published `2.6-model-core.html`: model attributes and methods, one evaluation, kernels with a speed benchmark (`experiments/2.6_kernel_speed.py`; memory-bound, dtype-mixing trap), simplex helpers, kkt_gap and missing_information with audit fixes, M-1…M-14 table.
