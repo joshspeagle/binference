@@ -121,7 +121,7 @@ def save_result(result: PopulationResult, path: str) -> None:
         meta["basis"] = _basis_meta(result.basis)
         payload["component_draws"] = result.component_draws
     if result.kind == "fractions" and result._total is not None:
-        payload["total"] = result._total  # derived draws: kept so a load reproduces them
+        payload["total"] = result._total  # random draws: kept so a load reproduces them
     payload["meta"] = np.array(json.dumps(meta))
     payload.update(arrays)
     if result.log_density_unconstrained is not None:
@@ -200,8 +200,8 @@ def to_datatree(result: PopulationResult):
         "bin": np.asarray(_bin_labels(result.bins), dtype=str),
     }
     data_vars = {"rho": (("chain", "draw", "bin"), C)}
-    if result.rates is not None:
-        data_vars["rate"] = (("chain", "draw", "bin"), result._draws)
+    if result.total is not None:
+        data_vars["rate"] = (("chain", "draw", "bin"), result._total[..., None] * C)
     post = xr.Dataset(
         data_vars,
         coords=coords,

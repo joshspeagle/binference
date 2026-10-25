@@ -38,6 +38,7 @@ from .likelihoods import Likelihoods, _scale_columns
 from .priors import Dirichlet, PopulationPrior
 from .priors.base import BoundPrior
 from .priors.dirichlet import _BoundDirichlet
+from .priors.rates import _gamma_draw
 from .selection import Selection, as_selection
 
 __all__ = ["PopulationModel"]
@@ -125,6 +126,23 @@ class PopulationModel:
         self._ll_const = float(np.dot(self._w, likelihoods.log_scale))
 
     # ----------------------------------------------------------- properties
+    @property
+    def total_exposure(self) -> np.ndarray | None:
+        r""":math:`S` of the Poisson law of the number of objects, :math:`W \sim
+        \mathrm{Poisson}(\Lambda\,S\cdot\rho)`: detection probabilities or exposures
+        (ones without a selection); ``None`` for a relative selection, which
+        leaves the total unidentified (DECISIONS #46)."""
+        sel = self.selection_spec
+        return None if sel is not None and sel.scale == "relative" else self._S
+
+    def draw_total(self, value: np.ndarray, rng: np.random.Generator) -> np.ndarray | None:
+        r"""Draws of the total :math:`\Lambda \mid \rho \sim \mathrm{Gamma}(W, S\cdot\rho)`,
+        one per row of fractions ``value`` ``(..., K)``: its exact posterior under
+        :math:`p(\Lambda) \propto 1/\Lambda` (DECISIONS #9, #78); ``None`` without
+        :attr:`total_exposure`."""
+        S = self.total_exposure
+        return None if S is None else _gamma_draw(self.W, np.asarray(value) @ S, rng)
+
     @property
     def bins(self) -> Bins:
         return self.likelihoods.bins

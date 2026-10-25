@@ -98,3 +98,5 @@ def test_to_datatree(res1d):
     dt = res1d.to_datatree()
     assert "posterior" in dt.children
     assert dt["posterior"]["rho"].shape == (4, 100, 12)
+    # rates of a fractions fit are the derived ones, not the fractions (DECISIONS #78)
+    np.testing.assert_allclose(dt["posterior"]["rate"].values.reshape(-1, 12), res1d.rates)

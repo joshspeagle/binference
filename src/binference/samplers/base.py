@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 
 from .. import _kernels as kern
-from .._utils import RNGLike, as_generator
+from .._utils import RNGLike, as_generator, spawn
 from ..model import PopulationModel
 
 __all__ = ["Engine"]
@@ -38,7 +38,7 @@ class Engine:
         Spawned on first use, after the chains, so their streams are unchanged.
         """
         if self._result_seed is None:
-            self._result_seed = self.rng.spawn(1)[0].bit_generator.seed_seq
+            self._result_seed = spawn(self.rng, 1)[0].bit_generator.seed_seq
         return np.random.default_rng(self._result_seed)
 
     def run(self, *args: Any, **kwargs: Any):  # pragma: no cover - abstract

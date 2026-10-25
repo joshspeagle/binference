@@ -41,9 +41,10 @@ def _draws(result: Any, which: str) -> np.ndarray:
     if which == "fraction":
         return result.samples
     if which == "rate":
-        if result.rates is None:
+        rates = result.rates
+        if rates is None:
             raise ValueError("No rates in this result.")
-        return result.rates
+        return rates
     raise ValueError("which must be 'density', 'fraction' or 'rate'.")
 
 
@@ -94,7 +95,7 @@ def plot_population(
     X = _draws(result, which)
     med = np.median(X, axis=0)
     # overlays of rates (and of densities of rate models) are scaled to the mean total
-    scaled = which == "rate" or getattr(result, "kind", "fractions") == "rates"
+    scaled = which == "rate" or result.kind == "rates"
     total = float(np.mean(result.total)) if scaled else 1.0
     if bins.ndim == 2 and not bins.is_categorical:
         return _plot_2d(result, X, plt, ax)
