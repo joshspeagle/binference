@@ -1,14 +1,14 @@
-# Contributing to pastry
+# Contributing to binference
 
-Thanks for helping. pastry aims to be small, correct and pleasant to use. The
+Thanks for helping. binference aims to be small, correct and pleasant to use. The
 bar for a change is that it keeps the posterior exact (or clearly labels an
 approximation), comes with tests, and reads like the code around it.
 
 ## Development set-up
 
 ```bash
-git clone https://github.com/joshspeagle/pastry
-cd pastry
+git clone https://github.com/joshspeagle/binference
+cd binference
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pre-commit install          # ruff lint + format on every commit
@@ -19,11 +19,11 @@ pre-commit install          # ruff lint + format on every commit
 ```bash
 pytest                      # fast suite (about 80 s); warnings are errors
 pytest -m slow              # statistical validation: SBC, coverage, Geweke (about 10 min)
-pytest --cov=pastry         # coverage report
+pytest --cov=binference         # coverage report
 ```
 
-* `PASTRY_TEST_SEEDS="0,1,2" pytest` repeats the seeded tests over several seeds.
-* Every engine is checked against exact posteriors from `pastry.validation.exact_posterior`.
+* `BINFERENCE_TEST_SEEDS="0,1,2" pytest` repeats the seeded tests over several seeds.
+* Every engine is checked against exact posteriors from `binference.validation.exact_posterior`.
   A new engine or prior needs the same: an exact or conjugate reference in the
   fast suite and, for new samplers, an SBC or Geweke test in `tests/test_slow.py`.
 * Statistical tolerances are set from Monte Carlo standard errors (see
@@ -46,17 +46,17 @@ pytest --cov=pastry         # coverage report
   `ApproximationWarning`.
 * Docstrings follow the NumPy convention and render in the API reference.
 
-## Extending pastry
+## Extending binference
 
-* **Priors** subclass `pastry.priors.base.Prior` (the user-facing
+* **Priors** subclass `binference.priors.base.Prior` (the user-facing
   specification) and return a `BoundPrior` from `bind(bins)`. A bound prior
   maps unconstrained coordinates to log-fractions or log-rates (`forward`) and
   returns the log prior and its gradient (`log_prior_and_grad`). Conjugate
   priors also implement `posterior_sample`, `map_from_counts` and the `vb_*`
   hooks, and so work with Gibbs, EM and VB.
-* **Engines** subclass `pastry.samplers.base.Engine`. They take a
+* **Engines** subclass `binference.samplers.base.Engine`. They take a
   `PopulationModel` and return a `PopulationResult` (draws) or a
-  `PointEstimate`. Register user-facing engines in `pastry.inference.METHODS`.
+  `PointEstimate`. Register user-facing engines in `binference.inference.METHODS`.
 * **Likelihood constructors** are `Likelihoods.from_*` class methods that
   return bin-averaged likelihoods. Inputs that carry an interim prior must
   require it explicitly.

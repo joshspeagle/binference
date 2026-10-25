@@ -1,4 +1,4 @@
-"""Per-object likelihoods over bins: the main input to pastry."""
+"""Per-object likelihoods over bins: the main input to binference."""
 
 from __future__ import annotations
 
@@ -139,7 +139,7 @@ class Likelihoods:
     r"""Bin-averaged per-object likelihoods :math:`L_{ik} \propto p(d_i \mid z_i \in B_k)`.
 
     This container holds the ``(N, K)`` matrix of likelihoods of every object
-    for every bin, together with the :class:`~pastry.Bins`, optional object
+    for every bin, together with the :class:`~binference.Bins`, optional object
     weights, an optional selection function, and provenance metadata. Rows
     are stored normalised to a maximum of one (their scales never affect
     inference on the population); the per-row log-scales are kept so that
@@ -172,7 +172,7 @@ class Likelihoods:
         Required with an array-valued ``selection``: whether objects are
         selected on their observed data (or the likelihoods already include the
         detection probability), or detected with a probability that depends on
-        their true bin. See :class:`~pastry.selection.Selection`.
+        their true bin. See :class:`~binference.selection.Selection`.
     drop_empty : bool
         Drop all-zero rows with a warning instead of raising.
     log : bool
@@ -180,9 +180,9 @@ class Likelihoods:
 
     Examples
     --------
-    >>> import numpy as np, pastry
-    >>> bins = pastry.Bins.linear(0, 1, 4)
-    >>> lk = pastry.Likelihoods(np.array([[1, 2, 1, 0], [0, 1, 3, 1.0]]), bins)
+    >>> import numpy as np, binference
+    >>> bins = binference.Bins.linear(0, 1, 4)
+    >>> lk = binference.Likelihoods(np.array([[1, 2, 1, 0], [0, 1, 3, 1.0]]), bins)
     >>> lk.N, lk.K
     (2, 4)
     """
@@ -207,7 +207,7 @@ class Likelihoods:
         N, K = norm.shape
         bins = Bins.categories(K) if bins is None else bins
         if not isinstance(bins, Bins):
-            raise TypeError("bins must be a pastry.Bins instance.")
+            raise TypeError("bins must be a binference.Bins instance.")
         if bins.K != K:
             raise ValueError(f"values have K={K} columns but bins have K={bins.K}.")
         if representation == "mass":
@@ -271,7 +271,7 @@ class Likelihoods:
 
     @property
     def bins(self) -> Bins:
-        """The :class:`~pastry.Bins` the likelihoods are defined over."""
+        """The :class:`~binference.Bins` the likelihoods are defined over."""
         return self._bins
 
     @property
@@ -283,7 +283,7 @@ class Likelihoods:
     def selection(self) -> Selection | None:
         """Selection function attached to the data, if any.
 
-        See :class:`~pastry.Selection`.
+        See :class:`~binference.Selection`.
         """
         return self._selection
 

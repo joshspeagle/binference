@@ -1,6 +1,6 @@
 # User guide
 
-The user guide explains how pastry is organised and how to make good choices.
+The user guide explains how binference is organised and how to make good choices.
 The [tutorials](../tutorials/index) show complete analyses, and the
 [theory](../theory) page has the maths.
 

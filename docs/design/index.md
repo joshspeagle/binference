@@ -1,6 +1,6 @@
 # Design notes
 
-These documents record how pastry was designed: what the package must do,
+These documents record how binference was designed: what the package must do,
 how it is tested, how it is built, and what already exists elsewhere.
 
 ```{toctree}

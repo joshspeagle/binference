@@ -4,9 +4,9 @@ import numpy as np
 import pytest
 from scipy import integrate, special, stats
 
-from pastry import Bins
-from pastry import priors as P
-from pastry._simplex import helmert_basis, softmax
+from binference import Bins
+from binference import priors as P
+from binference._simplex import helmert_basis, softmax
 
 B3 = Bins.linear(0.0, 3.0, 3)
 B4 = Bins.linear(0.0, 4.0, 4)
@@ -243,7 +243,7 @@ def test_fixed_and_as_hyperprior():
     assert f.fixed and f.median() == 2.0
     with pytest.raises(ValueError):
         P.Fixed(-1.0)
-    from pastry.priors.hyper import as_hyperprior
+    from binference.priors.hyper import as_hyperprior
 
     assert isinstance(as_hyperprior(3), P.Fixed)
     with pytest.raises(TypeError):

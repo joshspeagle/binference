@@ -1,7 +1,7 @@
 r"""Selection functions (detection probabilities or exposures per bin).
 
 Selection enters the likelihood in one of two ways, and choosing the wrong one
-biases the population (Mandel, Farr & Gair 2019). pastry therefore requires
+biases the population (Mandel, Farr & Gair 2019). binference therefore requires
 the mode to be stated explicitly:
 
 ``mode="observed"``

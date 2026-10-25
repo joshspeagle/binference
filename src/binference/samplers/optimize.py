@@ -124,7 +124,7 @@ def _mixsqp(
 class MAP(Engine):
     r"""Maximum a posteriori (or maximum-likelihood) estimate of the population.
 
-    For conjugate priors (Dirichlet family, :class:`~pastry.priors.GammaRates`)
+    For conjugate priors (Dirichlet family, :class:`~binference.priors.GammaRates`)
     the posterior mode on the simplex is found by EM -- "iterated stacking",
     :math:`\rho_k \leftarrow \sum_i w_i r_{ik}(\rho)/W` plus prior pseudo-counts --
     accelerated with SQUAREM (Varadhan & Roland 2008). For a ``Dirichlet``

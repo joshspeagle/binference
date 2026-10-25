@@ -8,14 +8,14 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-import pastry
+import binference
 
-mock = pastry.simulate.mock_1d(2000, rng=42)
+mock = binference.simulate.mock_1d(2000, rng=42)
 lk = mock.likelihoods
 stack = lk.stack()
 
-flat = pastry.infer(lk, rng=1)
-smooth = pastry.infer(lk, pastry.priors.LogisticGP(), rng=1)
+flat = binference.infer(lk, rng=1)
+smooth = binference.infer(lk, binference.priors.LogisticGP(), rng=1)
 
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), sharey=True, constrained_layout=True)
 flat.plot(ax=axes[0], truth=mock.truth.rho, stack=stack)

@@ -9,7 +9,7 @@ kernelspec:
 
 # Choosing an engine
 
-pastry offers several ways to compute the same posterior. This tutorial runs
+binference offers several ways to compute the same posterior. This tutorial runs
 all of them on one problem and compares accuracy, speed and diagnostics. The
 default, NUTS, serves as the reference.
 
@@ -20,10 +20,10 @@ import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 
-import pastry
+import binference
 
 plt.rcParams["figure.dpi"] = 110
-mock = pastry.simulate.mock_1d(1500, pastry.Bins.linear(0, 3, 20), noise=(0.1, 0.3), rng=11)
+mock = binference.simulate.mock_1d(1500, binference.Bins.linear(0, 3, 20), noise=(0.1, 0.3), rng=11)
 lk = mock.likelihoods
 ```
 
@@ -35,10 +35,10 @@ for method in ["nuts", "gibbs", "laplace", "vb", "bootstrap"]:
     t0 = time.perf_counter()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")      # we look at the diagnostics ourselves below
-        fits[method] = pastry.infer(lk, method=method, rng=1, check=False)
+        fits[method] = binference.infer(lk, method=method, rng=1, check=False)
     times[method] = time.perf_counter() - t0
 t0 = time.perf_counter()
-est = pastry.infer(lk, method="map")
+est = binference.infer(lk, method="map")
 times["map"] = time.perf_counter() - t0
 print({k: f"{v:.1f} s" for k, v in times.items()})
 ```
@@ -70,7 +70,7 @@ for ax in axes:
   Monte Carlo noise.
 - **Mean-field VB** is far too narrow. It ignores the coupling between the
   galaxies' bins and the population, which is strong when likelihoods are
-  broad. pastry always flags its results as approximate.
+  broad. binference always flags its results as approximate.
 - **Laplace** is approximate, and its Pareto $\hat k$ says how far to trust
   it.
 - **Bootstrap** describes the spread of the MAP estimate over resampled
@@ -94,7 +94,7 @@ second:
 for m in ["nuts", "gibbs"]:
     ess = fits[m].diagnostics["ess_bulk"]
     print(f"{m:6s} min bulk ESS {ess.min():7.0f}  ->  {ess.min() / times[m]:7.1f} per second")
-model = pastry.PopulationModel(lk)
+model = binference.PopulationModel(lk)
 print("fraction of missing information:", round(model.missing_information(est.rho), 3))
 ```
 
@@ -110,24 +110,24 @@ known, Gibbs mixes almost instantly, and a sweep costs less than a NUTS
 trajectory.
 
 ```{code-cell} python
-narrow = pastry.simulate.mock_1d(1500, pastry.Bins.linear(0, 3, 20), noise=(0.01, 0.03), rng=11)
+narrow = binference.simulate.mock_1d(1500, binference.Bins.linear(0, 3, 20), noise=(0.01, 0.03), rng=11)
 for m in ["nuts", "gibbs"]:
     t0 = time.perf_counter()
-    r = pastry.infer(narrow.likelihoods, method=m, rng=1, check=False)
+    r = binference.infer(narrow.likelihoods, method=m, rng=1, check=False)
     dt = time.perf_counter() - t0
     print(f"{m:6s} {dt:5.1f} s, min ESS per second: {r.diagnostics['ess_bulk'].min() / dt:8.1f}")
 ```
 
 ## Diagnostics
 
-Every sampled result carries diagnostics, and `pastry.infer` warns
+Every sampled result carries diagnostics, and `binference.infer` warns
 automatically when they look bad. Here is what a problem looks like. A
 deliberately short Gibbs run on the broad problem triggers a warning:
 
 ```{code-cell} python
 with warnings.catch_warnings(record=True) as caught:
     warnings.simplefilter("always")
-    short = pastry.infer(lk, method="gibbs", rng=3, n_warmup=20, n_samples=100)
+    short = binference.infer(lk, method="gibbs", rng=3, n_warmup=20, n_samples=100)
 print(caught[0].message if caught else "no warnings")
 ```
 

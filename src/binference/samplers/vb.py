@@ -25,7 +25,7 @@ class MeanFieldVB(Engine):
     estimates posterior widths**, severely so when per-object PDFs are broad
     compared with the bins (it ignores the correlation between labels and the
     population). Results are always flagged ``approximate=True`` and emit an
-    :class:`~pastry.ApproximationWarning`; prefer NUTS for error bars.
+    :class:`~binference.ApproximationWarning`; prefer NUTS for error bars.
 
     With a selection function on fractions, the expected number of missed
     objects is plugged in at the current mean (an additional approximation).

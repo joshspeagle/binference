@@ -16,7 +16,7 @@ likelihoods, posteriors, samples, binned measurements or classifier outputs.
 
 | Path | What it is |
 |---|---|
-| `src/pastry/` | the package |
+| `src/binference/` | the package |
 | `tests/` | the pytest suite; `slow` marks statistical tests |
 | `docs/` | the Sphinx site in MyST Markdown; `docs/tutorials/` are executed notebooks; `docs/design/` holds the spec and plans |
 | `benchmarks/` | timing scripts, run by hand |

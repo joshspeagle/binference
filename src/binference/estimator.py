@@ -1,4 +1,4 @@
-"""A scikit-learn style estimator wrapper around :func:`pastry.infer`."""
+"""A scikit-learn style estimator wrapper around :func:`binference.infer`."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ class PopulationEstimator:
     """Population inference with the scikit-learn estimator conventions.
 
     ``fit(X)`` infers the population from per-object likelihoods ``X`` (a
-    :class:`~pastry.Likelihoods` or an ``(N, K)`` array) and stores the result
+    :class:`~binference.Likelihoods` or an ``(N, K)`` array) and stores the result
     in ``result_``. ``predict_proba(X)`` gives per-object posteriors over bins
     for (new) objects under the inferred population, and ``score(X)`` the mean
     log posterior-predictive density per object, which can be used to compare
@@ -34,7 +34,7 @@ class PopulationEstimator:
     prior : Prior, optional
         Population prior (default ``Dirichlet(1.0)``).
     method : str
-        Inference engine (see :func:`pastry.infer`).
+        Inference engine (see :func:`binference.infer`).
     selection : array_like (K,) or Selection, optional
         Selection function.
     selection_mode : {"observed", "true"}, optional

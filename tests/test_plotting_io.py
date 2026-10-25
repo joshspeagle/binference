@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-import pastry
-from pastry import Bins, PopulationResult
+import binference
+from binference import Bins, PopulationResult
 
 mpl = pytest.importorskip("matplotlib")
 mpl.use("Agg")
@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 @pytest.fixture(scope="module")
 def res1d(small_1d):
-    return pastry.infer(
+    return binference.infer(
         small_1d.likelihoods,
         method="gibbs",
         rng=1,
@@ -28,13 +28,15 @@ def test_plot_1d_2d_categorical(res1d, small_1d):
     ax = res1d.plot(truth=small_1d.truth.rho, stack=small_1d.likelihoods.stack())
     assert ax.get_ylabel() == "density"
     res1d.plot(which="fraction", step=False)
-    pastry.infer(small_1d.likelihoods, method="map").plot()
-    m2 = pastry.simulate.mock_2d(200, Bins.grid(np.linspace(0, 1, 6), np.linspace(0, 1, 5)), rng=1)
-    r2 = pastry.infer(m2.likelihoods, method="gibbs", rng=1, n_samples=50, check=False)
+    binference.infer(small_1d.likelihoods, method="map").plot()
+    m2 = binference.simulate.mock_2d(
+        200, Bins.grid(np.linspace(0, 1, 6), np.linspace(0, 1, 5)), rng=1
+    )
+    r2 = binference.infer(m2.likelihoods, method="gibbs", rng=1, n_samples=50, check=False)
     axes = r2.plot()
     assert len(axes) == 2
-    mc = pastry.simulate.mock_categorical(200, 3, rng=1)
-    rc = pastry.infer(mc.likelihoods, method="gibbs", rng=1, n_samples=50, check=False)
+    mc = binference.simulate.mock_categorical(200, 3, rng=1)
+    rc = binference.infer(mc.likelihoods, method="gibbs", rng=1, n_samples=50, check=False)
     rc.plot(truth=mc.truth.rho)
     with pytest.raises(ValueError):
         res1d.plot(which="rate")
@@ -45,10 +47,10 @@ def test_corner_trace_individual_sbc(res1d):
     fig = res1d.plot_corner()
     assert fig is not None
     res1d.plot_trace(idx=[0, 1])
-    from pastry.plotting import plot_individual, plot_sbc
+    from binference.plotting import plot_individual, plot_sbc
 
     plot_individual(res1d, 0)
-    sbc = pastry.validation.SBCResult(
+    sbc = binference.validation.SBCResult(
         np.random.default_rng(1).integers(0, 20, (30, 3)), 19, ["a", "b", "c"]
     )
     plot_sbc(sbc)
@@ -73,10 +75,10 @@ def test_save_load_round_trip(res1d, small_1d, tmp_path):
 
 
 def test_save_load_categories_and_rates(tmp_path):
-    mc = pastry.simulate.mock_categorical(100, 3, rng=1)
-    r = pastry.infer(
+    mc = binference.simulate.mock_categorical(100, 3, rng=1)
+    r = binference.infer(
         mc.likelihoods,
-        pastry.priors.GammaRates(1.0, 1e-2),
+        binference.priors.GammaRates(1.0, 1e-2),
         method="gibbs",
         rng=1,
         n_samples=30,

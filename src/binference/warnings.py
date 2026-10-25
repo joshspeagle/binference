@@ -1,19 +1,19 @@
-"""Warning classes emitted by pastry.
+"""Warning classes emitted by binference.
 
-All warnings derive from :class:`PastryWarning`, so they can be filtered in one
-place, e.g. ``warnings.simplefilter("ignore", pastry.PastryWarning)``.
+All warnings derive from :class:`BinferenceWarning`, so they can be filtered in one
+place, e.g. ``warnings.simplefilter("ignore", binference.BinferenceWarning)``.
 """
 
 from __future__ import annotations
 
-__all__ = ["ApproximationWarning", "ConvergenceWarning", "InputWarning", "PastryWarning"]
+__all__ = ["ApproximationWarning", "BinferenceWarning", "ConvergenceWarning", "InputWarning"]
 
 
-class PastryWarning(UserWarning):
-    """Base class for all pastry warnings."""
+class BinferenceWarning(UserWarning):
+    """Base class for all binference warnings."""
 
 
-class InputWarning(PastryWarning):
+class InputWarning(BinferenceWarning):
     """Inputs look inconsistent with the declared conventions.
 
     Examples: posterior masses whose rows do not sum to one, values that look
@@ -21,7 +21,7 @@ class InputWarning(PastryWarning):
     """
 
 
-class ConvergenceWarning(PastryWarning):
+class ConvergenceWarning(BinferenceWarning):
     """A sampler or optimiser shows signs of non-convergence.
 
     Examples: large R-hat, low effective sample size, divergent transitions, or
@@ -29,7 +29,7 @@ class ConvergenceWarning(PastryWarning):
     """
 
 
-class ApproximationWarning(PastryWarning):
+class ApproximationWarning(BinferenceWarning):
     """A result comes from an approximation with known failure modes.
 
     Mean-field variational Bayes, Laplace approximations without importance

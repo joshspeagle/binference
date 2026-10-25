@@ -1,15 +1,15 @@
 # Inference engines
 
-{func}`pastry.infer` builds the model and runs an engine in one call. The
+{func}`binference.infer` builds the model and runs an engine in one call. The
 default, NUTS, samples the exact posterior and works with every prior. The
 other engines trade generality or accuracy for speed, or answer a different
 question.
 
 ```python
 import numpy as np
-import pastry
+import binference
 
-mock = pastry.simulate.mock_1d(600, pastry.Bins.linear(0, 3, 12), rng=5)
+mock = binference.simulate.mock_1d(600, binference.Bins.linear(0, 3, 12), rng=5)
 lk = mock.likelihoods
 ```
 
@@ -26,9 +26,9 @@ lk = mock.likelihoods
 | `"auto"` | NUTS, or Laplace for very large inputs | | scripts that must scale |
 
 ```python
-res = pastry.infer(lk, rng=1, n_samples=500, n_warmup=500)         # NUTS
-gib = pastry.infer(lk, method="gibbs", rng=1, n_samples=2000, check=False)
-est = pastry.infer(lk, method="map")
+res = binference.infer(lk, rng=1, n_samples=500, n_warmup=500)         # NUTS
+gib = binference.infer(lk, method="gibbs", rng=1, n_samples=2000, check=False)
+est = binference.infer(lk, method="map")
 print(res.mean[:4].round(3), gib.mean[:4].round(3), est.rho[:4].round(3))
 ```
 
@@ -50,7 +50,7 @@ iterations, starting near the posterior mode.
   it also re-parametrises the prior and starts a dense mass matrix from the
   local curvature ([theory](../theory.md#smoothness-the-logistic-family)).
 - **Diagnostics** are computed automatically: $\hat R$, effective sample
-  sizes, divergences, tree depth and E-BFMI. `pastry.infer(check=True)`, the
+  sizes, divergences, tree depth and E-BFMI. `binference.infer(check=True)`, the
   default, warns about any problem.
 - **Parallel chains.** `n_jobs=-1` runs the chains in separate processes.
   They use the same random streams as a serial run, so the draws agree up to
@@ -61,9 +61,9 @@ Use the engine class directly to resume a run, stream draws, or inspect
 adaptation:
 
 ```python
-from pastry.samplers import NUTS
+from binference.samplers import NUTS
 
-model = pastry.PopulationModel(lk)
+model = binference.PopulationModel(lk)
 engine = NUTS(model, n_chains=2, n_warmup=400, rng=2)
 first = engine.run(200)                    # warm-up + 200 draws per chain
 more = engine.run(200)                     # 200 more, no new warm-up: 400 in total
@@ -93,14 +93,14 @@ print("Gibbs bulk ESS:", gib.diagnostics["ess_bulk"].min().round(0),
 
 A missing-information fraction near one means Gibbs will mix slowly: its
 autocorrelation time is roughly $(1+f)/(1-f)$ iterations. Use NUTS. When a
-Gibbs run fails its checks, {meth}`~pastry.PopulationResult.check` reports
+Gibbs run fails its checks, {meth}`~binference.PopulationResult.check` reports
 this number in its hint. `store_labels=True` keeps the latent labels for joint inference on
-individual objects, although {meth}`~pastry.PopulationResult.sample_assignments`
+individual objects, although {meth}`~binference.PopulationResult.sample_assignments`
 gives exact joint draws from any engine's output.
 
 ## Point estimates
 
-`method="map"` returns a {class}`~pastry.PointEstimate`.
+`method="map"` returns a {class}`~binference.PointEstimate`.
 
 - **Dirichlet priors with concentrations of at least one** (including the
   default flat prior, which gives the maximum-likelihood estimate) use
@@ -146,12 +146,12 @@ print(lap.approximate, round(lap.info["k_hat"], 2))
 
 ## Scikit-learn style
 
-{class}`~pastry.PopulationEstimator` wraps the same machinery with the
+{class}`~binference.PopulationEstimator` wraps the same machinery with the
 scikit-learn conventions: `fit`, `predict_proba`, `score`, `sample`,
 `get_params` and `set_params`. scikit-learn itself is not required.
 
 ```python
-est = pastry.PopulationEstimator(method="map").fit(lk[:400])
+est = binference.PopulationEstimator(method="map").fit(lk[:400])
 print(round(est.score(lk[400:]), 3), est.predict_proba(lk[400:403]).shape)
 ```
 

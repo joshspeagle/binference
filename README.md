@@ -1,19 +1,19 @@
-# pastry
+# binference
 
 **Population and hierarchical inference with PDFs.**
 
-pastry infers the distribution of a population, and the posteriors of the
+binference infers the distribution of a population, and the posteriors of the
 individual objects in it, from noisy per-object information over a set of
 bins: likelihoods, posteriors computed under an interim prior, posterior
 samples, response matrices or classifier outputs. It samples the exact
 hierarchical posterior by default, so the error bars on every bin, every
 derived quantity and every object are honest.
 
-![Population posteriors for a mock catalogue](docs/_static/quickstart.png)
+![Population posteriors for a mock catalogue](https://raw.githubusercontent.com/joshspeagle/binference/main/docs/_static/quickstart.png)
 
 *2000 objects whose Gaussian measurement errors are comparable to the bin
 width. Stacking the per-object PDFs (dotted) gives one curve and no
-uncertainty. With the default flat Dirichlet prior (left), pastry shows how
+uncertainty. With the default flat Dirichlet prior (left), binference shows how
 poorly the data pin down individual bins, since neighbours trade off against
 each other. A Gaussian-process prior on the log-density (right) shares
 strength between bins.*
@@ -32,15 +32,15 @@ model appears elsewhere as iterative Bayesian unfolding in particle physics,
 the NPMLE / $g$-modelling of empirical Bayes, EM quantification in machine
 learning, and mixed-stock analysis in genetics. Stacking the per-object
 posteriors computed under an interim prior is exactly one EM step from that
-prior. pastry runs the iteration to convergence and quantifies its uncertainty.
+prior. binference runs the iteration to convergence and quantifies its uncertainty.
 
 ## Installation
 
-pastry is in alpha. Until it is released on PyPI as `pastry-inference` (the
-name `pastry` is taken), install it from GitHub:
+binference is in alpha. Until it is released on PyPI as `binference` (the
+name `binference` is taken), install it from GitHub:
 
 ```bash
-pip install "pastry-inference[plot] @ git+https://github.com/joshspeagle/pastry"
+pip install "binference[plot] @ git+https://github.com/joshspeagle/binference"
 ```
 
 It needs Python ≥ 3.13, NumPy, SciPy and threadpoolctl; the `plot` extra adds matplotlib and
@@ -49,17 +49,17 @@ It needs Python ≥ 3.13, NumPy, SciPy and threadpoolctl; the `plot` extra adds 
 ## Quick start
 
 ```python
-import pastry
+import binference
 
-mock = pastry.simulate.mock_1d(2000, rng=42)   # likelihoods on 30 bins + the true population
-result = pastry.infer(mock.likelihoods, rng=1)  # NUTS on the exact posterior (the default)
+mock = binference.simulate.mock_1d(2000, rng=42)   # likelihoods on 30 bins + the true population
+result = binference.infer(mock.likelihoods, rng=1)  # NUTS on the exact posterior (the default)
 
 print(result.summary())
 result.plot(truth=mock.truth.rho)
 ```
 
 ```text
-pastry fractions posterior (nuts, 4000 draws)
+binference fractions posterior (nuts, 4000 draws)
        bin       mean         sd     median        q16       q84  ess_bulk    rhat
   [0, 0.1)   0.005989   0.003696   0.005572   0.002163  0.009778      2117       1
 [0.1, 0.2)    0.01365    0.00797    0.01306   0.005212   0.02178      1873   1.001
@@ -70,20 +70,20 @@ pastry fractions posterior (nuts, 4000 draws)
 Smoothness priors infer their own amplitude and length scale:
 
 ```python
-smooth = pastry.infer(mock.likelihoods, pastry.priors.LogisticGP(), rng=1)
+smooth = binference.infer(mock.likelihoods, binference.priors.LogisticGP(), rng=1)
 ```
 
 ## Your own data
 
 ```python skip
-bins = pastry.Bins.linear(0.0, 3.0, 30)          # also Bins.log, Bins.grid (N-D), Bins.categories
+bins = binference.Bins.linear(0.0, 3.0, 30)          # also Bins.log, Bins.grid (N-D), Bins.categories
 
-lk = pastry.Likelihoods.from_gaussian(z_obs, z_err, bins)              # Gaussian errors
-lk = pastry.Likelihoods.from_posteriors(P, bins, interim_prior)       # posteriors under a known prior
-lk = pastry.Likelihoods.from_samples(samples, bins, interim_prior="flat")  # posterior samples
-lk = pastry.Likelihoods(L, bins)                                       # any (N, K) likelihood matrix
+lk = binference.Likelihoods.from_gaussian(z_obs, z_err, bins)              # Gaussian errors
+lk = binference.Likelihoods.from_posteriors(P, bins, interim_prior)       # posteriors under a known prior
+lk = binference.Likelihoods.from_samples(samples, bins, interim_prior="flat")  # posterior samples
+lk = binference.Likelihoods(L, bins)                                       # any (N, K) likelihood matrix
 
-result = pastry.infer(lk)
+result = binference.infer(lk)
 ```
 
 Other constructors cover arbitrary likelihood functions and SciPy
@@ -128,16 +128,16 @@ result.save("fit.npz"); result.to_datatree()       # round-trip to disk; ArviZ-c
 | `"vb"` | mean-field variational fit | speed only: it is over-confident and flagged as approximate |
 | `"bootstrap"` | sampling distribution of the MAP | frequentist comparisons |
 
-For scikit-learn pipelines there is `pastry.PopulationEstimator(prior, method=...)`,
+For scikit-learn pipelines there is `binference.PopulationEstimator(prior, method=...)`,
 with `fit`, `predict_proba`, `score` and `sample`. NUTS can run its chains in
-parallel with `pastry.infer(lk, n_jobs=-1)`.
+parallel with `binference.infer(lk, n_jobs=-1)`.
 
 ## Validation is part of the package
 
-* `pastry.validation.exact_posterior` computes exact posteriors by quadrature (K ≤ 3).
-* `pastry.validation.sbc` runs simulation-based calibration.
-* `pastry.validation.coverage` measures frequentist coverage.
-* `pastry.simulate` builds mock catalogues in 1-D and 2-D, plus categorical, unfolding and
+* `binference.validation.exact_posterior` computes exact posteriors by quadrature (K ≤ 3).
+* `binference.validation.sbc` runs simulation-based calibration.
+* `binference.validation.coverage` measures frequentist coverage.
+* `binference.simulate` builds mock catalogues in 1-D and 2-D, plus categorical, unfolding and
   prior-predictive mocks.
 
 The test suite checks every engine against exact posteriors, and the slow suite
@@ -145,24 +145,25 @@ The test suite checks every engine against exact posteriors, and the slow suite
 
 ## Documentation
 
-The Sphinx documentation in [`docs/`](docs/) contains tutorials, a user guide, the theory
-and the API reference. Build it with:
+The [documentation](https://joshspeagle.github.io/binference/) contains tutorials, a user
+guide, the theory and the API reference. Its source is in
+[`docs/`](https://github.com/joshspeagle/binference/tree/main/docs); build it with:
 
 ```bash
 pip install -e ".[docs]"
 sphinx-build -b html docs docs/_build/html
 ```
 
-The design documents are in [`docs/design/`](docs/design/): the
-[specification](docs/design/spec.md), the
-[test plan](docs/design/test-plan.md) and the
-[implementation plan](docs/design/implementation-plan.md). The survey of
+The design documents are in [`docs/design/`](https://github.com/joshspeagle/binference/tree/main/docs/design): the
+[specification](https://github.com/joshspeagle/binference/blob/main/docs/design/spec.md), the
+[test plan](https://github.com/joshspeagle/binference/blob/main/docs/design/test-plan.md) and the
+[implementation plan](https://github.com/joshspeagle/binference/blob/main/docs/design/implementation-plan.md). The survey of
 existing tools, including an audit of the samplers in `frankenz`, is in
-[`reports/`](reports/).
+[`reports/`](https://github.com/joshspeagle/binference/tree/main/reports).
 
 ## Status
 
-pastry is alpha software, and the API may change before 1.0.
+binference is alpha software, and the API may change before 1.0.
 Planned work:
 * a JAX backend;
 * normalising-flow and flow-matching populations for unbinned data;
@@ -171,11 +172,11 @@ Planned work:
 
 ## Citing
 
-If you use pastry, please cite it using [`CITATION.cff`](CITATION.cff), and cite
+If you use binference, please cite it using [`CITATION.cff`](https://github.com/joshspeagle/binference/blob/main/CITATION.cff), and cite
 the method papers that apply to your problem. For photometric redshifts that is
 Leistedt, Mortlock & Peiris (2016, MNRAS 460, 4258), and the general framework
 is Hogg, Myers & Bovy (2010, ApJ 725, 2166).
 
 ## License
 
-MIT; see [LICENSE](LICENSE).
+MIT; see [LICENSE](https://github.com/joshspeagle/binference/blob/main/LICENSE).

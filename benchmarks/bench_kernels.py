@@ -1,4 +1,4 @@
-"""Micro-benchmarks of pastry's hot kernels and engines.
+"""Micro-benchmarks of binference's hot kernels and engines.
 
 Run from the repository root::
 
@@ -18,9 +18,9 @@ import warnings
 
 import numpy as np
 
-import pastry
-from pastry import PopulationModel
-from pastry import _kernels as kern
+import binference
+from binference import PopulationModel
+from binference import _kernels as kern
 
 
 def _median_time(fn, repeat: int = 20) -> float:
@@ -35,10 +35,10 @@ def _median_time(fn, repeat: int = 20) -> float:
 
 def bench_kernels(N: int = 20000, K: int = 80, seed: int = 0) -> dict[str, float]:
     rng = np.random.default_rng(seed)
-    bins = pastry.Bins.linear(-1.0, 7.0, K)
+    bins = binference.Bins.linear(-1.0, 7.0, K)
     mu = rng.uniform(0.0, 6.0, N)
     sigma = rng.uniform(0.05, 0.2, N) * (1.0 + mu)
-    lk = pastry.Likelihoods.from_gaussian(mu + sigma * rng.standard_normal(N), sigma, bins)
+    lk = binference.Likelihoods.from_gaussian(mu + sigma * rng.standard_normal(N), sigma, bins)
     model = PopulationModel(lk)
     L, w = model._L, model._w
     rho = np.full(K, 1.0 / K)
@@ -59,11 +59,11 @@ def bench_kernels(N: int = 20000, K: int = 80, seed: int = 0) -> dict[str, float
 
 
 def bench_engines(seed: int = 42) -> list[tuple[str, float, float]]:
-    mock = pastry.simulate.mock_1d(2000, rng=seed)
+    mock = binference.simulate.mock_1d(2000, rng=seed)
     rows = []
     for method, prior in (
         ("nuts", None),
-        ("nuts", pastry.priors.LogisticGP()),
+        ("nuts", binference.priors.LogisticGP()),
         ("gibbs", None),
         ("map", None),
         ("laplace", None),
@@ -72,7 +72,7 @@ def bench_engines(seed: int = 42) -> list[tuple[str, float, float]]:
         t = time.perf_counter()
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            res = pastry.infer(mock.likelihoods, prior, method=method, rng=1, check=False)
+            res = binference.infer(mock.likelihoods, prior, method=method, rng=1, check=False)
         dt = time.perf_counter() - t
         ess = np.nan
         if hasattr(res, "chains") and res.n_chains > 1:

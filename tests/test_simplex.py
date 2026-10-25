@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from pastry._simplex import clr, helmert_basis, ilr, ilr_inv, log_softmax, softmax
+from binference._simplex import clr, helmert_basis, ilr, ilr_inv, log_softmax, softmax
 
 
 @pytest.mark.parametrize("K", [2, 3, 7, 20])

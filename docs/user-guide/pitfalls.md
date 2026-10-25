@@ -13,11 +13,11 @@ Posteriors already contain an interim prior $\pi$. Treating them as
 likelihoods replaces $L_i\cdot\rho$ by $L_i\cdot(\pi\odot\rho)$. The data
 then constrain $\pi\odot\rho$ rather than $\rho$, and an extra factor
 $(\pi\cdot\rho)^W$ drags the population toward where $\pi$ is large
-([theory](../theory.md#likelihoods-versus-posteriors)). pastry's slow tests
+([theory](../theory.md#likelihoods-versus-posteriors)). binference's slow tests
 show biases of more than eight standard deviations.
 
 **Fix.** Use `Likelihoods.from_posteriors(P, bins, interim_prior)` or
-`from_samples(..., interim_prior)`. pastry deliberately has no default
+`from_samples(..., interim_prior)`. binference deliberately has no default
 interim prior for these.
 
 ## Masses versus densities with unequal bins
@@ -25,13 +25,13 @@ interim prior for these.
 **Symptom.** Wide bins get too much mass, or too little.
 
 A likelihood integrated over a bin (a CDF difference, a histogram count) is
-a *mass*. pastry needs the bin *average*, the mass divided by the bin
+a *mass*. binference needs the bin *average*, the mass divided by the bin
 volume. With equal bins the difference is a constant and harmless. With
 unequal bins, logarithmic bins or N-D grids with varying cell sizes it biases
 $\rho$, by up to 28 standard deviations in the frankenz audit.
 
 **Fix.** Declare `representation="mass"` or `"density"` explicitly when bins
-are unequal. pastry warns when posterior rows look inconsistent with the
+are unequal. binference warns when posterior rows look inconsistent with the
 declared representation.
 
 ## Stacking
@@ -84,7 +84,7 @@ functionals of the fine posterior (`result.rebin`, `result.functional`).
 - **Bootstrap and "PDF-draw" intervals** describe an estimator's sampling
   variability, not the posterior.
 
-pastry flags approximate results (`result.approximate`), and the summary
+binference flags approximate results (`result.approximate`), and the summary
 says so.
 
 **Fix.** Use NUTS (the default) for error bars, or check an approximation
@@ -141,7 +141,7 @@ a hyperprior bounded away from zero, such as `priors.LogNormal(np.log(0.1), 1)`.
 **Symptom.** Results change between runs.
 
 $\hat R>1.01$, low effective sample sizes or NUTS divergences mean the draws
-do not yet represent the posterior. `pastry.infer` warns by default, so do not
+do not yet represent the posterior. `binference.infer` warns by default, so do not
 silence `ConvergenceWarning` without reading it. Run longer, or switch to NUTS
 if Gibbs mixes slowly.
 

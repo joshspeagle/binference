@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from pastry import diagnostics as d
+from binference import diagnostics as d
 
 
 def ar1(phi, n, chains, rng):

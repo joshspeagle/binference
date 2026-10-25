@@ -86,7 +86,7 @@ class _SimplexBound(BoundPrior):
 class Dirichlet(Prior):
     r"""Dirichlet prior :math:`\rho \sim \mathrm{Dir}(\alpha)` on bin fractions.
 
-    The default prior of pastry (``alpha=1``, uniform on the simplex).
+    The default prior of binference (``alpha=1``, uniform on the simplex).
 
     Parameters
     ----------
@@ -131,8 +131,8 @@ class Dirichlet(Prior):
 
         ``strength < 1`` down-weights a reference sample that may not be fully
         representative (for a coherent model of an unrepresentative reference
-        use a reference-centred :class:`~pastry.priors.LogisticNormal` or
-        :class:`~pastry.priors.LogisticRandomWalk` with ``mean=log(reference)``).
+        use a reference-centred :class:`~binference.priors.LogisticNormal` or
+        :class:`~binference.priors.LogisticRandomWalk` with ``mean=log(reference)``).
         """
         c = np.asarray(counts, dtype=float)
         if np.any(c < 0):
@@ -480,8 +480,8 @@ class DirichletTree(Prior):
 
     Examples
     --------
-    >>> import pastry
-    >>> prior = pastry.priors.DirichletTree([[0, 1], [2, [3, 4]]], alpha=2.0)
+    >>> import binference
+    >>> prior = binference.priors.DirichletTree([[0, 1], [2, [3, 4]]], alpha=2.0)
     """
 
     def __init__(self, tree: Any, alpha: float | Sequence[Any] = 1.0) -> None:

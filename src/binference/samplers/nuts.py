@@ -525,7 +525,7 @@ class NUTS(Engine):
 
     @property
     def result(self) -> PopulationResult:
-        """A :class:`~pastry.PopulationResult` with every draw recorded so far."""
+        """A :class:`~binference.PopulationResult` with every draw recorded so far."""
         if not self._x:
             raise RuntimeError("No draws yet; call run().")
         X = np.concatenate(self._x, axis=1)

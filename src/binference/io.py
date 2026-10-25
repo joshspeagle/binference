@@ -63,7 +63,7 @@ def save_result(result: PopulationResult, path: str) -> None:
     meta, arrays = _bins_to_parts(result.bins)
     meta.update(
         schema=SCHEMA_VERSION,
-        pastry_version=__version__,
+        binference_version=__version__,
         method=result.method,
         kind=result.kind,
         approximate=bool(result.approximate),
@@ -101,7 +101,7 @@ def load_result(path: str) -> PopulationResult:
     with np.load(path, allow_pickle=False) as data:
         meta = json.loads(str(data["meta"]))
         if meta.get("schema", 0) > SCHEMA_VERSION:
-            raise ValueError("This file was written by a newer version of pastry.")
+            raise ValueError("This file was written by a newer version of binference.")
         bins = _bins_from_parts(meta, data)
         info: dict[str, Any] = dict(meta.get("info", {}))
         hyper = {}
@@ -136,9 +136,7 @@ def to_datatree(result: PopulationResult):
     try:
         import xarray as xr
     except ImportError as err:  # pragma: no cover - depends on environment
-        raise ImportError(
-            "to_datatree needs xarray: pip install 'pastry-inference[xarray]'."
-        ) from err
+        raise ImportError("to_datatree needs xarray: pip install 'binference[xarray]'.") from err
     C = result.chains
     n_chains, n_draws, _ = C.shape
     from .results import _bin_labels

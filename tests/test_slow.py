@@ -14,10 +14,10 @@ import warnings
 import numpy as np
 import pytest
 
-import pastry
-from pastry import Bins, Likelihoods, PopulationModel
-from pastry import _kernels as kern
-from pastry import priors as P
+import binference
+from binference import Bins, Likelihoods, PopulationModel
+from binference import _kernels as kern
+from binference import priors as P
 
 pytestmark = pytest.mark.slow
 
@@ -27,8 +27,8 @@ BINS4 = Bins.linear(0.0, 1.0, 4)
 def _fit(method, **kw):
     def fit(lk, rng):
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore", pastry.PastryWarning)
-            return pastry.infer(lk, method=method, rng=rng, check=False, **kw)
+            warnings.simplefilter("ignore", binference.BinferenceWarning)
+            return binference.infer(lk, method=method, rng=rng, check=False, **kw)
 
     return fit
 
@@ -48,8 +48,8 @@ def _fit(method, **kw):
     ids=["nuts-dirichlet", "gibbs-dirichlet", "gibbs-gdirichlet", "nuts-randomwalk"],
 )
 def test_sbc(method, kw, prior):
-    sim = pastry.simulate.prior_predictive(prior, BINS4, n_objects=40, noise=0.2)
-    res = pastry.validation.sbc(
+    sim = binference.simulate.prior_predictive(prior, BINS4, n_objects=40, noise=0.2)
+    res = binference.validation.sbc(
         sim, _fit(method, prior=prior, **kw), n_simulations=200, n_draws=99, rng=2026
     )
     p = res.pvalues(n_bins=10)
@@ -58,8 +58,8 @@ def test_sbc(method, kw, prior):
 
 @pytest.mark.xfail(strict=True, reason="mean-field VB is over-confident (documented)")
 def test_sbc_fails_for_vb():
-    sim = pastry.simulate.prior_predictive(P.Dirichlet(1.0), BINS4, n_objects=80, noise=0.35)
-    res = pastry.validation.sbc(
+    sim = binference.simulate.prior_predictive(P.Dirichlet(1.0), BINS4, n_objects=80, noise=0.35)
+    res = binference.validation.sbc(
         sim, _fit("vb", n_samples=400), n_simulations=150, n_draws=99, rng=7
     )
     p = res.pvalues(n_bins=10)
@@ -67,8 +67,8 @@ def test_sbc_fails_for_vb():
 
 
 def test_coverage_gibbs():
-    sim = pastry.simulate.prior_predictive(P.Dirichlet(1.0), BINS4, n_objects=60, noise=0.25)
-    cov = pastry.validation.coverage(
+    sim = binference.simulate.prior_predictive(P.Dirichlet(1.0), BINS4, n_objects=60, noise=0.25)
+    cov = binference.validation.coverage(
         sim,
         _fit("gibbs", n_samples=500, n_warmup=100),
         n_simulations=300,
@@ -148,10 +148,10 @@ def test_geweke_has_power_against_a_broken_kernel():
 
 
 def test_gibbs_and_nuts_agree_on_larger_problem():
-    mock = pastry.simulate.mock_1d(5000, Bins.linear(0, 3, 15), noise=(0.05, 0.2), rng=11)
-    g = pastry.infer(mock.likelihoods, method="gibbs", rng=1, n_samples=4000, check=False)
-    n = pastry.infer(mock.likelihoods, rng=2, n_samples=1000, check=False)
-    tau = np.array([pastry.diagnostics.autocorr_time(g.chains[:, :, k]) for k in range(15)])
+    mock = binference.simulate.mock_1d(5000, Bins.linear(0, 3, 15), noise=(0.05, 0.2), rng=11)
+    g = binference.infer(mock.likelihoods, method="gibbs", rng=1, n_samples=4000, check=False)
+    n = binference.infer(mock.likelihoods, rng=2, n_samples=1000, check=False)
+    tau = np.array([binference.diagnostics.autocorr_time(g.chains[:, :, k]) for k in range(15)])
     se = np.sqrt(g.std**2 * tau / g.n_draws + n.std**2 / (0.5 * n.n_draws))
     assert np.all(np.abs(g.mean - n.mean) < 5 * se)
     np.testing.assert_allclose(g.std, n.std, rtol=0.25)
@@ -164,14 +164,14 @@ def test_gibbs_and_nuts_agree_on_larger_problem():
 def test_recovery_with_interim_prior_posteriors():
     """Posterior means vs true population over many mocks: standardised residuals ~ N(0, 1)."""
     bins = Bins.linear(0, 3, 6)
-    rho_true = pastry.simulate.population(bins, "gaussian")
+    rho_true = binference.simulate.population(bins, "gaussian")
     zs = []
     for s in range(40):
-        mock = pastry.simulate.mock_1d(
+        mock = binference.simulate.mock_1d(
             800, bins, density=rho_true, interim_prior="gaussian", rng=1000 + s
         )
         lk = Likelihoods.from_posteriors(mock.posteriors, bins, mock.interim_prior)
-        res = pastry.infer(lk, method="gibbs", rng=s, n_samples=500, check=False)
+        res = binference.infer(lk, method="gibbs", rng=s, n_samples=500, check=False)
         zs.append((res.mean - mock.truth.rho) / res.std)
     zs = np.concatenate(zs)
     assert abs(zs.mean()) < 0.2
@@ -181,14 +181,14 @@ def test_recovery_with_interim_prior_posteriors():
 def test_interim_prior_regression():
     """Feeding posteriors as likelihoods biases the population toward the interim prior."""
     bins = Bins.linear(0, 3, 6)
-    rho_true = pastry.simulate.population(bins, "bimodal")
-    mock = pastry.simulate.mock_1d(
+    rho_true = binference.simulate.population(bins, "bimodal")
+    mock = binference.simulate.mock_1d(
         20000, bins, density=rho_true, interim_prior="gaussian", noise=(0.3, 0.6), rng=5
     )
     lk_right = Likelihoods.from_posteriors(mock.posteriors, bins, mock.interim_prior)
     lk_wrong = Likelihoods(mock.posteriors, bins)
-    right = pastry.infer(lk_right, method="gibbs", rng=1, n_samples=500, check=False)
-    wrong = pastry.infer(lk_wrong, method="gibbs", rng=2, n_samples=500, check=False)
+    right = binference.infer(lk_right, method="gibbs", rng=1, n_samples=500, check=False)
+    wrong = binference.infer(lk_wrong, method="gibbs", rng=2, n_samples=500, check=False)
     truth = mock.truth.rho
     assert np.all(np.abs(right.mean - truth) < 4 * right.std)
     assert np.max(np.abs(wrong.mean - truth) / wrong.std) > 8
@@ -201,13 +201,13 @@ def test_interim_prior_regression():
 def test_selection_recovery():
     bins = Bins.linear(0, 3, 4)
     S = np.array([0.95, 0.6, 0.35, 0.15])
-    rho_true = pastry.simulate.population(bins, "gaussian")
+    rho_true = binference.simulate.population(bins, "gaussian")
     zs = []
     for s in range(30):
-        mock = pastry.simulate.mock_1d(
+        mock = binference.simulate.mock_1d(
             600, bins, density=rho_true, noise=(0.2, 0.5), selection=S, rng=2000 + s
         )
-        res = pastry.infer(mock.likelihoods, method="gibbs", rng=s, n_samples=500, check=False)
+        res = binference.infer(mock.likelihoods, method="gibbs", rng=s, n_samples=500, check=False)
         zs.append((res.mean - mock.truth.rho) / res.std)
     zs = np.concatenate(zs)
     assert abs(zs.mean()) < 0.25
@@ -217,17 +217,17 @@ def test_selection_recovery():
 def test_binning_bias_with_coarse_bins_is_real():
     """A continuous population on coarse bins: the bias grows with N (documented pitfall)."""
     bins = Bins.linear(0, 3, 6)
-    mock = pastry.simulate.mock_1d(20000, bins, density="bimodal", noise=(0.3, 0.6), rng=5)
-    res = pastry.infer(mock.likelihoods, method="gibbs", rng=1, n_samples=500, check=False)
+    mock = binference.simulate.mock_1d(20000, bins, density="bimodal", noise=(0.3, 0.6), rng=5)
+    res = binference.infer(mock.likelihoods, method="gibbs", rng=1, n_samples=500, check=False)
     assert np.max(np.abs(res.mean - mock.truth.rho) / res.std) > 4
 
 
 def test_vb_underestimates_widths_vs_nuts():
-    mock = pastry.simulate.mock_1d(3000, Bins.linear(0, 3, 15), noise=(0.2, 0.4), rng=3)
-    n = pastry.infer(mock.likelihoods, rng=1, n_samples=600, check=False)
+    mock = binference.simulate.mock_1d(3000, Bins.linear(0, 3, 15), noise=(0.2, 0.4), rng=3)
+    n = binference.infer(mock.likelihoods, rng=1, n_samples=600, check=False)
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", pastry.ApproximationWarning)
-        v = pastry.infer(mock.likelihoods, method="vb", rng=1)
+        warnings.simplefilter("ignore", binference.ApproximationWarning)
+        v = binference.infer(mock.likelihoods, method="vb", rng=1)
     assert np.median(v.std / n.std) < 0.5
     # but its mean is in the right place on well-constrained bins
     model = PopulationModel(mock.likelihoods)

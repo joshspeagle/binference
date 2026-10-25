@@ -4,15 +4,15 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-import pastry
-from pastry import Bins, Likelihoods, PopulationModel
-from pastry import priors as P
+import binference
+from binference import Bins, Likelihoods, PopulationModel
+from binference import priors as P
 
 
 @pytest.fixture
 def lk6(rng):
     bins = Bins.linear(0.0, 3.0, 6)
-    return pastry.simulate.mock_1d(80, bins, noise=(0.2, 0.6), rng=rng).likelihoods
+    return binference.simulate.mock_1d(80, bins, noise=(0.2, 0.6), rng=rng).likelihoods
 
 
 def test_log_likelihood_direct(lk6, rng):
@@ -139,11 +139,11 @@ def test_kkt_gap_and_missing_information(rng):
     bins = Bins.linear(0.0, 1.0, 4)
     onehot = Likelihoods(np.eye(4)[rng.integers(0, 4, size=200)], bins)
     m1 = PopulationModel(onehot)
-    mle = pastry.infer(onehot, method="map").rho
+    mle = binference.infer(onehot, method="map").rho
     assert m1.kkt_gap(mle) < 1e-8
     assert m1.missing_information(mle) < 1e-8
     assert m1.kkt_gap(np.array([0.7, 0.1, 0.1, 0.1])) > 1e-3
-    broad = pastry.simulate.mock_1d(500, bins, noise=2.0, rng=rng).likelihoods
+    broad = binference.simulate.mock_1d(500, bins, noise=2.0, rng=rng).likelihoods
     m2 = PopulationModel(broad)
     assert m2.missing_information(m2.stack()) > 0.9
 

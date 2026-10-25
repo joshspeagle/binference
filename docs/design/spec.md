@@ -1,4 +1,4 @@
-# pastry: specification (v0.1)
+# binference: specification (v0.1)
 
 *Population and hierarchical inference with PDFs*
 
@@ -19,7 +19,7 @@ Requirements carry IDs (`R-…`) so that tests and code can point back to them. 
 
 ## 1. Vision and guiding principles
 
-`pastry` turns **a catalogue of noisy, heteroscedastic, arbitrarily shaped per-object PDFs over a set of bins or categories** into **a posterior over the population distribution** (bin fractions or rates). It also returns **consistent posteriors for each individual object** under that population. Typical inputs are photo-z PDFs, positions on a colour–magnitude grid, classifier outputs over classes, or a detector response.
+`binference` turns **a catalogue of noisy, heteroscedastic, arbitrarily shaped per-object PDFs over a set of bins or categories** into **a posterior over the population distribution** (bin fractions or rates). It also returns **consistent posteriors for each individual object** under that population. Typical inputs are photo-z PDFs, positions on a colour–magnitude grid, classifier outputs over classes, or a detector response.
 
 The baseline model has been implemented at least four times in astronomy alone (Leistedt+2016, Leistedt & Hogg 2017, CHIPPR, `frankenz`). It reappears as iterative Bayesian unfolding in HEP, NPMLE/g-modelling in statistics, EMQ quantification in ML, and genetic stock identification in ecology. Every implementation the census found is one of the following:
 
@@ -28,12 +28,12 @@ The baseline model has been implemented at least four times in astronomy alone (
 - missing uncertainty quantification;
 - quantifying uncertainty with approximations known to under-cover, such as mean-field VB.
 
-None checks its own calibration. `pastry`'s value is therefore **usability, correct input conventions, calibrated uncertainty, validation and speed**, not a new model.
+None checks its own calibration. `binference`'s value is therefore **usability, correct input conventions, calibrated uncertainty, validation and speed**, not a new model.
 
 Guiding principles:
 
 1. **Correct by construction.** The API makes the user say what they are passing: likelihoods or posteriors, which interim prior, and masses or densities. Silent convention mismatches are the most common real-world failure (stacking, interim priors, unequal bins), so the API is designed against them.
-2. **Easy things are one line, hard things are possible.** There is a one-call API (`pastry.infer`). Beneath it sit configurable model and sampler objects, and beneath those, raw log-densities for external samplers. This mirrors emcee, dynesty, nautilus and sbi.
+2. **Easy things are one line, hard things are possible.** There is a one-call API (`binference.infer`). Beneath it sit configurable model and sampler objects, and beneath those, raw log-densities for external samplers. This mirrors emcee, dynesty, nautilus and sbi.
 3. **Exact inference by default; approximations are labelled.** The default sampler targets the exact posterior. Fast approximations (Laplace, mean-field VB, EM, bootstrap) are available, but their results carry a flag and a warning describing their known failure modes.
 4. **Self-validating.** Diagnostics are computed automatically. Simulation-based calibration (SBC) and coverage tools ship in the package, and the test suite checks samplers against exact references.
 5. **Lightweight core.** The core needs only NumPy and SciPy. Plotting, xarray export and future JAX or flow backends are optional extras.
@@ -87,7 +87,7 @@ The goal is the **population distribution** $\rho \in \Delta^{K-1}$ (the fractio
 - Exporters to qp, SACC, CosmoSIS and RAIL.
 
 **Out of scope:**
-- Computing per-object likelihoods from raw data (photometry fitting, classifier training, detector simulation). `pastry` starts where each object already has a PDF or likelihood.
+- Computing per-object likelihoods from raw data (photometry fitting, classifier training, detector simulation). `binference` starts where each object already has a PDF or likelihood.
 - Learning the selection function itself.
 
 ---
@@ -460,14 +460,14 @@ Methods:
 
 ### 7.3 Diagnostics and warnings
 
-- **Warning classes:** `PastryWarning`, with subclasses `InputWarning`, `ConvergenceWarning` and `ApproximationWarning`.
+- **Warning classes:** `BinferenceWarning`, with subclasses `InputWarning`, `ConvergenceWarning` and `ApproximationWarning`.
 - **Default thresholds:**
   - R̂ > 1.01;
   - bulk ESS < 100 per chain;
   - any divergence;
   - $\hat k$ > 0.7;
   - KKT gap > 1e-6 relative.
-- **R-DIAG-1:** `pastry.diagnostics` exposes `ess`, `rhat` (rank-normalised split, Vehtari et al. 2021), `autocorr_time` (emcee-style), `mcse`, `kkt_gap` and `missing_information(model, rho)`. The last predicts slow Gibbs and EM mixing and is reported by `infer` when relevant.
+- **R-DIAG-1:** `binference.diagnostics` exposes `ess`, `rhat` (rank-normalised split, Vehtari et al. 2021), `autocorr_time` (emcee-style), `mcse`, `kkt_gap` and `missing_information(model, rho)`. The last predicts slow Gibbs and EM mixing and is reported by `infer` when relevant.
 
 ### 7.4 Plotting (optional dependency)
 
@@ -485,9 +485,9 @@ Also available: a corner plot over chosen bins or functionals, trace plots, and 
 
 ### 8.1 Layers
 
-1. **One call:** `res = pastry.infer(likelihoods, prior=None, *, selection=None, method="nuts", n_samples=1000, rng=None, progress=False, **engine_kwargs)`.
-2. **scikit-learn style:** `pastry.PopulationEstimator(prior=..., method=..., ...)`. `fit(X)` returns self, where `X` is a `Likelihoods` object or an array. It also provides `predict_proba(X)`, `score(X)` (mean log predictive density, for CV over binnings and priors), `sample(n)`, `get_params`/`set_params` and `result_`.
-3. **Model + engine objects:** `model = pastry.PopulationModel(lk, prior, selection=...)`; `eng = pastry.samplers.NUTS(model, n_chains=4, ...)`; `res = eng.run(n_samples, rng=...)`. Also `for draws in eng.sample(n): ...` (generator) and `eng.run(more)` to extend.
+1. **One call:** `res = binference.infer(likelihoods, prior=None, *, selection=None, method="nuts", n_samples=1000, rng=None, progress=False, **engine_kwargs)`.
+2. **scikit-learn style:** `binference.PopulationEstimator(prior=..., method=..., ...)`. `fit(X)` returns self, where `X` is a `Likelihoods` object or an array. It also provides `predict_proba(X)`, `score(X)` (mean log predictive density, for CV over binnings and priors), `sample(n)`, `get_params`/`set_params` and `result_`.
+3. **Model + engine objects:** `model = binference.PopulationModel(lk, prior, selection=...)`; `eng = binference.samplers.NUTS(model, n_chains=4, ...)`; `res = eng.run(n_samples, rng=...)`. Also `for draws in eng.sample(n): ...` (generator) and `eng.run(more)` to extend.
 4. **Raw densities:** `model.log_prob_and_grad`, `model.prior_transform`, `model.to_rho`.
 
 ### 8.2 Conventions
@@ -501,11 +501,11 @@ Also available: a corner plot over chosen bins or functionals, trace plots, and 
 ### 8.3 Minimal example (the README must show this)
 
 ```python
-import numpy as np, pastry
+import numpy as np, binference
 
-bins = pastry.Bins.linear(0.0, 3.0, 30)
-lk = pastry.Likelihoods.from_gaussian(mu, sigma, bins)   # or .from_posteriors(P, bins, interim_prior=pi)
-res = pastry.infer(lk, rng=42)                           # Dirichlet(1) prior, NUTS, 4 chains
+bins = binference.Bins.linear(0.0, 3.0, 30)
+lk = binference.Likelihoods.from_gaussian(mu, sigma, bins)   # or .from_posteriors(P, bins, interim_prior=pi)
+res = binference.infer(lk, rng=42)                           # Dirichlet(1) prior, NUTS, 4 chains
 res.summary()
 res.plot()
 p_i = res.assignment_probabilities()                     # shrunk per-object posteriors
@@ -516,7 +516,7 @@ n_real = res.realized_counts()                           # histogram of these ob
 
 ## 9. Validation tools (user-facing, must)
 
-**`pastry.simulate`** builds mock catalogues, returning `(Likelihoods, Truth)`. `Truth` holds `rho`, the labels, the true values and the realised counts. Functions:
+**`binference.simulate`** builds mock catalogues, returning `(Likelihoods, Truth)`. `Truth` holds `rho`, the labels, the true values and the realised counts. Functions:
 - `mock_1d`, `mock_2d` and `mock_categorical`;
 - `population(...)`.
 
@@ -527,7 +527,7 @@ The mocks can include:
 - outliers;
 - selection.
 
-**`pastry.validation`:**
+**`binference.validation`:**
 - `sbc(simulate_fn, infer_fn, n_sims, ...)` runs simulation-based calibration. The ranks test the bin fractions and the joint log-likelihood. It returns an `SBCResult` with uniformity tests and a plot.
 - `coverage(...)` checks credible intervals for chosen functionals.
 - `exact_posterior(lk, prior, n_grid)` computes the K ≤ 3 quadrature reference used by the tests.
@@ -551,8 +551,8 @@ All $N\times K$ temporaries are chunked (configurable `chunk_size`), so peak ext
 ## 11. Engineering requirements
 
 - **Packaging:**
-  - Layout: `pyproject.toml` (hatchling), `src/` layout, import name `pastry`.
-  - PyPI distribution name: `pastry-inference`, because `pastry` is taken on PyPI (see §13).
+  - Layout: `pyproject.toml` (hatchling), `src/` layout, import name `binference`.
+  - PyPI distribution and import name: `binference` (the package was developed as `pastry`; see §13, D5).
   - Licence: MIT (existing).
 - **Python:** ≥ 3.11 (CI 3.11–3.14).
 - **Dependencies:**
@@ -574,7 +574,7 @@ All $N\times K$ temporaries are chunked (configurable `chunk_size`), so peak ext
 
 ## 12. Roadmap beyond v0.1
 
-1. **Continuous populations (`pastry.flows`, optional JAX extra built on flowjax).** The census says to keep the exact grid likelihood whenever a grid exists:
+1. **Continuous populations (`binference.flows`, optional JAX extra built on flowjax).** The census says to keep the exact grid likelihood whenever a grid exists:
    - Smooth population maps $\theta\mapsto\rho(\theta)$ (splines, monotone flows on bin masses, small MLPs) are fitted inside the exact sum and sampled with HMC for honest uncertainty.
    - True continuous flows are reserved for dimension ≥ 3, or for inputs given as analytic likelihoods or posterior samples. Objectives:
      - Monte Carlo estimates of the marginal likelihood (IWAE-style with K draws, or the de-biased SUMO/Russian-roulette estimator), with per-object ESS diagnostics;
@@ -601,7 +601,7 @@ These were decided without the user's input so that work could proceed. Each is 
 | D2 | NUTS is the default engine, with ILR coordinates | Gibbs mixes poorly with broad PDFs (§6.10); exact; Stan made the same simplex choice | Gibbs default (frankenz, Leistedt+16) |
 | D3 | Default prior `Dirichlet(1.0)` | familiar and robust for samplers | α = 1/K (BBS reference prior), α ∝ bin volume |
 | D4 | Posteriors require an explicit interim prior | correctness | silent flat default |
-| D5 | Distribution name `pastry-inference`, import name `pastry` | `pastry` is taken on PyPI (2018 project) | another name |
+| D5 | Distribution and import name `binference` | renamed from `pastry` (whose PyPI name was taken) in the walkthrough, DECISIONS #45 | `pastry-inference` |
 | D6 | Python ≥ 3.11 | astronomy users lag SPEC 0 | ≥ 3.12 (SPEC 0) |
 | D7 | Flows deferred to the roadmap, with a concrete design | the census found no evidence flows beat grid models for binned inputs, and no tool calibrates them; doing the discrete core well comes first | ship an experimental flows module now |
 | D8 | Research notes (`research_notes/`) and the landscape report (`reports/`) are kept in the repository; the report is also included in the documentation | traceability | separate repository or wiki |
@@ -615,7 +615,7 @@ These were decided without the user's input so that work could proceed. Each is 
 | D16 | Logistic priors default to a mean of log bin volumes (a flat density) | the penalty then acts on the log-density whatever the binning; with log bins a zero mean would centre the prior on density ∝ 1/z | zero mean (equal fractions) |
 
 **Open questions** (they do not block v0.1):
-1. Package and distribution name (D5).
+1. Package and distribution name (D5): settled as `binference`.
 2. Should the default prior be α = 1 or the reference prior α = 1/K? This matters only in the many-bins, few-objects regime.
 3. Priority among roadmap items, especially the flow-based continuous densities.
 4. Whether to make the repository public early. JOSS now requires more than six months of public history.
@@ -638,7 +638,7 @@ These were decided without the user's input so that work could proceed. Each is 
 
 The full audit is in `research_notes/Population inference software landscape/frankenz_audit.md`; the landscape report summarises it. The findings that shape this spec:
 
-1. **Same target.** The population and hierarchical samplers target the same marginal posterior for $\rho$ (§3.3), so pastry offers one model with several engines rather than two models.
+1. **Same target.** The population and hierarchical samplers target the same marginal posterior for $\rho$ (§3.3), so binference offers one model with several engines rather than two models.
 2. **The hierarchical (data-augmentation Gibbs) sampler is exact** and is kept, vectorised, as `Gibbs` (§6). Its mixing degrades sharply once likelihoods are as wide as the bins (median autocorrelation time 7 → 180 sweeps), which is why NUTS is the default.
 3. **The pairwise population sampler is invalid**: its state-dependent proposal width lacks a Hastings factor and is frozen across inner steps, so it absorbs low-mass bins at ~1e-13 and inflates other SDs by 8–18%. Not ported; any future derivative-free kernel must pass the exact-K=3 and Geweke tests (test plan §2.6, §2.11).
 4. **The "flexible reference" step is not the full conditional of a coherent joint model** (Geweke max |z| = 70). It is replaced by the power prior `Dirichlet.from_counts(m, strength=λ)`, §5.2's reference-centred logistic prior and §5.4's hierarchical Dirichlet.

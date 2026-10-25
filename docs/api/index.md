@@ -1,12 +1,12 @@
 # API reference
 
-Everything a typical analysis needs is importable from the top-level `pastry`
+Everything a typical analysis needs is importable from the top-level `binference`
 namespace; priors, engines and helpers live in sub-modules.
 
 ## Inputs and the model
 
 ```{eval-rst}
-.. currentmodule:: pastry
+.. currentmodule:: binference
 
 .. autosummary::
    :toctree: generated
@@ -21,7 +21,7 @@ namespace; priors, engines and helpers live in sub-modules.
 ## Running inference
 
 ```{eval-rst}
-.. currentmodule:: pastry
+.. currentmodule:: binference
 
 .. autosummary::
    :toctree: generated
@@ -34,7 +34,7 @@ namespace; priors, engines and helpers live in sub-modules.
 ## Results
 
 ```{eval-rst}
-.. currentmodule:: pastry
+.. currentmodule:: binference
 
 .. autosummary::
    :toctree: generated
@@ -48,7 +48,7 @@ namespace; priors, engines and helpers live in sub-modules.
 ## Priors
 
 ```{eval-rst}
-.. currentmodule:: pastry.priors
+.. currentmodule:: binference.priors
 
 .. autosummary::
    :toctree: generated
@@ -68,7 +68,7 @@ Hyperpriors for the hyperparameters of the logistic priors are parametrised on
 the log scale internally; pass a plain number to fix a hyperparameter.
 
 ```{eval-rst}
-.. currentmodule:: pastry.priors
+.. currentmodule:: binference.priors
 
 .. autosummary::
    :toctree: generated
@@ -83,11 +83,11 @@ the log scale internally; pass a plain number to fix a hyperparameter.
 
 ## Engines
 
-`pastry.infer(..., method=...)` constructs these for you; use them directly for
+`binference.infer(..., method=...)` constructs these for you; use them directly for
 fine control, generator-style sampling or resuming a run.
 
 ```{eval-rst}
-.. currentmodule:: pastry.samplers
+.. currentmodule:: binference.samplers
 
 .. autosummary::
    :toctree: generated
@@ -104,7 +104,7 @@ fine control, generator-style sampling or resuming a run.
 ## Diagnostics
 
 ```{eval-rst}
-.. currentmodule:: pastry.diagnostics
+.. currentmodule:: binference.diagnostics
 
 .. autosummary::
    :toctree: generated
@@ -123,7 +123,7 @@ fine control, generator-style sampling or resuming a run.
 ## Simulation and validation
 
 ```{eval-rst}
-.. currentmodule:: pastry.simulate
+.. currentmodule:: binference.simulate
 
 .. autosummary::
    :toctree: generated
@@ -140,7 +140,7 @@ fine control, generator-style sampling or resuming a run.
 ```
 
 ```{eval-rst}
-.. currentmodule:: pastry.validation
+.. currentmodule:: binference.validation
 
 .. autosummary::
    :toctree: generated
@@ -157,7 +157,7 @@ fine control, generator-style sampling or resuming a run.
 ## Plotting and input/output
 
 ```{eval-rst}
-.. currentmodule:: pastry.plotting
+.. currentmodule:: binference.plotting
 
 .. autosummary::
    :toctree: generated
@@ -171,7 +171,7 @@ fine control, generator-style sampling or resuming a run.
 ```
 
 ```{eval-rst}
-.. currentmodule:: pastry.io
+.. currentmodule:: binference.io
 
 .. autosummary::
    :toctree: generated
@@ -185,13 +185,13 @@ fine control, generator-style sampling or resuming a run.
 ## Warnings
 
 ```{eval-rst}
-.. currentmodule:: pastry.warnings
+.. currentmodule:: binference.warnings
 
 .. autosummary::
    :toctree: generated
    :nosignatures:
 
-   PastryWarning
+   BinferenceWarning
    InputWarning
    ConvergenceWarning
    ApproximationWarning

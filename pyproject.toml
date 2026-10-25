@@ -3,7 +3,7 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pastry-inference"
+name = "binference"
 dynamic = ["version"]
 description = "Population and hierarchical inference with PDFs: honest population distributions from noisy per-object PDFs over bins."
 readme = "README.md"
@@ -50,22 +50,23 @@ docs = [
     "matplotlib>=3.9",
     "ipykernel>=6",
 ]
-dev = ["pastry-inference[test,docs,plot,xarray]", "ruff==0.17.1", "pre-commit>=3"]
-all = ["pastry-inference[plot,xarray]"]
+dev = ["binference[test,docs,plot,xarray]", "ruff==0.17.1", "pre-commit>=3"]
+all = ["binference[plot,xarray]"]
 
 [project.urls]
-Homepage = "https://github.com/joshspeagle/pastry"
-Source = "https://github.com/joshspeagle/pastry"
-Issues = "https://github.com/joshspeagle/pastry/issues"
+Homepage = "https://github.com/joshspeagle/binference"
+Source = "https://github.com/joshspeagle/binference"
+Documentation = "https://joshspeagle.github.io/binference/"
+Issues = "https://github.com/joshspeagle/binference/issues"
 
 [tool.hatch.version]
-path = "src/pastry/_version.py"
+path = "src/binference/_version.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/pastry"]
+packages = ["src/binference"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/pastry", "tests", "README.md", "LICENSE", "CHANGELOG.md", "CITATION.cff"]
+include = ["src/binference", "tests", "README.md", "LICENSE", "CHANGELOG.md", "CITATION.cff"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
@@ -81,7 +82,7 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["pastry"]
+source = ["binference"]
 branch = true
 
 [tool.coverage.report]

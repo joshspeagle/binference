@@ -1,7 +1,7 @@
 """Mock catalogues for tests, tutorials and simulation-based calibration.
 
 Each ``mock_*`` function returns a :class:`Mock` bundling the bins, the
-correct per-object :class:`~pastry.Likelihoods`, the :class:`Truth`, and
+correct per-object :class:`~binference.Likelihoods`, the :class:`Truth`, and
 (optionally) posteriors under an interim prior and posterior samples, so that
 every input convention can be exercised. ``Mock`` unpacks as
 ``likelihoods, truth = mock``.
@@ -459,8 +459,8 @@ def prior_predictive(
 
     Fractions are drawn from ``prior``, objects uniformly within bins from those
     fractions, and Gaussian measurements with the given ``noise`` (in units of
-    the bin coordinate). Intended for :func:`pastry.validation.sbc` and
-    :func:`pastry.validation.coverage`. One-dimensional bins only.
+    the bin coordinate). Intended for :func:`binference.validation.sbc` and
+    :func:`binference.validation.coverage`. One-dimensional bins only.
     """
     bound = prior.bind(bins)
     if bound.kind != "fractions":

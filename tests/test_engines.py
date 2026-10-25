@@ -6,12 +6,12 @@ import numpy as np
 import pytest
 from scipy import optimize
 
-import pastry
-from pastry import Bins, Likelihoods, PopulationModel
-from pastry import _kernels as kern
-from pastry import priors as P
-from pastry.samplers import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
-from pastry.warnings import ApproximationWarning, InputWarning
+import binference
+from binference import Bins, Likelihoods, PopulationModel
+from binference import _kernels as kern
+from binference import priors as P
+from binference.samplers import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
+from binference.warnings import ApproximationWarning, InputWarning
 
 from .conftest import assert_matches_reference
 
@@ -40,7 +40,7 @@ def test_bin_without_likelihood_support_is_not_frozen(method):
     L = rng.random((N, K)) + 0.1
     L[:, -1] = 0.0
     lk = Likelihoods(L, Bins.linear(0, 1, K))
-    res = pastry.infer(lk, method=method, rng=1, n_samples=1000, check=False)
+    res = binference.infer(lk, method=method, rng=1, n_samples=1000, check=False)
     exact_mean = 1.0 / (K + N)  # rho_K | D ~ Beta(1, K - 1 + N) under Dir(1)
     assert np.all(res.samples[:, -1] > 0)
     assert res.mean[-1] == pytest.approx(exact_mean, rel=0.15)
@@ -48,7 +48,7 @@ def test_bin_without_likelihood_support_is_not_frozen(method):
 
 def test_nuts_matches_exact(k3_problem):
     mock, exact = k3_problem
-    res = pastry.infer(
+    res = binference.infer(
         mock.likelihoods, rng=1, n_chains=2, n_warmup=400, n_samples=1500, check=False
     )
     assert res.method == "nuts" and not res.approximate
@@ -62,7 +62,7 @@ def test_nuts_matches_exact(k3_problem):
 def test_nuts_onehot_is_conjugate(onehot, metric):
     lk, counts = onehot
     alpha = np.array([1.0, 2.0, 0.5, 1.5])
-    res = pastry.infer(
+    res = binference.infer(
         lk,
         P.Dirichlet(alpha),
         rng=2,
@@ -119,7 +119,7 @@ def test_parallel_chains_match_serial(onehot):
 
 
 def test_hessian_helpers():
-    from pastry.samplers._nuts_core import covariance_from_hessian, fd_hessian
+    from binference.samplers._nuts_core import covariance_from_hessian, fd_hessian
 
     A = np.array([[2.0, 0.5, 0.0], [0.5, 1.0, 0.2], [0.0, 0.2, 3.0]])
 
@@ -139,7 +139,7 @@ def test_hessian_helpers():
 
 
 def test_nuts_reparametrises_logistic_priors_without_touching_the_model():
-    mock = pastry.simulate.mock_1d(5000, Bins.linear(0, 3, 8), noise=(0.05, 0.1), rng=2)
+    mock = binference.simulate.mock_1d(5000, Bins.linear(0, 3, 8), noise=(0.05, 0.1), rng=2)
     m = PopulationModel(mock.likelihoods, P.LogisticRandomWalk(order=1))
     eng = NUTS(m, n_chains=2, n_warmup=150, rng=1)
     assert eng.metric == "dense" and eng.target_accept == 0.9
@@ -171,8 +171,8 @@ def test_nuts_validation():
 
 
 def test_nuts_logistic_prior_runs():
-    mock = pastry.simulate.mock_1d(300, Bins.linear(0, 3, 8), rng=4)
-    res = pastry.infer(
+    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 8), rng=4)
+    res = binference.infer(
         mock.likelihoods,
         P.LogisticRandomWalk(order=2),
         rng=1,
@@ -188,7 +188,7 @@ def test_nuts_logistic_prior_runs():
 # -------------------------------------------------------------------- Gibbs
 def test_gibbs_matches_exact(k3_problem):
     mock, exact = k3_problem
-    res = pastry.infer(
+    res = binference.infer(
         mock.likelihoods, method="gibbs", rng=3, n_samples=3000, n_warmup=200, check=False
     )
     assert_matches_reference(res, exact.mean, exact.std)
@@ -196,18 +196,18 @@ def test_gibbs_matches_exact(k3_problem):
 
 def test_gibbs_onehot_is_conjugate(onehot):
     lk, counts = onehot
-    res = pastry.infer(lk, method="gibbs", rng=4, n_samples=3000, n_warmup=10, check=False)
+    res = binference.infer(lk, method="gibbs", rng=4, n_samples=3000, n_warmup=10, check=False)
     mean, sd = dirichlet_moments(1.0 + counts)
     assert_matches_reference(res, mean, sd)
 
 
 def test_gibbs_selection_matches_exact(k3_selection_problem):
     mock, exact = k3_selection_problem
-    res = pastry.infer(
+    res = binference.infer(
         mock.likelihoods, method="gibbs", rng=5, n_samples=3000, n_warmup=200, check=False
     )
     assert_matches_reference(res, exact.mean, exact.std)
-    nuts = pastry.infer(
+    nuts = binference.infer(
         mock.likelihoods, rng=5, n_chains=2, n_warmup=300, n_samples=1500, check=False
     )
     assert_matches_reference(nuts, exact.mean, exact.std)
@@ -236,8 +236,10 @@ def test_fraction_selection_only_depends_on_ratios(k3_selection_problem, mode):
 def test_gibbs_rates_agree_with_nuts(k3_selection_problem):
     mock, _ = k3_selection_problem
     prior = P.GammaRates(1.0, 1e-3)
-    g = pastry.infer(mock.likelihoods, prior, method="gibbs", rng=6, n_samples=3000, check=False)
-    n = pastry.infer(
+    g = binference.infer(
+        mock.likelihoods, prior, method="gibbs", rng=6, n_samples=3000, check=False
+    )
+    n = binference.infer(
         mock.likelihoods, prior, rng=6, n_chains=2, n_warmup=300, n_samples=1500, check=False
     )
     assert g.rates is not None and n.rates is not None
@@ -248,9 +250,11 @@ def test_gibbs_rates_agree_with_nuts(k3_selection_problem):
 
 @pytest.mark.parametrize("prior", [P.GeneralizedDirichlet(2.0), P.PolyaTree(1.0)], ids=repr)
 def test_gibbs_tree_priors_agree_with_nuts(prior):
-    mock = pastry.simulate.mock_1d(200, Bins.linear(0, 3, 4), noise=(0.2, 0.6), rng=9)
-    g = pastry.infer(mock.likelihoods, prior, method="gibbs", rng=7, n_samples=3000, check=False)
-    n = pastry.infer(
+    mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 4), noise=(0.2, 0.6), rng=9)
+    g = binference.infer(
+        mock.likelihoods, prior, method="gibbs", rng=7, n_samples=3000, check=False
+    )
+    n = binference.infer(
         mock.likelihoods, prior, rng=7, n_chains=2, n_warmup=300, n_samples=1500, check=False
     )
     assert_matches_reference(g, n.mean, n.std, z=6, sd_rtol=0.2)
@@ -277,8 +281,8 @@ def test_gibbs_integer_weights_compressed(rng):
     lk_full = Likelihoods(L[rows])
     lk_comp = lk_full.compress()
     assert lk_comp.N == 3
-    a = pastry.infer(lk_full, method="gibbs", rng=1, n_samples=4000, check=False)
-    b = pastry.infer(lk_comp, method="gibbs", rng=1, n_samples=4000, check=False)
+    a = binference.infer(lk_full, method="gibbs", rng=1, n_samples=4000, check=False)
+    b = binference.infer(lk_comp, method="gibbs", rng=1, n_samples=4000, check=False)
     assert_matches_reference(b, a.mean, a.std, z=6, sd_rtol=0.2)
 
 
@@ -299,7 +303,7 @@ def test_label_sampling_dense_sparse_agree(rng):
 def test_map_mle_matches_scipy(k3_problem):
     mock, _ = k3_problem
     lk = mock.likelihoods
-    est = pastry.infer(lk, method="map")
+    est = binference.infer(lk, method="map")
     assert est.converged and est.kkt_gap < 1e-8
     L = lk.toarray()
 
@@ -319,11 +323,11 @@ def test_map_mle_matches_scipy(k3_problem):
 
 
 def test_map_squarem_faster_than_em():
-    mock = pastry.simulate.mock_1d(1000, Bins.linear(0, 3, 15), noise=(0.3, 0.6), rng=1)
+    mock = binference.simulate.mock_1d(1000, Bins.linear(0, 3, 15), noise=(0.3, 0.6), rng=1)
     m = PopulationModel(mock.likelihoods)
     fast = MAP(m, algorithm="em", accelerate=True).run()
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", pastry.ConvergenceWarning)
+        warnings.simplefilter("ignore", binference.ConvergenceWarning)
         slow = MAP(m, algorithm="em", accelerate=False, max_iter=100000).run()
     np.testing.assert_allclose(fast.rho, slow.rho, atol=2e-4)
     assert fast.n_iter * 5 < slow.n_iter
@@ -332,7 +336,7 @@ def test_map_squarem_faster_than_em():
 @pytest.mark.parametrize("alpha", [1.0, 2.5])
 @pytest.mark.parametrize("sparse", [False, True])
 def test_mixsqp_matches_em_and_is_certified(alpha, sparse):
-    mock = pastry.simulate.mock_1d(1500, Bins.linear(0, 3, 20), noise=(0.2, 0.5), rng=3)
+    mock = binference.simulate.mock_1d(1500, Bins.linear(0, 3, 20), noise=(0.2, 0.5), rng=3)
     lk = mock.likelihoods.to_sparse(1e-8) if sparse else mock.likelihoods
     m = PopulationModel(lk, P.Dirichlet(alpha))
     sqp = MAP(m).run()
@@ -353,7 +357,7 @@ def test_mixsqp_matches_em_and_is_certified(alpha, sparse):
 
 
 def test_mixsqp_low_rank_path_and_fallbacks():
-    mock = pastry.simulate.mock_1d(6000, Bins.linear(0, 3, 30), noise=(0.1, 0.3), rng=4)
+    mock = binference.simulate.mock_1d(6000, Bins.linear(0, 3, 30), noise=(0.1, 0.3), rng=4)
     m = PopulationModel(mock.likelihoods)  # tall and dense: low-rank Hessian
     est = MAP(m).run()
     assert est.info["algorithm"] == "mixsqp" and est.kkt_gap < 1e-7
@@ -373,14 +377,14 @@ def test_mixsqp_low_rank_path_and_fallbacks():
 
 def test_mixsqp_stops_at_the_round_off_floor():
     # the KKT gap of this optimum cannot be pushed much below 1e-8 in floating point
-    mock = pastry.simulate.mock_1d(800, Bins.linear(0, 3, 15), rng=6)
+    mock = binference.simulate.mock_1d(800, Bins.linear(0, 3, 15), rng=6)
     est = MAP(PopulationModel(mock.likelihoods)).run()  # warnings are errors here
     assert est.converged and est.n_iter < 50 and est.kkt_gap < 1e-6
 
 
 @pytest.mark.parametrize("mode", ["true", "observed"])
 def test_mixsqp_with_selection_solves_for_observed_fractions(mode):
-    mock = pastry.simulate.mock_1d(3000, Bins.linear(0, 3, 20), noise=(0.1, 0.3), rng=2)
+    mock = binference.simulate.mock_1d(3000, Bins.linear(0, 3, 20), noise=(0.1, 0.3), rng=2)
     S = np.linspace(0.2, 1.0, 20) ** 2
     m = PopulationModel(mock.likelihoods, selection=3.0 * S, selection_mode=mode)
     sqp = MAP(m).run()
@@ -410,17 +414,17 @@ def test_map_with_prior_and_selection(k3_selection_problem):
 
 
 def test_map_tree_prior_matches_grid():
-    mock = pastry.simulate.mock_1d(150, Bins.linear(0, 3, 3), noise=(0.3, 0.8), rng=2)
+    mock = binference.simulate.mock_1d(150, Bins.linear(0, 3, 3), noise=(0.3, 0.8), rng=2)
     m = PopulationModel(mock.likelihoods, P.GeneralizedDirichlet([3.0, 2.0], [4.0, 2.5]))
     est = MAP(m).run()
-    ex = pastry.validation.exact_posterior(m, n_grid=600)
+    ex = binference.validation.exact_posterior(m, n_grid=600)
     best = ex.points[np.argmax(ex.weights)]
     np.testing.assert_allclose(est.rho, best, atol=3e-3)
 
 
 def test_map_unconstrained_and_logistic():
-    mock = pastry.simulate.mock_1d(300, Bins.linear(0, 3, 8), rng=3)
-    est = pastry.infer(mock.likelihoods, P.LogisticRandomWalk(order=2), method="map")
+    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 8), rng=3)
+    est = binference.infer(mock.likelihoods, P.LogisticRandomWalk(order=2), method="map")
     assert est.info["space"] == "unconstrained"
     assert est.info["grad_norm"] < 1e-3 * mock.likelihoods.W
     with pytest.warns(InputWarning):
@@ -434,7 +438,7 @@ def test_map_unconstrained_and_logistic():
 # ------------------------------------------------------------------ Laplace
 def test_laplace_with_importance(k3_problem):
     mock, exact = k3_problem
-    res = pastry.infer(mock.likelihoods, method="laplace", rng=4, n_samples=4000)
+    res = binference.infer(mock.likelihoods, method="laplace", rng=4, n_samples=4000)
     assert "k_hat" in res.info
     np.testing.assert_allclose(res.mean, exact.mean, atol=0.01)
     np.testing.assert_allclose(res.std, exact.std, rtol=0.15)

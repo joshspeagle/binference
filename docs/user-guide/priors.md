@@ -2,22 +2,22 @@
 
 The prior on the population matters most when the data are least
 informative: many bins, few objects, or measurement errors as large as the
-bins. pastry's priors fall into three families. The **Dirichlet family** is
+bins. binference's priors fall into three families. The **Dirichlet family** is
 conjugate and works with every engine. The **logistic family** adds
 smoothness across neighbouring bins. **Gamma rates** model expected counts
 rather than fractions.
 
 ```python
 import numpy as np
-import pastry
-from pastry import priors
+import binference
+from binference import priors
 
-mock = pastry.simulate.mock_1d(1000, pastry.Bins.linear(0, 3, 30), noise=(0.1, 0.3), rng=4)
+mock = binference.simulate.mock_1d(1000, binference.Bins.linear(0, 3, 30), noise=(0.1, 0.3), rng=4)
 lk = mock.likelihoods
 ```
 
-Pass a prior as the second argument of {func}`~pastry.infer`, or as `prior=`
-to {class}`~pastry.PopulationModel` and {class}`~pastry.PopulationEstimator`.
+Pass a prior as the second argument of {func}`~binference.infer`, or as `prior=`
+to {class}`~binference.PopulationModel` and {class}`~binference.PopulationEstimator`.
 The default is `Dirichlet(1.0)`.
 
 ## The Dirichlet family
@@ -30,7 +30,7 @@ ref_counts = np.bincount(mock.truth.labels[:50], minlength=30)
 informed = priors.Dirichlet.from_counts(ref_counts, strength=0.5)  # alpha = 1 + 0.5 m
 
 for p in (flat, sparse, informed):
-    print(p, pastry.infer(lk, p, method="map").rho[:3].round(4))
+    print(p, binference.infer(lk, p, method="map").rho[:3].round(4))
 ```
 
 - **`alpha = 1`** is uniform over all possible populations, but it adds one
@@ -52,7 +52,7 @@ Dirichlet's rigid covariance while staying conjugate:
 gd = priors.GeneralizedDirichlet(a=2.0, b=6.0)        # stick-breaking Betas
 tree = priors.DirichletTree([[0, 1, 2], [3, [4, 5]]], alpha=2.0)
 polya = priors.PolyaTree(c=2.0)                       # dyadic, multi-scale
-print(pastry.infer(lk, polya, method="map").rho[:3].round(4))
+print(binference.infer(lk, polya, method="map").rho[:3].round(4))
 ```
 
 - A **Dirichlet tree** puts a Dirichlet on every internal node, so bins
@@ -74,7 +74,7 @@ included:
 ```python
 rw = priors.LogisticRandomWalk(order=2)        # penalise curvature of log rho
 gp = priors.LogisticGP(kernel="matern32")       # Hilbert-space Gaussian process
-print(pastry.infer(lk, gp, method="map").rho[:3].round(4))
+print(binference.infer(lk, gp, method="map").rho[:3].round(4))
 ```
 
 | prior | smoothness | hyperparameters (inferred by default) |
@@ -115,7 +115,7 @@ per star or counts per unit exposure, and combine them with an exposure or
 selection function (see {doc}`selection`).
 
 ```python
-est = pastry.infer(lk, priors.GammaRates(shape=1.0, rate=1e-3), method="map")
+est = binference.infer(lk, priors.GammaRates(shape=1.0, rate=1e-3), method="map")
 print(est.rates.sum().round(1), est.rho.sum())
 ```
 
@@ -127,11 +127,11 @@ implied fractions); NUTS and Gibbs both support rates.
 Draw from the prior to see what it believes before seeing data:
 
 ```python
-model = pastry.PopulationModel(lk, gp)
+model = binference.PopulationModel(lk, gp)
 draws = model.sample_prior(5, rng=0)       # five populations from the prior
 print(draws.shape, np.allclose(draws.sum(axis=1), 1.0))
 ```
 
-{func}`pastry.simulate.prior_predictive` goes one step further: it simulates
+{func}`binference.simulate.prior_predictive` goes one step further: it simulates
 whole catalogues from the prior, which is what simulation-based calibration
 needs (see {doc}`validation`).

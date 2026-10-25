@@ -1,20 +1,20 @@
-# pastry: implementation plan (v0.1)
+# binference: implementation plan (v0.1)
 
 This document describes how to build what [`spec.md`](spec.md) specifies: the code layout, the internal interfaces, the milestones and the documentation. Tests are described in [`test-plan.md`](test-plan.md); every milestone ships with its tests.
 
 ## 1. Repository layout
 
 ```
-pastry/
+binference/
 ├── pyproject.toml            # hatchling build; deps; extras; ruff, pytest and coverage config
 ├── README.md                 # pitch, install, 10-line quickstart, links
 ├── CHANGELOG.md  CONTRIBUTING.md  CITATION.cff  LICENSE
 ├── .pre-commit-config.yaml   # ruff (lint + format), end-of-file, trailing whitespace, check-yaml
 ├── .github/workflows/ci.yml  # lint, test matrix, slow tests, docs, build
-├── src/pastry/
+├── src/binference/
 │   ├── __init__.py           # public API re-exports, __version__
 │   ├── _version.py
-│   ├── warnings.py           # PastryWarning, InputWarning, ConvergenceWarning, ApproximationWarning
+│   ├── warnings.py           # BinferenceWarning, InputWarning, ConvergenceWarning, ApproximationWarning
 │   ├── _utils.py             # rng handling (SPEC 7), array validation, chunking, progress
 │   ├── _simplex.py           # Helmert basis, softmax / log-softmax, ILR, CLR
 │   ├── _kernels.py           # dense/sparse matvecs, expected counts, log-likelihood, label sampling
@@ -191,7 +191,7 @@ Derived quantities are computed lazily and cached. `PointEstimate` holds the MAP
      - pitfalls (stacking, interim priors, unequal bins, VB under-dispersion, binning choice).
   3. *Theory*: the normative maths from spec §3, in clean notation, with derivations (EM as iterated stacking, the selection augmentation, tree densities).
   4. *Tutorials*:
-     1. Quickstart: n(z) from Gaussian photo-z likelihoods, comparing stacking and pastry, with individual shrinkage.
+     1. Quickstart: n(z) from Gaussian photo-z likelihoods, comparing stacking and binference, with individual shrinkage.
      2. Inputs and conventions: posteriors with interim priors, samples, unequal bins (wrong vs right).
      3. Choosing an engine: NUTS vs Gibbs vs Laplace vs VB vs MAP, accuracy against speed, with diagnostics.
      4. Priors and smoothness: Dirichlet α, generalised Dirichlet, Pólya tree, random-walk and GP priors with hyperparameter inference.
@@ -211,7 +211,7 @@ Derived quantities are computed lazily and cached. `PointEstimate` holds the MAP
 | `test` | ubuntu and macOS × Python 3.11–3.14; `pip install -e .[test]`; `pytest -q` (fast tier); coverage report on one cell |
 | `slow` | ubuntu, Python 3.13: `pytest -m slow` |
 | `docs` | `pip install -e .[docs]`; `sphinx-build -W -b html docs docs/_build/html` (executes the tutorials) |
-| `build` | `python -m build`; install the wheel in a fresh virtualenv; `python -c "import pastry"` |
+| `build` | `python -m build`; install the wheel in a fresh virtualenv; `python -c "import binference"` |
 
 ## 7. Risks and mitigations
 
