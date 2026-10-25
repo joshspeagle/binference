@@ -226,6 +226,69 @@ class _IndividualMixin:
             raise ValueError("New likelihoods must use the same bins (and basis) as the fit.")
         return lk
 
+    @property
+    def best(self) -> PointEstimate:
+        """The best fit: :class:`~binference.samplers.MAP` with its defaults, which is the
+        mode of :math:`\rho` on the simplex for conjugate priors and the mode in the
+        unconstrained coordinates otherwise (DECISIONS #15, #35). Computed on first use
+        and kept; a point estimate's best fit is itself. Per-object outputs at it carry
+        a ``_best`` suffix (``assignment_probabilities_best`` and so on; DECISIONS #51).
+        """
+        if isinstance(self, PointEstimate):
+            return self
+        if "best" not in self._cache:
+            from .samplers import MAP
+
+            self._cache["best"] = MAP(self._require_model()).run()
+        return self._cache["best"]
+
+    def assignment_probabilities_loo(
+        self, idx: Any = None, n_draws: int | None = N_DRAWS, chunk: int = 256
+    ) -> tuple[np.ndarray, np.ndarray]:
+        r"""Each object's posterior over bins under the population fitted without it,
+        :math:`P(z_i = k \mid D_{-i})`: leave-one-out, for calibration checks
+        (DECISIONS #52).
+
+        Pareto-smoothed importance sampling over the posterior draws (Vehtari, Gelman &
+        Gabry 2017): draw :math:`s` has the weight :math:`p(d_i \mid \rho_s)^{-w_i}`
+        (the whole row, with its multiplicity, is left out), smoothed per object by
+        :func:`~binference.diagnostics.psis`. Objects whose Pareto :math:`\hat k` is at
+        or above :func:`~binference.diagnostics.psis_threshold` are flagged with a
+        warning: their estimate is unreliable, and refitting without them is the remedy.
+
+        Returns ``(probabilities, k_hat)``: ``(n, K)`` and ``(n,)`` for the objects
+        ``idx`` (all by default), ``chunk`` objects at a time.
+        """
+        model = self._require_model()
+        L, R, norm, _ = self._new_object_draws(model.likelihoods, n_draws)
+        m = R.shape[0]
+        if m < 5:
+            raise ValueError(f"Leave-one-out needs posterior draws (at least 5); this has {m}.")
+        rows = np.atleast_1d(np.arange(model.N)[slice(None) if idx is None else idx])
+        log_norm = 0.0 if norm is None else np.log(norm)[:, None]
+        out, k_hat = np.empty((rows.size, R.shape[1])), np.empty(rows.size)
+        for sl in chunk_slices(rows.size, chunk):
+            r = rows[sl]
+            block = L[:, r] if L.ndim == 3 else L[r]
+            block = block.toarray() if hasattr(block, "toarray") else np.asarray(block)
+            P = block * R[:, None, :] if L.ndim == 3 else block[None] * R[:, None, :]
+            T = P.sum(axis=-1)  # (draws, objects): p(d_i | rho_s) up to its norm
+            with np.errstate(divide="ignore", invalid="ignore"):
+                logp = np.log(T) - log_norm
+                resp = np.where(T[..., None] > 0, P / T[..., None], 0.0)
+            for j, i in enumerate(r):
+                lw, k_hat[sl][j] = diag.psis(-model._w[i] * logp[:, j])
+                out[sl][j] = np.exp(lw) @ resp[:, j]
+        bad = k_hat >= diag.psis_threshold(m)
+        if bad.any():
+            warn(
+                f"{int(bad.sum())} of {rows.size} objects have Pareto k-hat >= "
+                f"{diag.psis_threshold(m):.2f}: their leave-one-out posteriors are unreliable "
+                f"(first: {rows[bad][:5].tolist()}); refit without them, or use more draws.",
+                ConvergenceWarning,
+            )
+        return self._to_bins(out), k_hat
+
     def assignment_probabilities(
         self, idx: Any = None, n_draws: int | None = N_DRAWS, chunk: int = 4096
     ) -> np.ndarray:
@@ -497,6 +560,28 @@ class _IndividualMixin:
         if model.selection is None:
             return L, R, None, lk.log_scale
         return L, R, (R.sum(axis=1) if S is not None else R @ model.selection), lk.log_scale
+
+
+def _at_best(name: str) -> Callable:
+    def method(self, *args: Any, **kwargs: Any):
+        return getattr(self.best, name)(*args, **kwargs)
+
+    method.__name__ = method.__qualname__ = f"{name}_best"
+    method.__doc__ = f":meth:`{name}` at the best fit, :attr:`best` (DECISIONS #51)."
+    return method
+
+
+#: per-object outputs also offered at the best fit, with a ``_best`` suffix
+BEST_OUTPUTS = (
+    "assignment_probabilities",
+    "sample_assignments",
+    "sample_values",
+    "realized_counts",
+    "predict_proba",
+    "log_predictive",
+)
+for _name in BEST_OUTPUTS:
+    setattr(_IndividualMixin, f"{_name}_best", _at_best(_name))
 
 
 def _mean_responsibilities(L: Any, R: np.ndarray, chunk: int) -> np.ndarray:
@@ -985,7 +1070,8 @@ class PopulationResult(_IndividualMixin):
             raise ValueError(f"The likelihoods are on other bins ({m.bins}) than this result.")
         self.model = m
         self._selection = m.selection_spec
-        self._cache.pop("data_support", None)  # computed from the previous likelihoods
+        for key in ("data_support", "best"):  # computed from the previous likelihoods
+            self._cache.pop(key, None)
         for key in [k for k in self._cache if isinstance(k, tuple) and k[0] == "predictive_p"]:
             del self._cache[key]
         return self

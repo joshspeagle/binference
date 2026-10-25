@@ -348,3 +348,8 @@ Append-only. One entry per working session (or per step within a long session).
 ## 2026-10-25: C12b merged; C12c
 
 - #65 (C12b) merged. /simplify moved the ratio to diagonal Hessians (same traces) and shared the check reporting; /code-review caught an infinite KKT gap passing, exposure selections and attached rate results accepted by full-sample counts, data support ignoring a selection on the truth, and truth overlays on the selected population not reweighted; all fixed with tests before the merge.
+- #67 (C12c) merged. /simplify rebuilt the dispatch as one draw function per input and vectorised the sample draws (20,000 objects: 0.04 s, from 0.36 s) and the correlated Gaussians (80,000 draws: 0.39 s, from 1.17 s); /code-review caught NaN cumulative weights from zero sample weights, draws collapsing where the interim prior vanishes, cdf-only distributions crashing and density data lost on every pickle; all fixed with tests before the merge.
+
+## 2026-10-25: C12d (best fit, `_best` outputs, leave-one-out)
+
+- C12d (#68, DECISIONS #85): `result.best`, the `_best` outputs and PSIS leave-one-out posteriors. Leave-one-out matches an exact refit within Monte Carlo error where the in-sample posterior is off by more than 8σ. Two choices are parked in QUESTIONS (one result type; the count downdate).

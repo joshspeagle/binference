@@ -111,6 +111,25 @@ print(result.predict_proba(new).round(2)[0])
 print(result.log_predictive(new).round(3))     # log p(d_new | D), for model comparison
 ```
 
+Every result also carries its **best fit**, `result.best`: the estimate of
+`binference.samplers.MAP` with its defaults (the mode of $\rho$ on the simplex for
+conjugate priors, in the unconstrained coordinates otherwise), computed on first use.
+Per-object answers at it carry a `_best` suffix: `assignment_probabilities_best`,
+`sample_assignments_best`, `sample_values_best`, `realized_counts_best`,
+`predict_proba_best` and `log_predictive_best`. They ignore the uncertainty of the
+population, which the methods without the suffix include.
+
+To check the per-object posteriors against held-out truth, use the **leave-one-out**
+posteriors, each object's posterior under the population fitted without it.
+`assignment_probabilities_loo` gets them from the posterior draws by Pareto-smoothed
+importance sampling and returns the Pareto $\hat k$ per object; it warns about objects
+whose $\hat k$ is too large to trust, which need a refit without them.
+
+```python
+p_loo, k_hat = result.assignment_probabilities_loo(idx=[0, 1, 2])
+print(p_loo.round(2)[0], k_hat.round(2))
+```
+
 ## Population versus realised sample
 
 $\rho$ describes the population the objects came from, including the "shot
