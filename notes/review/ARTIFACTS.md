@@ -14,3 +14,4 @@ Republish from the same file path to keep the URL.
 | 2.4 Selection | `briefings/2.4-selection.html` | https://claude.ai/artifact/EK1AosKms4YjNF13fCgM4a |
 | 2.5 Individuals | `briefings/2.5-individuals.html` | https://claude.ai/artifact/K8iyhpBxuenc1njnLf6zjM |
 | 2.6 Model core | `briefings/2.6-model-core.html` | https://claude.ai/artifact/1Q8zT8VTdEDCQ2gyTFR9kR |
+| Landing plan | `briefings/landing-plan.html` | https://claude.ai/artifact/NPoRhf3RA8AcW4ai1zH1ey |
