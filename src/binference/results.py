@@ -78,7 +78,7 @@ class Summary:
             for n in names:
                 v = self.columns[n][i]
                 if isinstance(v, float | np.floating):
-                    row.append(f"{v:.4g}" if np.isfinite(v) else "nan")
+                    row.append(f"{v:.4g}")  # inf and nan as themselves
                 else:
                     row.append(str(v))
             rows.append(row)
@@ -600,6 +600,33 @@ class _IndividualMixin:
         return R.sum(axis=1) if S is not None else R @ model.selection
 
 
+def _rebuild_gaussian(lk: Likelihoods, basis: Basis) -> Likelihoods:
+    """Gaussian likelihoods built again on ``basis`` from their kept means and errors."""
+    from .likelihoods import Likelihoods
+
+    meta = lk.meta
+    if "gaussian_mean" not in meta:
+        raise ValueError(
+            "Only likelihoods from Likelihoods.from_gaussian rebuild themselves; pass "
+            "build(bins_or_basis) returning these data's likelihoods on a basis."
+        )
+    spread = (
+        {"cov": meta["gaussian_cov"]}
+        if "gaussian_cov" in meta
+        else {"sigma": meta["gaussian_sigma"]}
+    )
+    w = lk.weights
+    return Likelihoods.from_gaussian(
+        meta["gaussian_mean"],
+        bins=basis,
+        weights=w,
+        fractional_weights=not is_integer_array(w),
+        warn_outside=False,
+        **meta.get("gaussian_options", {}),
+        **spread,
+    )
+
+
 def _mean_responsibilities(
     L: Any, R: np.ndarray, chunk: int, weigh: Callable | None = None
 ) -> np.ndarray:
@@ -1072,6 +1099,15 @@ class PopulationResult(_IndividualMixin):
 
     _fit_model = True  # whether the model is the fit's own (not bare likelihoods attached)
 
+    def _fit_model_only(self, what: str) -> PopulationModel:
+        # the fit's model, refused when bare likelihoods were attached after load
+        if not self._fit_model:
+            raise ValueError(
+                f"{what} needs the fit's prior: attach a PopulationModel built with it "
+                "(bare likelihoods get the default prior)."
+            )
+        return self._require_model()
+
     @property
     def best(self) -> PointEstimate:
         """The best fit: :class:`~binference.samplers.MAP` with its defaults, which is the
@@ -1081,15 +1117,10 @@ class PopulationResult(_IndividualMixin):
         or response (DECISIONS #15, #35). Computed on first use
         and kept; per-object outputs at it carry a ``_best`` suffix (DECISIONS #51).
         After :func:`load`, it needs the fit's prior: attach a model, not bare likelihoods."""
-        if not self._fit_model:
-            raise ValueError(
-                "The best fit needs the fit's prior: attach a PopulationModel built with it "
-                "(bare likelihoods get the default prior)."
-            )
         if "best" not in self._cache:
             from .samplers import MAP
 
-            self._cache["best"] = MAP(self._require_model()).run()
+            self._cache["best"] = MAP(self._fit_model_only("The best fit")).run()
         return self._cache["best"]
 
     def attach(self, likelihoods_or_model: Any) -> PopulationResult:
@@ -1534,6 +1565,111 @@ class PopulationResult(_IndividualMixin):
         inputs = "" if source is None else f"; inputs: {source}"
         title = f"binference {which} posterior ({self.method}{flag}, {self.n_draws} draws{inputs})"
         return Summary(cols, title)
+
+    def binning_bias(
+        self,
+        build: Callable[[Any], Likelihoods] | None = None,
+        *,
+        order: int = 1,
+        resolution: int = 1,
+        threshold: float = 2.0,
+        prior: Any = None,
+        method: str | None = None,
+        n_samples: int | None = None,
+        rng: RNGLike = None,
+        **engine_kwargs: Any,
+    ) -> Summary:
+        r"""Check the flat-within-bin assumption: refit the same data on a B-spline basis
+        over these bins and compare the bin masses (DECISIONS #6, #20).
+
+        ``build(bins_or_basis)`` returns the likelihoods of the fit's data on what it is
+        given, e.g. ``lambda b: Likelihoods.from_gaussian(mean, sigma, b)``; likelihoods
+        from :meth:`Likelihoods.from_gaussian` rebuild themselves without it. The
+        reference is fitted on ``Basis(self.bins, order, resolution)`` with this fit's
+        prior (or ``prior``), selection, engine (or ``method``), chains and draws (or
+        ``n_samples``), and a Gibbs fit's warm-up and thinning when the engine is the
+        same; ``engine_kwargs`` go to the engine.
+
+        The fit's selection keeps only its bin averages, so the reference sees it flat
+        within bins; to test a selection's shape within bins as well, attach it to the
+        likelihoods ``build`` returns, which then take precedence (a selection from
+        injections must be attached that way, fixed).
+
+        Returns a table per bin: ``shift``, the reference's mean fraction minus this
+        fit's; ``sd``, this fit's posterior s.d.; ``z = shift / sd`` (NaN where the
+        fit has no spread); and, where
+        :math:`|z|` exceeds ``threshold``, ``n_crit`` :math:`= W/z^2`, the number of
+        objects at which the shift equals the statistical error (which falls as
+        :math:`1/\sqrt{W}`): from a pilot fit, the size above which these bins bias
+        the result (``inf`` elsewhere). Warns when :math:`|z|` exceeds ``threshold`` in
+        any bin: two models of the same data differ by up to about one s.d. even when
+        the population is flat within bins (DECISIONS #86), so the default is 2.
+        """
+        from .basis import Basis
+        from .inference import infer
+
+        model = self._fit_model_only("binning_bias")
+        if self.basis is not None or self.bins.is_categorical:
+            raise ValueError("binning_bias compares a fit on grid bins with a basis over them.")
+        key = str(self.method if method is None else method).lower()
+        if key not in ("nuts", "gibbs", "laplace", "vb", "bootstrap"):
+            raise ValueError(
+                f"method must be an engine that draws ('nuts', 'gibbs', 'laplace', 'vb' or "
+                f"'bootstrap'); got {key!r}."
+            )
+        basis = Basis(self.bins, order=order, resolution=resolution)
+        if basis.is_identity:
+            raise ValueError(
+                "order=0 with resolution=1 is the bins themselves: nothing to compare."
+            )
+        if build is None:
+            lk = _rebuild_gaussian(model.likelihoods, basis)
+        else:
+            lk = build(basis)
+            if lk.basis != basis or lk.N != model.N or not np.array_equal(lk.weights, model._w):
+                raise ValueError(
+                    "build(basis) must return the fit's objects (same rows and weights) on "
+                    "the basis it is given."
+                )
+        selection = self.selection if lk.selection is None else None  # build's own wins
+        if selection is not None and selection.injections is not None:
+            raise ValueError(
+                "A selection from injections does not move onto a basis: attach a fixed one "
+                "(selection.at_mean()) to the likelihoods build returns."
+            )
+        same = key == self.method
+        if key in ("nuts", "gibbs"):  # draws per chain, as the fit had them
+            engine_kwargs.setdefault("n_chains", self.n_chains)
+            for name in ("n_warmup", "thin") if same and key == "gibbs" else ():
+                if name in self.info:
+                    engine_kwargs.setdefault(name, self.info[name])
+            n = self.n_draws // self.n_chains
+        else:
+            n = self.n_draws
+        ref = infer(
+            lk,
+            model.prior_spec if prior is None else prior,
+            selection=selection,
+            method=key,
+            n_samples=n if n_samples is None else n_samples,
+            rng=rng,
+            check=False,
+            **engine_kwargs,
+        )
+        sd, shift = self.std, ref.mean - self.mean
+        with np.errstate(divide="ignore", invalid="ignore"):
+            z = np.where(sd > 0, shift / sd, np.nan)  # no spread: nothing to compare with
+        big = np.abs(z) > threshold
+        n_crit = np.where(big, model.W / np.where(big, z, 1.0) ** 2, np.inf)
+        if big.any():
+            warn(
+                f"Binning bias: {big.sum()} bins move by more than {threshold:g} posterior s.d. "
+                f"on a basis of order {order} (first: {np.flatnonzero(big)[:5].tolist()}); "
+                f"fit with binference.Basis(bins, order={order}) or narrower bins.",
+                InputWarning,
+            )
+        cols = {"bin": _bin_labels(self.bins), "shift": shift, "sd": sd, "z": z, "n_crit": n_crit}
+        return Summary(cols, f"binference binning bias (basis of order {order}, {key})")
 
     def __repr__(self) -> str:
         flag = ", approximate" if self.approximate else ""
