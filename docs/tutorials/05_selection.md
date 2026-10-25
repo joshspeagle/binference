@@ -116,7 +116,8 @@ print(f"kept {keep.sum()} of {keep.size}")
 
 Here the selection acts on the measurement, so `selection_mode="on_measurement"`.
 $S_k$ is the probability that an object in bin $k$ passes the cut, averaged
-over the bin:
+over the bin. These are already bin averages, so they go in as a `Selection`
+object (a raw array would be checked for steep changes between bins):
 
 ```{code-cell} python
 fine = np.linspace(0, 2.5, 2501)
@@ -126,8 +127,9 @@ S = np.array([pass_prob[(fine >= a) & (fine < b)].mean() for a, b in zip(ze[:-1]
 gp = binference.priors.LogisticGP()
 kw = dict(rng=1, n_samples=500, n_warmup=500)
 fits = {
-    "selection_mode='on_measurement'": binference.infer(lk_z, gp, selection=S, selection_mode="on_measurement",
-                                              **kw),
+    "selection on the measurement": binference.infer(
+        lk_z, gp, selection=binference.Selection(S, "on_measurement"), **kw
+    ),
     "no selection": binference.infer(lk_z, gp, **kw),
 }
 ```

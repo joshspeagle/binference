@@ -180,7 +180,10 @@ def _measured_pass(z, noise, lo, hi):
         sig = noise[0] + (noise[1] - noise[0]) * 0.5 * (x + 1.0)
         wts = 0.5 * w
     zz = np.asarray(z, dtype=float)[..., None]
-    return (special.ndtr((hi - zz) / sig) - special.ndtr((lo - zz) / sig)) @ wts
+    a, b = (lo - zz) / sig, (hi - zz) / sig
+    # take the difference in the tail where it keeps its precision
+    p = np.where(a > 0, special.ndtr(-a) - special.ndtr(-b), special.ndtr(b) - special.ndtr(a))
+    return p @ wts
 
 
 # ----------------------------------------------------------------------------
@@ -283,6 +286,8 @@ def _gaussian_mock(bins, density, n_objects, noise, on_truth, measured_range, ou
             raise ValueError("measured_range must be (lo, hi); either may be None.")
         lo = -np.inf if measured_range[0] is None else float(measured_range[0])
         hi = np.inf if measured_range[1] is None else float(measured_range[1])
+        if not lo < hi:
+            raise ValueError(f"measured_range must have lo < hi; got {measured_range}.")
         # S_k: the population-weighted bin average of the probability of passing the cut
         log_pop = _as_density(density, bins)._log_pointwise()
         if log_pop is None:  # flat in the measure coordinate within bins

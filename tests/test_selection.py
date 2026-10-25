@@ -110,6 +110,47 @@ def test_mocks_with_each_kind_of_selection_recover_the_population(kw):
     fit = binference.infer(mock.likelihoods, method="laplace", rng=0, check=False)
     sd = fit.samples.std(axis=0)
     naive = binference.infer(mock.likelihoods.with_selection(None), method="map").value
-    # z-scores against the truth: below 2.5 in 12 trial fits; ignoring selection, 11 to 23
+    # each z-score is about standard normal when the selection is right, so the largest
+    # of 10 exceeds 4 with probability 6e-4; ignoring the selection shifts the fractions
+    # by S_k / (S . rho), tens of standard deviations at N = 20,000
     assert np.abs((fit.mean - rho) / sd).max() < 4
     assert np.abs((naive - rho) / sd).max() > 8
+
+
+def test_far_tail_pass_probabilities_stay_positive():
+    from binference.simulate import _measured_pass
+
+    assert _measured_pass(np.array([0.0]), 0.05, 1.5, np.inf)[0] > 0  # 30 sigma below
+    assert _measured_pass(np.array([3.0]), 0.05, -np.inf, 1.5)[0] > 0  # 30 sigma above
+
+
+def test_a_cut_over_bins_with_no_population_still_gives_a_selection():
+    bins = Bins.linear(0, 3, 6)
+    mock = mock_1d(
+        300, bins, density=lambda z: np.where(z > 1, 1.0, 0.0), measured_range=(0.5, None), rng=4
+    )
+    assert np.all(np.isfinite(mock.likelihoods.selection.values))
+    with pytest.raises(ValueError, match="lo < hi"):
+        mock_1d(100, bins, measured_range=(2.0, 1.0), rng=4)
+
+
+def test_selection_errors_name_the_selection_and_come_before_any_quadrature():
+    def never(z):
+        raise AssertionError("evaluated")
+
+    with pytest.raises(ValueError, match="'on_truth'"):
+        Selection.from_function(never, Bins.linear(0, 1, 2), "true")
+    with pytest.raises(ValueError, match="selection function"):
+        Selection.from_function(lambda z: 0.5 - z, Bins.linear(0, 1, 2), "on_truth")
+    with pytest.raises(ValueError, match="on_truth values"):
+        Selection.combined(
+            lambda z: np.where(z < 1, 0.0, 1.0), lambda z: 0.5 + 0 * z, Bins.linear(0, 3, 3)
+        )
+
+
+def test_a_response_with_rounded_efficiencies_still_binds():
+    R = np.array([[0.6000005, 0.5, 0.3], [0.4, 0.3, 0.4]])  # first column sums to 1 + 5e-7
+    lk = binference.Likelihoods.from_binned(
+        binference.Response(R, Bins.categories(3)), counts=[5, 3]
+    )
+    assert lk.selection.values.max() <= 1.0

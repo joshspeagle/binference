@@ -41,7 +41,6 @@ import numpy as np
 from ._quadrature import bin_log_average
 from ._utils import frozen, warn
 from .bins import Bins
-from .density import _log_nonneg
 from .warnings import InputWarning
 
 __all__ = ["SELECTION_MODES", "SELECTION_SCALES", "Selection", "as_selection"]
@@ -90,13 +89,7 @@ class Selection:
     __slots__ = ("row", "scale", "values")
 
     def __init__(self, values: Any, mode: str, *, scale: str = "probability") -> None:
-        if mode in _RENAMED:
-            raise ValueError(f"selection mode {mode!r} is now {_RENAMED[mode]!r} (DECISIONS #7).")
-        if mode not in ("on_truth", "on_measurement"):
-            raise ValueError(
-                f"selection mode must be 'on_measurement' or 'on_truth' (or use "
-                f"Selection.combined); got {mode!r}. {_HELP}"
-            )
+        _check_mode(mode)
         v = _check_values(values, scale, "selection")
         self.values = frozen(v)
         self.row = self.values if mode == "on_truth" else None
@@ -127,15 +120,19 @@ class Selection:
         mode: str,
         *,
         scale: str = "probability",
+        tol: float = 1e-6,
     ) -> Selection:
         """A selection given as a function of the true value, averaged over each bin.
 
         ``function(z)`` returns the detection probability (or exposure) at
         points ``z`` (shape ``(M,)`` in 1-D, ``(M, ndim)`` on grids, labels for
         categories). Each bin takes its average in the measure coordinate, the
-        within-bin shape of the population (DECISIONS #10, #47).
+        within-bin shape of the population (DECISIONS #10, #47), by adaptive
+        quadrature to ``tol`` relative to the largest bin average.
         """
-        return cls(_bin_average(function, bins)[0], mode, scale=scale)
+        _check_mode(mode)
+        _check_values(np.ones(2), scale, "selection")  # the scale, before any quadrature
+        return cls(_bin_average(function, bins, tol=tol)[0], mode, scale=scale)
 
     @classmethod
     def combined(
@@ -145,6 +142,7 @@ class Selection:
         bins: Bins | None = None,
         *,
         scale: str = "probability",
+        tol: float = 1e-6,
     ) -> Selection:
         """Selection on the truth and on the measurement at once (DECISIONS #8).
 
@@ -161,18 +159,21 @@ class Selection:
             averaged as a whole).
         scale : str
             As for :class:`Selection`, applied to both parts.
+        tol : float
+            Quadrature tolerance for callable parts (see :meth:`from_function`).
         """
         if callable(on_truth) and callable(on_measurement):
             if bins is None:
                 raise ValueError("Selection.combined needs bins when a part is a callable.")
-            C, CT = _bin_average(on_truth, bins, lambda z: on_measurement(z))
+            C, CT = _bin_average(on_truth, bins, on_measurement, tol=tol)
+            C = _check_values(C, scale, "on_truth")
             return _combined(C, CT / C, scale)
         parts = []
         for part in (on_truth, on_measurement):
             if callable(part):
                 if bins is None:
                     raise ValueError("Selection.combined needs bins when a part is a callable.")
-                part = _bin_average(part, bins)[0]  # the other part is constant within bins
+                part = _bin_average(part, bins, tol=tol)[0]  # the other is constant in bins
             parts.append(part)
         return _combined(*parts, scale)
 
@@ -233,11 +234,21 @@ def _check_values(values: Any, scale: str, name: str) -> np.ndarray:
         )
     if scale == "probability" and np.any(v > 1.0 + 1e-12):
         raise ValueError(
-            f"{name} values are detection probabilities and must not exceed one; pass "
-            "scale='exposure' for absolute exposures or scale='relative' for values known "
-            "only up to a constant (DECISIONS #46)."
+            f"{name} values are detection probabilities and must not exceed one; for "
+            "absolute exposures pass Selection(S, mode, scale='exposure'), for values known "
+            "only up to a constant Selection(S, mode, scale='relative') (DECISIONS #46)."
         )
     return v
+
+
+def _check_mode(mode: str) -> None:
+    if mode in _RENAMED:
+        raise ValueError(f"selection mode {mode!r} is now {_RENAMED[mode]!r} (DECISIONS #7).")
+    if mode not in ("on_truth", "on_measurement"):
+        raise ValueError(
+            "selection mode must be 'on_measurement' or 'on_truth' (or use "
+            f"Selection.combined); got {mode!r}. {_HELP}"
+        )
 
 
 def _bin_average(
@@ -245,6 +256,7 @@ def _bin_average(
     bins: Bins,
     factor: Callable | None = None,
     log_weight: Callable | None = None,
+    tol: float = 1e-6,
 ) -> np.ndarray:
     """Weighted bin averages of a non-negative ``function`` (and of ``function * factor``).
 
@@ -252,26 +264,38 @@ def _bin_average(
     and a second row with the average of ``function * factor`` when ``factor``
     is given, both from one adaptive quadrature. The weight is uniform in the
     measure coordinate (the within-bin population shape), or ``exp(log_weight(z))``
-    per unit ``z`` when given (a population density).
+    per unit ``z`` when given (a population density); a bin where that weight
+    vanishes takes the unweighted average.
     """
     if bins.is_categorical:
         labels = np.asarray(bins.labels, dtype=object)
         f = np.asarray(function(labels), dtype=float).ravel()
         return f[None] if factor is None else np.stack([f, f * np.ravel(factor(labels))])
 
+    def logs(f, z):
+        v = np.asarray(f(z), dtype=float).ravel()
+        if not np.all(np.isfinite(v)) or np.any(v < 0):
+            raise ValueError("A selection function must return finite, non-negative values.")
+        with np.errstate(divide="ignore"):
+            return np.log(v)
+
     def logf(z):
-        lf = _log_nonneg(function(z)).ravel()
-        rows = [lf] if factor is None else [lf, lf + _log_nonneg(factor(z)).ravel()]
+        lf = logs(function, z)
+        rows = [lf] if factor is None else [lf, lf + logs(factor, z)]
         if log_weight is not None:
             lw = np.asarray(log_weight(z), dtype=float).ravel()
             rows = [r + lw for r in rows] + [lw]
         return np.stack(rows)
 
-    coordinate = "measure" if log_weight is None else "z"
-    out = bin_log_average(logf, bins, coordinate=coordinate)
-    if log_weight is not None:
-        out = out[:-1] - out[-1]  # divide by the bin's weight
-    return np.exp(out)
+    if log_weight is None:
+        return np.exp(bin_log_average(logf, bins, tol=tol))
+    out = bin_log_average(logf, bins, coordinate="z", tol=tol)
+    with np.errstate(invalid="ignore"):
+        avg = np.exp(out[:-1] - out[-1])  # divide by the bin's weight
+    empty = ~np.isfinite(out[-1])
+    if empty.any():  # no population in the bin: fall back to the unweighted average
+        avg[:, empty] = _bin_average(function, bins, factor, tol=tol)[:, empty]
+    return avg
 
 
 def _warn_if_steep(values: np.ndarray, bins: Bins) -> None:
