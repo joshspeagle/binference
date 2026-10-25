@@ -53,6 +53,8 @@ First development version.
   are refined to `tol` (default 1e-3), in the measure coordinate for likelihoods
   (DECISIONS #21); `from_gaussian` averages in u on non-linear axes. Far tails no longer
   underflow to empty rows (I-2, I-3).
+- **Correlated Gaussians** (DECISIONS #2, #25, #66): `from_gaussian(..., cov=)` takes full
+  per-object covariances, averaged over N-D bins by adaptive cubature in log space.
 - `weights` are integer multiplicities; non-integer weights need `fractional_weights=True`
   and warn that the result is a pseudo-likelihood (DECISIONS #1, #65). Stored arrays
   are read-only (I-14); `compress()` keeps sparse storage and is fast on it (I-7, I-19);

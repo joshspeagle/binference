@@ -45,6 +45,7 @@ def bin_log_average(
     tol: float = 1e-3,
     max_depth: int = 12,
     n_sub: int | None = None,
+    must_split: Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray] | None = None,
 ) -> np.ndarray:
     """Log of the average of ``exp(logf)`` over each active bin, shape ``(N, K)``.
 
@@ -64,6 +65,11 @@ def bin_log_average(
     along every axis, at most ``max_depth`` times, after which an
     :class:`~binference.InputWarning` is raised. With ``n_sub`` a fixed
     ``n_sub``-point rule is used instead.
+
+    ``must_split(z_lo, z_hi, r)`` (per-row mode) marks cells, given by their
+    bounds in ``z``, that must be split whatever the error estimate says: a
+    function narrower than a cell can fall between the points of both rules,
+    which then agree on a wrong value.
     """
     if not tol > 0 or max_depth < 0:
         raise ValueError(
@@ -80,6 +86,9 @@ def bin_log_average(
                         lambda z, r, start=sl.start: logf(z, r + start),
                         bins,
                         rows=sl.stop - sl.start,
+                        must_split=None
+                        if must_split is None
+                        else (lambda a, b, r, start=sl.start: must_split(a, b, r + start)),
                         **kw,
                     )
                     for sl in chunk_slices(rows, block)
@@ -153,6 +162,10 @@ def bin_log_average(
             diff = np.nan_to_num(np.abs(np.exp(fine - scale) - np.exp(coarse[0] - scale)))
         err = np.exp(logfrac) * (diff.max(axis=0) if rows is None else diff)
         ok = err <= tol
+        if must_split is not None:
+            z_lo = np.stack([inv(lo[:, d]) for d, inv in enumerate(inverse)], axis=-1)
+            z_hi = np.stack([inv(hi[:, d]) for d, inv in enumerate(inverse)], axis=-1)
+            ok &= ~must_split(z_lo, z_hi, row)
         if depth == max_depth:
             unconverged[owner[~ok]] = True
             ok[:] = True
