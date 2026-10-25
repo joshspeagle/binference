@@ -35,7 +35,7 @@ simulates an ideal classifier on four overlapping classes:
 
 ```{code-cell} python
 mock = binference.simulate.mock_categorical(3000, n_classes=4, separation=1.2, rng=5)
-probs, train_prior = mock.posteriors, mock.interim_prior
+probs, train_prior = mock.posteriors, mock.interim
 print("true test prevalence:", mock.truth.rho.round(3), " training prior:", train_prior)
 ```
 

@@ -10,16 +10,18 @@ import numpy as np
 import scipy.sparse as sp
 from scipy import special
 
-from ._quadrature import _subbin_points
+from ._quadrature import bin_log_average
 from ._utils import check_positive_weights
 from .bins import Bins
 from .density import (
     Density,
     Representation,
-    _dist_bin_masses,
+    _dist_log_masses,
+    _dist_logpdf,
     _equal_volumes,
     _is_distribution,
 )
+from .measure import Measure
 from .selection import Selection, as_selection
 from .warnings import InputWarning
 
@@ -57,20 +59,52 @@ def _scale_columns(values, factors: np.ndarray):
 
 
 def _interim_masses(
-    interim_prior: InterimPrior,
+    interim: InterimPrior,
     bins: Bins,
     representation: Representation | None = None,
     n_sub: int = 5,
 ) -> np.ndarray:
     """Normalised interim-prior mass per bin."""
-    return Density.coerce(interim_prior, representation).masses(bins, n_sub)
+    return Density.coerce(interim, representation).masses(bins, n_sub)
 
 
-def _check_kind(kind: str, interim_prior: Any) -> None:
-    if kind not in ("likelihood", "posterior"):
-        raise ValueError(f"kind must be 'likelihood' or 'posterior'; got {kind!r}.")
-    if kind == "posterior" and interim_prior is None:
-        raise ValueError("kind='posterior' requires an explicit interim_prior.")
+def _check_kind(kind: Any, interim: Any) -> bool:
+    """Whether the input is a posterior; exactly one of ``kind`` and ``interim`` must be given."""
+    if kind not in (None, "likelihood"):
+        raise ValueError(
+            f"kind must be 'likelihood' (pass interim= for posteriors); got {kind!r}."
+        )
+    if (kind is None) == (interim is None):
+        raise ValueError(
+            "Say what the input is: kind='likelihood' for likelihoods, or interim=<prior> for "
+            "posteriors computed under that prior (not both)."
+        )
+    return interim is not None
+
+
+def _log_nonneg(values: Any) -> np.ndarray:
+    v = np.asarray(values, dtype=float)
+    if not np.all(np.isfinite(v)) or np.any(v < 0):
+        raise ValueError("The density must return finite, non-negative values.")
+    with np.errstate(divide="ignore"):
+        return np.log(v)
+
+
+def _warn_outside(outside: np.ndarray, threshold: float = 0.9, share: float = 0.1) -> None:
+    """Warn when over ``share`` of the objects have over ``threshold`` of their mass outside."""
+    many = outside > threshold
+    if outside.size and many.mean() > share:
+        warnings.warn(
+            f"{int(many.sum())} of {outside.size} objects have more than {threshold:.0%} of "
+            "their likelihood mass outside the bins (see meta['outside_fraction']); "
+            "consider wider bins.",
+            InputWarning,
+            stacklevel=3,
+        )
+
+
+def _log_gauss_pdf(z: np.ndarray, mu: np.ndarray, sig: np.ndarray) -> np.ndarray:
+    return -0.5 * ((z - mu) / sig) ** 2 - np.log(sig) - 0.5 * np.log(2 * np.pi)
 
 
 def _log_gauss_bin_mass(lo: np.ndarray, hi: np.ndarray, mu: np.ndarray, sig: np.ndarray):
@@ -358,12 +392,12 @@ class Likelihoods:
 
     def stack(
         self,
-        interim_prior: InterimPrior | None = None,
+        interim: InterimPrior | None = None,
         interim_representation: Representation | None = None,
     ) -> np.ndarray:
         """Naive "stacked" population estimate: the weighted mean of per-object posteriors.
 
-        Posteriors are formed under ``interim_prior``: by default the interim
+        Posteriors are formed under ``interim``: by default the interim
         prior the likelihoods were built with (so the stack reproduces the
         input posteriors), else :meth:`Density.flat`. Stacking is exactly one
         EM step from the interim prior, not the maximum-likelihood population;
@@ -371,12 +405,12 @@ class Likelihoods:
         noise, and is provided for comparison only. Its distance from the
         optimum is ``PopulationModel(lk).kkt_gap(lk.stack())``.
         """
-        if interim_prior is None:
+        if interim is None:
             Pi = self.meta.get("interim_prior_masses")
             if Pi is None:
                 Pi = Density.flat().masses(self._bins)
         else:
-            Pi = _interim_masses(interim_prior, self._bins, interim_representation)
+            Pi = _interim_masses(interim, self._bins, interim_representation)
         P = _scale_columns(self._values, Pi)
         tot = np.asarray(P.sum(axis=1)).ravel()
         if np.any(tot <= 0):
@@ -404,82 +438,93 @@ class Likelihoods:
         return lk
 
     @classmethod
-    def from_posteriors(
+    def from_table(
         cls,
-        posteriors: Any,
+        values: Any,
         bins: Bins,
-        interim_prior: InterimPrior,
         *,
-        representation: Representation = "mass",
+        kind: Literal["likelihood"] | None = None,
+        interim: InterimPrior | None = None,
+        representation: Representation | None = None,
         interim_representation: Representation | None = None,
+        log: bool = False,
         weights: Any = None,
         selection: Any = None,
         selection_mode: str | None = None,
         drop_empty: bool = False,
     ) -> Likelihoods:
-        r"""Convert per-object posteriors computed under an interim prior into likelihoods.
+        r"""Likelihoods from a table of per-object values on the bins.
 
-        Uses :math:`L_{ik} \propto P_{ik} / \Pi_k`, where :math:`P_{ik}` is the
-        posterior mass of object *i* in bin *k* and :math:`\Pi_k` the interim
-        prior mass of bin *k*. Treating posteriors as likelihoods instead would
-        count the interim prior twice and bias the population toward it.
+        Say what the table holds: ``kind="likelihood"`` for likelihoods, or
+        ``interim=`` for posteriors computed under that interim prior. Posteriors
+        are converted with :math:`L_{ik} \propto P_{ik} / \Pi_k`, where
+        :math:`P_{ik}` is the posterior mass of object *i* in bin *k* and
+        :math:`\Pi_k` the interim prior's mass; using posteriors as likelihoods
+        would count the interim prior twice.
 
         Parameters
         ----------
-        posteriors : array_like or sparse matrix, shape (N, K)
-            Posterior PDFs on the bins (rows need not be normalised).
+        values : array_like or sparse matrix, shape (N, K)
+            Non-negative values (rows need not be normalised).
         bins : Bins
-            The bins the posteriors are tabulated on.
-        interim_prior : Density, "flat", callable, distribution or array_like (K,)
+            The bins the values are tabulated on.
+        kind : {"likelihood"}, optional
+            The values are likelihoods. Exactly one of ``kind`` and ``interim``.
+        interim : Density, "flat", callable, distribution or array_like (K,), optional
             The prior the posteriors were computed with, read by
-            :meth:`Density.coerce`. There is deliberately no default.
-        representation : {"mass", "density"}
-            Whether ``posteriors`` are probabilities per bin (``"mass"``,
-            default) or densities evaluated at bin centres (``"density"``).
+            :meth:`Density.coerce`.
+        representation : {"mass", "density"}, optional
+            Values per bin (``"mass"``) or at or averaged over the bin
+            (``"density"``). Defaults to ``"density"`` for likelihoods and
+            ``"mass"`` for posteriors, their usual forms.
         interim_representation : {"mass", "density"}, optional
-            How an array ``interim_prior`` is read. Required for arrays on bins
-            of unequal volume, where the two readings differ.
+            How an array ``interim`` is read. Required for arrays on bins of
+            unequal volume, where the two readings differ.
+        log : bool
+            The values are logarithms (``-inf`` allowed; dense only).
         """
-        P = posteriors
-        if sp.issparse(P):
-            P = sp.csr_array(P, dtype=float)
-            if P.data.size and (not np.all(np.isfinite(P.data)) or np.any(P.data < 0)):
-                raise ValueError("posteriors must be finite and non-negative.")
-        else:
-            P = np.asarray(P, dtype=float)
-            if P.ndim != 2:
-                raise ValueError("posteriors must be a 2-D array of shape (N, K).")
-            if not np.all(np.isfinite(P)) or np.any(P < 0):
-                raise ValueError("posteriors must be finite and non-negative.")
-        if P.shape[1] != bins.K:
-            raise ValueError(f"posteriors have {P.shape[1]} columns but bins have K={bins.K}.")
-        vol = np.asarray(bins.volumes, dtype=float)
+        posterior = _check_kind(kind, interim)
+        if representation is None:
+            representation = "mass" if posterior else "density"
         if representation not in ("mass", "density"):
-            raise ValueError("representation must be 'mass' or 'density'.")
-        _check_posterior_representation(P, vol, representation)
+            raise ValueError(
+                f"representation must be 'mass' or 'density'; got {representation!r}."
+            )
+        tail = {
+            "weights": weights,
+            "selection": selection,
+            "selection_mode": selection_mode,
+            "drop_empty": drop_empty,
+        }
+        if not posterior:
+            lk = cls(values, bins, representation=representation, log=log, **tail)
+            lk.meta["source"] = "table"
+            return lk
+        P, scale = _normalise_log(values) if log else _normalise_linear(values)
+        if P.shape[1] != bins.K:
+            raise ValueError(f"values have {P.shape[1]} columns but bins have K={bins.K}.")
+        vol = np.asarray(bins.volumes, dtype=float)
+        if not log:  # the check reads row sums, so it needs the values at their own scale
+            with np.errstate(over="ignore"):
+                raw = (
+                    _scale_csr_rows(P, np.exp(scale))
+                    if sp.issparse(P)
+                    else P * np.exp(scale)[:, None]
+                )
+            _check_posterior_representation(raw, vol, representation)
         if representation == "density":
             P = _scale_columns(P, vol)
-        Pi = _interim_masses(interim_prior, bins, interim_representation)
+        Pi = _interim_masses(interim, bins, interim_representation)
         zero = Pi <= 0
         if np.any(zero):
-            col_mass = (
-                np.asarray(abs(P).sum(axis=0)).ravel() if sp.issparse(P) else np.abs(P).sum(0)
-            )
+            col_mass = np.asarray(P.sum(axis=0)).ravel()
             if np.any(col_mass[zero] > 0):
                 raise ValueError(
                     "Posteriors have mass in bins where the interim prior is zero; "
                     "the interim prior must be positive wherever posteriors are."
                 )
         inv = np.where(zero, 0.0, 1.0 / np.where(zero, 1.0, Pi))
-        L = _scale_columns(P, inv)
-        lk = cls(
-            L,
-            bins,
-            weights=weights,
-            selection=selection,
-            selection_mode=selection_mode,
-            drop_empty=drop_empty,
-        )
+        lk = cls(_scale_columns(P, inv), bins, **tail)
         lk.meta.update(source="posteriors", representation=representation, interim_prior_masses=Pi)
         return lk
 
@@ -488,7 +533,7 @@ class Likelihoods:
         cls,
         samples: Any,
         bins: Bins,
-        interim_prior: InterimPrior,
+        interim: InterimPrior,
         *,
         sample_weights: Any = None,
         interim_representation: Representation | None = None,
@@ -514,12 +559,12 @@ class Likelihoods:
             ``(S_i, ndim)`` arrays.
         bins : Bins
             Target bins (grids only).
-        interim_prior : Density, "flat", callable, distribution or array_like (K,)
+        interim : Density, "flat", callable, distribution or array_like (K,)
             Prior under which the samples were drawn, read by
             :meth:`Density.coerce`. There is deliberately no default: samples
             drawn under an informative prior must have it divided out.
         interim_representation : {"mass", "density"}, optional
-            How an array ``interim_prior`` is read (see :meth:`from_posteriors`).
+            How an array ``interim`` is read (see :meth:`from_table`).
         sample_weights : array_like or sequence of arrays, optional
             Importance weights for the samples (same layout as ``samples``).
         sparse : bool, optional
@@ -536,7 +581,7 @@ class Likelihoods:
             (sw[inside], (obj_ids[inside], flat_idx[inside])), shape=(n_obj, bins.K)
         ).tocsr()
         M.sum_duplicates()
-        Pi = _interim_masses(interim_prior, bins, interim_representation)
+        Pi = _interim_masses(interim, bins, interim_representation)
         if np.any(Pi <= 0):
             col_mass = np.asarray(M.sum(axis=0)).ravel()
             if np.any(col_mass[Pi <= 0] > 0):
@@ -564,6 +609,7 @@ class Likelihoods:
         )
         lk.meta.update(source="samples", interim_prior_masses=Pi)
         _attach_per_object(lk, n_eff=n_eff, outside_fraction=outside)
+        _warn_outside(outside)
         return lk
 
     @classmethod
@@ -577,12 +623,17 @@ class Likelihoods:
         selection: Any = None,
         selection_mode: str | None = None,
         drop_empty: bool = False,
+        tol: float = 1e-3,
     ) -> Likelihoods:
         r"""Likelihoods for Gaussian measurements :math:`d_i \sim \mathcal N(z, \sigma_i^2)`.
 
-        Bin-averaged likelihoods are computed exactly from CDF differences
-        (stable in the far tails). For N-D grids, measurement errors are
+        Bin averages are exact CDF differences (stable in the far tails) on
+        axes with a linear measure; on other axes the likelihood is averaged
+        uniformly in the measure coordinate by adaptive quadrature to ``tol``
+        (see :meth:`from_density`). For N-D grids, measurement errors are
         independent per axis (``mean`` and ``sigma`` of shape ``(N, ndim)``).
+        Each object's fraction of mass outside the active bins is recorded in
+        ``meta["outside_fraction"]``.
 
         Parameters
         ----------
@@ -616,13 +667,31 @@ class Likelihoods:
             raise ValueError("mean must be finite.")
         if not np.all(np.isfinite(sig)) or np.any(sig <= 0):
             raise ValueError("sigma must be finite and strictly positive.")
-        # per-axis log bin-averaged densities, summed over the axes of each active bin
-        logL = 0.0
-        for d, (e, j) in enumerate(zip(bins.edges, bins.cell_index, strict=True)):
-            lm = _log_gauss_bin_mass(
-                e[None, :-1], e[None, 1:], mu[:, d : d + 1], sig[:, d : d + 1]
-            )
-            logL = logL + (lm - np.log(np.diff(e))[None, :])[:, j]
+        # per axis: exact log masses, and bin averages (in u on non-linear measures),
+        # summed over the axes of each active bin
+        logL = log_mass = 0.0
+        for d, (e, m, j) in enumerate(
+            zip(bins.edges, bins.measures, bins.cell_index, strict=True)
+        ):
+            mu_d, sig_d = mu[:, d : d + 1], sig[:, d : d + 1]
+            lm = _log_gauss_bin_mass(e[None, :-1], e[None, 1:], mu_d, sig_d)
+            if m == Measure.linear():
+                avg = lm - np.log(np.diff(e))[None, :]
+            else:
+                avg, unconverged = bin_log_average(
+                    lambda z, mu_d=mu_d, sig_d=sig_d: _log_gauss_pdf(z[None, :], mu_d, sig_d),
+                    Bins(e, measure=m),
+                    tol=tol,
+                )
+                if unconverged.any():
+                    warnings.warn(
+                        f"Bin averages did not reach tol={tol:g} on axis {d}; raise tol.",
+                        InputWarning,
+                        stacklevel=2,
+                    )
+            logL = logL + avg[:, j]
+            log_mass = log_mass + lm[:, j]
+        outside = np.clip(-np.expm1(np.minimum(special.logsumexp(log_mass, axis=1), 0.0)), 0, 1)
         lk = cls(
             logL,
             bins,
@@ -634,143 +703,122 @@ class Likelihoods:
         )
         lk.meta.update(source="gaussian")
         # kept so that true values can be drawn from the likelihood within bins
-        _attach_per_object(lk, gaussian_mean=mu, gaussian_sigma=np.array(sig))
+        _attach_per_object(
+            lk, gaussian_mean=mu, gaussian_sigma=np.array(sig), outside_fraction=outside
+        )
+        _warn_outside(outside)
         return lk
 
     @classmethod
-    def from_distributions(
+    def from_density(
         cls,
-        dists: Sequence[Any],
+        density: Callable[[np.ndarray], np.ndarray] | Sequence[Any],
         bins: Bins,
         *,
-        kind: Literal["likelihood", "posterior"] = "likelihood",
-        interim_prior: InterimPrior | None = None,
+        kind: Literal["likelihood"] | None = None,
+        interim: InterimPrior | None = None,
         interim_representation: Representation | None = None,
-        n_sub: int = 5,
-        weights: Any = None,
-        selection: Any = None,
-        selection_mode: str | None = None,
-        drop_empty: bool = False,
-    ) -> Likelihoods:
-        """Likelihoods from per-object distribution objects (e.g. frozen ``scipy.stats``).
-
-        Each object is described by a distribution over the bin coordinate. For
-        1-D bins, objects with a ``cdf`` method are integrated exactly over the
-        bins; otherwise ``logpdf`` (or ``pdf``) is integrated with ``n_sub``
-        Gauss-Legendre points per bin (per axis).
-
-        Parameters
-        ----------
-        dists : sequence
-            One distribution per object.
-        kind : {"likelihood", "posterior"}
-            Whether each distribution is the likelihood function of the object
-            (default) or a posterior computed under ``interim_prior``.
-        interim_prior : required when ``kind="posterior"``; see :meth:`from_posteriors`.
-        interim_representation : {"mass", "density"}, optional
-            How an array ``interim_prior`` is read (see :meth:`from_posteriors`).
-        """
-        if bins.is_categorical:
-            raise ValueError("from_distributions needs ordered (grid) bins.")
-        _check_kind(kind, interim_prior)
-        dists = list(dists)
-        masses = np.empty((len(dists), bins.K))
-        for i, d in enumerate(dists):
-            if not _is_distribution(d):
-                raise TypeError("Each distribution needs a cdf, logpdf or pdf method.")
-            masses[i] = _dist_bin_masses(d, bins, n_sub)
-        if kind == "likelihood":
-            lk = cls(
-                masses,
-                bins,
-                representation="mass",
-                weights=weights,
-                selection=selection,
-                selection_mode=selection_mode,
-                drop_empty=drop_empty,
-            )
-        else:
-            lk = cls.from_posteriors(
-                masses,
-                bins,
-                # the interim prior uses the same quadrature as the values
-                Density.from_masses(
-                    _interim_masses(interim_prior, bins, interim_representation, n_sub)
-                ),
-                representation="mass",
-                weights=weights,
-                selection=selection,
-                selection_mode=selection_mode,
-                drop_empty=drop_empty,
-            )
-        lk.meta["source"] = "distributions"
-        return lk
-
-    @classmethod
-    def from_function(
-        cls,
-        func: Callable[[np.ndarray], np.ndarray],
-        bins: Bins,
-        *,
-        n_sub: int = 3,
         log: bool = False,
-        kind: Literal["likelihood", "posterior"] = "likelihood",
-        interim_prior: InterimPrior | None = None,
-        interim_representation: Representation | None = None,
+        tol: float = 1e-3,
+        max_depth: int = 12,
+        n_sub: int | None = None,
         weights: Any = None,
         selection: Any = None,
         selection_mode: str | None = None,
         drop_empty: bool = False,
     ) -> Likelihoods:
-        """Likelihoods from a vectorised function of the bin coordinate.
+        """Likelihoods from per-object densities over the bin coordinate.
 
-        ``func(points)`` must return an ``(N, M)`` array of (log-)likelihood (or
-        posterior density) values for all objects at ``M`` points; ``points`` has
-        shape ``(M,)`` for 1-D bins and ``(M, ndim)`` for grids. Values are
-        averaged over ``n_sub`` Gauss-Legendre points per bin (per axis). With
-        ``kind="posterior"``, ``interim_prior`` and ``interim_representation``
-        are as in :meth:`from_posteriors`.
+        ``density`` is either a vectorised function, where ``density(points)``
+        returns an ``(N, M)`` array of values (log-values with ``log=True``) at
+        ``M`` points of shape ``(M,)`` (1-D) or ``(M, ndim)``, or a sequence of
+        distribution objects with ``logpdf``, ``pdf``, ``logcdf`` or ``cdf``
+        (e.g. frozen ``scipy.stats``). Say what they are: ``kind="likelihood"``
+        or ``interim=`` for posteriors, as in :meth:`from_table`.
+
+        Likelihoods are averaged over each bin uniformly in the measure
+        coordinate, the within-bin population shape; posteriors are integrated
+        over each bin in ``z`` and divided by the interim prior's bin masses.
+        On 1-D bins, distributions with a ``cdf`` are integrated exactly where
+        the result is a mass (posteriors, or likelihoods on a linear measure),
+        in log space so that far tails keep their precision.
+
+        Other integrals use adaptive quadrature: each bin is refined until the
+        estimated error is below ``tol`` relative to each row's largest bin
+        average, splitting cells at most ``max_depth`` times; ``n_sub`` instead
+        fixes ``n_sub`` Gauss-Legendre points per bin and axis. The fraction of
+        each distribution's mass outside the active bins is recorded in
+        ``meta["outside_fraction"]`` on 1-D bins.
         """
         if bins.is_categorical:
-            raise ValueError("from_function needs ordered (grid) bins.")
-        _check_kind(kind, interim_prior)
-        pts, wq = _subbin_points(bins, n_sub)
-        vals = np.asarray(func(pts.copy()), dtype=float)
-        if vals.ndim != 2 or vals.shape[1] != pts.shape[0]:
-            raise ValueError("func(points) must return an array of shape (N, n_points).")
-        N = vals.shape[0]
-        vals = vals.reshape(N, bins.K, -1)
-        if log:
-            lw = np.log(wq)
-            avg = special.logsumexp(vals + lw[None, None, :], axis=2)
+            raise ValueError("from_density needs grid bins.")
+        posterior = _check_kind(kind, interim)
+        if tol <= 0 or max_depth < 0:
+            raise ValueError("tol must be positive and max_depth non-negative.")
+        outside = None
+        if callable(density):
+            func = density
+            if log:
+                logf = lambda pts: np.asarray(func(pts), dtype=float)  # noqa: E731
+            else:
+                logf = lambda pts: _log_nonneg(func(pts))  # noqa: E731
+            exact = None
         else:
-            avg = vals @ wq
-        if kind == "likelihood":
-            lk = cls(
-                avg,
-                bins,
-                log=log,
-                weights=weights,
-                selection=selection,
-                selection_mode=selection_mode,
-                drop_empty=drop_empty,
-            )
+            dists = list(density)
+            if not dists or not all(_is_distribution(d) for d in dists):
+                raise TypeError("density must be a function or a sequence of distributions.")
+            logf = lambda pts: np.stack([_dist_logpdf(d, pts) for d in dists])  # noqa: E731
+            exact = None
+            if bins.ndim == 1 and all(hasattr(d, "cdf") or hasattr(d, "logcdf") for d in dists):
+                exact = np.stack([_dist_log_masses(d, bins.edges[0]) for d in dists])
+                inside = special.logsumexp(exact[:, bins.cell_index[0]], axis=1)
+                outside = np.clip(-np.expm1(np.minimum(inside, 0.0)), 0.0, 1.0)
+                exact = exact[:, bins.cell_index[0]]
+                if not (posterior or bins.measures[0] == Measure.linear()):
+                    exact = None  # a likelihood average in a non-linear measure needs quadrature
+        if exact is not None:
+            log_mass = exact
         else:
-            dens = np.exp(avg - avg.max(axis=1, keepdims=True)) if log else avg
-            lk = cls.from_posteriors(
-                dens,
+            log_avg, unconverged = bin_log_average(
+                logf,
                 bins,
-                # the interim prior uses the same quadrature as the values
-                Density.from_masses(
-                    _interim_masses(interim_prior, bins, interim_representation, n_sub)
-                ),
-                representation="density",
-                weights=weights,
-                selection=selection,
-                selection_mode=selection_mode,
-                drop_empty=drop_empty,
+                coordinate="z" if posterior else "measure",
+                tol=tol,
+                max_depth=max_depth,
+                n_sub=n_sub,
             )
-        lk.meta["source"] = "function"
+            if unconverged.any():
+                warnings.warn(
+                    f"Bin averages did not reach tol={tol:g} in {int(unconverged.sum())} bin(s) "
+                    f"after {max_depth} refinements; raise max_depth or tol.",
+                    InputWarning,
+                    stacklevel=2,
+                )
+            log_mass = log_avg + np.log(bins.volumes) if posterior else None
+        tail = {
+            "weights": weights,
+            "selection": selection,
+            "selection_mode": selection_mode,
+            "drop_empty": drop_empty,
+        }
+        if posterior:
+            Pi = _interim_masses(interim, bins, interim_representation, n_sub or 5)
+            lk = cls.from_table(
+                log_mass,
+                bins,
+                interim=Density.from_masses(Pi),
+                representation="mass",
+                log=True,
+                **tail,
+            )
+        elif exact is not None:
+            lk = cls(log_mass, bins, log=True, representation="mass", **tail)
+        else:
+            lk = cls(log_avg, bins, log=True, **tail)
+        lk.meta["source"] = "density"
+        if outside is not None:
+            _attach_per_object(lk, outside_fraction=outside)
+            _warn_outside(outside)
         return lk
 
     @classmethod
@@ -875,7 +923,7 @@ class Likelihoods:
         bins = Bins.categories(labels if labels is not None else C)
         if bins.K != C:
             raise ValueError("labels must have one entry per class.")
-        lk = cls.from_posteriors(p, bins, np.asarray(train_prior, dtype=float), weights=weights)
+        lk = cls.from_table(p, bins, interim=np.asarray(train_prior, dtype=float), weights=weights)
         lk.meta["source"] = "classifier"
         return lk
 

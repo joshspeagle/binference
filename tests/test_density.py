@@ -41,23 +41,25 @@ def test_an_array_interim_is_read_the_same_way_by_every_constructor():
     mu = rng.uniform(0.5, 5.0, 30)
     pi = 1.0 / bins.centers  # an interim density per unit z
     dists = [stats.norm(m, 0.3) for m in mu]
-    via_dist = Likelihoods.from_distributions(
-        dists, bins, kind="posterior", interim_prior=pi, interim_representation="density"
-    )
-    via_func = Likelihoods.from_function(
+    via_dist = Likelihoods.from_density(dists, bins, interim=pi, interim_representation="density")
+    via_func = Likelihoods.from_density(
         lambda z: np.array([d.pdf(z) for d in dists]),
         bins,
-        n_sub=8,
-        kind="posterior",
-        interim_prior=pi,
+        interim=pi,
+        interim_representation="density",
+        tol=1e-6,
+    )
+    via_table = Likelihoods.from_table(
+        np.array([np.diff(d.cdf(bins.edges[0])) for d in dists]),
+        bins,
+        interim=pi,
         interim_representation="density",
     )
-    np.testing.assert_allclose(via_func.toarray(), via_dist.toarray(), rtol=1e-3, atol=1e-8)
+    np.testing.assert_allclose(via_func.toarray(), via_dist.toarray(), rtol=1e-4, atol=1e-8)
+    np.testing.assert_allclose(via_table.toarray(), via_dist.toarray(), rtol=1e-8, atol=1e-10)
     for build in (
-        lambda: Likelihoods.from_distributions(dists, bins, kind="posterior", interim_prior=pi),
-        lambda: Likelihoods.from_function(
-            lambda z: np.ones((1, z.size)), bins, kind="posterior", interim_prior=pi
-        ),
+        lambda: Likelihoods.from_density(dists, bins, interim=pi),
+        lambda: Likelihoods.from_table(np.ones((1, bins.K)), bins, interim=pi),
     ):
         with pytest.raises(ValueError, match="ambiguous"):
             build()
@@ -65,9 +67,7 @@ def test_an_array_interim_is_read_the_same_way_by_every_constructor():
 
 def test_an_unknown_kind_is_rejected():
     with pytest.raises(ValueError, match="kind"):
-        Likelihoods.from_function(
-            lambda z: np.ones((1, z.size)), Bins.linear(0, 1, 3), kind="post"
-        )
+        Likelihoods.from_density(lambda z: np.ones((1, z.size)), Bins.linear(0, 1, 3), kind="post")
 
 
 def test_stack_reproduces_the_mean_of_the_input_posteriors():
@@ -75,7 +75,7 @@ def test_stack_reproduces_the_mean_of_the_input_posteriors():
     rng = np.random.default_rng(1)
     P = rng.dirichlet(np.ones(4), size=50)
     interim = np.array([0.1, 0.2, 0.3, 0.4])
-    lk = Likelihoods.from_posteriors(P, bins, interim)
+    lk = Likelihoods.from_table(P, bins, interim=interim)
     np.testing.assert_allclose(lk.stack(), P.mean(axis=0), rtol=1e-12)
     flat = lk.stack("flat")
     assert not np.allclose(flat, P.mean(axis=0))
@@ -126,7 +126,5 @@ def test_tiny_unequal_bins_still_need_a_representation():
 def test_the_interim_uses_the_constructor_quadrature():
     bins = Bins.linear(0, 1, 2)
     interim = lambda z: np.exp(8 * z)  # noqa: E731
-    lk = Likelihoods.from_function(
-        lambda z: np.exp(8 * z)[None, :], bins, n_sub=2, kind="posterior", interim_prior=interim
-    )
+    lk = Likelihoods.from_density(lambda z: np.exp(8 * z)[None, :], bins, n_sub=2, interim=interim)
     np.testing.assert_allclose(lk.toarray(), 1.0, rtol=1e-12)  # the interim divides out exactly

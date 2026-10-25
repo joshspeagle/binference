@@ -16,8 +16,8 @@ $(\pi\cdot\rho)^W$ drags the population toward where $\pi$ is large
 ([theory](../theory.md#likelihoods-versus-posteriors)). binference's slow tests
 show biases of more than eight standard deviations.
 
-**Fix.** Use `Likelihoods.from_posteriors(P, bins, interim_prior)` or
-`from_samples(..., interim_prior)`. binference deliberately has no default
+**Fix.** Use `Likelihoods.from_table(P, bins, interim=interim)` or
+`from_samples(..., interim)`. binference deliberately has no default
 interim prior for these.
 
 ## Masses versus densities with unequal bins

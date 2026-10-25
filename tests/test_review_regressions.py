@@ -96,11 +96,11 @@ def test_an_array_interim_on_unequal_bins_needs_its_representation():
     post_density = like * prior_density
     post_density /= (post_density * bins.volumes).sum(axis=1, keepdims=True)
     with pytest.raises(ValueError, match="ambiguous"):
-        Likelihoods.from_posteriors(post_density, bins, prior_density, representation="density")
-    lk = Likelihoods.from_posteriors(
+        Likelihoods.from_table(post_density, bins, interim=prior_density, representation="density")
+    lk = Likelihoods.from_table(
         post_density,
         bins,
-        prior_density,
+        interim=prior_density,
         representation="density",
         interim_representation="density",
     )

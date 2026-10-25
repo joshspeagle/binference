@@ -5,7 +5,7 @@ import pytest
 import scipy.sparse as sp
 
 import binference
-from binference import Bins, Likelihoods, PopulationModel
+from binference import Bins, InputWarning, Likelihoods, PopulationModel
 from binference import priors as P
 
 
@@ -143,7 +143,8 @@ def test_kkt_gap_and_missing_information(rng):
     assert m1.kkt_gap(mle) < 1e-8
     assert m1.missing_information(mle) < 1e-8
     assert m1.kkt_gap(np.array([0.7, 0.1, 0.1, 0.1])) > 1e-3
-    broad = binference.simulate.mock_1d(500, bins, noise=2.0, rng=rng).likelihoods
+    with pytest.warns(InputWarning, match="outside the bins"):  # noise twice the range
+        broad = binference.simulate.mock_1d(500, bins, noise=2.0, rng=rng).likelihoods
     m2 = PopulationModel(broad)
     assert m2.missing_information(m2.stack()) > 0.9
 

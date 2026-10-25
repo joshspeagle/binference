@@ -192,6 +192,33 @@ def _dist_pdf(dist: Any) -> Callable[[np.ndarray], np.ndarray]:
     return dist.pdf
 
 
+def _dist_logpdf(dist: Any, z: np.ndarray) -> np.ndarray:
+    if hasattr(dist, "logpdf"):
+        return np.asarray(dist.logpdf(z), dtype=float)
+    with np.errstate(divide="ignore"):
+        return np.log(np.asarray(dist.pdf(z), dtype=float))
+
+
+def _dist_log_masses(dist: Any, edges: np.ndarray) -> np.ndarray:
+    """Log mass between consecutive edges, from the side of the CDF that keeps precision."""
+    with np.errstate(divide="ignore"):
+        if hasattr(dist, "logcdf"):
+            lc = np.asarray(dist.logcdf(edges), dtype=float)
+        else:
+            lc = np.log(np.asarray(dist.cdf(edges), dtype=float))
+        if hasattr(dist, "logsf"):
+            ls = np.asarray(dist.logsf(edges), dtype=float)
+        else:
+            ls = np.log1p(-np.exp(lc))
+    a, b = slice(None, -1), slice(1, None)
+    upper = lc[a] > np.log(0.5)  # the interval lies above the median: use survival functions
+    hi = np.where(upper, ls[a], lc[b])
+    lo = np.where(upper, ls[b], lc[a])
+    with np.errstate(divide="ignore", invalid="ignore"):
+        out = hi + np.log1p(-np.exp(lo - hi))
+    return np.where(hi > lo, out, -np.inf)
+
+
 def _func_bin_masses(func: Callable, bins: Bins, n_sub: int) -> np.ndarray:
     pts, w = _subbin_points(bins, n_sub)
     dens = np.asarray(func(pts.copy()), dtype=float).ravel()
@@ -202,9 +229,8 @@ def _func_bin_masses(func: Callable, bins: Bins, n_sub: int) -> np.ndarray:
 
 def _dist_bin_masses(dist: Any, bins: Bins, n_sub: int) -> np.ndarray:
     """Unnormalised bin masses of a distribution: exact by ``cdf`` on 1-D grids."""
-    if bins.ndim == 1 and hasattr(dist, "cdf"):
-        c = np.asarray(dist.cdf(bins.edges[0]), dtype=float)
-        return np.clip(np.diff(c), 0.0, None)[bins.cell_index[0]]
+    if bins.ndim == 1 and (hasattr(dist, "cdf") or hasattr(dist, "logcdf")):
+        return np.exp(_dist_log_masses(dist, bins.edges[0]))[bins.cell_index[0]]
     return _func_bin_masses(_dist_pdf(dist), bins, n_sub)
 
 

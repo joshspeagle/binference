@@ -45,6 +45,17 @@ First development version.
   callable on categories receives the labels (I-17).
 - `Likelihoods.stack()` uses the interim prior the likelihoods were built with
   (I-5) and raises on rows with no support under it (I-6).
+- **Constructors by input form** (DECISIONS #32, #64): `Likelihoods.from_table` and
+  `Likelihoods.from_density` replace `from_posteriors`, `from_function` and
+  `from_distributions`; each needs `kind="likelihood"` or `interim=`. `interim_prior`
+  is now `interim` (also in `stack()` and `simulate.mock_1d`).
+- **Adaptive quadrature** (DECISIONS #23): bin averages of functions and distributions
+  are refined to `tol` (default 1e-3), in the measure coordinate for likelihoods
+  (DECISIONS #21); `from_gaussian` averages in u on non-linear axes. Far tails no longer
+  underflow to empty rows (I-2, I-3).
+- Each object's likelihood mass outside the bins is recorded in
+  `meta["outside_fraction"]`, with a warning when many objects lose most of it
+  (DECISIONS #18).
 
 - **Inputs.** `Bins` (linear, log, from centres, N-D grids, categories) and
   `Likelihoods` with constructors for:
