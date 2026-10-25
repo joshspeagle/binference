@@ -40,7 +40,13 @@ from .model import PopulationModel
 from .response import Response
 from .results import PointEstimate, PopulationResult, Summary
 from .selection import Selection
-from .warnings import ApproximationWarning, BinferenceWarning, ConvergenceWarning, InputWarning
+from .warnings import (
+    ApproximationWarning,
+    BinferenceWarning,
+    ConvergenceWarning,
+    DiagnosticsError,
+    InputWarning,
+)
 
 __all__ = [
     "ApproximationWarning",
@@ -49,6 +55,7 @@ __all__ = [
     "Bins",
     "ConvergenceWarning",
     "Density",
+    "DiagnosticsError",
     "InputWarning",
     "Likelihoods",
     "Measure",

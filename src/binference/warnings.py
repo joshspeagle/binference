@@ -6,7 +6,13 @@ place, e.g. ``warnings.simplefilter("ignore", binference.BinferenceWarning)``.
 
 from __future__ import annotations
 
-__all__ = ["ApproximationWarning", "BinferenceWarning", "ConvergenceWarning", "InputWarning"]
+__all__ = [
+    "ApproximationWarning",
+    "BinferenceWarning",
+    "ConvergenceWarning",
+    "DiagnosticsError",
+    "InputWarning",
+]
 
 
 class BinferenceWarning(UserWarning):
@@ -36,3 +42,7 @@ class ApproximationWarning(BinferenceWarning):
     correction (or with an unreliable correction), and bootstrap intervals are
     flagged with this warning.
     """
+
+
+class DiagnosticsError(RuntimeError):
+    """``result.check(strict=True)`` found problems (the messages its warnings carry)."""

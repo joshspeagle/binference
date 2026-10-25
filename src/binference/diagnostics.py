@@ -266,7 +266,7 @@ def psis(log_weights: Any) -> tuple[np.ndarray, float]:
         raise ValueError("Need at least 5 importance weights.")
     lw[~np.isfinite(lw)] = -np.inf
     lw = lw - np.max(lw)
-    tail_len = int(min(0.2 * n, 3.0 * np.sqrt(n)))
+    tail_len = int(np.ceil(min(0.2 * n, 3.0 * np.sqrt(n))))  # rounded up, as ArviZ and loo
     sorted_lw = np.sort(lw)
     exp_cut = max(np.exp(sorted_lw[-tail_len - 1]), np.finfo(float).tiny)
     tail_idx = np.flatnonzero(lw > np.log(exp_cut))

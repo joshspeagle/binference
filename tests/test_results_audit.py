@@ -72,3 +72,58 @@ def test_engine_statistics_that_cannot_be_saved_are_named():
     _, res = _fit_with_selection()
     res.info["metrics"] = [np.eye(2), np.eye(2)]
     assert res.to_dict()["meta"]["info_dropped"] == ["metrics"]
+
+
+def _external(draws, model, **info):
+    return PopulationResult.from_samples(model, draws, info=info)
+
+
+def test_check_flags_energy_tail_mixing_one_chain_and_unconverged_fits():
+    lk, res = _fit_with_selection()
+    m = res.model
+    rng = np.random.default_rng(0)
+    good = rng.dirichlet(np.ones(4) * 50, size=(4, 400))
+    assert _external(good, m).check() == []
+    with pytest.warns(binference.ConvergenceWarning, match="E-BFMI"):
+        _external(good, m, ebfmi=np.array([0.1, 0.9, 0.9, 0.9])).check()
+    with pytest.warns(binference.ConvergenceWarning, match="did not converge"):
+        _external(good, m, converged=False).check()
+    # one chain with a trend: split R-hat catches it (O-7)
+    trend = good[:1].copy()
+    trend[0, :, 0] += np.linspace(0, 0.2, 400)
+    trend /= trend.sum(axis=-1, keepdims=True)
+    with pytest.warns(binference.ConvergenceWarning, match="R-hat"):
+        _external(trend, m).check()
+    # external draws get the ESS check, tail ESS included
+    stuck = np.repeat(good[:, :40], 10, axis=1)
+    with pytest.warns(binference.ConvergenceWarning, match="tail ESS"):
+        _external(stuck, m).check()
+    with pytest.raises(binference.DiagnosticsError):
+        _external(stuck, m).check(strict=True)
+
+
+def test_summary_mixing_columns_describe_the_quantity_summarised():
+    # fractions mix well while the rates' total does not (O-8)
+    rng = np.random.default_rng(1)
+    rho = rng.dirichlet(np.ones(3) * 50, size=(2, 300))
+    total = np.repeat(rng.gamma(50.0, 2.0, size=(2, 30)), 10, axis=1)[..., None]
+    model = binference.PopulationModel(
+        Likelihoods(np.ones((5, 3)), Bins.linear(0, 1, 3)), binference.priors.GammaRates(1.0, 0.01)
+    )
+    res = PopulationResult.from_samples(model, rho * total)
+    assert res.summary(which="fraction")["ess_bulk"].min() > 300
+    assert res.summary(which="rates")["ess_bulk"].max() < 150
+    with pytest.raises(ValueError, match="which"):
+        res.summary(which="bogus")
+
+
+def test_psis_rounds_the_tail_length_up():
+    # 3 sqrt(1000) = 94.9: the tail is the 95 largest weights, as in ArviZ and loo (O-20)
+    from binference.diagnostics import _gpdfit, psis
+
+    lw = np.random.default_rng(2).standard_t(3, 1000)
+    lw -= lw.max()
+    s = np.sort(lw)
+    cut = np.exp(s[-96])
+    k_ref, _ = _gpdfit(np.exp(s[-95:]) - cut)
+    assert psis(lw)[1] == pytest.approx(k_ref)

@@ -14,7 +14,7 @@ from . import diagnostics as diag
 from ._utils import RNGLike, as_generator, chunk_slices, warn
 from .bins import Bins
 from .measure import Measure
-from .warnings import ConvergenceWarning, InputWarning
+from .warnings import ConvergenceWarning, DiagnosticsError, InputWarning
 
 if TYPE_CHECKING:  # pragma: no cover
     from .basis import Basis
@@ -410,6 +410,24 @@ def _flat_draws(A: Any, n_tail: int, n_draws: int | None) -> np.ndarray:
     return A[_draw_index(len(A), n_draws)]
 
 
+def _which_name(which: str) -> str:
+    """``"fractions"``, ``"rates"`` or ``"density"``, singular spellings accepted (O-12)."""
+    name = {"fraction": "fractions", "rate": "rates"}.get(which, which)
+    if name not in ("fractions", "rates", "density"):
+        raise ValueError(f"which must be 'fractions', 'rates' or 'density'; got {which!r}.")
+    return name
+
+
+def _mixing(C: np.ndarray, tail: bool = False) -> dict[str, np.ndarray]:
+    """Bulk (and tail) ESS and split R-hat of each column of draws ``(chain, draw, K)``."""
+    cols = range(C.shape[-1])
+    out = {"ess_bulk": np.array([diag.ess(C[:, :, k], "bulk") for k in cols])}
+    if tail:
+        out["ess_tail"] = np.array([diag.ess(C[:, :, k], "tail") for k in cols])
+    out["rhat"] = np.array([diag.rhat(C[:, :, k]) for k in cols])
+    return out
+
+
 def _draw_index(n_total: int, n_draws: int | None) -> np.ndarray | slice:
     # up to n_draws draws spread evenly over all of them
     if n_draws is None or n_draws >= n_total:
@@ -697,6 +715,7 @@ class PopulationResult(_IndividualMixin):
         return W / W.sum(axis=-1, keepdims=True) if self.kind == "rates" else W
 
     def _which(self, which: str) -> np.ndarray:
+        which = _which_name(which)
         if which == "fractions":
             return self.samples
         if which == "rates":
@@ -708,9 +727,7 @@ class PopulationResult(_IndividualMixin):
                     "likelihoods)."
                 )
             return rates
-        if which == "density":
-            return self.density()
-        raise ValueError("which must be 'fractions', 'rates' or 'density'.")
+        return self.density()
 
     @property
     def mean(self) -> np.ndarray:
@@ -814,20 +831,11 @@ class PopulationResult(_IndividualMixin):
         out: dict[str, Any] = {}
         # for rate models diagnose the rates, which also carry the total
         C = self._draws if self.kind == "rates" else self.chains
-        if C.shape[1] >= 8:
-            out["ess_bulk"] = np.array([diag.ess(C[:, :, k], "bulk") for k in range(self.K)])
-            out["ess_tail"] = np.array([diag.ess(C[:, :, k], "tail") for k in range(self.K)])
-            if self.n_chains >= 2:
-                out["rhat"] = np.array([diag.rhat(C[:, :, k]) for k in range(self.K)])
+        if C.shape[1] >= 8:  # split R-hat also for one chain (audit O-7)
+            out.update(_mixing(C, tail=True))
             Sd = self._inferred_selection()  # a selection, or a response's efficiencies
             if Sd is not None:
-                out["ess_bulk_selection"] = np.array(
-                    [diag.ess(Sd[:, :, k], "bulk") for k in range(Sd.shape[-1])]
-                )
-                if self.n_chains >= 2:
-                    out["rhat_selection"] = np.array(
-                        [diag.rhat(Sd[:, :, k]) for k in range(Sd.shape[-1])]
-                    )
+                out.update({f"{k}_selection": v for k, v in _mixing(Sd).items()})
         for key in (
             "n_divergent",
             "k_hat",
@@ -880,17 +888,21 @@ class PopulationResult(_IndividualMixin):
         d = self.diagnostics
         msgs = []
         hints = []
+        # Markov chains (any engine but the approximations), whose draws are correlated
+        mcmc = not self.approximate and self.method not in ("laplace", "vb", "bootstrap")
         for suffix, what in (("", ""), ("_selection", " of the selection")):
             if "rhat" + suffix in d and np.nanmax(d["rhat" + suffix]) > rhat_max:
                 msgs.append(f"max R-hat{what} = {np.nanmax(d['rhat' + suffix]):.3f} > {rhat_max}")
-            if "ess_bulk" + suffix in d:
-                ess = np.nanmin(d["ess_bulk" + suffix])
-                per_chain = ess / max(1, self.n_chains)
-                if self.method in ("nuts", "gibbs") and per_chain < ess_min:
-                    msgs.append(
-                        f"min bulk ESS{what} = {ess:.0f} "
-                        f"({per_chain:.0f} per chain < {ess_min:.0f})"
-                    )
+            for kind in ("bulk", "tail"):
+                key = f"ess_{kind}{suffix}"
+                if key in d and mcmc:
+                    ess = np.nanmin(d[key])
+                    per_chain = ess / max(1, self.n_chains)
+                    if per_chain < ess_min:
+                        msgs.append(
+                            f"min {kind} ESS{what} = {ess:.0f} "
+                            f"({per_chain:.0f} per chain < {ess_min:.0f})"
+                        )
         if msgs and self.method == "gibbs":
             hint = "Gibbs mixes slowly when likelihoods are broad compared with the bins"
             f = self._missing_information()
@@ -907,6 +919,14 @@ class PopulationResult(_IndividualMixin):
                 "try a higher target_accept, e.g. 0.95; divergences that persist mark a "
                 "region the sampler cannot explore (see the pitfalls guide)"
             )
+        if "ebfmi" in d and np.nanmin(d["ebfmi"]) < 0.3:
+            msgs.append(f"E-BFMI = {np.nanmin(d['ebfmi']):.2f} < 0.3 in some chain")
+            hints.append(
+                "NUTS explores the energy distribution poorly (heavy tails or a funnel); "
+                "a longer warm-up or another prior may help"
+            )
+        if d.get("converged") is False:
+            msgs.append("the optimiser did not converge")
         threshold = d.get("k_hat_threshold", 0.7)
         if d.get("k_hat", 0) >= threshold:
             msgs.append(
@@ -962,7 +982,7 @@ class PopulationResult(_IndividualMixin):
                 if not strict:
                     warn(f"Diagnostics: {text}.", category)
         if strict and texts:
-            raise RuntimeError(f"Diagnostics failed: {'; '.join(texts)}")
+            raise DiagnosticsError(f"Diagnostics failed: {'; '.join(texts)}")
         return msgs + inputs
 
     def _predictive_pvalue(self, lk: Any, n_draws: int) -> float | None:
@@ -982,6 +1002,7 @@ class PopulationResult(_IndividualMixin):
 
     def summary(self, level: float = 0.68, which: str = "fractions") -> Summary:
         """Per-bin posterior summary table (mean, sd, median, interval, ESS, R-hat)."""
+        which = _which_name(which)
         X = self._which(which)
         lo, hi = np.quantile(X, [0.5 - level / 2, 0.5 + level / 2], axis=0)
         cols: dict[str, np.ndarray] = {
@@ -992,11 +1013,8 @@ class PopulationResult(_IndividualMixin):
             f"q{100 * (0.5 - level / 2):g}": lo,
             f"q{100 * (0.5 + level / 2):g}": hi,
         }
-        d = self.diagnostics
-        if "ess_bulk" in d:
-            cols["ess_bulk"] = d["ess_bulk"]
-        if "rhat" in d:
-            cols["rhat"] = d["rhat"]
+        if self._draws.shape[1] >= 8:  # of the quantity summarised (audit O-8)
+            cols.update(_mixing(X.reshape(self.n_chains, -1, self.K)))
         flag = " [approximate]" if self.approximate else ""
         source = None if self.model is None else self.model.likelihoods.meta.get("source")
         inputs = "" if source is None else f"; inputs: {source}"
