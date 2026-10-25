@@ -231,7 +231,7 @@ class Bins:
         for every axis or a sequence with one per axis; ``mask`` has the grid's
         shape.
         """
-        if len(edges) == 0 or np.size(edges[0]) == 0:
+        if len(edges) == 0 or (hasattr(edges[0], "__len__") and len(edges[0]) == 0):
             raise ValueError("grid() needs one array of edges per axis.")
         if len(edges) == 1 and isinstance(edges[0], Sequence) and np.ndim(edges[0][0]) > 0:
             edges = tuple(edges[0])

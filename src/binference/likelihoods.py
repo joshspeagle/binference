@@ -131,9 +131,10 @@ def _group_rows(keys: list) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _read_only(a: Any) -> np.ndarray:
-    # a float array that cannot be changed in place; copies only when needed
+    # a float array that cannot be changed in place: reused only when it is already
+    # read-only and owns its data (a read-only view could still change through its base)
     a = np.asarray(a, dtype=float)
-    return a if not a.flags.writeable else frozen(a.copy())
+    return a if not a.flags.writeable and a.base is None else frozen(a.copy())
 
 
 def _common(weights, selection, selection_mode, drop_empty, fractional_weights) -> dict[str, Any]:
@@ -331,6 +332,12 @@ class Likelihoods:
         self._selection = selection
         self.meta = dict(meta)
 
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        # pickling and deepcopy rebuild writable arrays: freeze them again
+        self.__dict__.update(state)
+        for name in ("_values", "_log_scale", "_weights"):
+            frozen(getattr(self, name))
+
     @classmethod
     def _from_parts(cls, norm, log_scale, bins, weights, selection, meta, drop_empty=False):
         obj = cls.__new__(cls)
@@ -477,10 +484,14 @@ class Likelihoods:
         V = self._values
         if sp.issparse(V):
             V = sp.csr_array(V)
-            data = V.data if decimals is None else np.round(V.data, decimals)
+            K = V
+            if decimals is not None:  # entries that round to zero leave the key, as when dense
+                K = V.copy()
+                K.data = np.round(K.data, decimals)
+                K.eliminate_zeros()
             keys = [
-                (V.indices[a:b].tobytes(), data[a:b].tobytes())
-                for a, b in zip(V.indptr[:-1], V.indptr[1:], strict=True)
+                (K.indices[a:b].tobytes(), K.data[a:b].tobytes())
+                for a, b in zip(K.indptr[:-1], K.indptr[1:], strict=True)
             ]
         else:
             key = V if decimals is None else np.round(V, decimals)
@@ -736,7 +747,7 @@ class Likelihoods:
         if bins.is_categorical:
             raise ValueError("from_gaussian needs ordered (grid) bins.")
         mu = np.asarray(mean, dtype=float)
-        if bins.ndim == 1 and (mu.ndim == 1 or (mu.ndim == 2 and mu.shape[1] == 1)):
+        if bins.ndim == 1 and (mu.ndim <= 1 or (mu.ndim == 2 and mu.shape[1] == 1)):
             mu = mu.reshape(-1, 1)
         if mu.ndim != 2 or mu.shape[1] != bins.ndim:
             shapes = "(N,) or (N, 1)" if bins.ndim == 1 else f"(N, {bins.ndim})"
@@ -949,6 +960,11 @@ class Likelihoods:
                 "Columns of the response matrix sum to more than one, so they are not "
                 "probabilities P(reco j | true k). Normalise each column by the number of "
                 "simulated events generated in that true bin."
+            )
+        if not fractional_weights and not is_integer_array(c):
+            raise ValueError(
+                "counts must be integers; pass fractional_weights=True for weighted (e.g. "
+                "simulation-weighted) counts, which give a pseudo-likelihood."
             )
         keep = c > 0
         if not keep.any():

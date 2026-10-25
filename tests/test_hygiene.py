@@ -112,4 +112,31 @@ def test_scipy_gaussians_keep_precision_near_the_mean_too():
         lk = Likelihoods.from_density(
             [stats.norm(0.5, 1e8)], Bins.linear(0, 1, 4), kind="likelihood"
         )
-    np.testing.assert_allclose(lk.toarray(), 1.0, rtol=1e-6)
+    np.testing.assert_allclose(lk.toarray(), 1.0, rtol=1e-12)
+
+
+def test_review_regressions_for_grids_scalars_and_copies():
+    import copy
+    import pickle
+
+    assert Bins.grid([np.linspace(0, 1, 4), np.linspace(0, 1, 3)]).shape == (3, 2)
+    assert Likelihoods.from_gaussian(0.5, 0.1, Bins.linear(0, 1, 4)).N == 1
+    lk = Likelihoods(sp.csr_array(np.array([[1, 1e-9, 0], [1, 0, 0]])), Bins.linear(0, 1, 3))
+    assert lk.compress(decimals=3).N == 1  # as for dense storage
+    for c in (pickle.loads(pickle.dumps(lk)), copy.deepcopy(lk)):
+        assert not c.values.data.flags.writeable and not c.weights.flags.writeable
+    base = np.array([2.0])
+    held = Likelihoods(np.ones((2, 3)), Bins.linear(0, 1, 3), weights=np.broadcast_to(base, (2,)))
+    base[0] = 7.0
+    assert held.W == 4.0
+
+
+def test_huge_sigmas_keep_finite_rows():
+    with pytest.warns(InputWarning, match="outside the bins"):
+        lk = Likelihoods.from_gaussian([0.5], [1e17], Bins.linear(0, 1, 4))
+    np.testing.assert_allclose(lk.toarray(), 1.0)
+
+
+def test_fractional_counts_are_named_in_the_error():
+    with pytest.raises(ValueError, match="counts must be integers"):
+        Likelihoods.from_response([2.5, 1.0], 0.5 * np.eye(2))
