@@ -85,3 +85,15 @@ def test_the_laplace_k_hat_threshold_tightens_for_few_proposals():
         res = Laplace(_dirichlet_model(), rng=0).run(100)  # 200 proposals
     assert res.info["k_hat_threshold"] == pytest.approx(1 - 1 / np.log10(200))
     assert res.approximate == (res.info["k_hat"] >= res.info["k_hat_threshold"])
+
+
+def test_warm_up_alone_leaves_no_worker_processes():
+    eng = NUTS(_gp_model(n=200, K=6), n_chains=2, n_warmup=30, n_jobs=2, rng=0)
+    eng.warmup()
+    assert eng._pool is None
+
+
+def test_the_psis_threshold_needs_five_weights():
+    with pytest.raises(ValueError, match="at least 5"):
+        binference.diagnostics.psis_threshold(1)
+    assert binference.diagnostics.psis_threshold(10_000) == 0.7

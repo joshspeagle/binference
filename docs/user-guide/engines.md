@@ -138,7 +138,8 @@ print(lap.approximate, round(lap.info["k_hat"], 2))
 ## Approximations
 
 - **`"laplace"`** fits a Gaussian at the unconstrained mode and corrects it by
-  Pareto-smoothed importance sampling. If the diagnostic $\hat k\ge0.7$, the
+  Pareto-smoothed importance sampling. If the diagnostic $\hat k$ reaches
+  $\min(1-1/\log_{10}S,\,0.7)$ for $S$ proposals (0.7 from about 2,000), the
   correction is unreliable and the result is flagged `approximate`. This is
   common with ten or more bins, because nearly empty bins have one-sided
   tails.

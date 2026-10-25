@@ -237,8 +237,10 @@ def _gpinv(p: np.ndarray, k: float, sigma: float) -> np.ndarray:
 def psis_threshold(n: int) -> float:
     """The Pareto ``k_hat`` below which PSIS with ``n`` weights is reliable.
 
-    ``min(1 - 1 / log10(n), 0.7)`` (Vehtari et al. 2024, §3).
+    ``min(1 - 1 / log10(n), 0.7)`` (Vehtari et al. 2024, §3), for ``n >= 5``.
     """
+    if n < 5:
+        raise ValueError(f"n must be at least 5 importance weights; got {n}.")
     return min(1.0 - 1.0 / float(np.log10(n)), 0.7)
 
 

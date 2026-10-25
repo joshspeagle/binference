@@ -63,7 +63,7 @@ class Laplace(Engine):
     -----
     In ILR coordinates the posterior of nearly empty bins has a long one-sided
     tail, so for more than a handful of bins the importance correction often
-    fails (``k_hat > 0.7``) and the result is flagged approximate: the Laplace
+    fails (``k_hat`` above the threshold) and the result is flagged approximate: the Laplace
     approximation is then a fast summary of well-populated bins, not a
     replacement for NUTS.
     """
@@ -100,15 +100,16 @@ class Laplace(Engine):
             warnings.simplefilter("ignore", ConvergenceWarning)
             x0 = MAP(m, space="unconstrained").run().x
         H = fd_hessian(m.log_density_unconstrained_and_grad, x0, h=self.step)
-        eig = neg_hessian_eigen(H, floor=1e-8)
+        eig = neg_hessian_eigen(H)
         if eig is None:
-            raise ValueError("The Hessian at the mode has no direction of positive curvature.")
-        lam, U, clipped = eig
-        if clipped:
+            raise ValueError("The Hessian at the mode is not finite (a non-finite gradient).")
+        lam, U = eig
+        if np.any(lam <= 0):
             warn(
                 "The Hessian at the mode is not positive definite; clipping eigenvalues.",
                 ApproximationWarning,
             )
+            lam = np.maximum(lam, 1e-8 * max(1.0, lam.max()))
         return x0, H, lam, U, (U / lam) @ U.T
 
     def mode_and_covariance(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:

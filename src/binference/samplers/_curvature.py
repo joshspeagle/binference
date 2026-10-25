@@ -43,21 +43,12 @@ def fd_hessian_diag(
     return out
 
 
-def neg_hessian_eigen(H: np.ndarray, floor: float) -> tuple[np.ndarray, np.ndarray, bool] | None:
-    """Eigenvalues (clipped below at ``floor`` times the largest) and vectors of ``-H``.
-
-    Also returns whether any eigenvalue was clipped; ``None`` if ``H`` is unusable
-    (not finite, or no direction of positive curvature).
-    """
+def neg_hessian_eigen(H: np.ndarray) -> tuple[np.ndarray, np.ndarray] | None:
+    """Eigenvalues and vectors of ``-H`` (symmetrised); ``None`` if ``H`` is not finite."""
     A = -0.5 * (H + H.T)
     if not np.all(np.isfinite(A)):
         return None
-    lam, U = np.linalg.eigh(A)
-    top = lam.max()
-    if not top > 0:
-        return None
-    clipped = bool(np.any(lam < floor * top))
-    return np.maximum(lam, floor * top), U, clipped
+    return np.linalg.eigh(A)
 
 
 def covariance_from_hessian(H: np.ndarray, floor: float = 1e-6) -> np.ndarray | None:
@@ -67,9 +58,10 @@ def covariance_from_hessian(H: np.ndarray, floor: float = 1e-6) -> np.ndarray | 
     directions with no or negative curvature get the largest variance seen.
     Returns ``None`` if the Hessian is unusable.
     """
-    eig = neg_hessian_eigen(H, floor)
-    if eig is None:
+    eig = neg_hessian_eigen(H)
+    if eig is None or not eig[0].max() > 0:
         return None
-    lam, U, _ = eig
+    lam, U = eig
+    lam = np.maximum(lam, floor * lam.max())
     cov = (U / lam) @ U.T
     return 0.5 * (cov + cov.T)

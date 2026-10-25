@@ -98,17 +98,18 @@ def _accept(rng, log_ratio: float) -> bool:
     return math.log1p(-rng.random()) < log_ratio
 
 
-def _merge(t1: _Tree, t2: _Tree, v: int, rng, old_log_w: float) -> bool:
+def _merge(t1: _Tree, t2: _Tree, v: int, rng, biased: bool) -> bool:
     """Append ``t2`` to ``t1`` in direction ``v``; returns whether the merged tree is valid.
 
-    ``t2``'s proposal replaces ``t1``'s with probability ``exp(t2.log_w - old_log_w)``:
-    multinomial within subtrees (``old_log_w`` is the merged weight) and biased
-    progressive at the top level (the old tree's weight). Then Stan's U-turn checks
-    across the merged tree and the two extra sub-checks.
+    ``t2``'s proposal replaces ``t1``'s with probability ``exp(t2.log_w - w)``: ``w`` is
+    the merged weight within subtrees (multinomial) and the old tree's weight at the top
+    level (``biased``, progressive sampling). Then Stan's U-turn checks across the
+    merged tree and the two extra sub-checks.
     """
-    if _accept(rng, t2.log_w - old_log_w):
+    merged = _logaddexp(t1.log_w, t2.log_w)
+    if _accept(rng, t2.log_w - (t1.log_w if biased else merged)):
         t1.x_prop, t1.p_prop, t1.lp_prop, t1.g_prop = t2.x_prop, t2.p_prop, t2.lp_prop, t2.g_prop
-    t1.log_w = _logaddexp(t1.log_w, t2.log_w)
+    t1.log_w = merged
     rho = t1.rho + t2.rho
     if v > 0:
         p_ie, p_fb = t1.p_p, t2.p_m
@@ -171,7 +172,7 @@ def _build(x, p, g, v, depth, eps, H0, metric, fn, rng, max_dE):
         t1.turning = t1.turning or t2.turning
         t1.diverging = t1.diverging or t2.diverging
         return t1
-    t1.turning = not _merge(t1, t2, v, rng, _logaddexp(t1.log_w, t2.log_w))
+    t1.turning = not _merge(t1, t2, v, rng, biased=False)
     return t1
 
 
@@ -207,7 +208,7 @@ def nuts_step(x, lp, g, eps, metric: Metric, fn: LogpGrad, rng, max_depth=10, ma
             break
         if t.turning:
             break
-        ok = _merge(tree, t, v, rng, tree.log_w)
+        ok = _merge(tree, t, v, rng, biased=True)
         n_doublings = depth + 1
         if not ok:
             break

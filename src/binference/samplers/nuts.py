@@ -177,8 +177,9 @@ def _worker_threads(n_workers: int) -> int:
     from threadpoolctl import threadpool_info
 
     share = max(1, _cpu_count() // n_workers)
-    current = [lib["num_threads"] for lib in threadpool_info()]
-    return min([share, *current])
+    # the BLAS pools' own limit; other runtimes (e.g. a single-threaded OpenMP) do not cap it
+    blas = [lib["num_threads"] for lib in threadpool_info() if lib.get("user_api") == "blas"]
+    return min(share, max(blas)) if blas else share
 
 
 _WORKER_MODEL: PopulationModel | None = None  # the base model, sent once per worker
@@ -199,8 +200,8 @@ def _chain_worker(payload):
     failure of the pool itself (audit N-7).
     """
     chain, lam, n_iter, adapt, max_depth, record = payload
-    model = _WORKER_MODEL if lam is None else _centred(_WORKER_MODEL, lam)
     try:
+        model = _WORKER_MODEL if lam is None else _centred(_WORKER_MODEL, lam)
         chain.fn = model.log_density_unconstrained_and_grad
         out = _advance_chain(chain, n_iter, adapt, max_depth, record)
     except Exception as err:
@@ -305,7 +306,10 @@ class NUTS(Engine):
         logistic = hasattr(model.prior, "with_centering")
         # results are in the non-centred form, so only engines ever hold a centred prior
         if logistic and np.any(model.prior.lam != 1.0):
-            raise ValueError("NUTS needs the model's own (non-centred) prior (audit N-2).")
+            raise ValueError(
+                "model: the logistic prior must be in its non-centred form (prior.lam all 1), "
+                "as the model is built; NUTS chooses the centring itself."
+            )
         super().__init__(model, rng=rng, progress=progress)
         if n_chains < 1:
             raise ValueError("n_chains must be at least 1.")
@@ -447,24 +451,21 @@ class NUTS(Engine):
             ch.fn = None  # the model goes to each worker once, not with every chain
         payloads = [(ch, self._lam, n_iter, adapt, self.max_depth, record) for ch in chains]
         try:
-            # e.g. a lambda in a prior cannot be sent to workers
-            pickle.dumps((self._base_model, payloads[0]))
             if self._pool is None:
+                try:  # e.g. a lambda in a prior cannot be sent to workers
+                    pickle.dumps((self._base_model, payloads[0]))
+                except (pickle.PicklingError, AttributeError, TypeError) as err:
+                    return self._serial_from_now(err)
                 n_workers = min(self.n_jobs, len(chains))
                 self._pool = ProcessPoolExecutor(
                     max_workers=n_workers,
                     initializer=_init_worker,
                     initargs=(self._base_model, _worker_threads(n_workers)),
                 )
+            # errors from the model come back as values (see _chain_worker), so only a
+            # failure of the pool itself falls back to serial (audit N-7)
             results = list(self._pool.map(_chain_worker, payloads))
-        except (
-            pickle.PicklingError,
-            AttributeError,
-            TypeError,
-            OSError,
-            BrokenProcessPool,
-            NotImplementedError,
-        ) as err:
+        except (OSError, BrokenProcessPool, NotImplementedError) as err:
             return self._serial_from_now(err)
         finally:
             for ch in chains:
@@ -519,10 +520,13 @@ class NUTS(Engine):
         logistic = hasattr(self._base_model.prior, "with_centering")
         # adapt the geometry once the chains have left the mode for the typical set
         switch = min(self._geometry_iter, windows[0][0]) if (windows and logistic) else 0
-        self._advance(switch, adapt=True, desc="NUTS warm-up")
-        if switch > 0:
-            self._adapt_geometry()
-        self._advance(self.n_warmup - switch, adapt=True, desc="NUTS warm-up")
+        try:
+            self._advance(switch, adapt=True, desc="NUTS warm-up")
+            if switch > 0:
+                self._adapt_geometry()
+            self._advance(self.n_warmup - switch, adapt=True, desc="NUTS warm-up")
+        finally:
+            self._close_pool()  # warm-up phases share one pool; sampling starts its own
         self._warm = True
 
     def _record(self, xs, lps, st, n_done: int) -> None:
@@ -579,7 +583,7 @@ class NUTS(Engine):
             finally:
                 self._record(xs, lps, st, n_done)
         finally:
-            self._close_pool()  # one pool serves the warm-up and these draws
+            self._close_pool()
 
     def run(self, n_samples: int = 1000) -> PopulationResult:
         """Warm up (first call only), draw ``n_samples`` per chain, and return all draws so far."""
