@@ -70,6 +70,17 @@ First development version.
   shift. `check()` raises `InputWarning` for problems with the inputs (this test and the
   samples' Monte Carlo variance) and `ConvergenceWarning` for sampler problems. `simulate.mock_categorical` gains `temperature` and a labelled `mock.response`;
   `simulate.mock_unfolding` returns `mock.response`.
+- **Selection** (DECISIONS #7, #8, #10, #46, #47, #48, #69): the modes are
+  `"on_truth"` and `"on_measurement"` (the old names raise an error naming the new
+  ones); `Selection.combined(on_truth, on_measurement)` selects on both; a selection may
+  be a function of the true value, averaged over each bin (`Selection.from_function`,
+  or a callable `selection=`); values are detection probabilities in (0, 1] unless
+  declared `scale="exposure"` or `"relative"`, and rates refuse a relative selection
+  (audit G-4); an array that changes by more than a factor of two between neighbouring
+  bins raises an `InputWarning` (a `Selection` object or a callable is taken as averaged
+  within bins).
+  `simulate.mock_1d(measured_range=...)` simulates selection on the measurement, alone
+  or with `selection=` (combined). `sbc`/`coverage` name rates `lambda[k]` (G-10).
 - **Correlated Gaussians** (DECISIONS #2, #25, #66): `from_gaussian(..., cov=)` takes full
   per-object covariances, averaged over N-D bins by adaptive cubature in log space.
 - `weights` are integer multiplicities; non-integer weights need `fractional_weights=True`

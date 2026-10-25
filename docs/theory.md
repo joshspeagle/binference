@@ -148,7 +148,7 @@ $$
 p(x_i\mid\text{observed},\rho)=\frac{\sum_kL_{ik}\rho_k}{S\cdot\rho}=\sum_k\frac{L_{ik}}{S_k}\,\phi_k
 $$
 
-in `"observed"` mode, and $\sum_kL_{ik}\phi_k$ in `"true"` mode. The
+in `"on_measurement"` mode, and $\sum_kL_{ik}\phi_k$ in `"on_truth"` mode. The
 maximum-likelihood estimate is invariant under this change of variables, so
 with a flat prior binference solves for $\phi$ and maps back,
 $\rho_k\propto\phi_k/S_k$.
@@ -195,10 +195,10 @@ the wrong choice biases $\rho$ toward wide bins.
 Let $S_k\in(0,1]$ be the probability that an object in bin $k$ makes it into
 the catalogue. The likelihood depends on what the selection acts on:
 
-- **`selection_mode="observed"`.** Selection acts on the *measured* data: a
+- **`selection_mode="on_measurement"`.** Selection acts on the *measured* data: a
   flux limit on measured fluxes, a reconstruction efficiency. A detected
   object's likelihood row is unchanged: $\tilde L_{ik}=L_{ik}$.
-- **`selection_mode="true"`.** Selection acts on the *true* value, or
+- **`selection_mode="on_truth"`.** Selection acts on the *true* value, or
   independently of the measurement noise, such as a completeness map in the
   true parameter. Then $p(d_i,\mathrm{det}\mid z)=S(z)\ell_i(z)$, so
   $\tilde L_{ik}=S_kL_{ik}$.

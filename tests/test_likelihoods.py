@@ -276,7 +276,7 @@ def test_from_binned():
     assert lk.N == 2
     np.testing.assert_allclose(lk.weights, [10, 3])
     np.testing.assert_allclose(lk.toarray(), R[[0, 2]] / R[[0, 2]].max(1, keepdims=True))
-    assert lk.selection.mode == "observed"
+    assert lk.selection.mode == "on_measurement"
     np.testing.assert_allclose(lk.selection.values, R.sum(0))
     full = Response(R / R.sum(0), Bins.categories(2))
     assert Likelihoods.from_binned(full, counts=counts).selection is None
@@ -316,11 +316,11 @@ def test_subset_getitem_with_weights():
 def test_selection_requires_mode():
     with pytest.raises(ValueError, match="selection_mode"):
         Likelihoods(np.ones((2, 2)), selection=[0.5, 1.0])
-    lk = Likelihoods(np.ones((2, 2)), selection=[0.5, 1.0], selection_mode="true")
-    assert lk.selection.mode == "true"
+    lk = Likelihoods(np.ones((2, 2)), selection=[0.5, 1.0], selection_mode="on_truth")
+    assert lk.selection.mode == "on_truth"
     assert lk.with_selection(None).selection is None
     with pytest.raises(ValueError):
-        Likelihoods(np.ones((2, 2)), selection=[0.0, 1.0], selection_mode="true")
+        Likelihoods(np.ones((2, 2)), selection=[0.0, 1.0], selection_mode="on_truth")
     with pytest.raises(ValueError):
         binference.Selection([0.5, 1.0], mode="maybe")
 

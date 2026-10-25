@@ -65,9 +65,9 @@ def test_stored_arrays_are_read_only_and_not_shared(lk):
 
 
 def test_selection_is_immutable():
-    s = Selection([0.5, 1.0], "true")
+    s = Selection([0.5, 1.0], "on_truth")
     with pytest.raises(AttributeError, match="immutable"):
-        s.mode = "observed"
+        s.mode = "on_measurement"
 
 
 def test_compress_keeps_sparse_storage_and_always_copies():

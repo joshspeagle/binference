@@ -94,7 +94,7 @@ a mock gives `(likelihoods, truth)`.
 
 | simulator | what it makes |
 |---|---|
-| `mock_1d` | 1-D populations: named shapes, callables or bin fractions; Gaussian errors; interim-prior posteriors (`mock.posteriors`); posterior samples; selection; outliers |
+| `mock_1d` | 1-D populations: named shapes, callables or bin fractions; Gaussian errors; interim-prior posteriors (`mock.posteriors`); posterior samples; selection on the truth (`selection=`), on the measurement (`measured_range=`) or both; outliers |
 | `mock_2d` | 2-D grids, e.g. a colour–magnitude-like ridge |
 | `mock_categorical` | classifier outputs with a training prior and a labelled validation set, for quantification |
 | `mock_unfolding` | counts in reconstructed bins with a `Response` and efficiency |

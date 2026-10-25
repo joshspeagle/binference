@@ -63,10 +63,10 @@ def infer(
         :class:`~binference.priors.GammaRates` to infer rates.
     bins : Bins, optional
         Bins for a raw array input.
-    selection : array_like (K,) or Selection, optional
+    selection : array_like (K,), callable or Selection, optional
         Detection probability (fractions) or exposure (rates) per bin.
-    selection_mode : {"observed", "true"}, optional
-        Required with an array-valued ``selection`` (see
+    selection_mode : {"on_measurement", "on_truth"}, optional
+        Required with an array or callable ``selection`` (see
         :class:`~binference.selection.Selection`).
     method : {"nuts", "gibbs", "map", "laplace", "vb", "bootstrap", "auto"}
         Inference engine. ``"nuts"`` (default) samples the exact posterior.

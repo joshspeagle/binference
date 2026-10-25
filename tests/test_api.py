@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 import binference
-from binference import Bins, PopulationEstimator, PopulationModel
+from binference import Bins, PopulationEstimator, PopulationModel, Selection
 
 
 def test_namespace():
@@ -102,8 +102,7 @@ def test_selection_through_infer():
     a = binference.infer(mock.likelihoods, method="map")
     b = binference.infer(
         mock.likelihoods.with_selection(None),
-        selection=[0.9, 0.5, 0.2],
-        selection_mode="true",
+        selection=Selection([0.9, 0.5, 0.2], "on_truth"),
         method="map",
     )
     np.testing.assert_allclose(a.rho, b.rho, atol=1e-8)

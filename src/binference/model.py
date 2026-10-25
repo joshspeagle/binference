@@ -53,15 +53,17 @@ class PopulationModel:
     prior : PopulationPrior, optional
         Population prior; defaults to ``Dirichlet(1.0)``. Use
         :class:`~binference.priors.GammaRates` to infer rates instead of fractions.
-    selection : array_like (K,) or Selection, optional
-        Per-bin detection probability (fractions) or exposure (rates). Overrides
-        any selection attached to ``likelihoods``.
-    selection_mode : {"observed", "true"}, optional
-        Required with an array-valued ``selection``. ``"observed"``: objects are
-        selected on their observed data (or the likelihoods already include the
-        detection probability); only the normalisation term is added.
-        ``"true"``: objects are detected with probability ``S_k`` depending on
-        their true bin; likelihood rows are multiplied by ``S_k`` as well.
+    selection : array_like (K,), callable or Selection, optional
+        Per-bin detection probability (fractions) or exposure (rates), or a
+        function of the true value averaged over each bin. Overrides any
+        selection attached to ``likelihoods``.
+    selection_mode : {"on_measurement", "on_truth"}, optional
+        Required with an array or callable ``selection``. ``"on_measurement"``:
+        objects are selected on their measured data (or the likelihoods already
+        include the detection probability); only the normalisation term is
+        added. ``"on_truth"``: objects are detected with probability ``S_k``
+        depending on their true bin; likelihood rows are multiplied by ``S_k``
+        as well. :meth:`Selection.combined` gives both at once.
     bins : Bins, optional
         Only used when ``likelihoods`` is a raw array.
 
@@ -93,20 +95,24 @@ class PopulationModel:
         if selection is None and selection_mode is None:
             sel = likelihoods.selection
         else:
-            sel = as_selection(selection, selection_mode, likelihoods.K)
+            sel = as_selection(selection, selection_mode, likelihoods.bins)
+        if sel is not None and sel.scale == "relative" and self.prior.kind == "rates":
+            raise ValueError(
+                "Rates need an absolute selection (exposures); this one is relative "
+                "(DECISIONS #46)."
+            )
         self.selection_spec: Selection | None = sel
         #: per-bin selection values (or ``None``)
         self.selection = None if sel is None else sel.values
         self.selection_mode = None if sel is None else sel.mode
+        #: factor on the likelihood columns (selection on the truth), or ``None``
+        self.selection_row = None if sel is None else sel.row
         # For fractions only ratios of S matter. Data-augmentation steps (Gibbs, EM,
         # VB) impute missed objects with probability 1 - S, so they use S rescaled
         # to a maximum of one, which leaves the posterior unchanged.
         self._detect = None if sel is None else sel.values / sel.values.max()
-        L = likelihoods.values
-        if sel is not None and sel.mode == "true":
-            L = _scale_columns(L, sel.values)
-        # effective per-object likelihoods (selection-weighted for mode "true")
-        self._L = L
+        # effective per-object likelihoods: columns scaled by the selection on the truth
+        self._L = self.effective_likelihoods(likelihoods)
         self._w = likelihoods.weights
         self.W = float(self._w.sum())
         self._ll_const = float(np.dot(self._w, likelihoods.log_scale))
@@ -137,9 +143,7 @@ class PopulationModel:
     def effective_likelihoods(self, likelihoods: Likelihoods):
         """Likelihood matrix of (new) objects with this model's selection applied."""
         L = likelihoods.values
-        if self.selection is not None and self.selection_mode == "true":
-            L = _scale_columns(L, self.selection)
-        return L
+        return L if self.selection_row is None else _scale_columns(L, self.selection_row)
 
     def __repr__(self) -> str:
         sel = "" if self.selection is None else f", selection={self.selection_mode!r}"

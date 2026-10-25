@@ -35,10 +35,10 @@ class PopulationEstimator:
         Population prior (default ``Dirichlet(1.0)``).
     method : str
         Inference engine (see :func:`binference.infer`).
-    selection : array_like (K,) or Selection, optional
+    selection : array_like (K,), callable or Selection, optional
         Selection function.
-    selection_mode : {"observed", "true"}, optional
-        Required with an array-valued ``selection``.
+    selection_mode : {"on_measurement", "on_truth"}, optional
+        Required with an array or callable ``selection``.
     bins : Bins, optional
         Bins for raw array inputs.
     n_samples : int, optional

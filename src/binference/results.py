@@ -642,8 +642,8 @@ class PopulationResult(_IndividualMixin):
         inputs, input_hints = [], []
         if lk is not None and "sample_sum" in lk.meta:
             rho = self.mean  # the population the objects are drawn from, after selection
-            if self.model.selection_mode == "true":
-                rho = rho * self.model.selection
+            if self.model.selection_row is not None:
+                rho = rho * self.model.selection_row
             var, _ = lk.sample_variance(rho)
             total = float(np.sum(lk.weights * var))
             if total > 1.0:
