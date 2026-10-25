@@ -85,13 +85,18 @@ print(p.round(2)[0], labels.shape, values.mean().round(3), mock.truth.values[0].
 of $\rho$; draws from an approximation (VB, Laplace, the bootstrap) carry its
 approximation over. `sample_values` then draws a true value inside the drawn
 bin from the object's own likelihood, since the population is flat within a
-bin:
+bin. It uses what each input knows within bins:
 
-- exactly, for likelihoods built with `Likelihoods.from_gaussian`;
-- for other 1-D likelihoods, pass `loglike(z, i)` (the log-likelihood of
-  object `i` at points `z`) to sample on a fine sub-grid of each bin;
-- otherwise uniformly within the bin, which is accurate only when the
-  likelihoods are nearly flat across a bin.
+- Gaussians (`from_gaussian`): exact truncated draws, and Gibbs sweeps over the axes
+  for correlated errors (`n_sweeps`, default 20);
+- densities (`from_density`, 1-D bins): the density on a fine sub-grid of the bin, with
+  the interim prior divided out for posteriors;
+- samples (`from_samples`): the object's own samples inside the bin, resampled with
+  the interim prior divided out (`keep_samples=False` saves their copy and drops this);
+- `loglike(z, i)` (the log-likelihood of object `i` at points `z`), when passed, for
+  any 1-D input;
+- otherwise (tables, binned inputs, compressed rows) uniformly within the bin, with an
+  `InputWarning`: accurate only when the likelihoods are nearly flat across a bin.
 
 Both methods treat each row of the likelihoods as one object, so use unit
 weights (uncompressed rows) when you need draws for individual objects.
