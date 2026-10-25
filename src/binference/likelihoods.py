@@ -12,6 +12,7 @@ import numpy as np
 import scipy.sparse as sp
 from scipy import special
 
+from . import _kernels as kern
 from ._quadrature import bin_log_average
 from ._utils import check_positive_weights, frozen, is_integer_array, warn
 from .basis import Basis
@@ -842,8 +843,8 @@ class Likelihoods:
         sample_weights : array_like or sequence of arrays, optional
             Importance weights for the samples (same layout as ``samples``).
         sparse : bool, optional
-            Store the result sparsely. Defaults to sparse when fewer than 30%
-            of entries are non-zero.
+            Store the result sparsely. Defaults to sparse when fewer than 10%
+            of entries are non-zero (``_kernels.SPARSE_FILL``; DECISIONS #77).
         min_samples : int
             Warn if more than 10% of the objects have fewer effective samples
             inside the bins than this (audit I-23).
@@ -901,7 +902,7 @@ class Likelihoods:
         S2 = sp.diags_array(scale**2) @ sp.csr_array((s2 / du[ec] ** 2, (er, ec)), shape=shape)
         est = S1 if floor == 0 else S1.toarray() + floor  # proportional to the bin averages
         if sparse is None:
-            sparse = floor == 0 and S1.nnz < 0.3 * n_obj * bins.K
+            sparse = floor == 0 and S1.nnz < kern.SPARSE_FILL * n_obj * bins.K
         values = sp.csr_array(est) if sparse else (est.toarray() if sp.issparse(est) else est)
         short = n_eff < min_samples
         if short.mean() > 0.1:

@@ -1,0 +1,27 @@
+# 4-core container; ratio = sparse / dense time for one log-likelihood + expected counts
+== default BLAS threads (4)
+N= 200000 K=  100 fill   2%: dense   10.34 ms  sparse    2.22 ms  ratio  0.21
+N= 200000 K=  100 fill   5%: dense   10.62 ms  sparse    2.96 ms  ratio  0.28
+N= 200000 K=  100 fill  10%: dense   10.50 ms  sparse    4.79 ms  ratio  0.46
+N= 200000 K=  100 fill  20%: dense   11.95 ms  sparse    7.67 ms  ratio  0.64
+N= 200000 K=  100 fill  30%: dense   11.24 ms  sparse   13.78 ms  ratio  1.23
+N= 200000 K=  100 fill  50%: dense   13.25 ms  sparse   36.00 ms  ratio  2.72
+N=  50000 K= 1000 fill   2%: dense   23.94 ms  sparse    2.31 ms  ratio  0.10
+N=  50000 K= 1000 fill   5%: dense   16.76 ms  sparse    4.44 ms  ratio  0.26
+N=  50000 K= 1000 fill  10%: dense   19.46 ms  sparse    8.80 ms  ratio  0.45
+N=  50000 K= 1000 fill  20%: dense   16.36 ms  sparse   35.49 ms  ratio  2.17
+N=  50000 K= 1000 fill  30%: dense   16.68 ms  sparse   60.37 ms  ratio  3.62
+N=  50000 K= 1000 fill  50%: dense   18.17 ms  sparse   97.30 ms  ratio  5.36
+== OPENBLAS_NUM_THREADS=1
+N= 200000 K=  100 fill   2%: dense   26.74 ms  sparse    1.84 ms  ratio  0.07
+N= 200000 K=  100 fill   5%: dense   25.74 ms  sparse    2.92 ms  ratio  0.11
+N= 200000 K=  100 fill  10%: dense   24.03 ms  sparse    4.15 ms  ratio  0.17
+N= 200000 K=  100 fill  20%: dense   26.59 ms  sparse    9.61 ms  ratio  0.36
+N= 200000 K=  100 fill  30%: dense   25.90 ms  sparse   19.59 ms  ratio  0.76
+N= 200000 K=  100 fill  50%: dense   24.24 ms  sparse   35.05 ms  ratio  1.45
+N=  50000 K= 1000 fill   2%: dense   63.60 ms  sparse    2.00 ms  ratio  0.03
+N=  50000 K= 1000 fill   5%: dense   63.05 ms  sparse    5.73 ms  ratio  0.09
+N=  50000 K= 1000 fill  10%: dense   61.50 ms  sparse   22.78 ms  ratio  0.37
+N=  50000 K= 1000 fill  20%: dense   57.47 ms  sparse   34.10 ms  ratio  0.59
+N=  50000 K= 1000 fill  30%: dense   64.51 ms  sparse   54.11 ms  ratio  0.84
+N=  50000 K= 1000 fill  50%: dense   66.09 ms  sparse   87.36 ms  ratio  1.32
