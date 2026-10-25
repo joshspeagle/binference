@@ -1,7 +1,7 @@
-# Citing pastry
+# Citing binference
 
-If pastry contributes to your work, please cite the software using its
-[`CITATION.cff`](https://github.com/joshspeagle/pastry/blob/main/CITATION.cff)
+If binference contributes to your work, please cite the software using its
+[`CITATION.cff`](https://github.com/joshspeagle/binference/blob/main/CITATION.cff)
 (GitHub's "Cite this repository" button produces BibTeX and APA from it), and
 the method papers that apply to your problem:
 

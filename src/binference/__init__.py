@@ -1,4 +1,4 @@
-"""pastry: population and hierarchical inference with PDFs.
+"""binference: population and hierarchical inference with PDFs.
 
 Infer population distributions -- bin fractions or rates, with honest
 uncertainties -- from noisy, heteroscedastic per-object PDFs or likelihoods
@@ -7,9 +7,9 @@ individual object.
 
 Quick start
 -----------
->>> import pastry
->>> mock = pastry.simulate.mock_1d(500, rng=1)
->>> result = pastry.infer(mock.likelihoods, rng=2, n_samples=200, n_warmup=200)
+>>> import binference
+>>> mock = binference.simulate.mock_1d(500, rng=1)
+>>> result = binference.infer(mock.likelihoods, rng=2, n_samples=200, n_warmup=200)
 >>> result.summary()  # doctest: +SKIP
 
 Main entry points
@@ -19,10 +19,10 @@ Main entry points
   posteriors (+ interim priors), samples, Gaussian measurements, response
   matrices and classifier outputs.
 * :func:`infer` -- one-call inference (NUTS by default).
-* :mod:`pastry.priors` -- Dirichlet family, smoothness priors, rates.
-* :mod:`pastry.samplers` -- inference engines.
+* :mod:`binference.priors` -- Dirichlet family, smoothness priors, rates.
+* :mod:`binference.samplers` -- inference engines.
 * :class:`PopulationResult` -- draws, summaries, per-object outputs, plots.
-* :mod:`pastry.simulate` and :mod:`pastry.validation` -- mocks, SBC, coverage.
+* :mod:`binference.simulate` and :mod:`binference.validation` -- mocks, SBC, coverage.
 """
 
 from . import diagnostics, priors, samplers, simulate, validation
@@ -34,15 +34,15 @@ from .likelihoods import Likelihoods
 from .model import PopulationModel
 from .results import PointEstimate, PopulationResult, Summary
 from .selection import Selection
-from .warnings import ApproximationWarning, ConvergenceWarning, InputWarning, PastryWarning
+from .warnings import ApproximationWarning, BinferenceWarning, ConvergenceWarning, InputWarning
 
 __all__ = [
     "ApproximationWarning",
+    "BinferenceWarning",
     "Bins",
     "ConvergenceWarning",
     "InputWarning",
     "Likelihoods",
-    "PastryWarning",
     "PointEstimate",
     "PopulationEstimator",
     "PopulationModel",

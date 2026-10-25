@@ -18,10 +18,10 @@ also shows why unequal bins need care.
 import matplotlib.pyplot as plt
 import numpy as np
 
-import pastry
+import binference
 
 plt.rcParams["figure.dpi"] = 110
-bins = pastry.Bins.linear(0.0, 3.0, 20)
+bins = binference.Bins.linear(0.0, 3.0, 20)
 ```
 
 ## Posteriors under an interim prior
@@ -31,7 +31,7 @@ report: per-object posteriors computed under a broad Gaussian prior centred
 at $z=1.8$, which is quite different from the true population.
 
 ```{code-cell} python
-mock = pastry.simulate.mock_1d(2000, bins, noise=(0.2, 0.4), interim_prior="gaussian", rng=3)
+mock = binference.simulate.mock_1d(2000, bins, noise=(0.2, 0.4), interim_prior="gaussian", rng=3)
 P, interim = mock.posteriors, mock.interim_prior
 print(P.shape, "rows sum to", P.sum(axis=1)[:3].round(6))
 ```
@@ -41,8 +41,8 @@ posteriors in as if they were likelihoods:
 
 ```{code-cell} python
 kw = dict(rng=1, n_samples=500, n_warmup=500)   # shorter runs than the default, for speed
-right = pastry.infer(pastry.Likelihoods.from_posteriors(P, bins, interim), **kw)
-wrong = pastry.infer(pastry.Likelihoods(P, bins), **kw)
+right = binference.infer(binference.Likelihoods.from_posteriors(P, bins, interim), **kw)
+wrong = binference.infer(binference.Likelihoods(P, bins), **kw)
 ```
 
 ```{code-cell} python
@@ -69,13 +69,13 @@ print("largest deviation of the right fit:", np.abs(z).max().round(1), "posterio
 ## Posterior samples
 
 Per-object MCMC or nested-sampling runs give samples rather than binned
-PDFs. {meth}`~pastry.Likelihoods.from_samples` histograms them onto the bins
+PDFs. {meth}`~binference.Likelihoods.from_samples` histograms them onto the bins
 and divides out the prior they were drawn under:
 
 ```{code-cell} python
-mock_s = pastry.simulate.mock_1d(2000, bins, noise=(0.2, 0.4), interim_prior="gaussian",
+mock_s = binference.simulate.mock_1d(2000, bins, noise=(0.2, 0.4), interim_prior="gaussian",
                                  n_samples=100, rng=3)
-lk_s = pastry.Likelihoods.from_samples(mock_s.samples, bins, mock_s.interim_prior)
+lk_s = binference.Likelihoods.from_samples(mock_s.samples, bins, mock_s.interim_prior)
 print(lk_s, "median effective samples per object:", np.median(lk_s.meta["n_eff"]))
 ```
 
@@ -85,14 +85,14 @@ adds uncertainty that the model does not know about. Compare with a fit to
 the exact likelihoods of the same objects:
 
 ```{code-cell} python
-exact = pastry.infer(mock_s.likelihoods, **kw)
-from_s = pastry.infer(lk_s, **kw)
+exact = binference.infer(mock_s.likelihoods, **kw)
+from_s = binference.infer(lk_s, **kw)
 shift = np.abs(exact.mean - from_s.mean) / exact.std
 print("largest shift between the two fits:", shift.max().round(2), "posterior sd")
 ```
 
 Use more samples per object, or coarser bins, when the median effective
-sample size is small. pastry warns below 20.
+sample size is small. binference warns below 20.
 
 ## Unequal bins: masses versus densities
 
@@ -104,9 +104,9 @@ unequal bins it does:
 ```{code-cell} python
 from scipy import stats
 
-ubins = pastry.Bins([0.0, 0.25, 0.5, 1.0, 2.0, 3.0])
+ubins = binference.Bins([0.0, 0.25, 0.5, 1.0, 2.0, 3.0])
 rho_true = np.array([0.15, 0.25, 0.3, 0.2, 0.1])
-umock = pastry.simulate.mock_1d(5000, ubins, density=rho_true, noise=0.15, rng=4)
+umock = binference.simulate.mock_1d(5000, ubins, density=rho_true, noise=0.15, rng=4)
 mu, sig = umock.measurements["mean"], umock.measurements["sigma"]
 
 # posterior masses under a flat prior: CDF differences across each bin
@@ -114,9 +114,9 @@ edges = ubins.edges[0]
 cdf = stats.norm.cdf((edges[None, :] - mu[:, None]) / sig[:, None])
 masses = np.diff(cdf, axis=1)
 
-as_masses = pastry.infer(pastry.Likelihoods.from_posteriors(masses, ubins, "flat"),
+as_masses = binference.infer(binference.Likelihoods.from_posteriors(masses, ubins, "flat"),
                          method="map").rho
-as_densities = pastry.infer(pastry.Likelihoods(masses, ubins), method="map").rho
+as_densities = binference.infer(binference.Likelihoods(masses, ubins), method="map").rho
 print("truth          ", rho_true)
 print("masses (right) ", as_masses.round(3))
 print("densities      ", as_densities.round(3))
@@ -127,12 +127,12 @@ Treating masses as densities distorts the population: here it moves mass
 from a narrow bin into its neighbours, by far more than the statistical
 error. `from_posteriors` takes
 `representation="mass"` by default; pass `representation="density"` for PDFs
-evaluated at bin centres. pastry warns when the rows do not look like the
+evaluated at bin centres. binference warns when the rows do not look like the
 representation you declared.
 
 ## Other inputs
 
-The same idea covers every adapter: say what your numbers are, and pastry
+The same idea covers every adapter: say what your numbers are, and binference
 converts them to likelihoods.
 
 | your data | constructor |

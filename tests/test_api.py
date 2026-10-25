@@ -5,15 +5,15 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import pastry
-from pastry import Bins, PopulationEstimator, PopulationModel
+import binference
+from binference import Bins, PopulationEstimator, PopulationModel
 
 
 def test_namespace():
-    for name in pastry.__all__:
-        assert hasattr(pastry, name), name
-    assert isinstance(pastry.__version__, str)
-    assert pastry.samplers.NUTS and pastry.priors.Dirichlet and pastry.Selection
+    for name in binference.__all__:
+        assert hasattr(binference, name), name
+    assert isinstance(binference.__version__, str)
+    assert binference.samplers.NUTS and binference.priors.Dirichlet and binference.Selection
 
 
 def test_citation_file_version_matches_package():
@@ -21,46 +21,46 @@ def test_citation_file_version_matches_package():
     if not cff.exists():
         pytest.skip("CITATION.cff is not next to the tests (installed package)")
     line = next(ln for ln in cff.read_text().splitlines() if ln.startswith("version:"))
-    assert line.split(":", 1)[1].strip().strip("'\"") == pastry.__version__
+    assert line.split(":", 1)[1].strip().strip("'\"") == binference.__version__
 
 
 def test_infer_accepts_arrays_likelihoods_models(small_1d):
     raw = small_1d.likelihoods.toarray()
-    a = pastry.infer(raw, method="map")
+    a = binference.infer(raw, method="map")
     assert a.bins.is_categorical
-    b = pastry.infer(raw, bins=small_1d.bins, method="map")
+    b = binference.infer(raw, bins=small_1d.bins, method="map")
     assert b.bins == small_1d.bins
     np.testing.assert_allclose(a.rho, b.rho, atol=1e-8)
     m = PopulationModel(small_1d.likelihoods)
-    c = pastry.infer(m, method="map")
+    c = binference.infer(m, method="map")
     np.testing.assert_allclose(c.rho, b.rho, atol=1e-8)
     with pytest.raises(ValueError):
-        pastry.infer(m, prior=pastry.priors.Dirichlet(2.0))
+        binference.infer(m, prior=binference.priors.Dirichlet(2.0))
 
 
 def test_infer_methods_and_errors(small_1d):
     lk = small_1d.likelihoods
     with pytest.raises(ValueError, match="Unknown method"):
-        pastry.infer(lk, method="hmc")
+        binference.infer(lk, method="hmc")
     with pytest.raises(TypeError):
-        pastry.infer(lk, method="gibbs", n_chainz=2)
+        binference.infer(lk, method="gibbs", n_chainz=2)
     with pytest.raises(ValueError):
-        pastry.infer(lk, method="map", n_samples=10)
-    res = pastry.infer(
+        binference.infer(lk, method="map", n_samples=10)
+    res = binference.infer(
         lk, method="auto", rng=1, n_samples=30, n_warmup=30, n_chains=1, check=False
     )
     assert res.info["auto_method"] == "nuts"
-    em = pastry.infer(lk, method="em")
+    em = binference.infer(lk, method="em")
     assert em.method == "map"
 
 
 def test_infer_reproducible(small_1d):
     kw = {"method": "gibbs", "n_samples": 20, "n_warmup": 5, "check": False}
-    a = pastry.infer(small_1d.likelihoods, rng=7, **kw)
-    b = pastry.infer(small_1d.likelihoods, rng=7, **kw)
+    a = binference.infer(small_1d.likelihoods, rng=7, **kw)
+    b = binference.infer(small_1d.likelihoods, rng=7, **kw)
     np.testing.assert_array_equal(a.samples, b.samples)
     with pytest.raises(TypeError):
-        pastry.infer(small_1d.likelihoods, rng=np.random.RandomState(1), **kw)
+        binference.infer(small_1d.likelihoods, rng=np.random.RandomState(1), **kw)
 
 
 def test_estimator_contract(small_1d):
@@ -78,7 +78,7 @@ def test_estimator_contract(small_1d):
     import warnings
 
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", pastry.ConvergenceWarning)
+        warnings.simplefilter("ignore", binference.ConvergenceWarning)
         assert est.fit(small_1d.likelihoods) is est
     assert est.population_.shape == (12,)
     p = est.predict_proba(small_1d.likelihoods)
@@ -91,16 +91,16 @@ def test_estimator_contract(small_1d):
 
 def test_estimator_map_and_raw_arrays(small_1d):
     est = PopulationEstimator(method="map", bins=small_1d.bins).fit(small_1d.likelihoods.toarray())
-    assert isinstance(est.result_, pastry.PointEstimate)
+    assert isinstance(est.result_, binference.PointEstimate)
     assert est.sample(3).shape == (3, 12)
 
 
 def test_selection_through_infer():
-    mock = pastry.simulate.mock_1d(300, Bins.linear(0, 3, 3), selection=[0.9, 0.5, 0.2], rng=3)
+    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 3), selection=[0.9, 0.5, 0.2], rng=3)
     with pytest.raises(ValueError, match="selection_mode"):
-        pastry.infer(mock.likelihoods, selection=[0.9, 0.5, 0.2], method="map")
-    a = pastry.infer(mock.likelihoods, method="map")
-    b = pastry.infer(
+        binference.infer(mock.likelihoods, selection=[0.9, 0.5, 0.2], method="map")
+    a = binference.infer(mock.likelihoods, method="map")
+    b = binference.infer(
         mock.likelihoods.with_selection(None),
         selection=[0.9, 0.5, 0.2],
         selection_mode="true",

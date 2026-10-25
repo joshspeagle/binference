@@ -1,12 +1,12 @@
-"""Tests for pastry.simulate and pastry.validation (spec 9)."""
+"""Tests for binference.simulate and binference.validation (spec 9)."""
 
 import numpy as np
 import pytest
 
-import pastry
-from pastry import Bins, Likelihoods
-from pastry import priors as P
-from pastry.simulate import mock_1d, mock_2d, mock_categorical, mock_unfolding, population
+import binference
+from binference import Bins, Likelihoods
+from binference import priors as P
+from binference.simulate import mock_1d, mock_2d, mock_categorical, mock_unfolding, population
 
 
 def test_population_from_density_and_array():
@@ -71,37 +71,37 @@ def test_exact_posterior_conjugate():
     rng = np.random.default_rng(1)
     labels = rng.integers(0, 3, size=40)
     lk = Likelihoods(np.eye(3)[labels])
-    ex = pastry.validation.exact_posterior(lk, P.Dirichlet(2.0), n_grid=800)
+    ex = binference.validation.exact_posterior(lk, P.Dirichlet(2.0), n_grid=800)
     a = 2.0 + np.bincount(labels, minlength=3)
     np.testing.assert_allclose(ex.mean, a / a.sum(), atol=1e-3)
     np.testing.assert_allclose(ex.weights.sum(), 1.0)
     lk2 = Likelihoods(np.eye(2)[labels % 2])
-    ex2 = pastry.validation.exact_posterior(lk2, n_grid=4000)
+    ex2 = binference.validation.exact_posterior(lk2, n_grid=4000)
     a2 = 1.0 + np.bincount(labels % 2, minlength=2)
     np.testing.assert_allclose(ex2.mean, a2 / a2.sum(), atol=1e-4)
     with pytest.raises(ValueError):
-        pastry.validation.exact_posterior(Likelihoods(np.ones((3, 4))))
+        binference.validation.exact_posterior(Likelihoods(np.ones((3, 4))))
     with pytest.raises(ValueError):
-        pastry.validation.exact_posterior(lk, P.LogisticNormal())
+        binference.validation.exact_posterior(lk, P.LogisticNormal())
 
 
 def test_sbc_and_coverage_smoke():
     bins = Bins.linear(0, 1, 3)
-    sim = pastry.simulate.prior_predictive(P.Dirichlet(1.0), bins, n_objects=30, noise=0.2)
+    sim = binference.simulate.prior_predictive(P.Dirichlet(1.0), bins, n_objects=30, noise=0.2)
 
     def fit(lk, rng):
-        return pastry.infer(
+        return binference.infer(
             lk, method="gibbs", rng=rng, n_samples=200, n_warmup=50, n_chains=1, check=False
         )
 
-    res = pastry.validation.sbc(sim, fit, n_simulations=15, n_draws=49, rng=1)
+    res = binference.validation.sbc(sim, fit, n_simulations=15, n_draws=49, rng=1)
     assert res.ranks.shape == (15, 4)
     assert res.ranks.min() >= 0 and res.ranks.max() <= 49
     assert res.names[-1] == "loglike"
     assert res.pvalues().shape == (4,)
     assert res.histogram(5).sum(1).tolist() == [15] * 4
     assert isinstance(res.passed(), bool)
-    cov = pastry.validation.coverage(
+    cov = binference.validation.coverage(
         sim,
         fit,
         n_simulations=10,
@@ -113,4 +113,4 @@ def test_sbc_and_coverage_smoke():
     assert cov.average().shape == (2,)
     assert cov.stderr().shape == (2, 1)
     with pytest.raises(ValueError):
-        pastry.simulate.prior_predictive(P.GammaRates(), bins)
+        binference.simulate.prior_predictive(P.GammaRates(), bins)

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to pastry are recorded here. The format follows
+All notable changes to binference are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/) (with the usual 0.x caveat that minor
 releases may break the API).
@@ -10,6 +10,10 @@ releases may break the API).
 First development version.
 
 ### Changed (landing on `main`)
+
+- Renamed from `pastry` to `binference` (package, import and PyPI name; DECISIONS #45).
+  The warning base class is `BinferenceWarning` and the environment variables start
+  with `BINFERENCE_`.
 
 - Python ≥ 3.13, NumPy ≥ 2.1, SciPy ≥ 1.14.1, matplotlib ≥ 3.9.2 (DECISIONS #41, #61).
 - CI runs the pre-commit hooks, the fast suite on three systems with Python 3.13 and
@@ -53,7 +57,7 @@ First development version.
   - `Laplace` with PSIS importance correction.
   - `MeanFieldVB` (flagged as approximate) and `Bootstrap` (nonparametric or
     Bayesian, over objects, with variable totals for rate models).
-- **Interfaces.** `pastry.infer` and the scikit-learn-style `PopulationEstimator`.
+- **Interfaces.** `binference.infer` and the scikit-learn-style `PopulationEstimator`.
 - **Results.** `PopulationResult` and `PointEstimate` provide:
   - summaries, intervals (central and HDI), functionals and rebinning;
   - per-object assignment probabilities, values and realised counts;

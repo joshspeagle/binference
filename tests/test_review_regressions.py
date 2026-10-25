@@ -8,11 +8,11 @@ import pytest
 import scipy.sparse as sp
 from scipy import stats
 
-import pastry
-from pastry import Bins, Likelihoods, PopulationModel, PopulationResult
-from pastry import priors as P
-from pastry.samplers import MAP, NUTS, Bootstrap
-from pastry.warnings import ApproximationWarning, InputWarning
+import binference
+from binference import Bins, Likelihoods, PopulationModel, PopulationResult
+from binference import priors as P
+from binference.samplers import MAP, NUTS, Bootstrap
+from binference.warnings import ApproximationWarning, InputWarning
 
 
 def _bootstrap(model, **kw):
@@ -37,7 +37,7 @@ def test_bootstrap_resamples_objects_not_rows(kind):
 
 
 def test_bootstrap_rates_have_a_random_total():
-    mock = pastry.simulate.mock_1d(1000, Bins.linear(0, 3, 6), rng=2)
+    mock = binference.simulate.mock_1d(1000, Bins.linear(0, 3, 6), rng=2)
     res = _bootstrap(PopulationModel(mock.likelihoods, P.GammaRates(1.0, 1e-6)), rng=1)
     totals = res.rates.sum(axis=1)
     assert totals.std() == pytest.approx(np.sqrt(1000), rel=0.3)
@@ -45,7 +45,7 @@ def test_bootstrap_rates_have_a_random_total():
 
 def test_bootstrap_replicates_start_inside_the_simplex():
     """A sparse MLE must not trap replicates: each refit is certified optimal."""
-    mock = pastry.simulate.mock_1d(150, Bins.linear(0, 3, 20), noise=(0.05, 0.1), rng=3)
+    mock = binference.simulate.mock_1d(150, Bins.linear(0, 3, 20), noise=(0.05, 0.1), rng=3)
     m = PopulationModel(mock.likelihoods)
     res = _bootstrap(m, rng=2)
     start = 0.5 * MAP(m).run().value + 0.5 / 20
@@ -70,7 +70,7 @@ def test_to_sparse_does_not_modify_the_original():
 
 
 def test_from_response_with_explicit_efficiency():
-    mu = pastry.simulate.mock_unfolding(6000, rng=3)
+    mu = binference.simulate.mock_unfolding(6000, rng=3)
     R, counts = mu.truth.extra["response"], mu.measurements["reco_counts"]
     eps = R.sum(axis=0)
     migration = R / eps
@@ -129,7 +129,7 @@ def test_sample_values_follow_the_likelihood_within_bins():
 
 
 def test_log_predictive_rates_with_selection():
-    mock = pastry.simulate.mock_1d(400, Bins.linear(0, 3, 4), rng=5)
+    mock = binference.simulate.mock_1d(400, Bins.linear(0, 3, 4), rng=5)
     S = np.array([1.0, 0.6, 0.3, 0.1])
     model = PopulationModel(mock.likelihoods, P.GammaRates(1.0, 1e-3), selection=S,
                             selection_mode="true")  # fmt: skip
@@ -152,20 +152,20 @@ def test_sbc_ranks_rates_for_rate_models():
         return lk, lam
 
     def fit(lk, rng):
-        return pastry.infer(lk, P.GammaRates(20.0, 1.0), method="gibbs", rng=rng, n_chains=1,
+        return binference.infer(lk, P.GammaRates(20.0, 1.0), method="gibbs", rng=rng, n_chains=1,
                             n_warmup=50, n_samples=100, check=False)  # fmt: skip
 
-    res = pastry.validation.sbc(simulate, fit, n_simulations=20, n_draws=19, rng=0)
+    res = binference.validation.sbc(simulate, fit, n_simulations=20, n_draws=19, rng=0)
     # ranks of rates are spread out; ranking fractions against rates would pile them at 0
     assert res.ranks[:, :3].mean() == pytest.approx(9.5, abs=3.0)
 
 
 def test_rate_diagnostics_use_rates():
-    mock = pastry.simulate.mock_1d(300, Bins.linear(0, 3, 4), rng=6)
-    res = pastry.infer(mock.likelihoods, P.GammaRates(1.0, 1e-3), method="gibbs", rng=1,
+    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 4), rng=6)
+    res = binference.infer(mock.likelihoods, P.GammaRates(1.0, 1e-3), method="gibbs", rng=1,
                        n_samples=200, check=False)  # fmt: skip
     r = res.rates.reshape(res.n_chains, -1, 4)
-    expected = pastry.diagnostics.ess(r[:, :, 0], "bulk")
+    expected = binference.diagnostics.ess(r[:, :, 0], "bulk")
     assert res.diagnostics["ess_bulk"][0] == pytest.approx(expected)
 
 
@@ -176,8 +176,8 @@ def test_save_load_labels_and_hyperparameters(tmp_path):
     res.save(tmp_path / "a.npz")
     back = PopulationResult.load(tmp_path / "a.npz")
     assert back.bins == lk.bins  # integer category labels survive
-    mock = pastry.simulate.mock_1d(200, Bins.linear(0, 3, 6), rng=7)
-    gp = pastry.infer(mock.likelihoods, P.LogisticGP(), rng=1, n_samples=30, n_warmup=60,
+    mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 6), rng=7)
+    gp = binference.infer(mock.likelihoods, P.LogisticGP(), rng=1, n_samples=30, n_warmup=60,
                       n_chains=2, check=False)  # fmt: skip
     gp.save(tmp_path / "gp.npz")
     back = PopulationResult.load(tmp_path / "gp.npz")
@@ -189,7 +189,7 @@ def test_save_load_labels_and_hyperparameters(tmp_path):
 def test_polya_tree_map_avoids_boundary_zeros():
     bins = Bins.linear(0, 1, 16)
     rho = np.r_[np.full(12, 1 / 12), np.zeros(4)]
-    mock = pastry.simulate.mock_1d(300, bins, density=rho, noise=0.02, rng=8)
+    mock = binference.simulate.mock_1d(300, bins, density=rho, noise=0.02, rng=8)
     m = PopulationModel(mock.likelihoods, P.PolyaTree(c=1.0))
     assert m.prior.unbounded_density()
     est = MAP(m).run()
@@ -220,8 +220,8 @@ def test_logistic_prior_mean_is_a_flat_density():
 def test_weak_data_smoothness_fits_stay_non_centred():
     """Poorly constrained scales: partial centring would create a funnel."""
     bins = Bins.linear(0.0, 3.0, 6)
-    mock = pastry.simulate.mock_1d(30, bins, density=pastry.simulate.population(bins, "bimodal"),
-                                   noise=(0.2, 0.4), rng=6)  # fmt: skip
+    density = binference.simulate.population(bins, "bimodal")
+    mock = binference.simulate.mock_1d(30, bins, density=density, noise=(0.2, 0.4), rng=6)
     eng = NUTS(PopulationModel(mock.likelihoods, P.LogisticRandomWalk(order=2)), rng=1)
     eng.run(200)
     penalised = ~eng.model.prior.null
@@ -229,7 +229,7 @@ def test_weak_data_smoothness_fits_stay_non_centred():
 
 
 def test_parallel_chains_fall_back_when_the_model_cannot_be_pickled():
-    mock = pastry.simulate.mock_1d(100, Bins.linear(0, 3, 8), rng=1)
+    mock = binference.simulate.mock_1d(100, Bins.linear(0, 3, 8), rng=1)
     model = PopulationModel(mock.likelihoods, P.PolyaTree(base=lambda z: np.exp(-z)))
     with pytest.raises((pickle.PicklingError, AttributeError, TypeError)):
         pickle.dumps(model)
@@ -243,20 +243,20 @@ def test_parallel_chains_fall_back_when_the_model_cannot_be_pickled():
 
 # ------------------------------------------------ missing information (other observations)
 def test_check_reports_missing_information_when_gibbs_mixes_slowly():
-    mock = pastry.simulate.mock_1d(500, Bins.linear(0, 3, 15), noise=(0.4, 0.6), rng=1)
-    res = pastry.infer(
+    mock = binference.simulate.mock_1d(500, Bins.linear(0, 3, 15), noise=(0.4, 0.6), rng=1)
+    res = binference.infer(
         mock.likelihoods, method="gibbs", n_chains=2, n_warmup=20, n_samples=60, rng=0, check=False
     )
-    with pytest.warns(pastry.ConvergenceWarning, match=r"missing information [01]\.\d\d"):
+    with pytest.warns(binference.ConvergenceWarning, match=r"missing information [01]\.\d\d"):
         res.check()
     assert 0.5 < res.diagnostics["missing_information"] <= 1.0
 
 
 def test_em_convergence_warning_reports_missing_information():
-    mock = pastry.simulate.mock_1d(500, Bins.linear(0, 3, 15), noise=(0.4, 0.6), rng=1)
+    mock = binference.simulate.mock_1d(500, Bins.linear(0, 3, 15), noise=(0.4, 0.6), rng=1)
     S = np.linspace(1.0, 0.5, 15)
     m = PopulationModel(mock.likelihoods, P.Dirichlet(2.0), selection=S, selection_mode="true")
-    with pytest.warns(pastry.ConvergenceWarning, match="missing information"):
+    with pytest.warns(binference.ConvergenceWarning, match="missing information"):
         MAP(m, max_iter=5).run()
 
 
@@ -265,7 +265,7 @@ def test_parallel_chain_workers_share_blas_threads():
 
     from threadpoolctl import threadpool_info
 
-    from pastry.samplers.nuts import _limit_threads
+    from binference.samplers.nuts import _limit_threads
 
     with ProcessPoolExecutor(1, initializer=_limit_threads, initargs=(1,)) as ex:
         info = ex.submit(threadpool_info).result()
@@ -275,7 +275,7 @@ def test_parallel_chain_workers_share_blas_threads():
 def test_data_rich_gp_fits_are_partially_centred():
     """A weakly identified length scale must not switch centring off (20x slower)."""
     bins = Bins.linear(0.0, 3.0, 40)
-    lk = pastry.simulate.mock_1d(400, bins, noise=(0.05, 0.15), rng=21).likelihoods[:300]
+    lk = binference.simulate.mock_1d(400, bins, noise=(0.05, 0.15), rng=21).likelihoods[:300]
     eng = NUTS(PopulationModel(lk, P.LogisticGP()), rng=2, n_warmup=40)
     eng.run(1)
     assert np.mean(eng.model.prior.lam < 0.5) > 0.1

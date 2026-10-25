@@ -185,7 +185,7 @@ def sbc(
     simulate : callable
         ``simulate(rng) -> (likelihoods, true_value)`` drawing a population from
         the prior and a catalogue from it (see
-        :func:`pastry.simulate.prior_predictive`). The true value is the
+        :func:`binference.simulate.prior_predictive`). The true value is the
         fractions, or the rates for rate models.
     fit : callable
         ``fit(likelihoods, rng) -> PopulationResult`` running the inference to

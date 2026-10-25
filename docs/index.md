@@ -1,8 +1,8 @@
-# pastry
+# binference
 
 **Population and hierarchical inference with PDFs.**
 
-pastry infers the distribution of a population, and the posteriors of the
+binference infers the distribution of a population, and the posteriors of the
 individual objects in it, from noisy per-object information over a set of
 bins: likelihoods, posteriors computed under an interim prior, posterior
 samples, response matrices or classifier outputs. It samples the exact
@@ -15,10 +15,10 @@ derived quantity and every object are honest.
 ```
 
 ```python
-import pastry
+import binference
 
-mock = pastry.simulate.mock_1d(2000, rng=42)
-result = pastry.infer(mock.likelihoods, rng=1)   # exact posterior with NUTS
+mock = binference.simulate.mock_1d(2000, rng=42)
+result = binference.infer(mock.likelihoods, rng=1)   # exact posterior with NUTS
 result.summary()
 result.plot(truth=mock.truth.rho)
 ```
@@ -29,7 +29,7 @@ result.plot(truth=mock.truth.rho)
 :::{grid-item-card} Getting started
 :link: install
 :link-type: doc
-Install pastry and run your first fit.
+Install binference and run your first fit.
 :::
 
 :::{grid-item-card} Tutorials

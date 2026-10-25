@@ -1,6 +1,6 @@
 # Theory
 
-This page collects the mathematics behind pastry: the model, its equivalent
+This page collects the mathematics behind binference: the model, its equivalent
 forms, what the engines compute, and why a few common shortcuts go wrong. The
 notation is used throughout the code and docstrings.
 
@@ -89,7 +89,7 @@ posterior includes the multinomial noise of having drawn only $N$ objects. The
 actually observed. With perfect measurements $n$ is known exactly while $\rho$
 is still uncertain. A lensing kernel depends on the realised redshifts of the
 lens sample; an occurrence rate or luminosity function is a property of the
-population. pastry returns both: `result.samples` (draws of $\rho$) and
+population. binference returns both: `result.samples` (draws of $\rho$) and
 `result.realized_counts()` (draws of $n$).
 
 ### Individual objects
@@ -130,13 +130,13 @@ $$
 g_k=\frac1W\sum_i\frac{w_iL_{ik}}{L_i\cdot\hat\rho}\le1,\quad\text{with equality where }\hat\rho_k>0,
 $$
 
-so pastry reports the **optimality gap** $\max_kg_k-1$ for every point
+so binference reports the **optimality gap** $\max_kg_k-1$ for every point
 estimate (`PointEstimate.kkt_gap`). With a $\mathrm{Dir}(\alpha)$ prior the
 MAP update adds $\alpha_k-1$ pseudo-counts. EM is slow when likelihoods are
-broad (a large fraction of missing information), so pastry accelerates it
+broad (a large fraction of missing information), so binference accelerates it
 with SQUAREM (Varadhan & Roland 2008).
 
-For $\alpha_k\ge1$ the log posterior is concave on the simplex, and pastry
+For $\alpha_k\ge1$ the log posterior is concave on the simplex, and binference
 uses mix-SQP instead (Kim et al. 2020). Each iteration solves a quadratic
 model of the objective under $\rho\ge0$ as a non-negative least-squares
 problem, so it converges in a handful of iterations however broad the
@@ -150,7 +150,7 @@ $$
 
 in `"observed"` mode, and $\sum_kL_{ik}\phi_k$ in `"true"` mode. The
 maximum-likelihood estimate is invariant under this change of variables, so
-with a flat prior pastry solves for $\phi$ and maps back,
+with a flat prior binference solves for $\phi$ and maps back,
 $\rho_k\propto\phi_k/S_k$.
 
 ## Likelihoods versus posteriors
@@ -203,7 +203,7 @@ the catalogue. The likelihood depends on what the selection acts on:
   true parameter. Then $p(d_i,\mathrm{det}\mid z)=S(z)\ell_i(z)$, so
   $\tilde L_{ik}=S_kL_{ik}$.
 
-The two modes give different likelihoods, so pastry requires the mode to be
+The two modes give different likelihoods, so binference requires the mode to be
 stated whenever a selection array is passed.
 
 **Fractions.** Let the total number of objects $\Lambda$ be unknown. The
@@ -313,7 +313,7 @@ is dropped.
 
 **Partial non-centring.** The whitened form above is efficient when the data
 are weak and inefficient when they are strong, because then $s(\theta)$ and
-$\xi$ trade off along a curved ridge. pastry's NUTS engine re-parametrises
+$\xi$ trade off along a curved ridge. binference's NUTS engine re-parametrises
 each basis coefficient $c_j=s_j\xi_j$ as
 
 $$
@@ -324,14 +324,14 @@ which interpolates between the non-centred form ($\lambda_j=1$) and the centred
 form ($\lambda_j=0$). For a Gaussian likelihood with Fisher information $F_j$
 the best choice is $\lambda_j=1/(1+s_j^2F_j)$ (Papaspiliopoulos, Roberts &
 Sköld 2007; Gorinova et al. 2020). This equals $1/(-H_{jj})$, where $H$ is the
-Hessian of the log posterior in whitened coordinates, so pastry estimates it
+Hessian of the log posterior in whitened coordinates, so binference estimates it
 from finite differences of the gradient early in warm-up. The posterior is
 unchanged; only the coordinates the sampler moves in change.
 
 Centring is safe only if the scales $s_j$ stay in a range where the data
 dominate; otherwise the centred coordinates have a funnel of their own. With
 few basis coefficients per hyperparameter (a handful of bins), the field
-constrains the hyperparameters weakly, so pastry keeps the non-centred form
+constrains the hyperparameters weakly, so binference keeps the non-centred form
 when the median spread of $\log s_j$ given the field exceeds 0.28. That
 spread comes from the curvature of the log posterior in the hyperparameters
 at fixed field.
@@ -343,7 +343,7 @@ Hyperparameters are sampled on the log scale, with `HalfNormal`, `LogNormal`,
 
 ## Unconstrained coordinates
 
-Gradient-based engines need $\mathbb R^d$. For simplex priors pastry uses the
+Gradient-based engines need $\mathbb R^d$. For simplex priors binference uses the
 **isometric log-ratio** (ILR) transform, $\eta=Vx$ with
 $x\in\mathbb R^{K-1}$, where $V$ is the orthonormal Helmert basis of the
 zero-sum subspace, and $\rho=\mathrm{softmax}(\eta)$. The density of $x$ picks

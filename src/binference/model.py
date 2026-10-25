@@ -6,7 +6,7 @@ For fractions :math:`\rho` (simplex priors and logistic priors):
           - W \log(S\cdot\rho) + \text{const},
 
 where the selection term is present only when a selection function
-:math:`S` is given. For rates :math:`\lambda` (:class:`~pastry.priors.GammaRates`):
+:math:`S` is given. For rates :math:`\lambda` (:class:`~binference.priors.GammaRates`):
 
 .. math:: \log p(\lambda \mid D) = \log p(\lambda) + \sum_i w_i \log(L_i\cdot\lambda)
           - S\cdot\lambda + \text{const}.
@@ -52,7 +52,7 @@ class PopulationModel:
         ``Likelihoods(array, bins)``.
     prior : Prior, optional
         Population prior; defaults to ``Dirichlet(1.0)``. Use
-        :class:`~pastry.priors.GammaRates` to infer rates instead of fractions.
+        :class:`~binference.priors.GammaRates` to infer rates instead of fractions.
     selection : array_like (K,) or Selection, optional
         Per-bin detection probability (fractions) or exposure (rates). Overrides
         any selection attached to ``likelihoods``.
@@ -88,7 +88,7 @@ class PopulationModel:
         self.likelihoods = likelihoods
         self.prior_spec = Dirichlet(1.0) if prior is None else prior
         if not isinstance(self.prior_spec, Prior):
-            raise TypeError("prior must be a pastry.priors.Prior instance.")
+            raise TypeError("prior must be a binference.priors.Prior instance.")
         self.prior: BoundPrior = self.prior_spec.bind(likelihoods.bins)
         if selection is None and selection_mode is None:
             sel = likelihoods.selection

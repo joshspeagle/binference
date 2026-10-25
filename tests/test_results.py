@@ -5,14 +5,14 @@ import warnings
 import numpy as np
 import pytest
 
-import pastry
-from pastry import Bins, Likelihoods, PopulationModel, PopulationResult
-from pastry.warnings import ConvergenceWarning
+import binference
+from binference import Bins, Likelihoods, PopulationModel, PopulationResult
+from binference.warnings import ConvergenceWarning
 
 
 @pytest.fixture(scope="module")
 def fitted(small_1d):
-    return pastry.infer(
+    return binference.infer(
         small_1d.likelihoods, method="gibbs", rng=1, n_samples=400, n_warmup=100, check=False
     )
 
@@ -47,7 +47,7 @@ def test_summary_table(fitted):
     for col in ("bin", "mean", "sd", "median", "q16", "q84", "ess_bulk", "rhat"):
         assert col in s.columns
     text = repr(s)
-    assert "pastry fractions posterior" in text and "[0, 0.25)" in text
+    assert "binference fractions posterior" in text and "[0, 0.25)" in text
     np.testing.assert_allclose(s.mean, fitted.mean)
     assert set(s.to_dict()) == set(s.columns)
 
@@ -97,7 +97,7 @@ def test_realized_counts_narrower_than_population_for_precise_data():
     bins = Bins.linear(0, 1, 5)
     labels = rng.integers(0, 5, size=300)
     lk = Likelihoods(np.eye(5)[labels] + 1e-9, bins)
-    res = pastry.infer(lk, method="gibbs", rng=1, n_samples=500, check=False)
+    res = binference.infer(lk, method="gibbs", rng=1, n_samples=500, check=False)
     rc = res.realized_counts(n_draws=200, rng=1)
     # with (essentially) perfect measurements the realised histogram is known exactly
     np.testing.assert_allclose(rc.std(0), 0.0, atol=1e-6)
@@ -135,14 +135,14 @@ def test_check_warns_on_stuck_chains(fitted):
 
 
 def test_point_estimate(small_1d):
-    est = pastry.infer(small_1d.likelihoods, method="map")
-    assert isinstance(est, pastry.PointEstimate)
+    est = binference.infer(small_1d.likelihoods, method="map")
+    assert isinstance(est, binference.PointEstimate)
     np.testing.assert_allclose(est.rho.sum(), 1.0)
     assert est.rates is None
     p = est.assignment_probabilities(idx=[0, 1])
     np.testing.assert_allclose(p.sum(1), 1.0)
     np.testing.assert_allclose(est.density(), est.rho / small_1d.bins.volumes)
-    with pytest.warns(pastry.ApproximationWarning):
+    with pytest.warns(binference.ApproximationWarning):
         lap = est.laplace(n_samples=500, rng=1, importance=False)
     assert isinstance(lap, PopulationResult) and lap.approximate
     assert "PointEstimate(method='map'" in repr(est)
@@ -161,10 +161,10 @@ def test_from_samples_and_attach(fitted, small_1d):
 
 
 def test_rates_result():
-    mock = pastry.simulate.mock_1d(300, Bins.linear(0, 3, 4), rng=8)
-    res = pastry.infer(
+    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 4), rng=8)
+    res = binference.infer(
         mock.likelihoods,
-        pastry.priors.GammaRates(1.0, 1e-3),
+        binference.priors.GammaRates(1.0, 1e-3),
         method="gibbs",
         rng=1,
         n_samples=300,
@@ -174,16 +174,16 @@ def test_rates_result():
     np.testing.assert_allclose(res.samples.sum(1), 1.0)
     np.testing.assert_allclose(res.rates.sum(1).mean(), 300, rtol=0.15)
     np.testing.assert_allclose(res.density(), res.rates / mock.bins.volumes)
-    assert res.summary(which="rates").title.startswith("pastry rates")
+    assert res.summary(which="rates").title.startswith("binference rates")
 
 
 def test_categorical_labels_in_summary():
-    mock = pastry.simulate.mock_categorical(300, 3, rng=1)
-    res = pastry.infer(mock.likelihoods, method="gibbs", rng=1, n_samples=200, check=False)
+    mock = binference.simulate.mock_categorical(300, 3, rng=1)
+    res = binference.infer(mock.likelihoods, method="gibbs", rng=1, n_samples=200, check=False)
     assert "class_0" in repr(res.summary())
 
 
 def test_model_none_has_bins():
     res = PopulationResult(None, np.full((10, 3), 1 / 3), method="x")
     assert res.bins.K == 3
-    assert isinstance(PopulationModel(np.ones((2, 3))).prior_spec, pastry.priors.Dirichlet)
+    assert isinstance(PopulationModel(np.ones((2, 3))).prior_spec, binference.priors.Dirichlet)

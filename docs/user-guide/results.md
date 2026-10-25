@@ -1,18 +1,18 @@
 # Working with results
 
-Sampling engines return a {class}`~pastry.PopulationResult`; `method="map"`
-returns a {class}`~pastry.PointEstimate`. A result holds posterior draws of the
+Sampling engines return a {class}`~binference.PopulationResult`; `method="map"`
+returns a {class}`~binference.PointEstimate`. A result holds posterior draws of the
 population, the model they came from, and diagnostics. Everything else is
 computed from the draws, so uncertainties propagate correctly into any
 derived quantity.
 
 ```python
 import numpy as np
-import pastry
+import binference
 
-mock = pastry.simulate.mock_1d(800, pastry.Bins.linear(0, 3, 15), rng=6)
+mock = binference.simulate.mock_1d(800, binference.Bins.linear(0, 3, 15), rng=6)
 lk, bins = mock.likelihoods, mock.bins
-result = pastry.infer(lk, rng=1, n_samples=500, n_warmup=500)
+result = binference.infer(lk, rng=1, n_samples=500, n_warmup=500)
 print(result)
 ```
 
@@ -78,7 +78,7 @@ weights (uncompressed rows) when you need draws for individual objects.
 For **new** objects that were not used in the fit:
 
 ```python
-new = pastry.Likelihoods.from_gaussian(np.array([1.0, 2.5]), np.array([0.3, 0.3]), bins)
+new = binference.Likelihoods.from_gaussian(np.array([1.0, 2.5]), np.array([0.3, 0.3]), bins)
 print(result.predict_proba(new).round(2)[0])
 print(result.log_predictive(new).round(3))     # log p(d_new | D), for model comparison
 ```
@@ -128,7 +128,7 @@ axes = result.plot_trace(idx=[5])                           # chains
 
 `result.plot` shows densities per unit volume for 1-D bins (`which="fraction"`
 for fractions), images for 2-D grids and bars for categories.
-{func}`pastry.plotting.plot_individual` compares one object's likelihood with
+{func}`binference.plotting.plot_individual` compares one object's likelihood with
 its shrunken posterior.
 
 ## Saving and sharing
@@ -138,7 +138,7 @@ import tempfile, os
 
 path = os.path.join(tempfile.mkdtemp(), "fit.npz")
 result.save(path)
-back = pastry.PopulationResult.load(path)       # draws, bins, info; no likelihoods
+back = binference.PopulationResult.load(path)       # draws, bins, info; no likelihoods
 back.attach(lk)                                 # re-attach to use per-object methods
 tree = result.to_datatree()                     # xarray DataTree in ArviZ layout
 print(back.samples.shape, list(tree.children))
@@ -150,11 +150,11 @@ External draws, for example from your own sampler, can be wrapped with
 ## Point estimates
 
 ```python
-est = pastry.infer(lk, method="map")
+est = binference.infer(lk, method="map")
 print(est.rho.round(3)[:5], est.kkt_gap, round(est.log_likelihood, 2))
 print(est.assignment_probabilities(idx=[0]).round(2))
 ```
 
-A {class}`~pastry.PointEstimate` offers the same per-object methods,
+A {class}`~binference.PointEstimate` offers the same per-object methods,
 evaluated at the point. `est.laplace()` turns it into an approximate
 posterior.

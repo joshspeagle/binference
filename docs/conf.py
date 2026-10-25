@@ -1,4 +1,4 @@
-"""Sphinx configuration for the pastry documentation."""
+"""Sphinx configuration for the binference documentation."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ import sys
 
 sys.path.insert(0, os.path.abspath("../src"))
 
-from pastry import __version__
+from binference import __version__
 
-project = "pastry"
+project = "binference"
 author = "Joshua S. Speagle"
 copyright = "2026, Joshua S. Speagle"
 release = __version__
@@ -33,7 +33,7 @@ source_suffix = {".rst": "restructuredtext", ".md": "myst-nb"}
 # -- MyST / notebooks ---------------------------------------------------------
 myst_enable_extensions = ["amsmath", "colon_fence", "deflist", "dollarmath"]
 myst_heading_anchors = 3
-nb_execution_mode = os.environ.get("PASTRY_DOCS_EXECUTE", "cache")
+nb_execution_mode = os.environ.get("BINFERENCE_DOCS_EXECUTE", "cache")
 nb_execution_timeout = 900
 nb_execution_raise_on_error = True
 nb_execution_show_tb = True
@@ -56,10 +56,10 @@ intersphinx_mapping = {
 
 # -- HTML ---------------------------------------------------------------------
 html_theme = "pydata_sphinx_theme"
-html_title = f"pastry {version}"
+html_title = f"binference {version}"
 html_static_path = ["_static"]
 html_theme_options = {
-    "github_url": "https://github.com/joshspeagle/pastry",
+    "github_url": "https://github.com/joshspeagle/binference",
     "show_toc_level": 2,
     "navigation_with_keys": False,
     "header_links_before_dropdown": 6,

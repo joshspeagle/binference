@@ -54,20 +54,20 @@ def infer(
     Parameters
     ----------
     likelihoods : Likelihoods, PopulationModel, or array_like (N, K)
-        Per-object likelihoods over bins (see :class:`~pastry.Likelihoods` for
+        Per-object likelihoods over bins (see :class:`~binference.Likelihoods` for
         converting posteriors, samples, Gaussian measurements, response
         matrices or classifier outputs). A raw array is treated as
         likelihoods over categorical bins (or ``bins``).
     prior : Prior, optional
         Population prior (default ``Dirichlet(1.0)``). Use
-        :class:`~pastry.priors.GammaRates` to infer rates.
+        :class:`~binference.priors.GammaRates` to infer rates.
     bins : Bins, optional
         Bins for a raw array input.
     selection : array_like (K,) or Selection, optional
         Detection probability (fractions) or exposure (rates) per bin.
     selection_mode : {"observed", "true"}, optional
         Required with an array-valued ``selection`` (see
-        :class:`~pastry.selection.Selection`).
+        :class:`~binference.selection.Selection`).
     method : {"nuts", "gibbs", "map", "laplace", "vb", "bootstrap", "auto"}
         Inference engine. ``"nuts"`` (default) samples the exact posterior.
         ``"auto"`` uses NUTS unless the problem is very large, in which case it
@@ -82,7 +82,7 @@ def infer(
         Warn about convergence problems after sampling (NUTS, Gibbs).
     **engine_kwargs
         Passed to the engine (e.g. ``n_chains``, ``n_warmup``, ``target_accept``
-        for NUTS; see :mod:`pastry.samplers`).
+        for NUTS; see :mod:`binference.samplers`).
 
     Returns
     -------
@@ -91,12 +91,12 @@ def infer(
 
     Examples
     --------
-    >>> import numpy as np, pastry
+    >>> import numpy as np, binference
     >>> rng = np.random.default_rng(1)
-    >>> bins = pastry.Bins.linear(0.0, 1.0, 5)
+    >>> bins = binference.Bins.linear(0.0, 1.0, 5)
     >>> z = rng.uniform(0, 1, 300)
-    >>> lk = pastry.Likelihoods.from_gaussian(z + rng.normal(0, 0.05, 300), 0.05, bins)
-    >>> res = pastry.infer(lk, rng=0, n_samples=200, n_warmup=200)
+    >>> lk = binference.Likelihoods.from_gaussian(z + rng.normal(0, 0.05, 300), 0.05, bins)
+    >>> res = binference.infer(lk, rng=0, n_samples=200, n_warmup=200)
     >>> res.samples.shape
     (800, 5)
     """

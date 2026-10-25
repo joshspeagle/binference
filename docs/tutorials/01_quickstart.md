@@ -19,20 +19,20 @@ about individual galaxies.
 import matplotlib.pyplot as plt
 import numpy as np
 
-import pastry
+import binference
 
 plt.rcParams["figure.dpi"] = 110
 ```
 
 ## A mock catalogue
 
-{func}`pastry.simulate.mock_1d` draws true redshifts from a bimodal population
+{func}`binference.simulate.mock_1d` draws true redshifts from a bimodal population
 and adds Gaussian errors with standard deviations between 0.05 and 0.2, that
 is, between half and twice the width of the 30 bins on $[0,3]$. It returns the
 likelihoods, the truth and the measurements.
 
 ```{code-cell} python
-mock = pastry.simulate.mock_1d(2000, rng=42)
+mock = binference.simulate.mock_1d(2000, rng=42)
 lk, bins = mock.likelihoods, mock.bins
 print(lk)
 print("measured z of the first galaxies:", mock.measurements["mean"][:4].round(2))
@@ -55,11 +55,11 @@ ax.spines[["top", "right"]].set_visible(False)
 
 The usual shortcut adds up the per-galaxy PDFs. That is one step of an
 iteration whose fixed point is the maximum-likelihood population, and it
-gives no error bars. pastry samples the full posterior instead:
+gives no error bars. binference samples the full posterior instead:
 
 ```{code-cell} python
 stack = lk.stack()
-result = pastry.infer(lk, rng=1)      # NUTS, 4 chains x 1000 draws
+result = binference.infer(lk, rng=1)      # NUTS, 4 chains x 1000 draws
 result
 ```
 
@@ -115,7 +115,7 @@ Gaussian-process prior on $\log n(z)$, with its amplitude and length scale
 inferred from the data, shares information between neighbouring bins:
 
 ```{code-cell} python
-smooth = pastry.infer(lk, pastry.priors.LogisticGP(), rng=1)
+smooth = binference.infer(lk, binference.priors.LogisticGP(), rng=1)
 hyper = smooth.info["hyperparameters"]
 print({k: np.round(np.quantile(v, [0.16, 0.5, 0.84]), 2) for k, v in hyper.items()})
 ```
@@ -138,8 +138,8 @@ Compare how well each fit predicts galaxies it has not seen:
 ```{code-cell} python
 train, test = lk[:1500], lk[1500:]
 lp = {}
-for name, prior in [("Dirichlet", None), ("GP", pastry.priors.LogisticGP())]:
-    fit = pastry.infer(train, prior, rng=2)
+for name, prior in [("Dirichlet", None), ("GP", binference.priors.LogisticGP())]:
+    fit = binference.infer(train, prior, rng=2)
     lp[name] = fit.log_predictive(test).sum()
 print({k: round(v, 1) for k, v in lp.items()})
 ```
@@ -153,7 +153,7 @@ under the inferred population, $P(z_i\in k\mid D)$, is narrower than its own
 likelihood wherever the population is informative:
 
 ```{code-cell} python
-from pastry.plotting import plot_individual
+from binference.plotting import plot_individual
 
 i = int(np.argmax(mock.measurements["sigma"]))       # the galaxy with the largest error
 ax = plot_individual(smooth, i)

@@ -1,4 +1,4 @@
-# pastry — test plan (v0.1)
+# binference — test plan (v0.1)
 
 This plan turns the requirements in [`spec.md`](spec.md) into tests. It has three goals:
 
@@ -8,14 +8,14 @@ This plan turns the requirements in [`spec.md`](spec.md) into tests. It has thre
 
 ## 1. Principles
 
-- **Deterministic.** Every random test uses a fixed seed passed through `rng`. Tests that rely on statistical tolerances use a seed that passes, plus tolerances wide enough that the false-failure probability is below 1e-4 for any seed. Seed-robustness is checked offline with `PASTRY_TEST_SEEDS=…`. The test suite has a fixture that loops over seeds when that environment variable is set, in the same spirit as dynesty.
+- **Deterministic.** Every random test uses a fixed seed passed through `rng`. Tests that rely on statistical tolerances use a seed that passes, plus tolerances wide enough that the false-failure probability is below 1e-4 for any seed. Seed-robustness is checked offline with `BINFERENCE_TEST_SEEDS=…`. The test suite has a fixture that loops over seeds when that environment variable is set, in the same spirit as dynesty.
 - **Tolerances scale with Monte Carlo error.** Compare against references with
   $$|\hat\theta - \theta_\text{ref}| \le z\cdot \mathrm{MCSE}(\hat\theta) + \epsilon_\text{abs}, \qquad z = 4 \text{ to } 5.$$
   Standard deviations use a relative tolerance derived from the effective sample size (ESS).
 - **Two tiers.**
   - Default `pytest` runs fast tests: unit, exactness on small problems, and API tests. The target is under 2 minutes on one core.
   - `pytest -m slow` runs the statistical validation: SBC, coverage, larger cross-engine comparisons and the Geweke test. CI runs it in a separate job.
-- **Warnings are errors in CI** (`-W error::pastry.PastryWarning` plus `filterwarnings` in `pyproject.toml`). Tests that expect a warning assert it with `pytest.warns`.
+- **Warnings are errors in CI** (`-W error::binference.BinferenceWarning` plus `filterwarnings` in `pyproject.toml`). Tests that expect a warning assert it with `pytest.warns`.
 - **Requirement IDs.** Test modules and docstrings cite requirement IDs (`R-…`) where they apply.
 
 ## 2. Test inventory
@@ -151,7 +151,7 @@ This plan turns the requirements in [`spec.md`](spec.md) into tests. It has thre
 
 **Fixtures**
 - `tiny_problem(K=3, N=200)` with heteroscedastic Gaussian likelihoods.
-- An exact posterior by quadrature (`pastry.validation.exact_posterior`).
+- An exact posterior by quadrature (`binference.validation.exact_posterior`).
 - One-hot likelihoods, which give the conjugate posterior Dir(α + counts) exactly.
 
 **`tests/test_engine_nuts.py`**
@@ -258,7 +258,7 @@ This plan turns the requirements in [`spec.md`](spec.md) into tests. It has thre
 - It is clonable, matching `sklearn.base.clone` semantics without importing sklearn: `get_params(deep=False)` reproduces the constructor.
 
 **Top-level namespace**
-- `pastry.__all__` exports what the README uses.
+- `binference.__all__` exports what the README uses.
 - `__version__` is defined.
 
 ### 2.10 `tests/test_simulate.py` and `tests/test_validation.py` (§9)

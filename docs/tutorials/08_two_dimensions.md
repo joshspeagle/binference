@@ -9,7 +9,7 @@ kernelspec:
 
 # A two-dimensional population
 
-Nothing in pastry is specific to one dimension. Bins can be a grid in any
+Nothing in binference is specific to one dimension. Bins can be a grid in any
 number of dimensions, such as a colour–magnitude diagram, a mass–ratio plane,
 or redshift and luminosity. This tutorial infers a 2-D population with a
 curved ridge, like a stellar sequence, from noisy measurements in both
@@ -19,11 +19,11 @@ coordinates.
 import matplotlib.pyplot as plt
 import numpy as np
 
-import pastry
+import binference
 
 plt.rcParams["figure.dpi"] = 110
-grid = pastry.Bins.grid(np.linspace(0, 1, 13), np.linspace(0, 1, 13))   # 12 x 12 cells
-mock = pastry.simulate.mock_2d(3000, grid, density="banana", noise=(0.02, 0.06), rng=8)
+grid = binference.Bins.grid(np.linspace(0, 1, 13), np.linspace(0, 1, 13))   # 12 x 12 cells
+mock = binference.simulate.mock_2d(3000, grid, density="banana", noise=(0.02, 0.06), rng=8)
 lk = mock.likelihoods
 print(grid, grid.shape, lk)
 ```
@@ -53,7 +53,7 @@ the tutorials, so `n_jobs=-1` runs the four chains in parallel processes.
 They use the same random streams as a serial run.
 
 ```{code-cell} python
-result = pastry.infer(lk, pastry.priors.LogisticGP(), rng=1, n_samples=500, n_warmup=500,
+result = binference.infer(lk, binference.priors.LogisticGP(), rng=1, n_samples=500, n_warmup=500,
                       n_jobs=-1)
 print(result)
 print({k: np.quantile(v, [0.16, 0.5, 0.84]).round(2)

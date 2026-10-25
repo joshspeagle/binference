@@ -1,16 +1,16 @@
 # Inputs and conventions
 
-pastry's model needs one thing from your data: for every object $i$ and bin
+binference's model needs one thing from your data: for every object $i$ and bin
 $k$, the **bin-averaged likelihood** $L_{ik}$, the probability density of the
 object's data if its true value lies in bin $k$
 ([theory](../theory.md#objects-bins-and-likelihoods)). The
-{class}`~pastry.Likelihoods` class holds these values together with their
-{class}`~pastry.Bins`, optional weights and an optional selection function. Its
+{class}`~binference.Likelihoods` class holds these values together with their
+{class}`~binference.Bins`, optional weights and an optional selection function. Its
 constructors convert the usual data products into likelihoods.
 
 ```python
 import numpy as np
-import pastry
+import binference
 
 rng = np.random.default_rng(1)
 ```
@@ -18,11 +18,11 @@ rng = np.random.default_rng(1)
 ## Bins
 
 ```python
-bins = pastry.Bins.linear(0.0, 3.0, 30)          # 30 equal bins on [0, 3]
-logbins = pastry.Bins.log(1e-2, 1e2, 20)          # equal in log
-irregular = pastry.Bins([0.0, 0.2, 0.5, 1.0, 3.0])  # explicit edges
-grid = pastry.Bins.grid(np.linspace(-0.5, 2.0, 26), np.linspace(-5.0, 15.0, 41))  # 2-D
-classes = pastry.Bins.categories(["star", "galaxy", "quasar"])
+bins = binference.Bins.linear(0.0, 3.0, 30)          # 30 equal bins on [0, 3]
+logbins = binference.Bins.log(1e-2, 1e2, 20)          # equal in log
+irregular = binference.Bins([0.0, 0.2, 0.5, 1.0, 3.0])  # explicit edges
+grid = binference.Bins.grid(np.linspace(-0.5, 2.0, 26), np.linspace(-5.0, 15.0, 41))  # 2-D
+classes = binference.Bins.categories(["star", "galaxy", "quasar"])
 print(bins, grid.shape, grid.K, classes.labels)
 ```
 
@@ -42,12 +42,12 @@ sigma = rng.uniform(0.05, 0.3, size=500)
 z_obs = z_true + sigma * rng.standard_normal(500)
 
 L = np.exp(-0.5 * ((bins.centers[None, :] - z_obs[:, None]) / sigma[:, None]) ** 2)
-lk = pastry.Likelihoods(L, bins)
+lk = binference.Likelihoods(L, bins)
 print(lk)
 ```
 
 - **Row scaling is irrelevant.** Each row can carry any positive constant.
-  pastry rescales rows internally and keeps the scales separately
+  binference rescales rows internally and keeps the scales separately
   (`lk.log_scale`) so absolute log-likelihoods remain available.
 - **Log space.** Pass `log=True` (or use `Likelihoods.from_log`) for
   log-likelihoods; `-inf` marks impossible bins.
@@ -71,7 +71,7 @@ For a measurement $\hat z_i\pm\sigma_i$ the bin-averaged likelihood is exact,
 computed with stable log-CDF differences that work far into the tails:
 
 ```python
-lk = pastry.Likelihoods.from_gaussian(z_obs, sigma, bins)
+lk = binference.Likelihoods.from_gaussian(z_obs, sigma, bins)
 print(lk.N, lk.K)
 ```
 
@@ -79,15 +79,15 @@ print(lk.N, lk.K)
 
 Most photometric-redshift codes, classifiers and per-object fits report
 **posteriors**, which already include a prior. Divide that **interim prior**
-out to recover likelihoods. pastry requires you to say what it was:
+out to recover likelihoods. binference requires you to say what it was:
 
 ```python
-interim = pastry.simulate.population(bins, lambda z: np.exp(-0.5 * ((z - 1.2) / 0.8) ** 2))
+interim = binference.simulate.population(bins, lambda z: np.exp(-0.5 * ((z - 1.2) / 0.8) ** 2))
 P = L * interim                      # posteriors under the interim prior (rows unnormalised)
 P /= P.sum(axis=1, keepdims=True)
 
-lk_post = pastry.Likelihoods.from_posteriors(P, bins, interim_prior=interim)
-np.testing.assert_allclose(lk_post.toarray(), pastry.Likelihoods(L, bins).toarray(), atol=1e-12)
+lk_post = binference.Likelihoods.from_posteriors(P, bins, interim_prior=interim)
+np.testing.assert_allclose(lk_post.toarray(), binference.Likelihoods(L, bins).toarray(), atol=1e-12)
 ```
 
 `interim_prior` can be:
@@ -98,7 +98,7 @@ np.testing.assert_allclose(lk_post.toarray(), pastry.Likelihoods(L, bins).toarra
 Posteriors can be masses per bin (the default) or densities at bin centres
 (`representation="density"`). An array-valued interim prior is read in the
 same representation as the posteriors; pass `interim_representation` if it
-differs. pastry warns if the rows do not look like the representation you
+differs. binference warns if the rows do not look like the representation you
 declared. The distinction matters for unequal bins: a mass and a density
 differ by the bin volume.
 
@@ -111,12 +111,12 @@ supported:
 
 ```python
 samples = [z + s * rng.standard_normal(200) for z, s in zip(z_obs[:100], sigma[:100])]
-lk_samp = pastry.Likelihoods.from_samples(samples, bins, interim_prior="flat")
+lk_samp = binference.Likelihoods.from_samples(samples, bins, interim_prior="flat")
 print(lk_samp.is_sparse, np.median(lk_samp.meta["n_eff"]))
 ```
 
 The per-object effective sample size and the fraction of samples outside the
-bins are stored in `lk_samp.meta`. pastry warns if most objects have fewer
+bins are stored in `lk_samp.meta`. binference warns if most objects have fewer
 effective samples than `min_samples` (default 20); histogrammed likelihoods
 are then noisy.
 
@@ -133,8 +133,8 @@ def loglike(z):  # (n_points, ndim) or (n_points,) -> (N, n_points)
     z = np.asarray(z).reshape(-1)
     return stats.t.logpdf(z[None, :], df=3, loc=z_obs[:, None], scale=sigma[:, None])
 
-lk_t = pastry.Likelihoods.from_function(loglike, bins, log=True)
-lk_d = pastry.Likelihoods.from_distributions(
+lk_t = binference.Likelihoods.from_function(loglike, bins, log=True)
+lk_d = binference.Likelihoods.from_distributions(
     [stats.norm(m, s) for m, s in zip(z_obs[:10], sigma[:10])], bins
 )
 print(lk_t.N, lk_d.N)
@@ -159,19 +159,19 @@ Two adapters cover the other common data products.
   class prevalence.
 
 ```python
-mu = pastry.simulate.mock_unfolding(3000, rng=2)
-lk_unfold = pastry.Likelihoods.from_response(
+mu = binference.simulate.mock_unfolding(3000, rng=2)
+lk_unfold = binference.Likelihoods.from_response(
     mu.measurements["reco_counts"], mu.truth.extra["response"], bins=mu.bins
 )
-mc = pastry.simulate.mock_categorical(1000, 4, rng=3)
-lk_class = pastry.Likelihoods.from_classifier(mc.posteriors, mc.interim_prior)
+mc = binference.simulate.mock_categorical(1000, 4, rng=3)
+lk_class = binference.Likelihoods.from_classifier(mc.posteriors, mc.interim_prior)
 print(lk_unfold.selection.mode, lk_class.bins.labels)
 ```
 
 ## Working with `Likelihoods`
 
 ```python
-lk = pastry.Likelihoods.from_gaussian(z_obs, sigma, bins)
+lk = binference.Likelihoods.from_gaussian(z_obs, sigma, bins)
 sub = lk[:100]                       # subsets keep bins, weights and selection
 dense = lk.toarray()                 # normalised values (each row's max is 1)
 stack = lk.stack()                   # naive stacked estimate, for comparison only

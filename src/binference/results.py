@@ -653,7 +653,7 @@ class PopulationResult(_IndividualMixin):
         if "rhat" in d:
             cols["rhat"] = d["rhat"]
         flag = " [approximate]" if self.approximate else ""
-        title = f"pastry {which} posterior ({self.method}{flag}, {self.n_draws} draws)"
+        title = f"binference {which} posterior ({self.method}{flag}, {self.n_draws} draws)"
         return Summary(cols, title)
 
     def __repr__(self) -> str:
@@ -665,19 +665,19 @@ class PopulationResult(_IndividualMixin):
 
     # ------------------------------------------------------------- plotting
     def plot(self, **kwargs: Any):
-        """Plot the population posterior (see :func:`pastry.plotting.plot_population`)."""
+        """Plot the population posterior (see :func:`binference.plotting.plot_population`)."""
         from .plotting import plot_population
 
         return plot_population(self, **kwargs)
 
     def plot_corner(self, idx: Sequence[int] | None = None, **kwargs: Any):
-        """Corner plot of selected bins (see :func:`pastry.plotting.plot_corner`)."""
+        """Corner plot of selected bins (see :func:`binference.plotting.plot_corner`)."""
         from .plotting import plot_corner
 
         return plot_corner(self, idx=idx, **kwargs)
 
     def plot_trace(self, idx: Sequence[int] | None = None, **kwargs: Any):
-        """Trace plots of selected bins (see :func:`pastry.plotting.plot_trace`)."""
+        """Trace plots of selected bins (see :func:`binference.plotting.plot_trace`)."""
         from .plotting import plot_trace
 
         return plot_trace(self, idx=idx, **kwargs)
@@ -774,7 +774,7 @@ class PointEstimate(_IndividualMixin):
         return base / self.bins.volumes
 
     def laplace(self, n_samples: int = 4000, rng: RNGLike = None, **kwargs: Any):
-        """Laplace approximation around the mode (see :class:`pastry.samplers.Laplace`)."""
+        """Laplace approximation around the mode (see :class:`binference.samplers.Laplace`)."""
         from .samplers import Laplace
 
         return Laplace(self._require_model(), rng=rng, **kwargs).run(n_samples)

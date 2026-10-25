@@ -1,8 +1,8 @@
 cff-version: 1.2.0
-message: "If you use pastry, please cite it as below, together with the method papers relevant to your application."
-title: "pastry: population and hierarchical inference with PDFs"
+message: "If you use binference, please cite it as below, together with the method papers relevant to your application."
+title: "binference: population and hierarchical inference with PDFs"
 abstract: >-
-  pastry infers population distributions over bins, and the posteriors of
+  binference infers population distributions over bins, and the posteriors of
   individual objects, from heteroscedastic per-object likelihoods, posteriors
   or posterior samples, using an exact hierarchical Bayesian model with
   smoothness priors, selection effects and built-in validation.
@@ -12,7 +12,7 @@ authors:
     given-names: Joshua S.
 version: 0.1.0.dev0
 license: MIT
-repository-code: "https://github.com/joshspeagle/pastry"
+repository-code: "https://github.com/joshspeagle/binference"
 keywords:
   - Bayesian inference
   - hierarchical models

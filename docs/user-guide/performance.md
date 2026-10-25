@@ -35,7 +35,7 @@ The engines spend these differently:
 
 ## Making it faster
 
-1. **Run chains in parallel.** `pastry.infer(lk, n_jobs=-1)` uses one process
+1. **Run chains in parallel.** `binference.infer(lk, n_jobs=-1)` uses one process
    per chain and gives each process an equal share of the cores for its
    linear algebra. The random streams are the same as in a serial run, so the
    draws agree up to rounding. On four cores, the 144-bin 2-D fit of the

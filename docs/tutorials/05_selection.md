@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 
-import pastry
+import binference
 
 plt.rcParams["figure.dpi"] = 110
 rng = np.random.default_rng(2026)
@@ -37,7 +37,7 @@ bin $k$. The survey detects a planet with probability $S_k$, which falls
 steeply for small planets. Measured radii scatter by 0.08 dex.
 
 ```{code-cell} python
-bins = pastry.Bins.linear(np.log10(0.5), np.log10(16), 10)
+bins = binference.Bins.linear(np.log10(0.5), np.log10(16), 10)
 x = bins.centers
 n_stars = 5_000
 rate_true = 0.25 * np.exp(-0.5 * ((x - 0.3) / 0.35) ** 2) + 0.02      # planets per star per bin
@@ -59,9 +59,9 @@ of stars times the completeness: the expected number of detections in bin
 $k$ is $N_\star S_k\lambda_k$.
 
 ```{code-cell} python
-lk = pastry.Likelihoods.from_gaussian(obs_x, sigma, bins)
-fit = pastry.infer(
-    lk, pastry.priors.GammaRates(shape=1.0, rate=1e-3),
+lk = binference.Likelihoods.from_gaussian(obs_x, sigma, bins)
+fit = binference.infer(
+    lk, binference.priors.GammaRates(shape=1.0, rate=1e-3),
     selection=n_stars * completeness, selection_mode="true", rng=1, n_samples=500, n_warmup=500,
 )
 idx = bins.index(obs_x)                                               # -1 outside the bins
@@ -73,7 +73,7 @@ radius = 10 ** x
 lo, hi = fit.interval(0.68, which="rates")
 fig, ax = plt.subplots(figsize=(7.5, 4))
 ax.errorbar(radius, fit.rates.mean(axis=0), yerr=[fit.rates.mean(axis=0) - lo, hi - fit.rates.mean(axis=0)],
-            fmt="o", color="#2a78d6", ms=5, capsize=2, label="pastry (68% intervals)")
+            fmt="o", color="#2a78d6", ms=5, capsize=2, label="binference (68% intervals)")
 ax.plot(radius, rate_true, "k--", lw=1.5, label="truth")
 ax.plot(radius, naive, "s", color="#eb6834", ms=5, label="detected / stars")
 ax.set(xscale="log", yscale="log", xlabel="planet radius [Earth radii]",
@@ -82,7 +82,7 @@ ax.spines[["top", "right"]].set_visible(False)
 ax.legend(frameon=False);
 ```
 
-Naive counts miss most small planets. pastry's rates recover the truth, with
+Naive counts miss most small planets. binference's rates recover the truth, with
 error bars that widen where few planets were detected. Integrated quantities
 come from the draws:
 
@@ -100,15 +100,15 @@ redshift is below $z_{\rm lim}=1.6$. Objects whose true redshift is just
 above the limit can scatter in, and objects just below can scatter out.
 
 ```{code-cell} python
-zbins = pastry.Bins.linear(0.0, 2.5, 25)
-rho_true = pastry.simulate.population(zbins, lambda z: z**2 * np.exp(-z / 0.4))
+zbins = binference.Bins.linear(0.0, 2.5, 25)
+rho_true = binference.simulate.population(zbins, lambda z: z**2 * np.exp(-z / 0.4))
 labels = rng.choice(zbins.K, size=5_000, p=rho_true)
 ze = zbins.edges[0]
 z_true = rng.uniform(ze[labels], ze[labels + 1])
 sig_z = 0.12
 z_obs = z_true + sig_z * rng.standard_normal(z_true.size)
 keep = z_obs < 1.6
-lk_z = pastry.Likelihoods.from_gaussian(z_obs[keep], sig_z, zbins)
+lk_z = binference.Likelihoods.from_gaussian(z_obs[keep], sig_z, zbins)
 print(f"kept {keep.sum()} of {keep.size}")
 ```
 
@@ -121,12 +121,12 @@ fine = np.linspace(0, 2.5, 2501)
 pass_prob = stats.norm.cdf((1.6 - fine) / sig_z)
 S = np.array([pass_prob[(fine >= a) & (fine < b)].mean() for a, b in zip(ze[:-1], ze[1:])])
 
-gp = pastry.priors.LogisticGP()
+gp = binference.priors.LogisticGP()
 kw = dict(rng=1, n_samples=500, n_warmup=500)
 fits = {
-    "selection_mode='observed'": pastry.infer(lk_z, gp, selection=S, selection_mode="observed",
+    "selection_mode='observed'": binference.infer(lk_z, gp, selection=S, selection_mode="observed",
                                               **kw),
-    "no selection": pastry.infer(lk_z, gp, **kw),
+    "no selection": binference.infer(lk_z, gp, **kw),
 }
 ```
 

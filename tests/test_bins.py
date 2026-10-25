@@ -1,11 +1,11 @@
-"""Tests for pastry.Bins (spec 4.1; R-BINS-1)."""
+"""Tests for binference.Bins (spec 4.1; R-BINS-1)."""
 
 import pickle
 
 import numpy as np
 import pytest
 
-from pastry import Bins
+from binference import Bins
 
 
 def test_1d_basic():

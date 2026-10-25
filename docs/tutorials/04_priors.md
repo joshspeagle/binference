@@ -10,7 +10,7 @@ kernelspec:
 # Priors and smoothness
 
 When data are sparse, with few objects per bin or errors as wide as the bins,
-the prior shapes the answer. This tutorial puts several of pastry's priors
+the prior shapes the answer. This tutorial puts several of binference's priors
 side by side on a small catalogue, shows how smoothness hyperparameters are
 learned, and uses held-out data to choose between priors.
 
@@ -20,12 +20,12 @@ import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 
-import pastry
-from pastry import priors
+import binference
+from binference import priors
 
 plt.rcParams["figure.dpi"] = 110
-bins = pastry.Bins.linear(0, 3, 40)
-mock = pastry.simulate.mock_1d(400, bins, noise=(0.05, 0.15), rng=21)
+bins = binference.Bins.linear(0, 3, 40)
+mock = binference.simulate.mock_1d(400, bins, noise=(0.05, 0.15), rng=21)
 lk = mock.likelihoods
 print(f"{lk.N} objects in {lk.K} bins: {lk.N / lk.K:.0f} per bin on average")
 ```
@@ -41,7 +41,7 @@ candidates = {
 }
 fits = {}
 for name, prior in candidates.items():
-    fits[name] = pastry.infer(lk, prior, rng=1, n_samples=500, n_warmup=500)
+    fits[name] = binference.infer(lk, prior, rng=1, n_samples=500, n_warmup=500)
 ```
 
 ```{code-cell} python
@@ -68,7 +68,7 @@ fig.supxlabel("z");
 which suits many bins with few objects. Bins without data then have
 enormously long tails in log space ($\rho_k$ down to $10^{-50}$ is
 plausible), which NUTS explores slowly. With narrow likelihoods the conjugate
-Gibbs sampler handles it well. pastry's diagnostics point this out when they
+Gibbs sampler handles it well. binference's diagnostics point this out when they
 see the symptoms.
 
 ## Learning the smoothness
@@ -102,7 +102,7 @@ scores = {}
 for name, prior in candidates.items():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        res = pastry.infer(train, prior, rng=2, n_samples=400, n_warmup=400)
+        res = binference.infer(train, prior, rng=2, n_samples=400, n_warmup=400)
     scores[name] = res.log_predictive(test).sum()
 best = max(scores.values())
 for name, s in sorted(scores.items(), key=lambda kv: -kv[1]):
@@ -111,7 +111,7 @@ for name, s in sorted(scores.items(), key=lambda kv: -kv[1]):
 
 Differences of a few units are meaningful for 100 held-out objects. For a
 more careful comparison, cross-validate over several folds, for example with
-{class}`~pastry.PopulationEstimator` and its `score` method.
+{class}`~binference.PopulationEstimator` and its `score` method.
 
 ## Priors that encode outside information
 
@@ -124,8 +124,8 @@ more careful comparison, cross-validate over several folds, for example with
   says how far the population may depart from it, and the data decide.
 
 ```{code-cell} python
-ref = pastry.simulate.population(bins, "gaussian")        # a deliberately wrong reference shape
-centred = pastry.infer(lk, priors.LogisticGP(mean=np.log(ref)), rng=1, n_samples=500, n_warmup=500)
+ref = binference.simulate.population(bins, "gaussian")        # a deliberately wrong reference shape
+centred = binference.infer(lk, priors.LogisticGP(mean=np.log(ref)), rng=1, n_samples=500, n_warmup=500)
 ax = centred.plot(truth=mock.truth.rho)
 ax.step(bins.edges[0], np.append(ref / bins.volumes, ref[-1] / bins.volumes[-1]), where="post",
         color="0.5", lw=1, label="reference (prior mean)")

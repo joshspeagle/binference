@@ -21,7 +21,7 @@ two of them:
 import matplotlib.pyplot as plt
 import numpy as np
 
-import pastry
+import binference
 
 plt.rcParams["figure.dpi"] = 110
 ```
@@ -30,31 +30,31 @@ plt.rcParams["figure.dpi"] = 110
 
 A classifier trained on balanced classes is applied to a test set whose
 class proportions are skewed. Its posteriors $p(k\mid x_i)$ include the
-*training* prevalence as a prior. {func}`pastry.simulate.mock_categorical`
+*training* prevalence as a prior. {func}`binference.simulate.mock_categorical`
 simulates an ideal classifier on four overlapping classes:
 
 ```{code-cell} python
-mock = pastry.simulate.mock_categorical(3000, n_classes=4, separation=1.2, rng=5)
+mock = binference.simulate.mock_categorical(3000, n_classes=4, separation=1.2, rng=5)
 probs, train_prior = mock.posteriors, mock.interim_prior
 print("true test prevalence:", mock.truth.rho.round(3), " training prior:", train_prior)
 ```
 
 The common shortcuts are "classify and count" (take each object's most
 probable class) and "probabilistic classify and count" (average the
-probabilities). Both are biased toward the training prior. pastry divides the
+probabilities). Both are biased toward the training prior. binference divides the
 training prior out and infers the prevalence with uncertainty. This is the
 Bayesian version of the EM method of Saerens et al. (2002):
 
 ```{code-cell} python
-lk = pastry.Likelihoods.from_classifier(probs, train_prior, labels=mock.bins.labels)
-fit = pastry.infer(lk, rng=1)
+lk = binference.Likelihoods.from_classifier(probs, train_prior, labels=mock.bins.labels)
+fit = binference.infer(lk, rng=1)
 
 cc = np.bincount(probs.argmax(axis=1), minlength=4) / len(probs)
 pcc = probs.mean(axis=0)
 lo, hi = fit.interval(0.95)
 for k, name in enumerate(mock.bins.labels):
     print(f"{name}: truth {mock.truth.rho[k]:.3f} | CC {cc[k]:.3f} | PCC {pcc[k]:.3f} | "
-          f"pastry {fit.mean[k]:.3f} [{lo[k]:.3f}, {hi[k]:.3f}]")
+          f"binference {fit.mean[k]:.3f} [{lo[k]:.3f}, {hi[k]:.3f}]")
 ```
 
 ```{code-cell} python
@@ -78,11 +78,11 @@ print(f"accuracy with training-prior posteriors: {acc_before:.3f}, after recalib
 In unfolding, events with a true value in bin $k$ are observed in
 reconstructed bin $b$ with probability $R_{bk}$, the response matrix. Some
 events are lost entirely: the efficiency $\epsilon_k=\sum_bR_{bk}$ is less
-than one. {func}`pastry.simulate.mock_unfolding` smears an exponential
+than one. {func}`binference.simulate.mock_unfolding` smears an exponential
 spectrum:
 
 ```{code-cell} python
-mu = pastry.simulate.mock_unfolding(8000, n_true=20, n_reco=25, rng=3)
+mu = binference.simulate.mock_unfolding(8000, n_true=20, n_reco=25, rng=3)
 R = mu.truth.extra["response"]
 counts = mu.measurements["reco_counts"]
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.5), constrained_layout=True)
@@ -94,7 +94,7 @@ axes[1].set(xlabel="reconstructed bin", ylabel="events", title="observed counts"
 axes[1].spines[["top", "right"]].set_visible(False)
 ```
 
-{meth}`~pastry.Likelihoods.from_response` turns counts and the response into
+{meth}`~binference.Likelihoods.from_response` turns counts and the response into
 weighted likelihood rows, one per reconstructed bin. It attaches the
 efficiency as a selection function with `selection_mode="observed"`, since
 the response already includes it. Inverting $R$ directly would amplify the
@@ -103,10 +103,10 @@ it infers how smooth the spectrum is, rather than fixing an iteration count
 or a regularisation strength by hand.
 
 ```{code-cell} python
-lk_u = pastry.Likelihoods.from_response(counts, R, bins=mu.bins)
+lk_u = binference.Likelihoods.from_response(counts, R, bins=mu.bins)
 print(lk_u, lk_u.selection)
-flat = pastry.infer(lk_u, rng=1, n_samples=500, n_warmup=500)
-smooth = pastry.infer(lk_u, pastry.priors.LogisticGP(), rng=1, check=False)
+flat = binference.infer(lk_u, rng=1, n_samples=500, n_warmup=500)
+smooth = binference.infer(lk_u, binference.priors.LogisticGP(), rng=1, check=False)
 d = smooth.diagnostics
 print(f"divergent: {d['n_divergent']} of {smooth.n_draws}, max R-hat {d['rhat'].max():.3f}, "
       f"min bulk ESS {d['ess_bulk'].min():.0f}")

@@ -10,7 +10,7 @@ kernelspec:
 # Validating an analysis
 
 Convergence diagnostics say whether a sampler explored the posterior, not
-whether the posterior is calibrated. This tutorial uses pastry's validation
+whether the posterior is calibrated. This tutorial uses binference's validation
 tools to check a whole pipeline: an exact reference for a small problem,
 simulation-based calibration (SBC), and coverage. It also shows what a
 failure looks like.
@@ -21,9 +21,9 @@ import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 
-import pastry
-from pastry import priors
-from pastry.validation import coverage, exact_posterior, sbc
+import binference
+from binference import priors
+from binference.validation import coverage, exact_posterior, sbc
 
 plt.rcParams["figure.dpi"] = 110
 ```
@@ -34,19 +34,19 @@ With three bins the posterior can be integrated on a grid. Here it is
 compared with NUTS and Gibbs on data with selection effects:
 
 ```{code-cell} python
-bins = pastry.Bins([0.0, 1.0, 2.0, 3.0])
+bins = binference.Bins([0.0, 1.0, 2.0, 3.0])
 S = np.array([0.9, 0.5, 0.25])
-mock = pastry.simulate.mock_1d(250, bins, density=np.array([0.4, 0.35, 0.25]),
+mock = binference.simulate.mock_1d(250, bins, density=np.array([0.4, 0.35, 0.25]),
                                noise=(0.3, 0.8), selection=S, rng=777)
 exact = exact_posterior(mock.likelihoods, priors.Dirichlet(1.0), n_grid=500)
-nuts = pastry.infer(mock.likelihoods, rng=1)
-gibbs = pastry.infer(mock.likelihoods, method="gibbs", rng=1, n_samples=4000)
+nuts = binference.infer(mock.likelihoods, rng=1)
+gibbs = binference.infer(mock.likelihoods, method="gibbs", rng=1, n_samples=4000)
 print("exact mean", exact.mean.round(4), " sd", exact.std.round(4))
 print("NUTS  mean", nuts.mean.round(4), " sd", nuts.std.round(4))
 print("Gibbs mean", gibbs.mean.round(4), " sd", gibbs.std.round(4))
 ```
 
-pastry's test suite makes these comparisons for every engine, prior family
+binference's test suite makes these comparisons for every engine, prior family
 and selection mode.
 
 ## Simulation-based calibration
@@ -59,11 +59,11 @@ calibrated.
 
 ```{code-cell} python
 prior = priors.Dirichlet(1.0)
-grid = pastry.Bins.linear(0.0, 1.0, 4)
-simulate = pastry.simulate.prior_predictive(prior, grid, n_objects=50, noise=0.25)
+grid = binference.Bins.linear(0.0, 1.0, 4)
+simulate = binference.simulate.prior_predictive(prior, grid, n_objects=50, noise=0.25)
 
 def fit_gibbs(lk, rng):
-    return pastry.infer(lk, prior, method="gibbs", rng=rng, n_chains=1,
+    return binference.infer(lk, prior, method="gibbs", rng=rng, n_chains=1,
                         n_warmup=200, n_samples=1000, check=False)
 
 result = sbc(simulate, fit_gibbs, n_simulations=150, n_draws=49, rng=0)
@@ -84,8 +84,8 @@ falls outside the bulk of its draws. The rank histograms become U-shaped:
 ```{code-cell} python
 def fit_vb(lk, rng):
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", pastry.ApproximationWarning)
-        return pastry.infer(lk, prior, method="vb", rng=rng, n_samples=1000)
+        warnings.simplefilter("ignore", binference.ApproximationWarning)
+        return binference.infer(lk, prior, method="vb", rng=rng, n_samples=1000)
 
 bad = sbc(simulate, fit_vb, n_simulations=150, n_draws=49, rng=0)
 print("uniformity p-values:", {n: round(float(v), 4) for n, v in zip(bad.names, bad.pvalues(10))})

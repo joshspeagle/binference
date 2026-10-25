@@ -40,11 +40,11 @@ class Bins:
 
     Examples
     --------
-    >>> import pastry
-    >>> bins = pastry.Bins([0.0, 0.5, 1.0, 2.0])
+    >>> import binference
+    >>> bins = binference.Bins([0.0, 0.5, 1.0, 2.0])
     >>> bins.K, bins.volumes.tolist()
     (3, [0.5, 0.5, 1.0])
-    >>> grid = pastry.Bins.grid([0, 1, 2], [0, 1, 2, 3])
+    >>> grid = binference.Bins.grid([0, 1, 2], [0, 1, 2, 3])
     >>> grid.K, grid.shape
     (6, (2, 3))
     """

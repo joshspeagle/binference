@@ -16,8 +16,8 @@ class Engine:
     """Base class of all inference engines.
 
     Engines are configured at construction and executed with :meth:`run`,
-    which returns a :class:`~pastry.PopulationResult` (or a
-    :class:`~pastry.PointEstimate` for :class:`~pastry.samplers.MAP`).
+    which returns a :class:`~binference.PopulationResult` (or a
+    :class:`~binference.PointEstimate` for :class:`~binference.samplers.MAP`).
     """
 
     name: str = "engine"
@@ -25,7 +25,7 @@ class Engine:
 
     def __init__(self, model: PopulationModel, *, rng: RNGLike = None, progress: bool = False):
         if not isinstance(model, PopulationModel):
-            raise TypeError("Engines operate on a pastry.PopulationModel.")
+            raise TypeError("Engines operate on a binference.PopulationModel.")
         self.model = model
         self.rng = as_generator(rng)
         self.progress = bool(progress)

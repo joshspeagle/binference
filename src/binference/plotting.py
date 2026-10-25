@@ -1,4 +1,4 @@
-"""Plotting helpers (require matplotlib: ``pip install "pastry-inference[plot]"``)."""
+"""Plotting helpers (require matplotlib: ``pip install "binference[plot]"``)."""
 
 from __future__ import annotations
 
@@ -26,9 +26,7 @@ def _plt():
     try:
         import matplotlib.pyplot as plt
     except ImportError as err:  # pragma: no cover - depends on environment
-        raise ImportError(
-            "Plotting needs matplotlib: pip install 'pastry-inference[plot]'."
-        ) from err
+        raise ImportError("Plotting needs matplotlib: pip install 'binference[plot]'.") from err
     return plt
 
 
@@ -318,7 +316,7 @@ def plot_individual(result: Any, i: int, ax: Any = None, n_draws: int = 200):
 
 
 def plot_sbc(sbc_result: Any, n_bins: int | None = None, max_panels: int = 12, fig: Any = None):
-    """Rank histograms from :func:`pastry.validation.sbc` with a 99% uniformity band."""
+    """Rank histograms from :func:`binference.validation.sbc` with a 99% uniformity band."""
     from scipy import stats
 
     plt = _plt()

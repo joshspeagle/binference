@@ -1,13 +1,13 @@
-"""Tests for pastry.Likelihoods and its constructors (spec 3.4-3.5, 4.2; R-INPUT-*)."""
+"""Tests for binference.Likelihoods and its constructors (spec 3.4-3.5, 4.2; R-INPUT-*)."""
 
 import numpy as np
 import pytest
 import scipy.sparse as sp
 from scipy import stats
 
-import pastry
-from pastry import Bins, Likelihoods
-from pastry.warnings import InputWarning
+import binference
+from binference import Bins, Likelihoods
+from binference.warnings import InputWarning
 
 
 def test_basic_construction_and_scales():
@@ -143,13 +143,13 @@ def test_unequal_bins_representation_matters():
     rng = np.random.default_rng(0)
     bins = Bins([0.0, 0.2, 0.4, 1.0, 2.0])
     rho = np.array([0.1, 0.2, 0.3, 0.4])
-    mock = pastry.simulate.mock_1d(20000, bins, density=rho, noise=0.15, rng=rng)
-    good = pastry.infer(mock.likelihoods, method="map").rho
+    mock = binference.simulate.mock_1d(20000, bins, density=rho, noise=0.15, rng=rng)
+    good = binference.infer(mock.likelihoods, method="map").rho
     np.testing.assert_allclose(good, rho, atol=0.025)
     # declaring bin-averaged likelihoods as masses divides columns by the volumes,
     # which biases the population when PDFs straddle bins of unequal width
     bad_lk = Likelihoods(mock.likelihoods.toarray(), bins, representation="mass")
-    bad = pastry.infer(bad_lk, method="map").rho
+    bad = binference.infer(bad_lk, method="map").rho
     assert np.max(np.abs(bad - rho)) > 0.08
 
 
@@ -197,7 +197,7 @@ def test_from_gaussian_exact_1d():
     )
     expected = mass / bins.volumes
     expected /= expected.max(axis=1, keepdims=True)
-    # (pastry's tail computation is more accurate than CDF differences, which underflow)
+    # (binference's tail computation is more accurate than CDF differences, which underflow)
     np.testing.assert_allclose(lk.toarray(), expected, rtol=1e-9, atol=1e-60)
 
 
@@ -294,8 +294,8 @@ def test_compress_preserves_inference():
     assert c.N == 2
     np.testing.assert_allclose(np.sort(c.weights), [1.0, 3.0])
     rho = np.array([0.2, 0.3, 0.5])
-    m1 = pastry.PopulationModel(lk)
-    m2 = pastry.PopulationModel(c)
+    m1 = binference.PopulationModel(lk)
+    m2 = binference.PopulationModel(c)
     assert m1.log_likelihood(rho) == pytest.approx(m2.log_likelihood(rho), rel=1e-12)
     assert lk.subset([0, 2]).compress() is not None
 
@@ -317,7 +317,7 @@ def test_selection_requires_mode():
     with pytest.raises(ValueError):
         Likelihoods(np.ones((2, 2)), selection=[0.0, 1.0], selection_mode="true")
     with pytest.raises(ValueError):
-        pastry.Selection([0.5, 1.0], mode="maybe")
+        binference.Selection([0.5, 1.0], mode="maybe")
 
 
 def test_stack_one_em_step():
