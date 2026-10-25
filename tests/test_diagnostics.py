@@ -15,10 +15,11 @@ def ar1(phi, n, chains, rng):
     return x
 
 
-# Relative tolerances are 4x the replicate sd of each estimator (60 seeds, 4 x 20000
-# draws): tau 1.2%, 3.1%, 5.8% and ESS 1.3%, 2.3%, 4.8% at phi = 0, 0.5, 0.9.
+# Relative tolerances are at least 4x the replicate sd of each estimator (60 seeds,
+# 4 x 20000 draws): tau 1.2%, 3.1%, 5.8% and ESS 1.3%, 2.3%, 4.8% at phi = 0, 0.5, 0.9.
+# The MCSE is sd / sqrt(ESS), so its relative error is half the ESS's: 10% covers 4x.
 @pytest.mark.parametrize(
-    ("phi", "tol_tau", "tol_ess"), [(0.0, 0.05, 0.05), (0.5, 0.12, 0.1), (0.9, 0.25, 0.2)]
+    ("phi", "tol_tau", "tol_ess"), [(0.0, 0.05, 0.06), (0.5, 0.13, 0.1), (0.9, 0.25, 0.2)]
 )
 def test_autocorr_time_and_ess_ar1(phi, tol_tau, tol_ess, rng):
     x = ar1(phi, 20000, 4, rng)

@@ -209,8 +209,9 @@ def test_nuts_with_a_logistic_prior_matches_a_long_run():
     for k in range(8):
         x = res.chains[:, :, k]
         assert abs(x.mean() - mean[k]) < 5 * binference.diagnostics.mcse(x), k
-        # MC error of the sd from the MCSE of the squared deviations; 6 sigma because
-        # these short runs give z-scores with sd up to 1.3 on the skewed edge bins
+        # MC error of the sd from the MCSE of the squared deviations, which underestimates
+        # it by up to 1.3x on the skewed edge bins of short runs (measured over 40 seeds):
+        # 6 such sigma are 4.6 true sigma
         assert abs(x.std() - sd[k]) < 6 * sd_mcse(x), k
 
 
@@ -533,9 +534,10 @@ def test_vb_means_with_a_selection_are_close_to_the_exact_posterior(k3_selection
     np.testing.assert_allclose(vb.mean, exact.mean, atol=0.01)
 
 
-def test_vb_rates_with_an_exposure_match_gibbs():
+def test_vb_rates_with_a_selection_match_gibbs():
     # likelihoods much narrower than the bins: the mean-field factorisation is nearly
-    # exact (exact for one-hot likelihoods), so only Monte Carlo error separates the two
+    # exact (exact for one-hot likelihoods); the plug-in of the missed objects adds a bias
+    # of at most 0.5% of the rate (three seeds), allowed for at 1% beside the MC error
     bins = Bins([0.0, 1.0, 2.0, 3.0])
     S = np.array([0.9, 0.5, 0.25])
     mock = binference.simulate.mock_1d(
@@ -550,7 +552,7 @@ def test_vb_rates_with_an_exposure_match_gibbs():
         [binference.diagnostics.mcse(R[:, :, k]) for k in range(3)],
         vb.rates.std(0) / np.sqrt(4000),
     )
-    assert np.all(np.abs(vb.rates.mean(0) - g.rates.mean(0)) <= 4 * se)
+    assert np.all(np.abs(vb.rates.mean(0) - g.rates.mean(0)) <= 4 * se + 0.01 * g.rates.mean(0))
 
 
 # ---------------------------------------------------------------- Bootstrap
@@ -560,15 +562,15 @@ def test_bootstrap(k3_problem):
         res = Bootstrap(PopulationModel(mock.likelihoods), rng=1).run(60)
     assert res.samples.shape == (60, 3) and res.approximate
     # At large N the bootstrap sd matches the posterior sd. With B = 200 replicates the
-    # sd has relative MC error ~ 1/sqrt(2B) = 5%, so 30% is 6 sigma against the exact
-    # posterior and still catches a factor-sqrt(2) error.
+    # sd has relative MC error ~ 1/sqrt(2B) = 5% (ratios 0.91-1.10 over 8 seeds), so
+    # |log ratio| < 0.2 is 4 sigma and catches a factor sqrt(2) either way (0.35).
     big = binference.simulate.mock_1d(
         2000, mock.bins, density=np.array([0.5, 0.15, 0.35]), noise=(0.3, 1.2), rng=12345
     )
     ref = binference.validation.exact_posterior(big.likelihoods)
     with pytest.warns(ApproximationWarning):
         boot = Bootstrap(PopulationModel(big.likelihoods), rng=1).run(200)
-    np.testing.assert_allclose(boot.std, ref.std, rtol=0.3)
+    assert np.all(np.abs(np.log(boot.std / ref.std)) < 0.2)
     with pytest.warns(ApproximationWarning):
         bb = Bootstrap(PopulationModel(mock.likelihoods), scheme="bayesian", rng=1).run(20)
     assert bb.info["scheme"] == "bayesian" and bb.info["n_not_converged"] == 0
