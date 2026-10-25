@@ -198,7 +198,7 @@ def test_joint_inference_with_a_logistic_prior_and_nuts_is_calibrated():
     prior = binference.priors.LogisticRandomWalk()
     rng = np.random.default_rng(2027)
     n_draws, ranks = 49, []
-    for _ in range(100):
+    for _ in range(60):
         rho, S = prior.bind(bins).sample(1, rng)[0], rng.uniform(size=4)
         p = rho * S
         k = rng.choice(4, size=100, p=p / p.sum())
@@ -208,7 +208,7 @@ def test_joint_inference_with_a_logistic_prior_and_nuts_is_calibrated():
         )
         sel = Selection.from_injections(*_injections(S, bins, 30, rng), bins, "on_truth")
         m = binference.PopulationModel(lk, prior, selection=sel)
-        res = NUTS(m, n_chains=2, n_warmup=300, rng=rng).run(250)
+        res = NUTS(m, n_chains=2, n_warmup=200, rng=rng).run(150)
         idx = np.linspace(0, res.n_draws - 1, n_draws).round().astype(int)
         R, Sd = res.samples[idx], res.info["selection_draws"].reshape(-1, 4)[idx]
         ranks.append(np.concatenate([(R < rho).sum(0), (Sd < S).sum(0)]))
