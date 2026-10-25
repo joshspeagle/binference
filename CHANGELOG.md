@@ -53,6 +53,11 @@ First development version.
   are refined to `tol` (default 1e-3), in the measure coordinate for likelihoods
   (DECISIONS #21); `from_gaussian` averages in u on non-linear axes. Far tails no longer
   underflow to empty rows (I-2, I-3).
+- **Samples** (DECISIONS #31, #67): one estimator for every interim prior (per-sample
+  weights T'(z)/π(z) when π can be evaluated at points), an opt-in Dirichlet `floor`,
+  `n_eff` inside the bins with a warning on the share of noisy objects (I-23),
+  `Likelihoods.sample_variance` and a Monte Carlo variance check in `result.check()`;
+  `Measure.log_jacobian`.
 - **Correlated Gaussians** (DECISIONS #2, #25, #66): `from_gaussian(..., cov=)` takes full
   per-object covariances, averaged over N-D bins by adaptive cubature in log space.
 - `weights` are integer multiplicities; non-integer weights need `fractional_weights=True`

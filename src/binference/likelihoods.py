@@ -684,14 +684,27 @@ class Likelihoods:
         drop_empty: bool = False,
         fractional_weights: bool = False,
         min_samples: int = 20,
+        floor: float = 0.0,
         warn_outside: bool = True,
     ) -> Likelihoods:
-        r"""Build likelihoods from per-object posterior samples.
+        r"""Build likelihoods from per-object posterior samples (DECISIONS #31).
 
-        Each object's samples are histogrammed onto ``bins`` and divided by the
-        interim-prior mass per bin, :math:`L_{ik} \propto c_{ik} / \Pi_k`.
-        The per-object effective number of samples and the fraction of samples
-        falling outside the bins are stored in ``meta``.
+        One Monte Carlo estimator, :math:`\hat L_{ik} \propto \frac1S \sum_s
+        w_s\,\mathbb 1[z_s \in B_k]\,T'(z_s) / \pi(z_s)`, averaged over each bin
+        in the measure coordinate:
+
+        * when the interim prior is known only per bin (``"flat"``, masses or
+          densities) this is the weighted count divided by the interim mass,
+          :math:`L_{ik} \propto c_{ik} / \Pi_k`;
+        * when it can be evaluated at points (a function or a distribution) each
+          sample is weighted by :math:`T'(z_s)/\pi(z_s)`, which is exact when the
+          interim prior varies within bins.
+
+        Samples drawn from a likelihood are samples under ``Density.flat("z")``.
+        The per-object effective number of samples inside the bins and the
+        fraction outside are stored in ``meta``; the sums behind the estimator
+        are kept so that :meth:`sample_variance` can measure its Monte Carlo
+        error at a fitted population.
 
         Parameters
         ----------
@@ -713,28 +726,60 @@ class Likelihoods:
             Store the result sparsely. Defaults to sparse when fewer than 30%
             of entries are non-zero.
         min_samples : int
-            Warn if the median effective number of samples per object is below this.
+            Warn if more than 10% of the objects have fewer effective samples
+            inside the bins than this (audit I-23).
+        floor : float
+            Pseudo-samples added to every object, spread over the bins in
+            proportion to the interim prior: a Dirichlet floor that keeps bins no
+            sample reached from having zero likelihood. Off by default.
         warn_outside : bool
             Warn when many objects have most of their samples outside the bins
             (see :meth:`from_gaussian`).
         """
         if bins.is_categorical:
             raise ValueError("from_samples needs ordered (grid) bins.")
-        obj_ids, flat_idx, sw, n_eff, outside, n_obj = _bin_samples(samples, bins, sample_weights)
-        inside = flat_idx >= 0
-        M = sp.coo_array(
-            (sw[inside], (obj_ids[inside], flat_idx[inside])), shape=(n_obj, bins.K)
-        ).tocsr()
-        Pi = _interim_masses(interim, bins, interim_representation)
-        M = _divide_interim(M, Pi, "Samples")
-        density = M.nnz / max(1, n_obj * bins.K)
+        if not floor >= 0:
+            raise ValueError(f"floor must be non-negative; got {floor}.")
+        flat, obj_ids, idx, sw, n_obj = _bin_samples(samples, bins, sample_weights)
+        density = Density.coerce(interim, interim_representation)
+        Pi = density.masses(bins)
+        pointwise = density._pointwise()
+        inside = idx >= 0
+        if pointwise is None:  # per-bin interim prior: counts over interim masses
+            w, divisor = sw, Pi
+        else:  # weight each sample by T'(z) / pi(z)
+            pi = np.asarray(pointwise(flat[inside]), dtype=float).ravel()
+            if np.any(~np.isfinite(pi)) or np.any(pi <= 0):
+                raise ValueError("Samples fall where the interim density is zero or undefined.")
+            zz = flat[inside].reshape(-1, bins.ndim)
+            log_jac = sum(m.log_jacobian(zz[:, d]) for d, m in enumerate(bins.measures))
+            w = np.zeros_like(sw)
+            w[inside] = sw[inside] * np.exp(log_jac - np.log(pi))
+            divisor = _u_volumes(bins)
+        rows, cols = obj_ids[inside], idx[inside]
+        shape = (n_obj, bins.K)
+        S1 = sp.coo_array((w[inside], (rows, cols)), shape=shape).tocsr()
+        S2 = sp.coo_array((w[inside] ** 2, (rows, cols)), shape=shape).tocsr()
+        est = _divide_interim(S1, divisor, "Samples")  # proportional to the bin averages
+        n_samples = np.bincount(obj_ids, weights=sw, minlength=n_obj)
+        inside_w = np.bincount(obj_ids[inside], weights=sw[inside], minlength=n_obj)
+        outside = 1.0 - inside_w / np.where(n_samples > 0, n_samples, 1.0)
+        if floor > 0:  # as counts: c + floor * Pi, divided by Pi
+            counts = _scale_columns(est, Pi)
+            tot = np.asarray(counts.sum(axis=1)).ravel()
+            scale = np.where(tot > 0, inside_w / np.where(tot > 0, tot, 1.0), 0.0)
+            est = (sp.diags_array(scale) @ est).toarray() + floor
+        n_eff = _n_eff(obj_ids[inside], w[inside], n_obj)
+        nnz = est.nnz if sp.issparse(est) else np.count_nonzero(est)
         if sparse is None:
-            sparse = density < 0.3
-        values = M if sparse else M.toarray()
-        if np.median(n_eff) < min_samples:
+            sparse = nnz < 0.3 * n_obj * bins.K
+        values = sp.csr_array(est) if sparse else (est.toarray() if sp.issparse(est) else est)
+        short = n_eff < min_samples
+        if short.mean() > 0.1:
             warn(
-                f"Median effective number of samples per object is {np.median(n_eff):.1f}; "
-                "histogrammed likelihoods will be noisy (consider more samples or wider bins).",
+                f"{int(short.sum())} of {n_obj} objects have fewer than {min_samples} effective "
+                "samples inside the bins; their likelihoods will be noisy (more samples, wider "
+                "bins or floor= help).",
                 InputWarning,
             )
         lk = cls(
@@ -747,9 +792,36 @@ class Likelihoods:
             fractional_weights=fractional_weights,
         )
         lk.meta.update(source="samples", interim_prior_masses=Pi)
-        _attach_per_object(lk, n_eff=n_eff)
+        _attach_per_object(
+            lk,
+            n_eff=n_eff,
+            sample_sum=_scale_columns(S1, 1.0 / divisor),
+            sample_sq=_scale_columns(S2, 1.0 / divisor**2),
+            sample_count=n_samples,
+        )
         _record_outside(lk, outside, warn_outside)
         return lk
+
+    def sample_variance(self, rho: Any) -> tuple[np.ndarray, np.ndarray]:
+        r"""Monte Carlo error of likelihoods built by :meth:`from_samples`, at fractions ``rho``.
+
+        Returns the per-object relative variance :math:`V_i(\rho)` of the
+        estimate of :math:`L_i\cdot\rho` and the effective number of samples
+        under ``rho``. Summed over objects, :math:`\sum_i V_i` is about the bias
+        it puts in the total log-likelihood (Jensen); values above about one
+        call for more samples (DECISIONS #31).
+        """
+        if "sample_sum" not in self.meta:
+            raise ValueError("sample_variance needs likelihoods built by from_samples.")
+        a = np.asarray(rho, dtype=float).ravel()
+        if a.shape != (self.K,):
+            raise ValueError(f"rho must have length K={self.K}.")
+        m = np.asarray(self.meta["sample_sum"] @ a).ravel()
+        q = np.asarray(self.meta["sample_sq"] @ a**2).ravel()
+        with np.errstate(divide="ignore", invalid="ignore"):
+            n_eff = np.where(q > 0, m**2 / q, 0.0)
+            var = np.where(m > 0, q / m**2 - 1.0 / self.meta["sample_count"], np.inf)
+        return np.maximum(var, 0.0), n_eff
 
     @classmethod
     def from_gaussian(
@@ -1103,14 +1175,27 @@ class Likelihoods:
 # ----------------------------------------------------------------------------
 #: ``meta`` entries holding one value per object (row); they follow subsets and
 #: dropped rows, and are discarded when rows are merged by ``compress``.
-_PER_OBJECT_KEYS = ("n_eff", "outside_fraction", "gaussian_mean", "gaussian_sigma")
+_PER_OBJECT_KEYS = (
+    "n_eff",
+    "outside_fraction",
+    "gaussian_mean",
+    "gaussian_sigma",
+    "sample_sum",
+    "sample_sq",
+    "sample_count",
+)
 
 
 def _slice_per_object(meta: dict[str, Any], rows: Any) -> dict[str, Any]:
     out = dict(meta)
     for key in _PER_OBJECT_KEYS:
         if key in out:
-            out[key] = np.asarray(out[key])[rows]
+            v = out[key]
+            out[key] = (
+                sp.csr_array(v)[np.arange(v.shape[0])[rows]]
+                if sp.issparse(v)
+                else np.asarray(v)[rows]
+            )
     return out
 
 
@@ -1118,10 +1203,10 @@ def _attach_per_object(lk: Likelihoods, **arrays: np.ndarray) -> None:
     """Store per-object arrays aligned with the rows that survived ``drop_empty``."""
     dropped = lk.meta.get("dropped")
     for key, arr in arrays.items():
-        arr = np.asarray(arr)
         if dropped is not None and len(dropped):
-            arr = np.delete(arr, dropped, axis=0)
-        lk.meta[key] = arr
+            keep = np.setdiff1d(np.arange(arr.shape[0]), dropped)
+            arr = sp.csr_array(arr)[keep] if sp.issparse(arr) else np.asarray(arr)[keep]
+        lk.meta[key] = arr if sp.issparse(arr) else np.asarray(arr)
 
 
 def _normalise_linear(values: Any):
@@ -1200,6 +1285,19 @@ def _check_posterior_representation(P, vol: np.ndarray, representation: str) -> 
         )
 
 
+def _u_volumes(bins: Bins) -> np.ndarray:
+    # each active bin's volume in the measure coordinate
+    widths = [np.diff(u)[j] for u, j in zip(bins.u_edges, bins.cell_index, strict=True)]
+    return np.prod(widths, axis=0)
+
+
+def _n_eff(rows: np.ndarray, w: np.ndarray, n: int) -> np.ndarray:
+    tot = np.bincount(rows, weights=w, minlength=n)
+    tot2 = np.bincount(rows, weights=w**2, minlength=n)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return np.where(tot2 > 0, tot**2 / tot2, 0.0)
+
+
 def _bin_samples(samples: Any, bins: Bins, sample_weights: Any):
     """Flatten per-object samples and map them to bin indices."""
     ndim = bins.ndim
@@ -1245,11 +1343,4 @@ def _bin_samples(samples: Any, bins: Bins, sample_weights: Any):
             sw = np.concatenate(sws)
     if not np.all(np.isfinite(sw)) or np.any(sw < 0):
         raise ValueError("sample_weights must be finite and non-negative.")
-    idx = bins.index(flat)
-    tot = np.bincount(obj_ids, weights=sw, minlength=n_obj)
-    tot2 = np.bincount(obj_ids, weights=sw**2, minlength=n_obj)
-    inside = np.bincount(obj_ids, weights=sw * (idx >= 0), minlength=n_obj)
-    with np.errstate(invalid="ignore", divide="ignore"):
-        n_eff = np.where(tot2 > 0, tot**2 / tot2, 0.0)
-        outside = np.where(tot > 0, 1.0 - inside / tot, 1.0)
-    return obj_ids, idx, sw, n_eff, outside, n_obj
+    return flat, obj_ids, bins.index(flat), sw, n_obj

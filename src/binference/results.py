@@ -622,6 +622,16 @@ class PopulationResult(_IndividualMixin):
                     "(e.g. concentrations below one); method='gibbs' samples such "
                     "conjugate priors efficiently"
                 )
+        lk = self.model.likelihoods if self.model is not None else None
+        if lk is not None and "sample_sum" in lk.meta:
+            var, _ = lk.sample_variance(self.samples.mean(axis=0))
+            total = float(np.sum(lk.weights * var))
+            if total > 1.0:
+                msgs.append(
+                    f"likelihoods from samples carry Monte Carlo variance sum_i V_i = {total:.2g} "
+                    "> 1 at the fitted population"
+                )
+                hints.append("draw more samples per object, or use wider bins or floor=")
         if msgs:
             text = "; ".join(msgs)
             if hints:

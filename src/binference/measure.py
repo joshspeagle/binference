@@ -125,6 +125,24 @@ class Measure:
         """``z = T^{-1}(u)``."""
         return np.asarray(self._inverse(np.asarray(u, dtype=float)), dtype=float)
 
+    def log_jacobian(self, z: Any) -> np.ndarray:
+        """``log dT/dz``: the log of the within-bin population density in ``z``, up to a constant.
+
+        Exact for linear, log and tabulated measures; a central difference for
+        :meth:`transform`.
+        """
+        z = np.asarray(z, dtype=float)
+        if self is _NAMED["linear"]:
+            return np.zeros_like(z)
+        if self is _NAMED["log"]:
+            return -np.log(z)
+        if self._table is not None:
+            zt, ut = self._table
+            j = np.clip(np.searchsorted(zt, z, side="right") - 1, 0, zt.size - 2)
+            return np.log((ut[j + 1] - ut[j]) / (zt[j + 1] - zt[j]))
+        h = 1e-6 * np.maximum(1.0, np.abs(z))
+        return np.log((self.forward(z + h) - self.forward(z - h)) / (2 * h))
+
     def _covers(self, lo: float, hi: float) -> bool:
         # whether [lo, hi] lies inside the measure's domain
         if self is _NAMED["log"]:
