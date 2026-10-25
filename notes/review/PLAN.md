@@ -97,3 +97,4 @@ Seven auditor reports land in `audit/` (see `audit/README.md`). Per DECISIONS #1
 | 2.3 Inputs (`from_*`) | L3 | done (decisions #22–#32) | `briefings/2.3-inputs.html`, `briefings/2.3b-redesign.html` (+ .md) | |
 | 1.1 Problem, scope, principles | L1–L2 | done (decisions #33–#37; `vision.md`) | `briefings/1.1-scope.html` (+ .md) | |
 | 1.2 Landscape | L1–L2 | done (decisions #38–#42; `post-v1.md`) | `briefings/1.2-landscape.html` (+ .md) | |
+| 1.4 Decision log D1–D16 | L1 | briefing ready | `briefings/1.4-decision-log.html` (+ .md) | |
