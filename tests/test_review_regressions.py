@@ -271,13 +271,15 @@ def test_em_convergence_warning_reports_missing_information():
 def test_parallel_chain_workers_share_blas_threads():
     from concurrent.futures import ProcessPoolExecutor
 
-    from threadpoolctl import threadpool_info
+    from threadpoolctl import threadpool_info, threadpool_limits
 
-    from binference.samplers.nuts import _limit_threads
+    from binference.samplers.nuts import _init_worker, _worker_threads
 
-    with ProcessPoolExecutor(1, initializer=_limit_threads, initargs=(1,)) as ex:
+    with ProcessPoolExecutor(1, initializer=_init_worker, initargs=(None, 1)) as ex:
         info = ex.submit(threadpool_info).result()
     assert all(lib["num_threads"] == 1 for lib in info)
+    with threadpool_limits(1):  # a limit set by the user is never raised (audit N-3)
+        assert _worker_threads(1) == 1
 
 
 def test_data_rich_gp_fits_are_partially_centred():

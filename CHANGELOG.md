@@ -126,6 +126,15 @@ First development version.
   length-scale prior whose lower 1% quantile is the shortest length scale that basis
   resolves (P-2), or `LogNormal(log(range/2), 1)` on coarse grids (P-7). Partially
   centred GP densities and gradients agree where scales underflow (P-5).
+- **NUTS and Laplace** (DECISIONS #74): NUTS results (`x`, `log_density_unconstrained`,
+  `model`) are in the model's own coordinates, not the partly centred sampling ones
+  (`info["centring"]` holds the weights; N-1, N-2). Parallel workers receive the model
+  once, reuse one pool per run, never raise a BLAS thread limit already set, respect
+  CPU affinity, and errors from the model are raised instead of triggering a serial
+  rerun (N-3, N-7, N-13). `max_depth`, `n_warmup`, `jitter` and `init` are checked
+  (N-5); Laplace returns every draw asked for without importance resampling (N-4) and
+  judges k̂ against min(1 − 1/log10 S, 0.7) (N-6). Dense momentum draws use a
+  precomputed triangular factor (N-9).
 - **Correlated Gaussians** (DECISIONS #2, #25, #66): `from_gaussian(..., cov=)` takes full
   per-object covariances, averaged over N-D bins by adaptive cubature in log space.
 - `weights` are integer multiplicities; non-integer weights need `fractional_weights=True`

@@ -119,7 +119,7 @@ def test_parallel_chains_match_serial(onehot):
 
 
 def test_hessian_helpers():
-    from binference.samplers._nuts_core import covariance_from_hessian, fd_hessian
+    from binference.samplers._curvature import covariance_from_hessian, fd_hessian
 
     A = np.array([[2.0, 0.5, 0.0], [0.5, 1.0, 0.2], [0.0, 0.2, 3.0]])
 
@@ -147,9 +147,14 @@ def test_nuts_reparametrises_logistic_priors_without_touching_the_model():
     assert np.all(m.prior.lam == 1.0)  # the user's model keeps its parametrisation
     assert eng.model is not m
     assert not np.all(eng.model.prior.lam == 1.0)  # strong data: some modes centred
-    assert res.model is eng.model
-    # draws map to the same fractions under the engine's parametrisation
-    np.testing.assert_allclose(eng.model.to_value(res.x[0, -1]), res.chains[0, -1])
+    # results are in the user's (non-centred) coordinates (audit N-1)
+    assert res.model is m and np.array_equal(res.info["centring"], eng.model.prior.lam)
+    np.testing.assert_allclose(m.to_value(res.x[0, -1]), res.chains[0, -1])
+    np.testing.assert_allclose(
+        res.log_density_unconstrained[0, -5:],
+        [m.log_density_unconstrained(x) for x in res.x[0, -5:]],
+        rtol=1e-10,
+    )
     plain = NUTS(m, n_chains=2, n_warmup=60, rng=1, reparametrize=False, metric="diag")
     assert plain.metric == "diag" and plain.run(5).model.prior is m.prior
     dirichlet = NUTS(PopulationModel(mock.likelihoods), n_chains=1)

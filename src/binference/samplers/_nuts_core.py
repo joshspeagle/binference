@@ -16,6 +16,7 @@ import math
 from collections.abc import Callable
 
 import numpy as np
+from scipy import linalg
 
 LogpGrad = Callable[[np.ndarray], tuple[float, np.ndarray]]
 
@@ -29,11 +30,11 @@ class Metric:
         self.inv_m = np.asarray(inv_m, dtype=float)
         self.dense = self.inv_m.ndim == 2
         if self.dense:
-            self.chol = np.linalg.cholesky(self.inv_m)
-            self._sqrt = None
+            # p ~ N(0, inv_m^{-1}) with inv_m = C C^T is p = C^{-T} z; C^{-T} once (audit N-9)
+            chol = np.linalg.cholesky(self.inv_m)
+            self._draw = linalg.solve_triangular(chol, np.eye(chol.shape[0]), lower=True).T
         else:
-            self.chol = None
-            self._sqrt = np.sqrt(self.inv_m)
+            self._draw = 1.0 / np.sqrt(self.inv_m)
 
     def mv(self, p: np.ndarray) -> np.ndarray:
         return self.inv_m @ p if self.dense else self.inv_m * p
@@ -43,10 +44,7 @@ class Metric:
 
     def draw_momentum(self, rng: np.random.Generator) -> np.ndarray:
         z = rng.standard_normal(self.inv_m.shape[0])
-        if self.dense:
-            # p ~ N(0, inv_m^{-1}) with inv_m = C C^T  =>  p = C^{-T} z
-            return np.linalg.solve(self.chol.T, z)
-        return z / self._sqrt
+        return self._draw @ z if self.dense else self._draw * z
 
 
 def _logaddexp(a: float, b: float) -> float:
@@ -95,19 +93,40 @@ def _no_uturn(va, vb, rho) -> bool:
     return float(va @ rho) > 0.0 and float(vb @ rho) > 0.0
 
 
-def _merge_ok(t1: _Tree, t2: _Tree, v: int) -> bool:
-    """Stan's U-turn checks across the merged tree and the two extra sub-checks."""
+def _accept(rng, log_ratio: float) -> bool:
+    # u < exp(log_ratio) with u in (0, 1]: log1p(-u) never takes log(0) (audit N-8)
+    return math.log1p(-rng.random()) < log_ratio
+
+
+def _merge(t1: _Tree, t2: _Tree, v: int, rng, old_log_w: float) -> bool:
+    """Append ``t2`` to ``t1`` in direction ``v``; returns whether the merged tree is valid.
+
+    ``t2``'s proposal replaces ``t1``'s with probability ``exp(t2.log_w - old_log_w)``:
+    multinomial within subtrees (``old_log_w`` is the merged weight) and biased
+    progressive at the top level (the old tree's weight). Then Stan's U-turn checks
+    across the merged tree and the two extra sub-checks.
+    """
+    if _accept(rng, t2.log_w - old_log_w):
+        t1.x_prop, t1.p_prop, t1.lp_prop, t1.g_prop = t2.x_prop, t2.p_prop, t2.lp_prop, t2.g_prop
+    t1.log_w = _logaddexp(t1.log_w, t2.log_w)
+    rho = t1.rho + t2.rho
     if v > 0:
         p_ie, p_fb = t1.p_p, t2.p_m
         v_ib, v_ie, v_fb, v_fe = t1.v_m, t1.v_p, t2.v_m, t2.v_p
     else:
         p_ie, p_fb = t1.p_m, t2.p_p
         v_ib, v_ie, v_fb, v_fe = t1.v_p, t1.v_m, t2.v_p, t2.v_m
-    return (
-        _no_uturn(v_ib, v_fe, t1.rho + t2.rho)
+    ok = (
+        _no_uturn(v_ib, v_fe, rho)
         and _no_uturn(v_ib, v_fb, t1.rho + p_fb)
         and _no_uturn(v_ie, v_fe, t2.rho + p_ie)
     )
+    t1.rho = rho
+    if v > 0:
+        t1.x_p, t1.p_p, t1.v_p, t1.g_p = t2.x_p, t2.p_p, t2.v_p, t2.g_p
+    else:
+        t1.x_m, t1.p_m, t1.v_m, t1.g_m = t2.x_m, t2.p_m, t2.v_m, t2.g_m
+    return ok
 
 
 def _leaf(x, p, g, v, eps, H0, metric, fn, max_dE):
@@ -152,17 +171,7 @@ def _build(x, p, g, v, depth, eps, H0, metric, fn, rng, max_dE):
         t1.turning = t1.turning or t2.turning
         t1.diverging = t1.diverging or t2.diverging
         return t1
-    log_w = _logaddexp(t1.log_w, t2.log_w)
-    if math.log(rng.random()) < t2.log_w - log_w:
-        t1.x_prop, t1.p_prop, t1.lp_prop, t1.g_prop = t2.x_prop, t2.p_prop, t2.lp_prop, t2.g_prop
-    t1.log_w = log_w
-    ok = _merge_ok(t1, t2, v)
-    t1.rho = t1.rho + t2.rho
-    if v > 0:
-        t1.x_p, t1.p_p, t1.v_p, t1.g_p = t2.x_p, t2.p_p, t2.v_p, t2.g_p
-    else:
-        t1.x_m, t1.p_m, t1.v_m, t1.g_m = t2.x_m, t2.p_m, t2.v_m, t2.g_m
-    t1.turning = not ok
+    t1.turning = not _merge(t1, t2, v, rng, _logaddexp(t1.log_w, t2.log_w))
     return t1
 
 
@@ -181,7 +190,7 @@ def nuts_step(x, lp, g, eps, metric: Metric, fn: LogpGrad, rng, max_depth=10, ma
     tree.g_m = tree.g_p = g
     tree.log_w = 0.0
     tree.rho = p0
-    x_new, lp_new, g_new, p_new = x, lp, g, p0
+    tree.x_prop, tree.lp_prop, tree.g_prop, tree.p_prop = x, lp, g, p0
     sum_acc, n_leaf = 0.0, 0
     diverging = False
     n_doublings = 0
@@ -198,25 +207,21 @@ def nuts_step(x, lp, g, eps, metric: Metric, fn: LogpGrad, rng, max_depth=10, ma
             break
         if t.turning:
             break
-        if math.log(rng.random()) < t.log_w - tree.log_w:
-            x_new, lp_new, g_new, p_new = t.x_prop, t.lp_prop, t.g_prop, t.p_prop
-        tree.log_w = _logaddexp(tree.log_w, t.log_w)
-        ok = _merge_ok(tree, t, v)
-        tree.rho = tree.rho + t.rho
-        if v > 0:
-            tree.x_p, tree.p_p, tree.v_p, tree.g_p = t.x_p, t.p_p, t.v_p, t.g_p
-        else:
-            tree.x_m, tree.p_m, tree.v_m, tree.g_m = t.x_m, t.p_m, t.v_m, t.g_m
+        ok = _merge(tree, t, v, rng, tree.log_w)
         n_doublings = depth + 1
         if not ok:
             break
     accept = sum_acc / max(n_leaf, 1)
-    energy = -float(lp_new) + metric.kinetic(p_new)
-    return x_new, lp_new, g_new, accept, n_doublings, diverging, n_leaf, energy
+    energy = -float(tree.lp_prop) + metric.kinetic(tree.p_prop)
+    return tree.x_prop, tree.lp_prop, tree.g_prop, accept, n_doublings, diverging, n_leaf, energy
 
 
 def find_reasonable_eps(x, lp, g, metric: Metric, fn: LogpGrad, rng) -> float:
-    """Heuristic initial step size (Hoffman & Gelman 2014, Algorithm 4)."""
+    """Heuristic initial step size (Hoffman & Gelman 2014, Algorithm 4).
+
+    Starts from 1 with one momentum draw and an acceptance threshold of 0.5,
+    unlike Stan's ``init_stepsize`` (current step size, threshold 0.8).
+    """
     eps = 1.0
     p = metric.draw_momentum(rng)
     H0 = lp - metric.kinetic(p)
@@ -242,7 +247,12 @@ def find_reasonable_eps(x, lp, g, metric: Metric, fn: LogpGrad, rng) -> float:
 def adaptation_windows(
     n_warmup: int, init_buffer: int = 75, term_buffer: int = 50, base_window: int = 25
 ) -> list[tuple[int, int]]:
-    """Stan-style slow adaptation windows ``[(start, end), ...]``."""
+    """Stan-style slow adaptation windows ``[(start, end), ...]``.
+
+    As Stan's, except that the first window also extends to the end of the slow
+    phase when the next would not fit, where Stan adds a short last window (49
+    warm-up lengths, all from 151 to 199 iterations, differ). None below 20.
+    """
     if n_warmup < 20:
         return []
     if init_buffer + base_window + term_buffer > n_warmup:
@@ -260,41 +270,3 @@ def adaptation_windows(
         start = end
         size *= 2
     return wins
-
-
-def fd_hessian(fn: LogpGrad, x: np.ndarray, h: float = 1e-4, cols=None) -> np.ndarray:
-    """Symmetrised central-difference Hessian of a log density from its gradient.
-
-    ``cols`` restricts the computation to some columns (returns ``(dim, len(cols))``).
-    """
-    x = np.asarray(x, dtype=float)
-    d = x.size
-    idx = range(d) if cols is None else cols
-    H = np.empty((d, len(idx)))
-    for c, j in enumerate(idx):
-        step = h * max(1.0, abs(x[j]))
-        e = np.zeros(d)
-        e[j] = step
-        H[:, c] = (fn(x + e)[1] - fn(x - e)[1]) / (2.0 * step)
-    if cols is None:
-        H = 0.5 * (H + H.T)
-    return H
-
-
-def covariance_from_hessian(H: np.ndarray, floor: float = 1e-6) -> np.ndarray | None:
-    """A positive-definite covariance from a (possibly indefinite) Hessian of log p.
-
-    Eigenvalues of ``-H`` are clipped below at ``floor`` times the largest, so
-    directions with no or negative curvature get the largest variance seen.
-    Returns ``None`` if the Hessian is unusable.
-    """
-    A = -0.5 * (H + H.T)
-    if not np.all(np.isfinite(A)):
-        return None
-    lam, U = np.linalg.eigh(A)
-    top = lam.max()
-    if not top > 0:
-        return None
-    lam = np.maximum(lam, floor * top)
-    cov = (U / lam) @ U.T
-    return 0.5 * (cov + cov.T)
