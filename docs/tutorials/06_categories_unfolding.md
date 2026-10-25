@@ -17,6 +17,9 @@ two of them:
 - **unfolding**: recovering a spectrum from detector counts with a response
   matrix.
 
+Both are binned measurements with a {class}`~binference.Response`, except
+when a classifier reports calibrated posteriors.
+
 ```{code-cell} python
 import matplotlib.pyplot as plt
 import numpy as np
@@ -46,7 +49,7 @@ training prior out and infers the prevalence with uncertainty. This is the
 Bayesian version of the EM method of Saerens et al. (2002):
 
 ```{code-cell} python
-lk = binference.Likelihoods.from_classifier(probs, train_prior, labels=mock.bins.labels)
+lk = binference.Likelihoods.from_table(probs, mock.bins, interim=train_prior)
 fit = binference.infer(lk, rng=1)
 
 cc = np.bincount(probs.argmax(axis=1), minlength=4) / len(probs)
@@ -73,6 +76,40 @@ acc_after = np.mean(recal.argmax(axis=1) == mock.truth.labels)
 print(f"accuracy with training-prior posteriors: {acc_before:.3f}, after recalibration: {acc_after:.3f}")
 ```
 
+### When the classifier is not calibrated
+
+Dividing out the training prior (route A) is exact only for calibrated
+posteriors. A classifier whose probabilities are too sharp or too flat
+biases it, and no amount of data removes the bias. With a labelled
+validation set there is a route that needs no calibration (route C, DECISIONS
+#29): bin the classifier's score, tally the score distribution of each class
+in the validation set with {meth}`~binference.Response.from_labelled`, and
+treat the target set as a binned measurement. It needs only that each class's
+score distribution is the same in the validation and the target set (label
+shift). Here the classifier's log-likelihoods are halved (`temperature=2`),
+and the score is the one-dimensional feature itself:
+
+```{code-cell} python
+flat = binference.simulate.mock_categorical(
+    3000, n_classes=4, separation=1.2, temperature=2.0, n_validation=2000, rng=5
+)
+lk_a = binference.Likelihoods.from_table(flat.posteriors, flat.bins, interim=flat.interim)
+lk_c = binference.Likelihoods.from_binned(flat.response, values=flat.measurements["feature"])
+fit_a = binference.infer(lk_a, rng=1)
+fit_c = binference.infer(lk_c, rng=1)
+print(flat.response)
+print("truth  ", flat.truth.rho.round(3))
+print("route A", fit_a.mean.round(3))
+print("route C", fit_c.mean.round(3))
+print(fit_c.summary().title)
+```
+
+`flat.response` was built by `Response.from_labelled(validation_scores,
+validation_labels)` from the mock's labelled validation set.
+`fit_c.check()` also tests label shift: with more score bins than classes, the
+counts per score bin must match those the fitted prevalence predicts through
+the response, and a mismatch raises a warning.
+
 ## Unfolding a spectrum
 
 In unfolding, events with a true value in bin $k$ are observed in
@@ -83,7 +120,7 @@ spectrum:
 
 ```{code-cell} python
 mu = binference.simulate.mock_unfolding(8000, n_true=20, n_reco=25, rng=3)
-R = mu.truth.extra["response"]
+R = mu.response.matrix
 counts = mu.measurements["reco_counts"]
 fig, axes = plt.subplots(1, 2, figsize=(10, 3.5), constrained_layout=True)
 im = axes[0].imshow(R, origin="lower", aspect="auto", cmap="Blues")
@@ -94,7 +131,7 @@ axes[1].set(xlabel="reconstructed bin", ylabel="events", title="observed counts"
 axes[1].spines[["top", "right"]].set_visible(False)
 ```
 
-{meth}`~binference.Likelihoods.from_response` turns counts and the response into
+{meth}`~binference.Likelihoods.from_binned` turns counts and the response into
 weighted likelihood rows, one per reconstructed bin. It attaches the
 efficiency as a selection function with `selection_mode="observed"`, since
 the response already includes it. Inverting $R$ directly would amplify the
@@ -103,7 +140,7 @@ it infers how smooth the spectrum is, rather than fixing an iteration count
 or a regularisation strength by hand.
 
 ```{code-cell} python
-lk_u = binference.Likelihoods.from_response(counts, R, bins=mu.bins)
+lk_u = binference.Likelihoods.from_binned(mu.response, counts=counts)
 print(lk_u, lk_u.selection)
 flat = binference.infer(lk_u, rng=1, n_samples=500, n_warmup=500)
 smooth = binference.infer(lk_u, binference.priors.LogisticGP(), rng=1, check=False)

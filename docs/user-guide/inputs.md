@@ -224,32 +224,61 @@ relative to the object's largest bin average, at most `max_depth=12` times. Bins
 do not converge raise an `InputWarning`; `n_sub=` fixes the number of points per bin
 and axis instead.
 
-## Response matrices and classifiers
+## Binned measurements and classifiers
 
-Two adapters cover the other common data products.
+A binned measurement records for each object only the bin $j$ of a measured quantity: a
+reconstructed energy, a classifier score, a predicted label. Its
+{class}`~binference.Response` is the matrix
+$R_{jk}=p(\text{measured in }j,\text{ observed}\mid\text{true bin }k)$, whose column
+sums are the efficiencies $\epsilon_k\le1$. `Likelihoods.from_binned(response,
+counts=...)` (or `values=...`, the measured value of each object) gives every object
+measured in bin $j$ the likelihood row $R_{j\cdot}$, on the response's truth bins, and
+attaches the efficiency as a selection function with mode `"observed"`.
 
-- **Unfolding.** `from_response(counts, response, bins=bins)` takes observed
-  counts in reconstructed bins and a response matrix
-  $R_{bk}=p(\text{reco }b,\text{ observed}\mid\text{true }k)$. It builds one
-  weighted likelihood row per reconstructed bin, and attaches the efficiency
-  $\epsilon_k=\sum_bR_{bk}$ as a selection function with mode `"observed"`.
-  If your response is a *migration* matrix, $p(\text{reco }b\mid\text{true
-  }k,\text{ observed})$ with columns that sum to one, pass the efficiency
-  separately: `from_response(counts, migration, bins=bins, efficiency=eps)`.
-  Columns that sum to more than one are rejected, since they cannot be
-  probabilities.
-- **Quantification.** `from_classifier(probs, train_prior)` turns classifier
-  probabilities $p(k\mid x_i)$ into likelihoods by dividing out the training
-  class prevalence.
+A response comes from one of three places:
+
+- **A known matrix**: `Response(R, truth_bins, measured_bins)`. A *migration* matrix,
+  $p(\text{measured }j\mid\text{true }k,\text{ observed})$ with columns that sum to
+  one, takes the efficiency separately: `Response(migration, truth_bins,
+  efficiency=eps)`. Columns that sum to more than one are rejected.
+- **Tallied events**: `Response.from_counts(counts, generated, truth_bins,
+  measured_bins)`, or from the events themselves, `Response.from_simulation(true_values,
+  measured_values, truth_bins, measured_bins)`, where a measured value that is NaN, or
+  outside the measured bins, marks an event that was not observed.
+- **A labelled validation set**, for classifiers: `Response.from_labelled(scores,
+  labels)`. Real-valued scores (for example the probability of one class) get 10 score
+  bins holding equal numbers of validation objects, the outer two open-ended; predicted
+  labels give the confusion matrix.
+
+Responses built from events keep the tallies (`response.counts`, `response.generated`).
+`open_ended=True` lets the outer two of 1-D measured bins take every value below or above
+them; `from_labelled` sets it for its score bins.
+
+**Classifiers** reach the population by one of two routes, chosen by what you have
+(DECISIONS #29); `result.summary()` names the inputs in its title (`posteriors` for
+route A, `binned, response from labelled data` for route C).
+
+- **Route A**: posteriors and the training prevalence. `from_table(probs,
+  Bins.categories(classes), interim=train_prior)` divides the prevalence out. It is
+  exact only if the posteriors are calibrated and `train_prior` is the prevalence the
+  classifier effectively learned.
+- **Route C**: scores and a labelled validation set. `from_binned(Response.from_labelled(
+  val_scores, val_labels), values=scores)` needs neither calibration nor the training
+  prior, only label shift: the score distribution within each class is the same in the
+  validation and the target set. Prefer it when a validation set is available.
+
+When there are more measured bins than truth bins, `result.check()` compares the
+measured counts with those each posterior draw predicts through the response (a
+posterior predictive p-value that includes the response's own sampling noise). It warns
+when $p<10^{-3}$, which for a classifier means label shift is violated.
 
 ```python
 mu = binference.simulate.mock_unfolding(3000, rng=2)
-lk_unfold = binference.Likelihoods.from_response(
-    mu.measurements["reco_counts"], mu.truth.extra["response"], bins=mu.bins
-)
+lk_unfold = binference.Likelihoods.from_binned(mu.response, counts=mu.measurements["reco_counts"])
 mc = binference.simulate.mock_categorical(1000, 4, rng=3)
-lk_class = binference.Likelihoods.from_classifier(mc.posteriors, mc.interim)
-print(lk_unfold.selection.mode, lk_class.bins.labels)
+lk_a = binference.Likelihoods.from_table(mc.posteriors, mc.bins, interim=mc.interim)
+lk_c = binference.Likelihoods.from_binned(mc.response, values=mc.measurements["feature"])
+print(lk_unfold.selection.mode, mc.response, lk_c.bins.labels)
 ```
 
 ## Working with `Likelihoods`

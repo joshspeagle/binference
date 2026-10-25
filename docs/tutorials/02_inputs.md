@@ -142,7 +142,7 @@ converts them to likelihoods.
 | any likelihood function or SciPy distribution | `from_density(f, bins, kind="likelihood")` |
 | posteriors on bins plus the interim prior | `from_table(P, bins, interim=interim)` |
 | posterior samples plus the interim prior | `from_samples(samples, bins, interim=interim)` |
-| counts and a response matrix (unfolding) | `from_response(counts, R, bins=bins)` |
-| classifier probabilities and training prevalence | `from_classifier(probs, train_prior)` |
+| counts or values in measured bins, and a response | `from_binned(response, counts=counts)` |
+| classifier probabilities and training prevalence | `from_table(probs, Bins.categories(C), interim=train_prior)` |
 
 The last two are covered in {doc}`06_categories_unfolding`.

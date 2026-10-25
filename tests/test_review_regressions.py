@@ -9,7 +9,7 @@ import scipy.sparse as sp
 from scipy import stats
 
 import binference
-from binference import Bins, Likelihoods, PopulationModel, PopulationResult
+from binference import Bins, Likelihoods, PopulationModel, PopulationResult, Response
 from binference import priors as P
 from binference.samplers import MAP, NUTS, Bootstrap
 from binference.warnings import ApproximationWarning, InputWarning
@@ -69,21 +69,21 @@ def test_to_sparse_does_not_modify_the_original():
     np.testing.assert_array_equal(M.data, data)
 
 
-def test_from_response_with_explicit_efficiency():
+def test_a_migration_matrix_with_an_efficiency_gives_the_joint_response():
     mu = binference.simulate.mock_unfolding(6000, rng=3)
-    R, counts = mu.truth.extra["response"], mu.measurements["reco_counts"]
+    R, counts = mu.response.matrix, mu.measurements["reco_counts"]
     eps = R.sum(axis=0)
     migration = R / eps
-    a = Likelihoods.from_response(counts, R, bins=mu.bins)
-    b = Likelihoods.from_response(counts, migration, bins=mu.bins, efficiency=eps)
+    a = Likelihoods.from_binned(mu.response, counts=counts)
+    b = Likelihoods.from_binned(Response(migration, mu.bins, efficiency=eps), counts=counts)
     np.testing.assert_allclose(b.toarray(), a.toarray(), rtol=1e-12)
     np.testing.assert_array_equal(b.weights, a.weights)
     assert a.selection.mode == b.selection.mode == "observed"
     np.testing.assert_allclose(b.selection.values, a.selection.values, rtol=1e-12)
     with pytest.warns(InputWarning, match="counted twice"):
-        Likelihoods.from_response(counts, R, bins=mu.bins, efficiency=eps)
+        Response(R, mu.bins, efficiency=eps)
     with pytest.raises(ValueError, match="sum to more than one"):
-        Likelihoods.from_response(counts, 2.0 * migration, bins=mu.bins)
+        Response(2.0 * migration, mu.bins)
 
 
 def test_an_array_interim_on_unequal_bins_needs_its_representation():

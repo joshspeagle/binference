@@ -12,7 +12,7 @@ from . import _kernels as kern
 from . import diagnostics as diag
 from ._utils import RNGLike, as_generator, chunk_slices, warn
 from .bins import Bins
-from .warnings import ConvergenceWarning
+from .warnings import ConvergenceWarning, InputWarning
 
 if TYPE_CHECKING:  # pragma: no cover
     from .likelihoods import Likelihoods
@@ -395,6 +395,8 @@ class PopulationResult(_IndividualMixin):
         if m.K != self.bins.K:
             raise ValueError("Likelihoods have a different number of bins.")
         self.model = m
+        for key in [k for k in self._cache if isinstance(k, tuple) and k[0] == "predictive_p"]:
+            del self._cache[key]  # computed from the previous likelihoods
         return self
 
     # ------------------------------------------------------------ properties
@@ -576,8 +578,22 @@ class PopulationResult(_IndividualMixin):
             self._cache.pop("diagnostics", None)
         return self.info.get("missing_information")
 
-    def check(self, strict: bool = False, rhat_max: float = 1.01, ess_min: float = 100.0):
+    def check(
+        self,
+        strict: bool = False,
+        rhat_max: float = 1.01,
+        ess_min: float = 100.0,
+        predictive_p_min: float = 1e-3,
+        predictive_draws: int = 200,
+    ):
         """Check diagnostics and warn (or raise with ``strict=True``) about problems.
+
+        Sampler problems raise a :class:`~binference.ConvergenceWarning`; problems
+        with the inputs (Monte Carlo noise of sample likelihoods, binned counts
+        the response does not describe) an :class:`~binference.InputWarning`.
+        For binned inputs with more measured than truth bins, the counts are
+        tested with :meth:`Response.predictive_pvalue` over ``predictive_draws``
+        draws, and flagged below ``predictive_p_min``.
 
         Returns a list of messages (empty if everything looks fine).
         """
@@ -623,6 +639,7 @@ class PopulationResult(_IndividualMixin):
                     "conjugate priors efficiently"
                 )
         lk = self.model.likelihoods if self.model is not None else None
+        inputs, input_hints = [], []
         if lk is not None and "sample_sum" in lk.meta:
             rho = self.mean  # the population the objects are drawn from, after selection
             if self.model.selection_mode == "true":
@@ -630,19 +647,48 @@ class PopulationResult(_IndividualMixin):
             var, _ = lk.sample_variance(rho)
             total = float(np.sum(lk.weights * var))
             if total > 1.0:
-                msgs.append(
+                inputs.append(
                     f"likelihoods from samples carry Monte Carlo variance sum_i V_i = {total:.2g} "
                     "> 1 at the fitted population"
                 )
-                hints.append("draw more samples per object, or use wider bins or floor=")
-        if msgs:
-            text = "; ".join(msgs)
-            if hints:
-                text += ". Hint: " + "; ".join(hints)
-            if strict:
-                raise RuntimeError(f"Diagnostics failed: {text}")
-            warn(f"Diagnostics: {text}.", ConvergenceWarning)
-        return msgs
+                input_hints.append("draw more samples per object, or use wider bins or floor=")
+        if lk is not None and "measured_bin" in lk.meta:
+            ppp = self._predictive_pvalue(lk, predictive_draws)
+            if ppp is not None and ppp < predictive_p_min:
+                inputs.append(
+                    "the measured counts disagree with the fitted population and the response "
+                    f"(posterior predictive p = {ppp:.1g})"
+                )
+                input_hints.append(
+                    "the response may not describe these data; for a classifier, the score "
+                    "distribution of a class differs between the validation and the target set "
+                    "(label shift violated)"
+                )
+        texts = []
+        for found, why, category in (
+            (msgs, hints, ConvergenceWarning),
+            (inputs, input_hints, InputWarning),
+        ):
+            if found:
+                text = "; ".join(found) + (". Hint: " + "; ".join(why) if why else "")
+                texts.append(text)
+                if not strict:
+                    warn(f"Diagnostics: {text}.", category)
+        if strict and texts:
+            raise RuntimeError(f"Diagnostics failed: {'; '.join(texts)}")
+        return msgs + inputs
+
+    def _predictive_pvalue(self, lk: Any, n_draws: int) -> float | None:
+        # label-shift check of binned inputs (DECISIONS #68); needs J > K
+        key = ("predictive_p", int(n_draws))
+        if key not in self._cache:
+            resp = lk.meta["response"]
+            J, K = resp.matrix.shape
+            n = np.bincount(lk.meta["measured_bin"], weights=lk.weights, minlength=J)
+            self._cache[key] = (
+                resp.predictive_pvalue(n, self._select_draws(n_draws)) if J > K else None
+            )
+        return self._cache[key]
 
     def summary(self, level: float = 0.68, which: str = "fractions") -> Summary:
         """Per-bin posterior summary table (mean, sd, median, interval, ESS, R-hat)."""
@@ -662,7 +708,9 @@ class PopulationResult(_IndividualMixin):
         if "rhat" in d:
             cols["rhat"] = d["rhat"]
         flag = " [approximate]" if self.approximate else ""
-        title = f"binference {which} posterior ({self.method}{flag}, {self.n_draws} draws)"
+        source = None if self.model is None else self.model.likelihoods.meta.get("source")
+        inputs = "" if source is None else f"; inputs: {source}"
+        title = f"binference {which} posterior ({self.method}{flag}, {self.n_draws} draws{inputs})"
         return Summary(cols, title)
 
     def __repr__(self) -> str:

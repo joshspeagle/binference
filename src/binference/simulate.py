@@ -21,6 +21,7 @@ from .bins import Bins
 from .density import Density
 from .likelihoods import Likelihoods
 from .priors import PopulationPrior
+from .response import Response
 
 __all__ = [
     "Mock",
@@ -71,6 +72,7 @@ class Mock:
     posteriors: np.ndarray | None = None
     interim: np.ndarray | None = None
     samples: np.ndarray | None = None
+    response: Response | None = None
 
     def __iter__(self) -> Iterator[Any]:
         yield self.likelihoods
@@ -363,18 +365,29 @@ def mock_categorical(
     prevalence: Any = None,
     train_prior: Any = None,
     separation: float = 1.5,
+    temperature: float = 1.0,
+    n_validation: int = 500,
     rng: RNGLike = None,
 ) -> Mock:
-    """A quantification problem: classifier posteriors over unordered classes.
+    """A quantification problem: classifier outputs over unordered classes.
 
     Each object has a one-dimensional feature drawn from a unit-variance
-    Gaussian whose mean depends on its class (means ``separation`` apart).
-    An ideal classifier trained with class prior ``train_prior`` (uniform by
-    default) reports posteriors ``mock.posteriors``; ``mock.likelihoods`` is
-    built with :meth:`Likelihoods.from_classifier`. The test-set prevalence
-    ``prevalence`` (default: a skewed vector) differs from the training prior
-    (prior shift).
+    Gaussian whose mean depends on its class (means ``separation`` apart). A
+    classifier trained with class prior ``train_prior`` (uniform by default)
+    reports posteriors ``mock.posteriors``, calibrated when ``temperature`` is
+    one (its log-likelihoods are divided by ``temperature``);
+    ``mock.likelihoods`` divides them by the training prior (route A,
+    :meth:`Likelihoods.from_table`). ``mock.response`` is tallied with
+    :meth:`Response.from_labelled` from a validation set of ``n_validation``
+    objects drawn with the training prior, scored by their feature; with
+    ``mock.measurements["feature"]`` it gives route C
+    (:meth:`Likelihoods.from_binned`). The test-set prevalence ``prevalence``
+    (default: a skewed vector) differs from the training prior (label shift).
     """
+    if not temperature > 0:
+        raise ValueError(f"temperature must be positive; got {temperature}.")
+    if int(n_validation) < 1:
+        raise ValueError(f"n_validation must be at least 1; got {n_validation}.")
     gen = as_generator(rng)
     C = int(n_classes)
     prev = (
@@ -385,17 +398,27 @@ def mock_categorical(
     prev = prev / prev.sum()
     pi = np.full(C, 1.0 / C) if train_prior is None else np.asarray(train_prior, dtype=float)
     pi = pi / pi.sum()
-    labels = gen.choice(C, size=n_objects, p=prev)
     means = separation * np.arange(C)
+    labels = gen.choice(C, size=n_objects, p=prev)
     x = means[labels] + gen.standard_normal(n_objects)
-    loglik = -0.5 * (x[:, None] - means[None, :]) ** 2
-    logpost = loglik + np.log(pi)[None, :]
+    val_labels = gen.choice(C, size=int(n_validation), p=pi)
+    val_x = means[val_labels] + gen.standard_normal(val_labels.size)
+    logpost = -0.5 * (x[:, None] - means[None, :]) ** 2 / temperature + np.log(pi)[None, :]
     post = np.exp(logpost - special.logsumexp(logpost, axis=1, keepdims=True))
     bins = Bins.categories([f"class_{c}" for c in range(C)])
-    lk = Likelihoods.from_classifier(post, pi, labels=bins.labels)
+    lk = Likelihoods.from_table(post, bins, interim=pi)
     counts = np.bincount(labels, minlength=C).astype(float)
     truth = Truth(rho=prev, labels=labels, values=None, counts=counts, n_drawn=n_objects)
-    return Mock(bins, lk, truth, {"feature": x}, posteriors=post, interim=pi)
+    missing = np.setdiff1d(np.arange(C), val_labels)
+    if missing.size:
+        raise ValueError(
+            f"The validation set has no objects of class(es) {missing.tolist()}; raise "
+            "n_validation or the training prior of those classes."
+        )
+    response = Response.from_labelled(
+        val_x, np.asarray(bins.labels, dtype=object)[val_labels], classes=bins.labels
+    )
+    return Mock(bins, lk, truth, {"feature": x}, posteriors=post, interim=pi, response=response)
 
 
 def mock_unfolding(
@@ -414,8 +437,9 @@ def mock_unfolding(
     an efficiency rising linearly across the range, smeared with Gaussian
     ``resolution`` and histogrammed in ``n_reco`` bins on [-0.1, 1.1]. The
     response matrix is computed for a population uniform within each true bin,
-    and ``mock.likelihoods`` is built with :meth:`Likelihoods.from_response`
-    (its efficiency becomes the selection function).
+    ``mock.response`` is a :class:`Response` and ``mock.likelihoods`` is built
+    with :meth:`Likelihoods.from_binned` (its efficiency becomes the selection
+    function).
     """
     gen = as_generator(rng)
     tb = Bins.linear(0.0, 1.0, n_true)
@@ -437,8 +461,9 @@ def mock_unfolding(
     det = gen.random(n_events) < eff(z)
     reco = z + resolution * gen.standard_normal(n_events)
     observed = det & (reco >= re[0]) & (reco <= re[-1])
-    counts = np.histogram(reco[observed], bins=re)[0].astype(float)
-    lk = Likelihoods.from_response(counts, R, bins=tb)
+    response = Response(R, tb, Bins(re))
+    lk = Likelihoods.from_binned(response, values=reco[observed])
+    counts = np.bincount(lk.meta["measured_bin"], weights=lk.weights, minlength=n_reco)
     true_lab = tb.index(z[observed])
     truth = Truth(
         rho=rho,
@@ -446,9 +471,8 @@ def mock_unfolding(
         values=z[observed],
         counts=np.bincount(true_lab, minlength=n_true).astype(float),
         n_drawn=n_events,
-        extra={"response": R, "reco_edges": re},
     )
-    return Mock(tb, lk, truth, {"reco_counts": counts})
+    return Mock(tb, lk, truth, {"reco_counts": counts}, response=response)
 
 
 # ----------------------------------------------------------------------------

@@ -77,8 +77,9 @@ This plan turns the requirements in [`spec.md`](spec.md) into tests. It has thre
   - σ = 0 raises.
 - `from_distributions`: agrees with `from_gaussian` for scipy `norm` objects, and works for skewed distributions such as `skewnorm`.
 - `from_function`: the quadrature converges to `from_gaussian` as `n_sub` grows.
-- `from_response`: rows equal the response rows, weights equal the counts, and zero-count rows are dropped. The efficiency comes back as a selection vector.
-- `from_classifier`: $p/\pi_\text{train}$ is proportional to the row values.
+- `from_binned`: rows equal the response rows, weights equal the counts, and zero-count rows are dropped. The efficiency comes back as an `"observed"` selection.
+- `Response`: `from_simulation` reproduces a known response within binomial error; a migration matrix with its efficiency equals the joint matrix; route C recovers the prevalence when the posteriors are miscalibrated; the predictive check matches its pseudo-inverse form and flags label shift.
+- Route A (`from_table` on categories with the training prior): $p/\pi_\text{train}$ is proportional to the row values.
 
 **Methods**
 - `compress()`: duplicate rows merge into summed weights, and the posterior is identical (MAP to 1e-10; the NUTS/Gibbs agreement is in the slow tests).

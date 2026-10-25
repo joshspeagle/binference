@@ -87,8 +87,9 @@ result = binference.infer(lk)
 ```
 
 Other constructors cover arbitrary likelihood functions and SciPy
-distributions (`from_density`), unfolding with a
-response matrix (`from_response`) and classifier outputs (`from_classifier`).
+distributions (`from_density`), and binned measurements with a response
+(`from_binned`: detector unfolding, or classifier scores with a labelled validation
+set).
 Per-object posteriors are only accepted with the prior they were computed
 under, because feeding them in as likelihoods biases the population toward
 that prior.
