@@ -64,7 +64,9 @@ def test_an_array_interim_is_read_the_same_way_by_every_constructor():
 
 def test_an_unknown_kind_is_rejected():
     with pytest.raises(ValueError, match="kind"):
-        Likelihoods.from_function(lambda z: np.ones((1, z.size)), Bins.linear(0, 1, 3), kind="post")
+        Likelihoods.from_function(
+            lambda z: np.ones((1, z.size)), Bins.linear(0, 1, 3), kind="post"
+        )
 
 
 def test_stack_reproduces_the_mean_of_the_input_posteriors():
