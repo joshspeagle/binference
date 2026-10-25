@@ -98,6 +98,18 @@ class PopulationModel:
             sel = likelihoods.selection
         else:
             sel = as_selection(selection, selection_mode, likelihoods.basis or likelihoods.bins)
+        if sel is not None and sel.injections is not None and sel.mode != "on_truth":
+            raise ValueError(
+                "Only a selection on the truth is inferred from injections: on the measurement "
+                "the likelihoods' cut already fixes S, and with S free the catalogue would add "
+                "only missed objects, driving S to zero. Pass selection.at_mean() as a fixed "
+                "selection, or mode='on_truth' for a completeness."
+            )
+        if sel is not None and sel.injections is not None and self.prior.kind == "rates":
+            raise ValueError(
+                "A selection from injections is inferred jointly for fractions only; for "
+                "rates pass selection.at_mean() or a fixed exposure."
+            )
         if sel is not None and sel.scale == "relative" and self.prior.kind == "rates":
             raise ValueError(
                 "Rates need an absolute selection (exposures); this one is relative "
@@ -135,13 +147,23 @@ class PopulationModel:
         sel = self.selection_spec
         return None if sel is not None and sel.scale == "relative" else self._S
 
-    def draw_total(self, value: np.ndarray, rng: np.random.Generator) -> np.ndarray | None:
+    @property
+    def selection_uncertain(self) -> bool:
+        """Whether the selection comes from injections and is inferred with the population."""
+        return self.selection_spec is not None and self.selection_spec.injections is not None
+
+    def draw_total(
+        self, value: np.ndarray, rng: np.random.Generator, S: np.ndarray | None = None
+    ) -> np.ndarray | None:
         r"""Draws of the total :math:`\Lambda \mid \rho \sim \mathrm{Gamma}(W, S\cdot\rho)`,
         one per row of fractions ``value`` ``(..., K)``: its exact posterior under
-        :math:`p(\Lambda) \propto 1/\Lambda` (DECISIONS #9, #78); ``None`` without
-        :attr:`total_exposure`."""
-        S = self.total_exposure
-        return None if S is None else _gamma_draw(self.W, np.asarray(value) @ S, rng)
+        :math:`p(\Lambda) \propto 1/\Lambda` (DECISIONS #9, #78). ``S`` gives a
+        selection per row (draws of an uncertain one); by default
+        :attr:`total_exposure`, and ``None`` without it."""
+        S = self.total_exposure if S is None else np.asarray(S)
+        if S is None:
+            return None
+        return _gamma_draw(self.W, np.sum(np.asarray(value) * S, axis=-1), rng)
 
     @property
     def bins(self) -> Bins:

@@ -581,7 +581,8 @@ class PopulationResult(_IndividualMixin):
         across different draws, and leave the caller's generator untouched.
         """
         if self._total is None and self.model is not None:
-            self._total = self.model.draw_total(self._params, _draws_rng(self._params))
+            S = self.info.get("selection_draws")  # an uncertain selection, per draw
+            self._total = self.model.draw_total(self._params, _draws_rng(self._params), S)
         return None if self._total is None else self._total.ravel()
 
     @property

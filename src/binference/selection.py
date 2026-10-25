@@ -39,7 +39,7 @@ from typing import Any
 import numpy as np
 
 from ._quadrature import bin_log_average
-from ._utils import frozen, warn
+from ._utils import as_generator, frozen, warn
 from .basis import Basis
 from .bins import Bins
 from .warnings import InputWarning
@@ -88,9 +88,14 @@ class Selection:
     basis : Basis or None
         Set when the values are per component of a :class:`~binference.Basis`
         (:math:`\\phi_k`-weighted averages) rather than per bin.
+    injections : tuple or None
+        For a selection measured by injections (:meth:`from_injections`):
+        ``(injected, recovered, (a, b))``, counts per bin and the Beta prior.
+        The selection is then uncertain: ``values`` are its posterior means,
+        and Gibbs sampling infers it jointly with the population (DECISIONS #30).
     """
 
-    __slots__ = ("basis", "row", "scale", "values")
+    __slots__ = ("basis", "injections", "row", "scale", "values")
 
     def __init__(self, values: Any, mode: str, *, scale: str = "probability") -> None:
         _check_mode(mode)
@@ -99,6 +104,7 @@ class Selection:
         self.row = self.values if mode == "on_truth" else None
         self.scale = scale
         self.basis = None
+        self.injections = None
 
     def __setattr__(self, name: str, value: Any) -> None:
         if name in Selection.__slots__ and not hasattr(self, name):
@@ -108,7 +114,80 @@ class Selection:
 
     def __reduce__(self) -> tuple:
         row = "values" if self.row is self.values else self.row
-        return _rebuild, (self.values, row, self.scale, self.basis)
+        return _rebuild, (self.values, row, self.scale, self.basis, self.injections)
+
+    @classmethod
+    def from_injections(
+        cls,
+        z: Any,
+        detected: Any,
+        bins: Bins,
+        mode: str,
+        *,
+        prior: tuple[float, float] = (1.0, 1.0),
+    ) -> Selection:
+        """A selection measured by injecting objects of known true value ``z``.
+
+        Counts the injections per bin, :math:`n_k`, and those recovered,
+        :math:`d_k`; with a :math:`\\mathrm{Beta}(a, b)` prior each :math:`S_k` has the
+        posterior :math:`\\mathrm{Beta}(a + d_k, b + n_k - d_k)` given the
+        injections alone. The selection is uncertain: Gibbs sampling infers it
+        jointly with the population, where the catalogue (and the objects it
+        missed) inform it as well (DECISIONS #10, #30); :meth:`at_mean` gives a
+        fixed selection at the posterior means, ignoring the uncertainty.
+
+        Parameters
+        ----------
+        z : array_like, shape (n,) or (n, ndim)
+            True values of the injected objects.
+        detected : array_like of bool, shape (n,)
+            Whether each injected object was recovered.
+        bins : Bins
+            The bins of the population.
+        mode : {"on_truth", "on_measurement"}
+            As for :class:`Selection`.
+        prior : (float, float)
+            Beta prior :math:`(a, b)` of every :math:`S_k`, both positive.
+        """
+        _check_mode(mode)
+        if isinstance(bins, Basis):
+            raise ValueError(
+                "from_injections needs plain Bins: a component of a Basis is not a set of "
+                "injections, so its Beta posterior would not be conjugate."
+            )
+        d = np.asarray(detected)
+        if d.ndim != 1 or not (d.dtype == bool or np.isin(d, (0, 1)).all()):
+            raise ValueError("detected must be a 1-D array of booleans (or zeros and ones).")
+        k = bins.index(z)
+        if k.shape != d.shape:
+            raise ValueError(f"z has {k.size} injections but detected has {d.size}.")
+        a, b = (float(x) for x in prior)
+        if not (a > 0 and b > 0 and np.isfinite(a) and np.isfinite(b)):
+            raise ValueError(f"prior must be two positive numbers (a, b); got {prior!r}.")
+        inside = k >= 0
+        if not inside.all():
+            warn(
+                f"{int((~inside).sum())} injections fall outside the bins and are ignored.",
+                InputWarning,
+            )
+        n = np.bincount(k[inside], minlength=bins.K).astype(float)
+        r = np.bincount(k[inside], weights=d[inside].astype(float), minlength=bins.K)
+        sel = cls((a + r) / (a + b + n), mode)
+        object.__setattr__(sel, "injections", (frozen(n), frozen(r), (a, b)))
+        return sel
+
+    def draw(self, n: int, rng: Any = None) -> np.ndarray:
+        """``(n, K)`` posterior draws of :math:`S` given the injections alone."""
+        if self.injections is None:
+            raise ValueError("Only a selection from injections has draws.")
+        inj, rec, (a, b) = self.injections
+        return as_generator(rng).beta(a + rec, b + inj - rec, size=(int(n), self.K))
+
+    def at_mean(self) -> Selection:
+        """This selection fixed at its values (the posterior means for injections),
+        ignoring their uncertainty."""
+        row = "values" if self.row is self.values else self.row
+        return _rebuild(self.values, row, self.scale, self.basis)
 
     @property
     def mode(self) -> str:
@@ -209,6 +288,7 @@ class Selection:
             (self.mode, self.scale) == (other.mode, other.scale)
             and np.array_equal(self.values, other.values)
             and (self.row is None or np.array_equal(self.row, other.row))
+            and (self.injections is None) == (other.injections is None)
         )
 
     def __hash__(self) -> int:
@@ -233,11 +313,18 @@ def _per_bin(values: Any, K: int) -> np.ndarray:
 
 def _on_basis(sel: Selection, basis: Basis, M: Any) -> Selection:
     """``sel`` given per cell of a grid (the rows of ``M``), as averages per component."""
+    if sel.injections is not None:
+        raise ValueError(
+            "A selection from injections cannot be moved onto a Basis: its Beta posteriors "
+            "are per bin. Use plain bins, or sel.at_mean() for a fixed selection."
+        )
     row = None if sel.row is None else "values" if sel.row is sel.values else M.T @ sel.row
     return _rebuild(M.T @ sel.values, row, sel.scale, basis)
 
 
-def _rebuild(values: np.ndarray, row: Any, scale: str, basis: Basis | None = None) -> Selection:
+def _rebuild(
+    values: np.ndarray, row: Any, scale: str, basis: Basis | None = None, injections: Any = None
+) -> Selection:
     # a Selection from its arrays; row is None, "values" (on the truth) or an array
     out = Selection.__new__(Selection)
     out.values = frozen(np.array(values, dtype=float))
@@ -250,6 +337,7 @@ def _rebuild(values: np.ndarray, row: Any, scale: str, basis: Basis | None = Non
     )
     out.scale = scale
     out.basis = basis
+    out.injections = injections
     return out
 
 

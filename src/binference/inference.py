@@ -31,6 +31,8 @@ AUTO_NNZ_LIMIT = 2e7
 
 
 def _auto_method(model: PopulationModel) -> str:
+    if model.selection_uncertain:  # inferred jointly by Gibbs only (DECISIONS #79)
+        return "gibbs"
     nnz = model.likelihoods.nnz
     return "nuts" if nnz <= AUTO_NNZ_LIMIT else "laplace"
 
