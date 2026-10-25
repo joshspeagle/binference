@@ -31,7 +31,9 @@ def fd_hessian(fn: LogpGrad, x: np.ndarray, h: float = 1e-4, cols=None) -> np.nd
     return H
 
 
-def fd_hessian_diag(fn: LogpGrad, x: np.ndarray, idx: Sequence[int], h: float = 1e-4) -> np.ndarray:
+def fd_hessian_diag(
+    fn: LogpGrad, x: np.ndarray, idx: Sequence[int], h: float = 1e-4
+) -> np.ndarray:
     """The diagonal entries ``idx`` of the Hessian, without storing its columns."""
     x = np.asarray(x, dtype=float)
     out = np.empty(len(idx))
