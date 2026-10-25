@@ -75,9 +75,7 @@ class Bootstrap(Engine):
         w = m.likelihoods.weights
         integer = is_integer_array(w)
         rates = m.kind == "rates"
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", ConvergenceWarning)
-            base = MAP(m, tol=self.tol, max_iter=self.max_iter).run()
+        base = MAP(m, tol=self.tol, max_iter=self.max_iter).run()  # warns if it fails
         # EM cannot revive components that are exactly (or nearly) zero, and maximum
         # likelihood estimates on grids are often sparse: start replicates inside
         start = 0.5 * base.value + 0.5 * base.value.mean()

@@ -19,7 +19,8 @@ from typing import Any
 import numpy as np
 from scipy import special, stats
 
-from ._utils import RNGLike, as_generator, progress, spawn, warn
+from ._quadrature import MAX_ELEMENTS
+from ._utils import RNGLike, as_generator, chunk_slices, progress, spawn, warn
 from .likelihoods import Likelihoods
 from .model import PopulationModel
 from .priors import PopulationPrior
@@ -49,7 +50,7 @@ class ExactPosterior:
 
     points: np.ndarray
     weights: np.ndarray
-    log_density: np.ndarray = field(default_factory=lambda: np.empty(0))
+    log_density: np.ndarray
 
     @property
     def mean(self) -> np.ndarray:
@@ -74,8 +75,8 @@ class ExactPosterior:
 def exact_posterior(
     model: PopulationModel | Likelihoods | Any,
     prior: PopulationPrior | None = None,
-    n_grid: int = 400,
-    max_elements: int = 10_000_000,
+    n_grid: int = 200,
+    max_elements: int = MAX_ELEMENTS,
 ) -> ExactPosterior:
     r"""Quadrature posterior of the fractions for ``K = 2`` or ``K = 3`` bins.
 
@@ -88,7 +89,7 @@ def exact_posterior(
     With the default ``n_grid``, means of a known Dirichlet posterior are
     exact to 0.01 posterior SD for concentrations down to 0.2, and tail
     probabilities to 0.005 for concentrations of 0.5 and above (at 0.2 the
-    mass below a 6e-9 quantile is 17% off). ``max_elements`` bounds the size of
+    mass below a 6e-9 quantile is 22% off). ``max_elements`` bounds the size of
     the (objects x nodes) blocks evaluated at once (audit G-5).
     """
     if not isinstance(model, PopulationModel):
@@ -113,18 +114,18 @@ def exact_posterior(
         log_q = (log_dx[:, None] + log_dx[None, :] + np.log1p(-X)).ravel()
     L, w = model._L, model._w
     logp = np.empty(pts.shape[0])
-    chunk = max(1, int(max_elements) // max(model.N, 1))
-    for start in range(0, pts.shape[0], chunk):
-        P = pts[start : start + chunk]
+    for sl in chunk_slices(pts.shape[0], max(1, int(max_elements) // max(model.N, 1))):
+        P = pts[sl]
         with np.errstate(divide="ignore"):
             ll = w @ np.log(np.asarray(L @ P.T))
         if model.selection is not None:
             ll = ll - model.W * np.log(P @ model.selection)
-        logp[start : start + chunk] = ll
+        logp[sl] = ll
     with np.errstate(divide="ignore", invalid="ignore"):
         logp = logp + model.prior.log_density(pts)
     logp = np.where(np.isfinite(logp), logp, -np.inf)
-    wts = np.exp(logp + log_q - special.logsumexp(logp + log_q))
+    logw = logp + log_q
+    wts = np.exp(logw - special.logsumexp(logw))
     return ExactPosterior(points=pts, weights=wts, log_density=logp)
 
 
@@ -158,7 +159,10 @@ class SBCResult:
     min_ess: np.ndarray = field(default_factory=lambda: np.empty(0))
 
     def _edges(self, n_bins: int | None) -> np.ndarray:
-        return np.linspace(0, self.n_draws + 1, (n_bins or self._default_bins()) + 1)
+        n_bins = n_bins or self._default_bins()
+        if not 1 <= n_bins <= self.n_draws + 1:
+            raise ValueError(f"n_bins must be between 1 and n_draws + 1 = {self.n_draws + 1}.")
+        return np.linspace(0, self.n_draws + 1, n_bins + 1)
 
     def histogram(self, n_bins: int | None = None) -> np.ndarray:
         """Rank histograms, shape ``(n_quantities, n_bins)``."""
@@ -235,7 +239,7 @@ def sbc(
     n_draws : int
         Posterior draws used for ranking (thinned evenly from each fit; they
         should be roughly independent, i.e. fewer than the ESS: a warning
-        names the fraction of fits whose smallest bulk ESS is below it, since
+        names how many fits have a smallest bulk ESS below it, since
         autocorrelated draws make the rank histograms look over-dispersed).
     log_likelihood : bool
         Also rank the joint log-likelihood of the true population.
@@ -264,10 +268,10 @@ def sbc(
         d = res.diagnostics
         ess_min.append(np.nanmin(d["ess_bulk"]) if "ess_bulk" in d else np.nan)
     ess_min = np.asarray(ess_min)
-    low = np.mean(ess_min < n_draws)  # NaN (no chains) compares False
-    if low > 0:
+    low = int(np.sum(ess_min < n_draws))  # NaN (no chains) compares False
+    if low:
         warn(
-            f"In {low:.0%} of the fits the smallest bulk ESS is below n_draws={n_draws}; "
+            f"In {low} of {ess_min.size} fits the smallest bulk ESS is below n_draws={n_draws}; "
             "autocorrelated draws make the ranks look over-dispersed.",
             ConvergenceWarning,
         )

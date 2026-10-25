@@ -426,7 +426,7 @@ def test_map_tree_prior_matches_grid():
     mock = binference.simulate.mock_1d(150, Bins.linear(0, 3, 3), noise=(0.3, 0.8), rng=2)
     m = PopulationModel(mock.likelihoods, P.GeneralizedDirichlet([3.0, 2.0], [4.0, 2.5]))
     est = MAP(m).run()
-    ex = binference.validation.exact_posterior(m, n_grid=600)
+    ex = binference.validation.exact_posterior(m, n_grid=600)  # mode from the nodes
     best = ex.points[np.argmax(ex.log_density)]
     np.testing.assert_allclose(est.rho, best, atol=3e-3)
 

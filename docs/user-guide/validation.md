@@ -21,7 +21,7 @@ against it:
 ```python
 bins = binference.Bins([0.0, 1.0, 2.0, 3.0])
 mock = binference.simulate.mock_1d(200, bins, density=np.array([0.5, 0.3, 0.2]), noise=(0.3, 0.8), rng=8)
-exact = exact_posterior(mock.likelihoods, priors.Dirichlet(1.0), n_grid=400)
+exact = exact_posterior(mock.likelihoods, priors.Dirichlet(1.0))
 res = binference.infer(mock.likelihoods, rng=1, n_samples=1000, n_warmup=500)
 print(exact.mean.round(4), res.mean.round(4))
 print(exact.std.round(4), res.std.round(4))

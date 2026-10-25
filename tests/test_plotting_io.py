@@ -53,7 +53,10 @@ def test_corner_trace_individual_sbc(res1d):
     sbc = binference.validation.SBCResult(
         np.random.default_rng(1).integers(0, 20, (30, 3)), 19, ["a", "b", "c"]
     )
-    plot_sbc(sbc)
+    fig = plot_sbc(sbc)
+    # the uniformity band spans whole bins, the outer halves of the end bins included
+    band = fig.axes[0].patches[0].get_data()
+    assert band.edges[0] == -0.5 and band.edges[-1] == len(band.values) - 0.5
     sbc.plot()
     plt.close("all")
 

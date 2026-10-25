@@ -339,13 +339,13 @@ def plot_sbc(sbc_result: Any, n_bins: int | None = None, max_panels: int = 12, f
     nb = H.shape[1]
     # per bin: bins can hold different numbers of the possible ranks (audit G-1)
     p = sbc_result.expected(n_bins) / n_sims
-    lo, hi = stats.binom.ppf(0.005, n_sims, p), stats.binom.ppf(0.995, n_sims, p)
+    lo, hi = stats.binom.interval(0.99, n_sims, p)
     for j in range(nrow * ncol):
         a = axes.flat[j]
         if j >= q:
             a.set_visible(False)
             continue
-        a.fill_between(np.arange(nb), lo, hi, step="mid", color="0.85")
+        a.stairs(hi, np.arange(nb + 1) - 0.5, baseline=lo, fill=True, color="0.85")
         a.bar(np.arange(nb), H[j], width=1.0, color=POSTERIOR_COLOR, alpha=0.8)
         a.set_title(names[j], fontsize=9)
         a.set_yticks([])

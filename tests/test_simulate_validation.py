@@ -71,12 +71,12 @@ def test_exact_posterior_conjugate():
     rng = np.random.default_rng(1)
     labels = rng.integers(0, 3, size=40)
     lk = Likelihoods(np.eye(3)[labels])
-    ex = binference.validation.exact_posterior(lk, P.Dirichlet(2.0), n_grid=800)
+    ex = binference.validation.exact_posterior(lk, P.Dirichlet(2.0))
     a = 2.0 + np.bincount(labels, minlength=3)
     np.testing.assert_allclose(ex.mean, a / a.sum(), atol=1e-3)
     np.testing.assert_allclose(ex.weights.sum(), 1.0)
     lk2 = Likelihoods(np.eye(2)[labels % 2])
-    ex2 = binference.validation.exact_posterior(lk2, n_grid=4000)
+    ex2 = binference.validation.exact_posterior(lk2)
     a2 = 1.0 + np.bincount(labels % 2, minlength=2)
     np.testing.assert_allclose(ex2.mean, a2 / a2.sum(), atol=1e-4)
     with pytest.raises(ValueError):
@@ -94,7 +94,10 @@ def test_sbc_and_coverage_smoke():
             lk, method="gibbs", rng=rng, n_samples=200, n_warmup=50, n_chains=1, check=False
         )
 
-    with pytest.warns(binference.ConvergenceWarning, match="ESS is below n_draws"):
+    with pytest.warns(
+        binference.ConvergenceWarning,
+        match=r"In \d+ of 15 fits the smallest bulk ESS",
+    ):
         res = binference.validation.sbc(sim, fit, n_simulations=15, n_draws=49, rng=1)
     assert res.ranks.shape == (15, 4)
     assert res.ranks.min() >= 0 and res.ranks.max() <= 49
@@ -102,6 +105,8 @@ def test_sbc_and_coverage_smoke():
     assert res.pvalues().shape == (4,)
     assert res.histogram(5).sum(1).tolist() == [15] * 4
     assert isinstance(res.passed(), bool)
+    with pytest.raises(ValueError, match="n_bins"):
+        res.pvalues(n_bins=51)  # empty bins would make the statistic 0/0
     cov = binference.validation.coverage(
         sim,
         fit,
@@ -140,6 +145,6 @@ def test_the_exact_posterior_is_accurate_at_the_simplex_boundary(alpha):
     ex = binference.validation.exact_posterior(Likelihoods(np.array(rows)), P.Dirichlet(alpha))
     sd = np.sqrt(a * (a.sum() - a) / (a.sum() ** 2 * (a.sum() + 1)))
     np.testing.assert_allclose((ex.mean - a / a.sum()) / sd, 0.0, atol=0.01)
-    if alpha >= 0.5:  # at 0.2 the 5% quantile is 6e-9 and its tail mass is 17% off
+    if alpha >= 0.5:  # at 0.2 the 5% quantile is 6e-9 and its tail mass is 22% off
         q05 = stats.beta.ppf(0.05, a[2], a.sum() - a[2])
         np.testing.assert_allclose(ex.weights[ex.points[:, 2] < q05].sum(), 0.05, atol=0.005)

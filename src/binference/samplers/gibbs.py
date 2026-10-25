@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from .. import _kernels as kern
-from .._utils import RNGLike, is_integer_array, progress, spawn
+from .._utils import RNGLike, check_positive, is_integer_array, progress, spawn
 from ..model import PopulationModel
 from ..results import PopulationResult
 from .base import Engine, interior_start
@@ -68,7 +68,7 @@ class Gibbs(Engine):
         thin: int = 1,
         store_labels: bool | Any = False,
         init: Any = None,
-        chunk: int = kern.DEFAULT_CHUNK,
+        chunk: int | None = kern.DEFAULT_CHUNK,
         rng: RNGLike = None,
         progress: bool = False,
     ) -> None:
@@ -101,9 +101,9 @@ class Gibbs(Engine):
             ):
                 raise ValueError(f"store_labels must be object indices in 0..{model.N - 1}.")
         if init is not None:
-            init = np.asarray(init, dtype=float)
-            if init.shape != (model.K,) or not np.all(np.isfinite(init)) or np.any(init <= 0):
-                raise ValueError(f"init must be {model.K} finite positive values.")
+            init = check_positive(init, "init")
+            if init.shape != (model.K,):
+                raise ValueError(f"init must have shape ({model.K},); got {init.shape}.")
         if n_chains < 1 or thin < 1:
             raise ValueError("n_chains and thin must be positive.")
         self.n_chains = int(n_chains)
@@ -124,7 +124,7 @@ class Gibbs(Engine):
         self._rngs = spawn(self.rng, self.n_chains)
         # overdispersed starts: each chain draws from the conditional given expected counts
         base = interior_start(m) if self.init is None else self.init
-        nhat = m.expected_counts(base)
+        nhat = m._complete_counts(base, m.expected_counts(base))
         exposure = m._S if m.kind == "rates" else None
         self._state = [m.prior.posterior_sample(nhat, r, exposure=exposure) for r in self._rngs]
 
@@ -135,8 +135,7 @@ class Gibbs(Engine):
         counts, labels = kern.sample_counts(
             m._L, self._w_int, value, rng, chunk=self.chunk, unit_weights=self._unit
         )
-        if m.kind == "fractions" and m.selection is not None:
-            counts = counts + m._draw_missed(value, rng)
+        counts = m._draw_missed(value, counts, rng)
         exposure = m._S if m.kind == "rates" else None
         self._state[c] = m.prior.posterior_sample(counts, rng, exposure=exposure)
         return self._state[c], labels

@@ -150,6 +150,32 @@ def sample_labels(L, rho: np.ndarray, rng: np.random.Generator, chunk: int | Non
     return out
 
 
+def _multinomial_csr(Lc, m: np.ndarray, rho: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """Draws of ``Mult(m_i, r_i)`` on the nonzeros of each CSR row, one per stored entry.
+
+    Conditional binomials position by position within rows, rows sorted by
+    their number of nonzeros: the cost follows the nonzeros, not K or ``m_i``.
+    """
+    nnz = np.diff(Lc.indptr)
+    order = np.argsort(-nnz, kind="stable")
+    n_sorted = nnz[order]
+    start = Lc.indptr[:-1][order]
+    p = Lc.data * rho[Lc.indices]
+    mass = np.asarray(Lc @ rho, dtype=float).ravel()[order]
+    left = m[order].astype(np.int64)
+    out = np.zeros(p.size)
+    for j in range(int(n_sorted[0]) if n_sorted.size else 0):
+        a = int(np.searchsorted(-n_sorted, -j, side="left"))  # rows with more than j nonzeros
+        pos = start[:a] + j
+        q = np.divide(p[pos], mass[:a], out=np.ones(a), where=mass[:a] > 0)
+        q = np.where(n_sorted[:a] == j + 1, 1.0, np.clip(q, 0.0, 1.0))  # last entry takes the rest
+        d = rng.binomial(left[:a], q)
+        out[pos] = d
+        left[:a] -= d
+        mass[:a] -= p[pos]
+    return out
+
+
 def sample_counts(
     L,
     w_int: np.ndarray,
@@ -161,9 +187,9 @@ def sample_counts(
     """Draw latent bin counts ``n_k = sum_i w_i 1[z_i = k]``.
 
     For unit weights a label is drawn per object (and returned). Integer weights
-    ``m_i`` (compressed duplicate rows) return ``labels=None``: for sparse ``L``
-    a label is drawn per underlying object (rows repeated, so the matrix stays
-    sparse; audit G-2), for dense ``L`` one ``Mult(m_i, r_i)`` per row.
+    ``m_i`` (compressed duplicate rows) draw one ``Mult(m_i, r_i)`` per row and
+    return ``labels=None``; for sparse ``L`` only over the row's nonzeros, so
+    the cost follows the nonzeros whatever K and the ``m_i`` (audit G-2).
 
     Returns
     -------
@@ -180,9 +206,10 @@ def sample_counts(
     N = L.shape[0]
     m_all = np.asarray(np.round(w_int), dtype=np.int64)
     if sp.issparse(L):
-        rows = np.repeat(np.arange(N), m_all)
-        for sl in chunk_slices(rows.size, chunk):
-            counts += np.bincount(sample_labels(L[rows[sl]], rho, rng, None), minlength=K)
+        for sl in chunk_slices(N, chunk):
+            Lc = sp.csr_array(L[sl])
+            n = _multinomial_csr(Lc, m_all[sl], rho, rng)
+            counts += np.bincount(Lc.indices, weights=n, minlength=K)
         return counts, None
     for sl in chunk_slices(N, chunk):
         R = responsibilities(L[sl], rho, chunk=None)
