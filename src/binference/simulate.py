@@ -16,7 +16,6 @@ from typing import Any
 import numpy as np
 from scipy import special, stats
 
-from ._quadrature import _subbin_points
 from ._utils import RNGLike, as_generator
 from .bins import Bins
 from .density import Density
@@ -117,44 +116,24 @@ def _density_2d(name: str, bins: Bins) -> Callable[[np.ndarray], np.ndarray]:
     return f
 
 
-def _as_density(density: Any, bins: Bins) -> Callable[[np.ndarray], np.ndarray] | None:
-    # a pointwise density of z, or None when only bin masses are given
-    if isinstance(density, Density):
-        if density._kind == "function":
-            return density._value
-        if density._kind == "distribution":
-            d = density._value
-            return (lambda z: np.exp(d.logpdf(z))) if hasattr(d, "logpdf") else d.pdf
-        return None
-    if callable(density):
-        return density
-    if isinstance(density, str):
+def _as_density(density: Any, bins: Bins) -> Density:
+    # a Density from a mock density name, a Density, a callable, a distribution or masses
+    if isinstance(density, str) and density != "flat":
         if bins.ndim == 1:
             lo, hi = bins.range[0]
-            return _density_1d(density, lo, hi)
-        return _density_2d(density, bins)
-    return None
+            return Density.from_function(_density_1d(density, lo, hi))
+        return Density.from_function(_density_2d(density, bins))
+    return Density.coerce(density, "mass", name="density")
 
 
 def population(bins: Bins, density: Any = "bimodal", n_sub: int = 8) -> np.ndarray:
-    """Population fractions per bin from a density name, callable, :class:`Density` or array."""
-    if isinstance(density, Density):
-        return density.masses(bins, n_sub)
-    f = _as_density(density, bins)
-    if f is None:
-        rho = np.asarray(density, dtype=float).ravel()
-        if rho.shape != (bins.K,) or np.any(rho < 0) or rho.sum() <= 0:
-            raise ValueError("density array must be non-negative with one value per bin.")
-        return rho / rho.sum()
-    pts, w = _subbin_points(bins, n_sub)
-    dens = np.asarray(f(pts), dtype=float).reshape(bins.K, -1)
-    rho = (dens @ w) * bins.volumes
-    return rho / rho.sum()
+    """Population fractions per bin from a density name, :class:`Density`, callable or masses."""
+    return _as_density(density, bins).masses(bins, n_sub)
 
 
 def _draw_values(bins: Bins, density: Any, n: int, rng: np.random.Generator):
     """True values (continuous) and labels for n objects."""
-    f = _as_density(density, bins)
+    f = _as_density(density, bins)._pointwise()
     if f is None:
         rho = population(bins, density)
         labels = rng.choice(bins.K, size=n, p=rho)
@@ -265,19 +244,14 @@ def mock_1d(
     counts = np.bincount(labels, minlength=bins.K).astype(float)
     truth = Truth(rho=rho, labels=labels, values=values, counts=counts, n_drawn=n_drawn)
     mock = Mock(bins, lk, truth, {"mean": obs, "sigma": sigma})
-    lo, hi = bins.range[0]
     pi_dens = None
     if interim_prior is not None:
         if isinstance(interim_prior, str) and interim_prior == "gaussian":
-            pi_dens = lambda z: stats.norm.pdf(z, 0.4 * lo + 0.6 * hi, 0.3 * (hi - lo))  # noqa: E731
-        elif callable(interim_prior):
-            pi_dens = interim_prior
-        elif isinstance(interim_prior, str):
-            pi_dens = _density_1d(interim_prior, lo, hi)
-        if pi_dens is not None:
-            Pi = population(bins, pi_dens)
-        else:
-            Pi = population(bins, np.asarray(interim_prior, dtype=float))
+            lo, hi = bins.range[0]
+            interim_prior = stats.norm(0.4 * lo + 0.6 * hi, 0.3 * (hi - lo))
+        interim = _as_density(interim_prior, bins)
+        pi_dens = interim._pointwise()
+        Pi = interim.masses(bins, 8)
         P = lk.toarray() * Pi[None, :]  # row scales are irrelevant after normalising
         mock.posteriors = P / P.sum(axis=1, keepdims=True)
         mock.interim_prior = Pi

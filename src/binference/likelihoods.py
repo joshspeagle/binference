@@ -13,14 +13,13 @@ from scipy import special
 from ._quadrature import _subbin_points
 from ._utils import check_positive_weights
 from .bins import Bins
-from .density import Density
+from .density import Density, Representation, _dist_bin_masses, _is_distribution
 from .selection import Selection, as_selection
 from .warnings import InputWarning
 
 __all__ = ["Likelihoods"]
 
-Representation = Literal["density", "mass"]
-InterimPrior = Density | str | np.ndarray | Sequence[float] | Callable[[np.ndarray], np.ndarray]
+InterimPrior = Any  # anything Density.coerce accepts
 
 
 # ----------------------------------------------------------------------------
@@ -51,9 +50,11 @@ def _scale_columns(values, factors: np.ndarray):
     return np.asarray(values, dtype=float) * factors
 
 
-def _interim_masses(interim_prior: InterimPrior, bins: Bins, representation=None) -> np.ndarray:
+def _interim_masses(
+    interim_prior: InterimPrior, bins: Bins, representation: Representation | None = None
+) -> np.ndarray:
     """Normalised interim-prior mass per bin."""
-    return Density.coerce(interim_prior, bins, representation).masses(bins)
+    return Density.coerce(interim_prior, representation).masses(bins)
 
 
 def _check_kind(kind: str, interim_prior: Any) -> None:
@@ -346,9 +347,7 @@ class Likelihoods:
         meta["compressed_from"] = self.N
         return Likelihoods._from_parts(vals, ls / w, self._bins, w, self._selection, meta)
 
-    def stack(
-        self, interim_prior: InterimPrior | None = None, interim_representation=None
-    ) -> np.ndarray:
+    def stack(self, interim_prior: InterimPrior | None = None) -> np.ndarray:
         """Naive "stacked" population estimate: the weighted mean of per-object posteriors.
 
         Posteriors are formed under ``interim_prior``: by default the interim
@@ -364,7 +363,7 @@ class Likelihoods:
             if Pi is None:
                 Pi = Density.flat().masses(self._bins)
         else:
-            Pi = _interim_masses(interim_prior, self._bins, interim_representation)
+            Pi = _interim_masses(interim_prior, self._bins)
         P = _scale_columns(self._values, Pi)
         tot = np.asarray(P.sum(axis=1)).ravel()
         if np.any(tot <= 0):
@@ -661,10 +660,12 @@ class Likelihoods:
         if bins.is_categorical:
             raise ValueError("from_distributions needs ordered (grid) bins.")
         _check_kind(kind, interim_prior)
-        quad = _subbin_points(bins, n_sub)
-        masses = np.array(
-            [Density.from_distribution(d)._bin_masses(bins, n_sub, quad) for d in dists]
-        ).reshape(-1, bins.K)
+        dists = list(dists)
+        masses = np.empty((len(dists), bins.K))
+        for i, d in enumerate(dists):
+            if not _is_distribution(d):
+                raise TypeError("Each distribution needs a cdf, logpdf or pdf method.")
+            masses[i] = _dist_bin_masses(d, bins, n_sub)
         if kind == "likelihood":
             lk = cls(
                 masses,

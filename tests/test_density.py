@@ -6,6 +6,7 @@ from scipy import stats
 
 import binference
 from binference import Bins, Density, Likelihoods, priors
+from binference.priors.logistic import _resolve_mean
 
 
 def test_flat_is_flat_in_the_measure_coordinate_unless_asked_for_z():
@@ -99,3 +100,12 @@ def test_population_accepts_a_density():
     bins = Bins.linear(0, 1, 5)
     d = Density.from_masses([1, 2, 3, 2, 1])
     np.testing.assert_allclose(binference.simulate.population(bins, d), d.masses(bins))
+
+
+def test_every_prior_default_is_flat_in_the_measure_coordinate():
+    logbins = Bins.log(1.0, 100.0, 4)
+    flat = Density.flat().masses(logbins)
+    alpha = priors.Dirichlet.from_base_measure(1.0).resolve_alpha(logbins)
+    np.testing.assert_allclose(alpha, flat)
+    mean = _resolve_mean(None, logbins)  # the logistic priors' default mean
+    np.testing.assert_allclose(np.exp(mean) / np.exp(mean).sum(), flat)

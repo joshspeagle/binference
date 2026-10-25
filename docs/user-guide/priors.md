@@ -68,7 +68,8 @@ With broad likelihoods, neighbouring bins trade mass and a Dirichlet
 posterior is jagged. That is honest, since the data really cannot separate
 them, but it is rarely what the population looks like. Logistic priors put a
 Gaussian prior on the log-density and infer how smooth it is. By default they
-are centred on a flat density (log-fractions equal to the log bin volumes),
+are centred on a density flat in the measure coordinate (log-fractions equal
+to the log bin widths in $u$: in $z$ on linear bins, in $\log z$ on log bins),
 so the penalty acts on the density whatever the binning, `Bins.log`
 included:
 

@@ -22,8 +22,9 @@ First development version.
 - Development process: issue and pull-request templates and the rules in `CLAUDE.md` and
   `CONTRIBUTING.md`.
 - The prior base class is now `binference.priors.PopulationPrior` (was `Prior`).
-- On log bins, the default base measure of `Dirichlet.from_base_measure` and the
-  "flat" interim prior are flat in log z (they were flat in z; DECISIONS #63).
+- On log bins, the default base measures of `Dirichlet.from_base_measure` and
+  `PolyaTree`, the default mean of the logistic priors and the "flat" interim prior
+  are flat in log z (they were flat in z; DECISIONS #63).
 
 ### Added
 

@@ -13,7 +13,7 @@ with ``A_c`` the total concentration of node ``c``'s children.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
@@ -100,7 +100,7 @@ class Dirichlet(PopulationPrior):
     -----
     A symmetric ``alpha`` over bins of unequal volume is *not* consistent under
     merging bins; :meth:`from_base_measure` makes ``alpha`` proportional to a
-    base measure (bin volumes by default) instead.
+    base measure (flat in the measure coordinate by default) instead.
     """
 
     def __init__(self, alpha: float | Sequence[float] | np.ndarray | str = 1.0) -> None:
@@ -141,24 +141,18 @@ class Dirichlet(PopulationPrior):
         return cls(base + strength * c)
 
     @classmethod
-    def from_base_measure(
-        cls, concentration: float = 1.0, base: Density | Sequence[float] | None = None
-    ) -> Dirichlet:
+    def from_base_measure(cls, concentration: float = 1.0, base: Any = "flat") -> Dirichlet:
         """``alpha_k = concentration * B_k``, with ``B`` the normalised bin masses of ``base``.
 
-        ``base`` is a :class:`~binference.Density`, or an array of masses per
-        bin; the default :meth:`Density.flat() <binference.Density.flat>` is
-        flat in the measure coordinate (proportional to bin volumes on linear
-        bins).
+        ``base`` is a :class:`~binference.Density` (or anything
+        :meth:`Density.coerce <binference.Density.coerce>` accepts; an array is
+        read as masses per bin). The default is flat in the measure coordinate,
+        proportional to bin volumes on linear bins.
         """
         if concentration <= 0:
             raise ValueError("concentration must be positive.")
-        if base is None:
-            base = Density.flat()
-        elif not isinstance(base, Density):
-            base = Density.from_masses(base)
         obj = cls(1.0)
-        obj._base = (float(concentration), base)
+        obj._base = (float(concentration), Density.coerce(base, "mass", name="base"))
         return obj
 
     def resolve_alpha(self, bins: Bins) -> np.ndarray:
@@ -589,22 +583,23 @@ class PolyaTree(DirichletTree):
         Overall concentration (larger = closer to the base measure).
     power : float
         Growth of concentration with depth.
-    base : None, array_like (K,), or callable
-        Base measure: bin volumes (uniform density) by default, explicit masses,
-        or a density evaluated at bin centres.
+    base : Density, "flat", callable or array_like (K,)
+        Base measure, read by :meth:`Density.coerce <binference.Density.coerce>`
+        (an array is masses per bin). The default is flat in the measure
+        coordinate.
     """
 
     def __init__(
         self,
         c: float = 1.0,
         power: float = 2.0,
-        base: Sequence[float] | np.ndarray | Callable[[np.ndarray], np.ndarray] | None = None,
+        base: Any = "flat",
     ) -> None:
         if c <= 0:
             raise ValueError("c must be positive.")
         self.c = float(c)
         self.power = float(power)
-        self.base = base
+        self.base = Density.coerce(base, "mass", name="base")
 
     def _params(self):
         return {"c": self.c, "power": self.power}
@@ -613,13 +608,8 @@ class PolyaTree(DirichletTree):
         if bins.is_categorical or bins.ndim != 1:
             raise ValueError("PolyaTree is defined on ordered one-dimensional bins.")
         K = bins.K
-        if self.base is None:
-            g0 = np.asarray(bins.volumes, dtype=float)
-        elif callable(self.base):
-            g0 = np.asarray(self.base(bins.centers), dtype=float) * bins.volumes
-        else:
-            g0 = np.asarray(self.base, dtype=float)
-        if g0.shape != (K,) or np.any(g0 <= 0):
+        g0 = self.base.masses(bins)
+        if np.any(g0 <= 0):
             raise ValueError("base must give a positive mass for every bin.")
         cum = np.concatenate(([0.0], np.cumsum(g0)))
         nodes: list[list[tuple[str, int]] | None] = []
