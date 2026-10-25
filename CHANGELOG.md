@@ -12,11 +12,9 @@ First development version.
 ### Changed (landing on `main`)
 
 - Python ≥ 3.13, NumPy ≥ 2.1, SciPy ≥ 1.14, matplotlib ≥ 3.9 (DECISIONS #41).
-- CI: ruff pinned to the pre-commit version; timeouts on every job; the fast suite on
-  Linux, macOS and Windows with Python 3.13 and 3.14; minimum dependencies including
-  threadpoolctl; the code of the README, installation page and user guide executed; the
-  wheel installed and imported in a clean environment; the slow suite also on pull
-  requests labelled `slow`. Pushes to `main` publish the docs to GitHub Pages.
+- CI runs the pre-commit hooks, the fast suite on three systems with Python 3.13 and
+  3.14, minimum dependencies, the README and user-guide code, the docs build and a
+  clean-wheel import; pushes to `main` publish the docs to GitHub Pages.
 - Development process: issue and pull-request templates and the rules in `CLAUDE.md` and
   `CONTRIBUTING.md`.
 

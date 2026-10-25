@@ -1,5 +1,7 @@
 """Tests for the high-level API: infer(), PopulationEstimator, namespace (spec 8)."""
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -15,11 +17,9 @@ def test_namespace():
 
 
 def test_citation_file_version_matches_package():
-    from pathlib import Path
-
     cff = Path(__file__).parents[1] / "CITATION.cff"
     line = next(ln for ln in cff.read_text().splitlines() if ln.startswith("version:"))
-    assert line.split(":", 1)[1].strip() == pastry.__version__
+    assert line.split(":", 1)[1].strip().strip("'\"") == pastry.__version__
 
 
 def test_infer_accepts_arrays_likelihoods_models(small_1d):

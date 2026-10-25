@@ -25,12 +25,10 @@ likelihoods, posteriors, samples, binned measurements or classifier outputs.
 
 ## Commands
 
-- Set up: `python -m venv .venv && .venv/bin/pip install -e ".[dev]"`.
-- Fast tests: `.venv/bin/pytest -q` (about 80 s). Slow: `.venv/bin/pytest -m slow` (about 10 min).
-- Lint and format: `.venv/bin/ruff check . && .venv/bin/ruff format --check .`.
-- Docs: `.venv/bin/sphinx-build -W --keep-going -b html docs docs/_build/html` (about 9 min
-  clean); snippets: `.venv/bin/python docs/_scripts/run_snippets.py README.md docs/install.md docs/user-guide/*.md`.
-- Use `OPENBLAS_NUM_THREADS=1` for timings in shared containers.
+Set-up, tests, lint (`pre-commit run --all-files`), docs and the snippet runner are in
+`CONTRIBUTING.md`; CI runs the same commands (`.github/workflows/ci.yml`). Fast tests take
+about 80 s, the slow suite about 10 min, a clean docs build about 9 min. Use
+`OPENBLAS_NUM_THREADS=1` for timings in shared containers.
 
 ## Recording
 

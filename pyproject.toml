@@ -50,7 +50,7 @@ docs = [
     "matplotlib>=3.9",
     "ipykernel>=6",
 ]
-dev = ["pastry-inference[test,docs,plot,xarray]", "ruff==0.17.1", "pre-commit>=3"]
+dev = ["pastry-inference[test,docs,plot,xarray]", "pre-commit>=3"]
 all = ["pastry-inference[plot,xarray]"]
 
 [project.urls]
@@ -91,7 +91,6 @@ exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "@overload"]
 
 [tool.ruff]
 line-length = 99
-target-version = "py313"
 src = ["src", "tests"]
 extend-exclude = ["docs/_build", "research_notes", "reports", "notes", "*.md"]
 
