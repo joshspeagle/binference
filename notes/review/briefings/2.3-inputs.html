@@ -1,0 +1,466 @@
+<title>Pastry Inputs</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Literata:opsz,wght@7..72,500;7..72,600&display=swap">
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [["$", "$"], ["\\(", "\\)"]], displayMath: [["$$", "$$"]] },
+    svg: { fontCache: "global" },
+    options: { skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"] }
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
+<style>
+/* Layout: sticky section index on the left, a single reading column on the right; explorers break out to full column width. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #18202b;
+  --muted: #5a6573;
+  --rule: #d9dee5;
+  --accent: #1f5fa8;      /* ink blue: the model, exact quantities */
+  --warm: #b4691f;        /* amber: approximations, the flat-within-bin assumption */
+  --good: #2e7d4f;
+  --alt: #8a3b8f;         /* purple: ignoring selection */
+  --code-bg: #eef1f5;
+  --font-display: "Literata", Georgia, serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
+    --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
+  --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body);
+  font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+.page { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 40px; }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-top: 40px; font-size: 13.5px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+nav.toc a { color: var(--muted); text-decoration: none; display: flex; gap: 8px; padding: 4px 8px; border-radius: 4px; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink); background: var(--code-bg); outline: none; }
+nav.toc .n { font-family: var(--font-mono); width: 1.6em; color: var(--muted); }
+nav.toc .now { color: var(--accent); font-weight: 600; }
+nav.toc .done::after { content: "discussed"; margin-left: auto; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--good); }
+main { min-width: 0; padding-top: 40px; }
+header.top { border-bottom: 1px solid var(--rule); padding-bottom: 24px; margin-bottom: 8px; }
+.eyebrow { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 2.3rem; line-height: 1.15; margin: 6px 0 12px; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.55rem; margin: 0 0 8px; text-wrap: balance; }
+h3 { font-size: 1rem; font-weight: 600; margin: 22px 0 6px; }
+.lede { max-width: 66ch; color: var(--muted); margin: 0; }
+section { padding: 36px 0 8px; border-bottom: 1px solid var(--rule); }
+section > p, section > ul, section > ol { max-width: 68ch; }
+.sec-head { display: flex; align-items: baseline; gap: 12px; }
+.sec-head .n { font-family: var(--font-mono); color: var(--muted); font-size: 14px; }
+.files { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+.eq { overflow-x: auto; padding: 4px 0; }
+.callout { border: 1px solid var(--rule); background: var(--surface); padding: 14px 18px; border-radius: 6px; max-width: 68ch; }
+.callout.approx { border-color: var(--warm); }
+.callout.approx strong { color: var(--warm); }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+details.code { margin: 14px 0; max-width: 820px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+details.code summary { cursor: pointer; padding: 8px 14px; font-size: 13.5px; color: var(--muted); }
+details.code summary b { font-family: var(--font-mono); font-weight: 500; color: var(--ink); }
+details.code pre { margin: 0; padding: 12px 14px; overflow-x: auto; background: var(--code-bg); border-top: 1px solid var(--rule); font-family: var(--font-mono); font-size: 12.8px; line-height: 1.5; border-radius: 0 0 6px 6px; }
+.cm { color: var(--muted); }
+.explorer { margin: 22px 0 10px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 18px; }
+.explorer h3 { margin-top: 0; font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px 20px; margin: 10px 0 14px; }
+.controls label { display: grid; gap: 2px; font-size: 13px; color: var(--muted); }
+.controls .val { font-family: var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+canvas { width: 100%; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+.legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+.stats { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 12px; font-size: 13.5px; }
+.stats b { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+.note { font-size: 13.5px; color: var(--muted); max-width: 70ch; }
+table.tbl { border-collapse: collapse; font-size: 13.5px; margin: 10px 0; }
+.tblwrap { overflow-x: auto; }
+table.tbl th, table.tbl td { padding: 6px 12px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+table.tbl th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+pre.mermaid { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 12px; overflow-x: auto; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 10px; }
+.pair figure { margin: 0; min-width: 0; } .pair figcaption { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 4px; }
+.qs { list-style: none; padding: 0; display: grid; gap: 10px; max-width: 72ch; }
+.qs li { display: grid; grid-template-columns: auto 1fr; gap: 12px; border: 1px solid var(--rule); background: var(--surface); padding: 10px 14px; border-radius: 6px; }
+.qs .tag { font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding-top: 2px; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; max-width: 100%; padding: 2px 0; }
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 12px 0; max-width: 820px; }
+.mode { border: 1px solid var(--rule); background: var(--surface); border-radius: 6px; padding: 12px 14px; min-width: 0; }
+.mode h4 { margin: 0 0 6px; font-size: 14px; } .mode h4 code { font-size: 13px; }
+.mode dl { margin: 0; display: grid; gap: 6px; font-size: 14px; } .mode dt { color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; } .mode dd { margin: 0; min-width: 0; }
+input[type=range] { height: 28px; }
+@media (max-width: 860px) {
+  .page { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--rule); margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  nav.toc .eyebrow { display: none; }
+  nav.toc ol { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  nav.toc ol::-webkit-scrollbar { display: none; }
+  nav.toc a { white-space: nowrap; border: 1px solid var(--rule); border-radius: 999px; padding: 6px 12px; }
+  nav.toc .done::after { content: "✓"; letter-spacing: 0; margin-left: 2px; font-size: 12px; }
+  main { padding-top: 20px; }
+  h1 { font-size: 1.7rem; } h2 { font-size: 1.3rem; }
+  section { padding-top: 28px; scroll-margin-top: 64px; }
+  .explorer { padding: 14px 12px; margin-left: -4px; margin-right: -4px; }
+  .sec-head { flex-wrap: wrap; gap: 4px 10px; }
+}
+section { scroll-margin-top: 16px; }
+.sel { font: inherit; width: 100%; padding: 6px; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); color: var(--ink); }
+</style>
+
+<div class="page">
+<nav class="toc" aria-label="Sections">
+  <div class="eyebrow" style="padding:0 8px 8px">Step 2.3</div>
+  <ol>
+    <li><a href="#c0" class="now"><span class="n">0</span>One representation</a></li>
+    <li><a href="#c1" class="now"><span class="n">1</span>Raw matrices</a></li>
+    <li><a href="#c2" class="now"><span class="n">2</span>Gaussian errors</a></li>
+    <li><a href="#c3" class="now"><span class="n">3</span>Posteriors</a></li>
+    <li><a href="#c4" class="now"><span class="n">4</span>Samples</a></li>
+    <li><a href="#c5" class="now"><span class="n">5</span>Functions</a></li>
+    <li><a href="#c6" class="now"><span class="n">6</span>Unfolding</a></li>
+    <li><a href="#c7" class="now"><span class="n">7</span>Classifiers</a></li>
+    <li><a href="#c8" class="now"><span class="n">8</span>Utilities</a></li>
+    <li><a href="#c9"><span class="n">9</span>To discuss</a></li>
+  </ol>
+</nav>
+<main>
+<header class="top">
+  <div class="eyebrow">pastry walkthrough · Phase 2 · level L3</div>
+  <h1>Getting data in</h1>
+  <p class="lede">Every <code>Likelihoods.from_*</code> conversion: the math it implements, the code path, its numerical choices, what it guards against, and what the inputs audit found. File: <code>likelihoods.py</code> (1076 lines).</p>
+</header>
+
+<section id="c0">
+  <div class="sec-head"><span class="n">§0</span><h2>Many doors, one representation</h2></div>
+  <p>Every constructor ends in the same object: a matrix of bin-averaged likelihoods $L_{ik}\propto p(d_i\mid z_i\in B_k)$ with rows scaled to a maximum of one, per-row log-scales, weights, and an optional selection function. Downstream code never knows where the data came from (it is recorded in <code>meta["source"]</code>).</p>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>you have</th><th>constructor</th><th>what it computes</th></tr>
+    <tr><td>a likelihood matrix</td><td><code>Likelihoods(L, bins)</code></td><td>validation, mass→density, normalisation</td></tr>
+    <tr><td>measurements ± Gaussian errors</td><td><code>from_gaussian</code></td><td>exact bin averages from CDF differences</td></tr>
+    <tr><td>per-object posteriors on the bins</td><td><code>from_posteriors</code></td><td>divide out the interim prior</td></tr>
+    <tr><td>posterior samples (MCMC, nested sampling)</td><td><code>from_samples</code></td><td>weighted histogram ÷ interim prior</td></tr>
+    <tr><td>a likelihood function or SciPy distributions</td><td><code>from_function</code>, <code>from_distributions</code></td><td>Gauss–Legendre averages over each bin (exact CDFs where available)</td></tr>
+    <tr><td>counts in reconstructed bins + a response matrix</td><td><code>from_response</code></td><td>one weighted row per reconstructed bin; efficiency as selection</td></tr>
+    <tr><td>classifier probabilities</td><td><code>from_classifier</code></td><td>divide out the training class prevalence</td></tr>
+  </table></div>
+</section>
+
+<section id="c1">
+  <div class="sec-head"><span class="n">§1</span><h2>Raw matrices</h2></div>
+  <div class="files">likelihoods.py · __init__ (l. 190), _normalise_linear (l. 947), _normalise_log (l. 979), _init_from_parts (l. 225)</div>
+  <ul>
+    <li><strong>Validation:</strong> finite, non-negative, 2-D, $K\ge2$, columns match <code>bins.K</code>.</li>
+    <li><strong>Representation.</strong> <code>"density"</code> (default): each value is the likelihood averaged over the bin. <code>"mass"</code>: the likelihood integrated over the bin (e.g. CDF differences); it is divided by the bin volume. Only matters with unequal bins.</li>
+    <li><strong>Log input</strong> (<code>log=True</code> or <code>from_log</code>): rows are exponentiated after subtracting their maximum, so log-likelihoods of −10<sup>4</sup> are fine; −∞ marks impossible bins.</li>
+    <li><strong>Sparse input</strong> stays sparse (CSR, copied so the caller's matrix is never modified).</li>
+    <li><strong>Empty rows</strong> (zero likelihood in every bin) raise, or are dropped with a warning under <code>drop_empty=True</code>; per-object metadata follows the surviving rows.</li>
+  </ul>
+  <p class="note">Audit: I-8 (<code>to_sparse(rtol&gt;1)</code> empties every row), I-11 (zero objects accepted), I-14 (internal arrays writable and shared).</p>
+</section>
+
+<section id="c2">
+  <div class="sec-head"><span class="n">§2</span><h2>Gaussian errors</h2></div>
+  <div class="files">likelihoods.py · from_gaussian (l. 600), _log_gauss_bin_mass (l. 120)</div>
+  <div class="eq">$$L_{ik}=\frac{1}{v_k}\Big[\Phi\Big(\frac{b_k-d_i}{\sigma_i}\Big)-\Phi\Big(\frac{a_k-d_i}{\sigma_i}\Big)\Big]\qquad(B_k=[a_k,b_k]).$$</div>
+  <ul>
+    <li><strong>Exact</strong> (no quadrature), computed in log space with <code>log_ndtr</code>. When the bin lies above the measurement, the code uses the mirror-image tail, $\Phi(-a)-\Phi(-b)$, so a bin 40σ away still gets a finite log-likelihood instead of $1-1=0$.</li>
+    <li><strong>N-D grids:</strong> one 1-D mass per axis, combined by an outer sum in log space: independent errors per axis (diagonal covariance).</li>
+    <li><strong>Remembers</strong> each object's mean and σ (<code>meta</code>), so <code>sample_values</code> can draw exact truncated-Gaussian values inside a bin.</li>
+  </ul>
+  <details class="code"><summary><b>likelihoods.py:120</b> · tail-stable log of a Gaussian bin mass</summary>
+<pre>a, b = (lo - mu) / sig, (hi - mu) / sig
+flip = a &gt; 0                                   <span class="cm"># bin above the mean: use the mirrored upper tail</span>
+a2, b2 = np.where(flip, -b, a), np.where(flip, -a, b)
+lb, la = special.log_ndtr(b2), special.log_ndtr(a2)
+out = lb + np.log1p(-np.exp(la - lb))          <span class="cm"># log(Φ(b) − Φ(a)) without cancellation</span></pre>
+  </details>
+  <h3>Correlated errors (decision #2)</h3>
+  <p>For a per-object covariance $\Sigma_i$ the bin average is a rectangle probability of a correlated Gaussian. Options: (i) exact bivariate CDFs in 2-D (Drezner–Wesolowsky / Genz) and quasi-Monte Carlo beyond; (ii) sub-cell Gauss–Legendre on the density with adaptive refinement where $\Sigma_i$ is narrow; (iii) rotate each object into its principal axes and integrate there. (ii) is the simplest to make general and reuses <code>from_function</code>'s machinery; (i) is fastest and exact for the common 2-D case.</p>
+  <p class="note">Audit: I-10 (ill-shaped <code>mean</code> silently reshaped; <code>sigma</code> ambiguous when N equals the number of axes), I-15 (relative precision lost when σ ≫ bin width).</p>
+</section>
+
+<section id="c3">
+  <div class="sec-head"><span class="n">§3</span><h2>Posteriors and the interim prior</h2></div>
+  <div class="files">likelihoods.py · from_posteriors (l. 433), _interim_masses (l. 85), _check_posterior_representation (l. 997)</div>
+  <p>Most photo-z codes, classifiers and per-object fits report posteriors computed with some prior $\pi$. With posterior masses $P_{ik}$ and interim masses $\Pi_k=\int_{B_k}\pi$,</p>
+  <div class="eq">$$P_{ik}\propto L_{ik}\,\Pi_k\quad\Longrightarrow\quad L_{ik}\propto P_{ik}/\Pi_k$$</div>
+  <p>(exact if $\pi$ is constant within bins, the same flat-within-bin assumption as everywhere else). <code>interim_prior</code> has no default on purpose: <code>"flat"</code> (uniform density in the bin coordinate), an array per bin, or a callable density integrated by sub-bin quadrature. Arrays are read in the same representation as the posteriors unless <code>interim_representation</code> says otherwise; the constructor warns when rows only integrate to one under the other representation.</p>
+
+  <div class="explorer" id="post-explorer">
+    <h3>Explore: what goes wrong without the division</h3>
+    <p class="note">3000 objects on 12 log-spaced bins, photo-z-like errors σ = 0.08(1+z). Their posteriors are computed under an interim prior, then turned back into likelihoods four ways and fitted (maximum likelihood). Curves are densities per unit ln z. Changes apply on release.</p>
+    <div class="controls">
+      <label for="q-int" style="grid-column:1/-1">interim prior used by the "photo-z code" <select id="q-int" class="sel"><option value="bump">peaked at z = 1.6</option><option value="flat">flat in z</option><option value="falling">falling, ∝ e^(−z)</option></select></label>
+      <label for="q-seed">mock seed <span class="val" id="q-seed-v"></span><input id="q-seed" type="range" min="1" max="20" step="1" value="1"></label>
+    </div>
+    <canvas id="q-main" height="230" aria-label="Population estimates from posteriors"></canvas>
+    <div class="legend"><span><i style="background:var(--ink)"></i>truth</span><span><i style="background:var(--accent)"></i>correct: P ÷ Π</span><span><i style="background:var(--warm)"></i>posteriors used as likelihoods</span><span><i style="background:var(--alt)"></i>interim density read as mass</span><span><i style="background:var(--good)"></i>posterior density read as mass</span></div>
+    <div class="stats" id="q-stats"></div>
+  </div>
+  <p class="note">Using posteriors as likelihoods counts the interim prior twice and drags the population toward it: with the peaked interim prior the fit lands 0.20 from the truth, against 0.065 for the correct conversion (which itself carries statistical noise and some binning bias). The two representation mix-ups leave a factor of the bin width in every likelihood row. Each object only feels how that factor changes across its own likelihood (×1.4 per bin here), so the damage is moderate in this example (0.077 and 0.109), and it grows with broader likelihoods or steeper changes in bin width.</p>
+  <p class="note">Audit: I-1 (major: <code>from_function(kind="posterior")</code> reads an array interim prior as densities while <code>from_distributions</code> reads it as masses), I-9 (representation check skipped for small-unit bins), I-13, I-17.</p>
+</section>
+
+<section id="c4">
+  <div class="sec-head"><span class="n">§4</span><h2>Posterior samples</h2></div>
+  <div class="files">likelihoods.py · from_samples (l. 518), _bin_samples (l. 1024)</div>
+  <div class="eq">$$L_{ik}\propto\frac{c_{ik}}{\Pi_k},\qquad c_{ik}=\sum_{s\in B_k}w_{is}\quad(\text{weighted count of object }i\text{'s samples in bin }k).$$</div>
+  <ul>
+    <li>Ragged sample lists and importance weights are supported; N-D grids take <code>(S, ndim)</code> samples.</li>
+    <li>Per object it records the effective sample size $(\sum w)^2/\sum w^2$ and the fraction of samples outside the bins.</li>
+    <li>Stored sparse when fewer than 30% of entries are non-zero (narrow posteriors on many bins).</li>
+    <li>Warns when the median effective sample size is below <code>min_samples</code> (20).</li>
+  </ul>
+
+  <div class="explorer" id="samp-explorer">
+    <h3>Explore: how many samples per object?</h3>
+    <p class="note">500 objects on 20 bins over [0, 3], Gaussian errors σ, flat interim prior. Each object provides S posterior samples. Left: one object's exact likelihood vs its histogram. The readout compares maximum-likelihood fits from exact and histogrammed likelihoods. Changes apply on release.</p>
+    <div class="controls">
+      <label for="h-s">samples per object S <span class="val" id="h-s-v"></span><input id="h-s" type="range" min="1" max="3.3" step="0.1" value="1.7"></label>
+      <label for="h-sig">measurement σ <span class="val" id="h-sig-v"></span><input id="h-sig" type="range" min="0.03" max="0.4" step="0.01" value="0.1"></label>
+      <label for="h-seed">mock seed <span class="val" id="h-seed-v"></span><input id="h-seed" type="range" min="1" max="20" step="1" value="1"></label>
+    </div>
+    <canvas id="h-one" height="150" aria-label="One object's likelihood"></canvas>
+    <div class="legend"><span><i style="background:var(--accent)"></i>exact likelihood</span><span><i style="background:var(--warm)"></i>histogram of S samples</span></div>
+    <canvas id="h-pop" height="190" aria-label="Population fits"></canvas>
+    <div class="legend"><span><i style="background:var(--ink)"></i>truth</span><span><i style="background:var(--accent)"></i>fit with exact likelihoods</span><span><i style="background:var(--warm)"></i>fit with histogrammed likelihoods</span></div>
+    <div class="stats" id="h-stats"></div>
+  </div>
+  <p class="note">The damage comes from empty bins: a bin with no samples gets likelihood exactly zero, so the object is declared impossible there. With narrow posteriors and few samples, many objects exclude their own true bin, and the fit becomes too narrow and too confident. Smoothing (add a small floor, a kernel per sample, or soft assignment to neighbouring bins with B-spline weights) fixes most of it; see §9.</p>
+  <p class="note">Audit: I-23 (no smoothing, and the warning looks only at the median effective sample size).</p>
+</section>
+
+<section id="c5">
+  <div class="sec-head"><span class="n">§5</span><h2>Functions and distributions</h2></div>
+  <div class="files">likelihoods.py · from_function (l. 753), from_distributions (l. 674), _subbin_points (l. 58)</div>
+  <p><code>from_function(func, bins)</code> evaluates a vectorised (log-)likelihood at Gauss–Legendre points inside every bin (<code>n_sub</code> per axis, tensor products on grids) and averages: $L_{ik}\approx\sum_jw_j\,p(d_i\mid z_{kj})$, in log space with <code>logsumexp</code> when <code>log=True</code>. This is the general route for correlated N-D errors, non-Gaussian likelihoods, or anything you can evaluate. <code>from_distributions</code> takes one SciPy-like object per object: exact CDF differences in 1-D when a <code>cdf</code> exists, otherwise the same quadrature on <code>logpdf</code>/<code>pdf</code>. Both accept <code>kind="posterior"</code> with an interim prior.</p>
+
+  <div class="explorer" id="quad-explorer">
+    <h3>Explore: quadrature error vs likelihood width</h3>
+    <p class="note">Worst relative error of the Gauss–Legendre bin average of a Gaussian likelihood (over measurement positions, bins holding at least 1% of the peak), against σ in units of the bin width h. Defaults: <code>from_function</code> uses 3 points per bin, <code>from_distributions</code> 5.</p>
+    <canvas id="r-main" height="220" aria-label="Quadrature error"></canvas>
+    <div class="legend"><span><i style="background:var(--muted)"></i>1 point</span><span><i style="background:var(--warm)"></i>3 points (from_function)</span><span><i style="background:var(--accent)"></i>5 points (from_distributions)</span><span><i style="background:var(--good)"></i>9 points</span></div>
+    <div class="stats" id="r-stats"></div>
+  </div>
+  <p class="note">A few fixed points per bin cannot resolve a likelihood much narrower than the bin. With 3 points (the <code>from_function</code> default) the worst entry is off by 5% at σ = h/4 and 70% at σ = h/10; 5 points are good to 0.04% at h/4 but fail in the same way at narrower widths. A fix is adaptive refinement (subdivide a bin until its average converges), or analytic forms where they exist.</p>
+  <p class="note">Audit: I-1 (major, see §3), I-2 (CDF path cancels in the upper tail: objects 7–8σ below the bins get empty rows), I-3 (pdf path exponentiates before averaging and underflows), I-4 (the 3-point default).</p>
+</section>
+
+<section id="c6">
+  <div class="sec-head"><span class="n">§6</span><h2>Unfolding: response matrices</h2></div>
+  <div class="files">likelihoods.py · from_response (l. 815)</div>
+  <p>In unfolding the data are counts $m_b$ in reconstructed bins and the detector is a response matrix. Every event observed in reco bin $b$ has the same likelihood row, so the data compress to one row per reco bin with weight $m_b$:</p>
+  <div class="eq">$$L_{bk}=R_{bk}=p(\text{reco }b,\ \text{observed}\mid\text{true }k),\qquad w_b=m_b .$$</div>
+  <ul>
+    <li><strong>Default convention:</strong> $R$ includes the efficiency, so its columns sum to $\epsilon_k\le1$; $\epsilon$ is attached as a selection function in <code>on_measurement</code> mode (the rows already contain it; only the normaliser is added).</li>
+    <li><strong>Migration-matrix convention:</strong> pass columns summing to one plus <code>efficiency=eps</code>; rows become $R_{bk}\epsilon_k$.</li>
+    <li>Columns summing to more than one raise (they cannot be probabilities); an explicit efficiency with non-normalised columns warns (efficiency counted twice). Reco bins with zero counts are dropped.</li>
+  </ul>
+  <p>This is exactly the D'Agostini/IBU setup; the maximum-likelihood fit is IBU's fixed point (§6 of step 2.1), with the KKT certificate and full posterior uncertainty on top.</p>
+</section>
+
+<section id="c7">
+  <div class="sec-head"><span class="n">§7</span><h2>Quantification: classifier outputs</h2></div>
+  <div class="files">likelihoods.py · from_classifier (l. 894)</div>
+  <p>A classifier trained with class prevalences $\pi^{\rm train}$ outputs $p_{ic}\propto L_{ic}\,\pi^{\rm train}_c$ if it is <em>calibrated</em>. Dividing by $\pi^{\rm train}$ recovers likelihoods, and inferring $\rho$ on a test set with different prevalences is the prior-shift problem (EMQ / Saerens et al. 2002 is the EM point estimate of this model). It reuses <code>from_posteriors</code> with categorical bins.</p>
+  <p class="note">The calibration assumption is doing all the work: a miscalibrated classifier gives miscalibrated prevalences. Worth a calibration check or a recalibration helper.</p>
+</section>
+
+<section id="c8">
+  <div class="sec-head"><span class="n">§8</span><h2>Utilities</h2></div>
+  <div class="files">likelihoods.py · compress (l. 380), subset, with_weights, with_selection, to_sparse, stack (l. 403)</div>
+  <ul>
+    <li><strong><code>compress()</code></strong> merges identical (normalised) rows into one row whose weight is the sum, keeping total absolute log-likelihoods exact (the stored log-scale is the weighted mean). Huge savings for binned photometry, discrete measurements and unfolding.</li>
+    <li><strong><code>subset</code> / indexing</strong> keep bins, weights, selection and per-object metadata aligned.</li>
+    <li><strong><code>to_sparse(rtol)</code></strong> drops entries below <code>rtol</code> × row maximum.</li>
+    <li><strong><code>stack(interim_prior)</code></strong>: the classic stacked estimate, one EM step from the interim prior (decision #11 will make it honour the stored interim prior and report its KKT gap).</li>
+  </ul>
+  <p class="note">Audit: I-5, I-6 (<code>stack</code> defaults and NaNs), I-7 (<code>compress</code> densifies sparse input: 27 s and 2.4 GB on 50k × 2000; keying sparse rows takes 0.06 s), I-19, I-21.</p>
+</section>
+
+<section id="c9">
+  <div class="sec-head"><span class="n">§9</span><h2>To discuss</h2></div>
+  <ul class="qs">
+    <li><span class="tag">§4</span><span><strong>Smoothing samples.</strong> Options: a floor on empty bins; a kernel density per object; soft assignment of each sample to neighbouring bins with B-spline weights (natural with #5); or fitting a parametric form per object. Default?</span></li>
+    <li><span class="tag">all</span><span><strong>Bin shapes beyond flat (#4/#5/#21).</strong> Each constructor must produce $L_{ik}=\int p(d_i\mid z)\varphi_k(z)\,dz$ for a general shape: analytic for Gaussians against linear B-splines; quadrature with shape weights for functions; soft assignment for samples; posteriors on a grid only reach the resolution they were tabulated at.</span></li>
+    <li><span class="tag">§2</span><span><strong>Correlated Gaussians (#2).</strong> Which of the three implementations, and should σ arrays of shape (N, ndim, ndim) be accepted directly by <code>from_gaussian</code>?</span></li>
+    <li><span class="tag">§5</span><span><strong>Adaptive quadrature</strong> instead of a fixed <code>n_sub</code>, with the same default everywhere.</span></li>
+    <li><span class="tag">all</span><span><strong>One constructor surface</strong> (audit I-18): the same keyword names, order and options (<code>kind</code>, <code>interim_prior</code>, <code>representation</code>, <code>n_sub</code>, <code>sparse</code>, <code>drop_empty</code>) on every <code>from_*</code>.</span></li>
+    <li><span class="tag">§7</span><span><strong>Classifier calibration</strong>: a check or a recalibration helper for <code>from_classifier</code>?</span></li>
+  </ul>
+</section>
+</main>
+</div>
+
+<script>
+(function () {
+  const root = document.documentElement, tok = (n) => getComputedStyle(root).getPropertyValue(n).trim();
+  function erf(x) { const s = Math.sign(x); x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x); return s * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x)); }
+  const Phi = (x) => 0.5 * (1 + erf(x / Math.SQRT2)), npdf = (x, m, s) => Math.exp(-0.5 * ((x - m) / s) ** 2) / (s * Math.sqrt(2 * Math.PI));
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const gaussOf = (rnd) => () => { let u = 0; while (u === 0) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); };
+  function setup(cv) { const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.getAttribute("height") * 1; cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.height = h + "px"; const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h); ctx.font = "11px " + tok("--font-mono"); return { ctx, w, h }; }
+  function axes(ctx, x0, y0, x1, y1, xt) { ctx.strokeStyle = tok("--rule"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, y1); ctx.lineTo(x1, y1); ctx.stroke(); ctx.fillStyle = tok("--muted"); ctx.textAlign = "center"; ctx.textBaseline = "top"; for (const [v, px] of xt) ctx.fillText(v, px, y1 + 4); }
+  // maximum likelihood by EM on a flat (N*K) row-major matrix
+  function mle(L, N, K, iters) {
+    const r = new Float64Array(K).fill(1 / K);
+    for (let t = 0; t < iters; t++) {
+      const g = new Float64Array(K);
+      for (let i = 0; i < N; i++) { let s = 0; for (let k = 0; k < K; k++) s += L[i * K + k] * r[k]; if (s <= 0) continue; for (let k = 0; k < K; k++) g[k] += L[i * K + k] / s; }
+      let tot = 0; for (let k = 0; k < K; k++) { r[k] *= g[k]; tot += r[k]; } for (let k = 0; k < K; k++) r[k] /= tot;
+    }
+    return Array.from(r);
+  }
+  const tv = (a, b) => 0.5 * a.reduce((s, v, k) => s + Math.abs(v - b[k]), 0);
+  function steps(ctx, X, Y, edges, vals, per, col, lw, dash) { ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.setLineDash(dash || []); vals.forEach((m, k) => { ctx.beginPath(); ctx.moveTo(X(edges[k]), Y(m / per(k))); ctx.lineTo(X(edges[k + 1]), Y(m / per(k))); ctx.stroke(); }); ctx.setLineDash([]); }
+
+  // ---------- §3 posteriors explorer
+  const QK = 12, QE = Array.from({ length: QK + 1 }, (_, k) => 0.05 * Math.pow(60, k / QK)), QV = QE.slice(0, QK).map((a, k) => QE[k + 1] - a);
+  const QPOP = (z) => Math.exp(-0.5 * (Math.log(z / 0.7) / 0.45) ** 2) / z + 0.6 * Math.exp(-0.5 * (Math.log(z / 1.9) / 0.15) ** 2) / z;   // densities in z
+  const QINT = { bump: (z) => Math.exp(-0.5 * ((z - 1.6) / 0.4) ** 2), flat: () => 1, falling: (z) => Math.exp(-z) };
+  function binMass(f, a, b) { let s = 0; const m = 60, h = (b - a) / m; for (let j = 0; j <= m; j++) s += f(a + j * h) * ((j === 0 || j === m) ? 1 : (j % 2 ? 4 : 2)); return s * h / 3; }
+  const QTRUE = (() => { const m = QE.slice(0, QK).map((a, k) => binMass(QPOP, a, QE[k + 1])); const t = m.reduce((a, b) => a + b, 0); return m.map(v => v / t); })();
+  const QS = { key: "", res: null };
+  function qCompute(intName, seed) {
+    const rnd = mulberry32(seed * 3571 + 11), gauss = gaussOf(rnd), N = 3000;
+    const fint = QINT[intName], Pi = QE.slice(0, QK).map((a, k) => binMass(fint, a, QE[k + 1])), pit = Pi.reduce((a, b) => a + b, 0); for (let k = 0; k < QK; k++) Pi[k] /= pit;
+    const piDens = Pi.map((p, k) => p / QV[k]);
+    const Lc = new Float64Array(N * QK), Lb = new Float64Array(N * QK), Ld = new Float64Array(N * QK), Le = new Float64Array(N * QK);
+    for (let i = 0; i < N; i++) {
+      // draw z exactly from the population: a mixture of two log-normals (weights ∝ 0.45 and 0.6 × 0.15), truncated to the bins
+      let z; do { z = rnd() < 0.45 / 0.54 ? Math.exp(Math.log(0.7) + 0.45 * gauss()) : Math.exp(Math.log(1.9) + 0.15 * gauss()); } while (z < QE[0] || z > QE[QK]);
+      const sig = 0.08 * (1 + z), d = z + sig * gauss();
+      const Ltrue = QE.slice(0, QK).map((a, k) => (Phi((QE[k + 1] - d) / sig) - Phi((a - d) / sig)) / QV[k]);
+      const Pm = Ltrue.map((l, k) => l * QV[k] * Pi[k] / QV[k]);   // posterior mass ∝ L_k · Π_k
+      for (let k = 0; k < QK; k++) {
+        Lc[i * QK + k] = Pm[k] / Pi[k];                  // correct
+        Lb[i * QK + k] = Pm[k];                          // posteriors used as likelihoods
+        Ld[i * QK + k] = Pm[k] / piDens[k];              // interim density read as mass (volume factor left behind)
+        Le[i * QK + k] = Pm[k] / QV[k] / Pi[k];          // posterior density read as mass
+      }
+    }
+    return { Pi, fits: [mle(Lc, N, QK, 600), mle(Lb, N, QK, 600), mle(Ld, N, QK, 600), mle(Le, N, QK, 600)] };
+  }
+  function qDraw() {
+    const intName = document.getElementById("q-int").value, seed = +document.getElementById("q-seed").value;
+    document.getElementById("q-seed-v").textContent = seed;
+    const key = intName + ":" + seed; if (key !== QS.key) { QS.res = qCompute(intName, seed); QS.key = key; }
+    const { fits } = QS.res, { ctx, w, h } = setup(document.getElementById("q-main"));
+    const L0 = 36, R0 = w - 10, T0 = 10, B0 = h - 22, lz = (z) => Math.log(z), X = (z) => L0 + (R0 - L0) * (lz(z) - lz(QE[0])) / (lz(QE[QK]) - lz(QE[0]));
+    const per = (k) => Math.log(QE[k + 1] / QE[k]);
+    const all = [QTRUE, ...fits].flatMap(a => a.map((m, k) => m / per(k))), ym = Math.min(Math.max(...all), 4 * Math.max(...QTRUE.map((m, k) => m / per(k)))) * 1.08;
+    const Y = (q) => B0 - (B0 - T0) * Math.min(q, ym) / ym;
+    axes(ctx, L0, T0, R0, B0, [0.05, 0.1, 0.3, 1, 3].map(t => [t, X(t)]));
+    ctx.fillStyle = tok("--muted"); ctx.textAlign = "left"; ctx.textBaseline = "top"; ctx.fillText("per unit ln z", L0 + 4, T0);
+    steps(ctx, X, Y, QE, QTRUE, per, tok("--ink"), 1.5, [4, 3]);
+    [["--warm", 1], ["--alt", 2], ["--good", 3], ["--accent", 0]].forEach(([c, j]) => steps(ctx, X, Y, QE, fits[j], per, tok(c), j === 0 ? 2.6 : 1.8));
+    document.getElementById("q-stats").innerHTML = `<span>distance to truth (total variation): correct <b>${tv(fits[0], QTRUE).toFixed(3)}</b>, posteriors as likelihoods <b>${tv(fits[1], QTRUE).toFixed(3)}</b>, interim density as mass <b>${tv(fits[2], QTRUE).toFixed(3)}</b>, posterior density as mass <b>${tv(fits[3], QTRUE).toFixed(3)}</b></span>`;
+  }
+  document.getElementById("q-int").addEventListener("change", qDraw);
+  (() => { const el = document.getElementById("q-seed"); el.addEventListener("input", () => { document.getElementById("q-seed-v").textContent = el.value; }); el.addEventListener("change", qDraw); })();
+
+  // ---------- §4 samples explorer
+  const HK = 20, HE = Array.from({ length: HK + 1 }, (_, k) => 0.15 * k), HS = { key: "", res: null };
+  const HPOP = [[0.55, 0.9, 0.3], [0.45, 2.1, 0.35]];
+  const HTRUE = (() => { const m = HE.slice(0, HK).map((a, k) => HPOP.reduce((s, [w, mu, sd]) => s + w * (Phi((HE[k + 1] - mu) / sd) - Phi((a - mu) / sd)), 0)); const t = m.reduce((a, b) => a + b, 0); return m.map(v => v / t); })();
+  function hCompute(S, sig, seed) {
+    const rnd = mulberry32(seed * 911 + 7), gauss = gaussOf(rnd), N = 500;
+    const Le = new Float64Array(N * HK), Lh = new Float64Array(N * HK); let excluded = 0, one = null;
+    for (let i = 0; i < N; i++) {
+      let z; do { const c = rnd() < HPOP[0][0] ? HPOP[0] : HPOP[1]; z = c[1] + c[2] * gauss(); } while (z < 0 || z > 3);
+      const d = z + sig * gauss(), kt = Math.min(HK - 1, Math.floor(z / 0.15));
+      for (let k = 0; k < HK; k++) Le[i * HK + k] = Phi((HE[k + 1] - d) / sig) - Phi((HE[k] - d) / sig);
+      // posterior under a flat interim prior on [0, 3] = truncated Gaussian around d; sample it by rejection
+      for (let s = 0; s < S; s++) { let x; do { x = d + sig * gauss(); } while (x < 0 || x >= 3); Lh[i * HK + Math.floor(x / 0.15)] += 1; }
+      if (Lh[i * HK + kt] === 0) excluded++;
+      if (i === 0) one = { d, ex: Array.from(Le.slice(0, HK)), hi: Array.from(Lh.slice(0, HK)) };
+    }
+    return { one, fe: mle(Le, N, HK, 500), fh: mle(Lh, N, HK, 500), excluded: excluded / N };
+  }
+  function hDraw() {
+    const S = Math.round(Math.pow(10, +document.getElementById("h-s").value)), sig = +document.getElementById("h-sig").value, seed = +document.getElementById("h-seed").value;
+    document.getElementById("h-s-v").textContent = S; document.getElementById("h-sig-v").textContent = sig.toFixed(2); document.getElementById("h-seed-v").textContent = seed;
+    const key = [S, sig, seed].join(":"); if (key !== HS.key) { HS.res = hCompute(S, sig, seed); HS.key = key; }
+    const R = HS.res, X0 = (ctxw) => (z) => 36 + (ctxw - 46) * z / 3;
+    let { ctx, w, h } = setup(document.getElementById("h-one")); let X = X0(w);
+    const mx = Math.max(...R.one.ex), mh = Math.max(...R.one.hi) || 1, B = h - 22, T = 8, Y = (q) => B - (B - T) * q;
+    axes(ctx, 36, T, w - 10, B, [0, 0.5, 1, 1.5, 2, 2.5, 3].map(t => [t, X(t)]));
+    const sstep = (arr, norm, col, lw) => { ctx.strokeStyle = col; ctx.lineWidth = lw; arr.forEach((v, k) => { ctx.beginPath(); ctx.moveTo(X(HE[k]), Y(v / norm)); ctx.lineTo(X(HE[k + 1]), Y(v / norm)); ctx.stroke(); }); };
+    sstep(R.one.ex, mx, tok("--accent"), 2.4); sstep(R.one.hi, mh, tok("--warm"), 1.8);
+    ({ ctx, w, h } = setup(document.getElementById("h-pop"))); X = X0(w);
+    const per = () => 0.15, all = [HTRUE, R.fe, R.fh].flatMap(a => a.map(m => m / 0.15)), ym = Math.max(...all) * 1.08, B2 = h - 22, Y2 = (q) => B2 - (B2 - 10) * q / ym;
+    axes(ctx, 36, 10, w - 10, B2, [0, 0.5, 1, 1.5, 2, 2.5, 3].map(t => [t, X(t)]));
+    steps(ctx, X, Y2, HE, HTRUE, per, tok("--ink"), 1.5, [4, 3]); steps(ctx, X, Y2, HE, R.fe, per, tok("--accent"), 2.4); steps(ctx, X, Y2, HE, R.fh, per, tok("--warm"), 1.8);
+    document.getElementById("h-stats").innerHTML =
+      `<span>objects whose true bin received no samples (declared impossible there): <b>${(100 * R.excluded).toFixed(1)}%</b></span>` +
+      `<span>shift caused by histogramming (distance between the two fits): <b>${tv(R.fh, R.fe).toFixed(3)}</b></span>` +
+      `<span>for scale, the exact fit's own distance to the truth (statistical noise of 500 objects): ${tv(R.fe, HTRUE).toFixed(3)}</span>`;
+  }
+  [["h-s", (v) => Math.round(Math.pow(10, +v))], ["h-sig", (v) => (+v).toFixed(2)], ["h-seed", (v) => v]].forEach(([id, f]) => { const el = document.getElementById(id); el.addEventListener("input", () => { document.getElementById(id + "-v").textContent = f(el.value); }); el.addEventListener("change", hDraw); });
+
+  // ---------- §5 quadrature explorer (static)
+  function gaussLegendre(n) {      // nodes on [0, 1] and weights summing to one
+    const x = [], w = [];
+    for (let i = 1; i <= n; i++) {
+      let t = Math.cos(Math.PI * (i - 0.25) / (n + 0.5)), dp = 0;
+      for (let it = 0; it < 100; it++) { let p0 = 1, p1 = t; for (let k = 2; k <= n; k++) { const p2 = ((2 * k - 1) * t * p1 - (k - 1) * p0) / k; p0 = p1; p1 = p2; } const pn = n === 1 ? t : p1, pm = n === 1 ? 1 : p0; dp = n * (t * pn - pm) / (t * t - 1); const dt = pn / dp; t -= dt; if (Math.abs(dt) < 1e-15) break; }
+      x.push(0.5 * (t + 1)); w.push(1 / ((1 - t * t) * dp * dp));
+    }
+    return { x, w };
+  }
+  const REF = gaussLegendre(20);   // reference: 32 panels x 20 points per bin
+  const RQ = (() => {
+    const ratios = Array.from({ length: 60 }, (_, j) => Math.pow(10, -1.3 + 2.0 * j / 59)), out = {};
+    for (const n of [1, 3, 5, 9]) {
+      const g = n === 1 ? { x: [0.5], w: [1] } : gaussLegendre(n);
+      out[n] = ratios.map(sr => {
+        let worst = 0;
+        for (let off = 0; off <= 0.5; off += 0.02) {           // measurement position within bin 0 (bin width 1)
+          const d = off, vals = [];
+          for (let k = -6; k <= 6; k++) { let ex = 0; for (let p = 0; p < 32; p++) REF.x.forEach((u, j) => { ex += REF.w[j] / 32 * npdf(k + (p + u) / 32, d, sr); }); let ap = 0; g.x.forEach((u, j) => { ap += g.w[j] * npdf(k + u, d, sr); }); vals.push([ex, ap]); }
+          const mx = Math.max(...vals.map(v => v[0]));
+          vals.forEach(([ex, ap]) => { if (ex > 0.01 * mx) worst = Math.max(worst, Math.abs(ap - ex) / ex); });
+        }
+        return [sr, worst];
+      });
+    }
+    return out;
+  })();
+  function rDraw() {
+    const { ctx, w, h } = setup(document.getElementById("r-main"));
+    const L0 = 40, R0 = w - 10, T0 = 10, B0 = h - 22, lx = (v) => Math.log10(v), X = (v) => L0 + (R0 - L0) * (lx(v) + 1.3) / 2.0, Y = (e) => B0 - (B0 - T0) * (Math.max(-6, Math.log10(Math.max(e, 1e-6))) + 6) / 7;
+    axes(ctx, L0, T0, R0, B0, [[0.05, X(0.05)], [0.1, X(0.1)], [0.3, X(0.3)], [1, X(1)], [3, X(3)]]);
+    ctx.fillStyle = tok("--muted"); ctx.textAlign = "right"; ctx.textBaseline = "middle"; [[1, "100%"], [0.01, "1%"], [1e-4, "0.01%"], [1e-6, "≤1e-6"]].forEach(([e, t]) => ctx.fillText(t, L0 - 4, Y(e)));
+    ctx.textAlign = "right"; ctx.textBaseline = "bottom"; ctx.fillText("σ / bin width", R0, B0 - 2);
+    [[1, "--muted"], [3, "--warm"], [5, "--accent"], [9, "--good"]].forEach(([n, c]) => { ctx.strokeStyle = tok(c); ctx.lineWidth = 2; ctx.beginPath(); RQ[n].forEach(([sr, e], i) => i ? ctx.lineTo(X(sr), Y(e)) : ctx.moveTo(X(sr), Y(e))); ctx.stroke(); });
+    const at = (n, s) => RQ[n].reduce((best, p) => Math.abs(Math.log(p[0] / s)) < Math.abs(Math.log(best[0] / s)) ? p : best)[1];
+    const pc = (e) => (100 * e).toPrecision(2) + "%";
+    document.getElementById("r-stats").innerHTML = `<span>at σ = h/4: 3 points <b>${pc(at(3, 0.25))}</b>, 5 points <b>${pc(at(5, 0.25))}</b>, 9 points <b>${pc(at(9, 0.25))}</b></span><span>at σ = h/10: 3 points <b>${pc(at(3, 0.1))}</b>, 5 points <b>${pc(at(5, 0.1))}</b></span><span>at σ = h: 3 points <b>${pc(at(3, 1))}</b>, 5 points <b>${pc(at(5, 1))}</b></span>`;
+  }
+
+  function drawAll() { qDraw(); hDraw(); rDraw(); }
+  let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(drawAll, 120); });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawAll);
+  new MutationObserver(drawAll).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawAll);
+  drawAll();
+})();
+</script>

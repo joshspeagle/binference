@@ -1,0 +1,16 @@
+data prior                    engine    time  minESS   ESS/s depth-capped
+1-D  Dirichlet(1)             nuts    28.3s    1879    66.5         0.00
+1-D  Dirichlet(1)             gibbs    2.8s     167    58.6          nan
+1-D  Dirichlet(0.3)           nuts    68.9s     559     8.1         0.00
+1-D  Dirichlet(0.3)           gibbs    4.9s      62    12.6          nan
+1-D  Dirichlet(1/K)           nuts   633.2s     311     0.5         0.03
+1-D  Dirichlet(1/K)           gibbs    4.7s      14     3.0          nan
+1-D  GeneralizedDirichlet(1)  nuts    31.3s    1639    52.4         0.00
+1-D  GeneralizedDirichlet(1)  gibbs    9.0s     211    23.5          nan
+1-D  PolyaTree(c=1)           nuts    24.2s    2130    88.2         0.00
+1-D  PolyaTree(c=1)           gibbs    9.2s     764    83.2          nan
+1-D  PolyaTree(c=0.1)         nuts    34.1s     732    21.5         0.00
+1-D  PolyaTree(c=0.1)         gibbs   11.4s     324    28.4          nan
+2-D  Dirichlet(1)             nuts    44.1s    1505    34.1         0.00
+2-D  Dirichlet(1)             gibbs    8.3s     297    35.8          nan
+2-D  Dirichlet(1/K)           nuts   > ~25 min: killed by the 30-min run limit before finishing (Gibbs row not reached)

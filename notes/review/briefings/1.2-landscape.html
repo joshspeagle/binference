@@ -1,0 +1,291 @@
+<title>Pastry Landscape</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Literata:opsz,wght@7..72,500;7..72,600&display=swap">
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [["$", "$"], ["\\(", "\\)"]], displayMath: [["$$", "$$"]] },
+    svg: { fontCache: "global" },
+    options: { skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"] }
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
+<style>
+/* Layout: sticky section index on the left, a single reading column on the right; explorers break out to full column width. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #18202b;
+  --muted: #5a6573;
+  --rule: #d9dee5;
+  --accent: #1f5fa8;      /* ink blue: the model, exact quantities */
+  --warm: #b4691f;        /* amber: approximations, the flat-within-bin assumption */
+  --good: #2e7d4f;
+  --alt: #8a3b8f;         /* purple: ignoring selection */
+  --code-bg: #eef1f5;
+  --font-display: "Literata", Georgia, serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
+    --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
+  --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body);
+  font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+.page { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 40px; }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-top: 40px; font-size: 13.5px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+nav.toc a { color: var(--muted); text-decoration: none; display: flex; gap: 8px; padding: 4px 8px; border-radius: 4px; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink); background: var(--code-bg); outline: none; }
+nav.toc .n { font-family: var(--font-mono); width: 1.6em; color: var(--muted); }
+nav.toc .now { color: var(--accent); font-weight: 600; }
+nav.toc .done::after { content: "discussed"; margin-left: auto; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--good); }
+main { min-width: 0; padding-top: 40px; }
+header.top { border-bottom: 1px solid var(--rule); padding-bottom: 24px; margin-bottom: 8px; }
+.eyebrow { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 2.3rem; line-height: 1.15; margin: 6px 0 12px; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.55rem; margin: 0 0 8px; text-wrap: balance; }
+h3 { font-size: 1rem; font-weight: 600; margin: 22px 0 6px; }
+.lede { max-width: 66ch; color: var(--muted); margin: 0; }
+section { padding: 36px 0 8px; border-bottom: 1px solid var(--rule); }
+section > p, section > ul, section > ol { max-width: 68ch; }
+.sec-head { display: flex; align-items: baseline; gap: 12px; }
+.sec-head .n { font-family: var(--font-mono); color: var(--muted); font-size: 14px; }
+.files { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+.eq { overflow-x: auto; padding: 4px 0; }
+.callout { border: 1px solid var(--rule); background: var(--surface); padding: 14px 18px; border-radius: 6px; max-width: 68ch; }
+.callout.approx { border-color: var(--warm); }
+.callout.approx strong { color: var(--warm); }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+details.code { margin: 14px 0; max-width: 820px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+details.code summary { cursor: pointer; padding: 8px 14px; font-size: 13.5px; color: var(--muted); }
+details.code summary b { font-family: var(--font-mono); font-weight: 500; color: var(--ink); }
+details.code pre { margin: 0; padding: 12px 14px; overflow-x: auto; background: var(--code-bg); border-top: 1px solid var(--rule); font-family: var(--font-mono); font-size: 12.8px; line-height: 1.5; border-radius: 0 0 6px 6px; }
+.cm { color: var(--muted); }
+.explorer { margin: 22px 0 10px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 18px; }
+.explorer h3 { margin-top: 0; font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px 20px; margin: 10px 0 14px; }
+.controls label { display: grid; gap: 2px; font-size: 13px; color: var(--muted); }
+.controls .val { font-family: var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+canvas { width: 100%; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+.legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+.stats { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 12px; font-size: 13.5px; }
+.stats b { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+.note { font-size: 13.5px; color: var(--muted); max-width: 70ch; }
+table.tbl { border-collapse: collapse; font-size: 13.5px; margin: 10px 0; }
+.tblwrap { overflow-x: auto; }
+table.tbl th, table.tbl td { padding: 6px 12px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+table.tbl th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+pre.mermaid { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 12px; overflow-x: auto; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 10px; }
+.pair figure { margin: 0; min-width: 0; } .pair figcaption { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 4px; }
+.qs { list-style: none; padding: 0; display: grid; gap: 10px; max-width: 72ch; }
+.qs li { display: grid; grid-template-columns: auto 1fr; gap: 12px; border: 1px solid var(--rule); background: var(--surface); padding: 10px 14px; border-radius: 6px; }
+.qs .tag { font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding-top: 2px; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; max-width: 100%; padding: 2px 0; }
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 12px 0; max-width: 820px; }
+.mode { border: 1px solid var(--rule); background: var(--surface); border-radius: 6px; padding: 12px 14px; min-width: 0; }
+.mode h4 { margin: 0 0 6px; font-size: 14px; } .mode h4 code { font-size: 13px; }
+.mode dl { margin: 0; display: grid; gap: 6px; font-size: 14px; } .mode dt { color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; } .mode dd { margin: 0; min-width: 0; }
+input[type=range] { height: 28px; }
+@media (max-width: 860px) {
+  .page { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--rule); margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  nav.toc .eyebrow { display: none; }
+  nav.toc ol { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  nav.toc ol::-webkit-scrollbar { display: none; }
+  nav.toc a { white-space: nowrap; border: 1px solid var(--rule); border-radius: 999px; padding: 6px 12px; }
+  nav.toc .done::after { content: "✓"; letter-spacing: 0; margin-left: 2px; font-size: 12px; }
+  main { padding-top: 20px; }
+  h1 { font-size: 1.7rem; } h2 { font-size: 1.3rem; }
+  section { padding-top: 28px; scroll-margin-top: 64px; }
+  .explorer { padding: 14px 12px; margin-left: -4px; margin-right: -4px; }
+  .sec-head { flex-wrap: wrap; gap: 4px 10px; }
+}
+section { scroll-margin-top: 16px; }
+.sel { font: inherit; width: 100%; padding: 6px; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); color: var(--ink); }
+</style>
+<style>
+.chip { display: inline-block; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; margin-left: 6px; vertical-align: 2px; white-space: nowrap; }
+.chip.holds { color: var(--good); } .chip.revise { color: var(--warm); } .chip.new { color: var(--accent); } .chip.drift { color: var(--alt); }
+details.pr { border: 1px solid var(--rule); background: var(--surface); border-radius: 6px; margin: 10px 0; max-width: 72ch; }
+details.pr summary { cursor: pointer; padding: 10px 14px; font-weight: 600; list-style: none; }
+details.pr summary::-webkit-details-marker { display: none; }
+details.pr summary::before { content: "▸"; color: var(--muted); margin-right: 8px; display: inline-block; transition: transform .15s; }
+details.pr[open] summary::before { transform: rotate(90deg); }
+details.pr .body { padding: 0 14px 12px; font-size: 15px; }
+details.pr .body p { margin: 6px 0; }
+.filt { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.filt button { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); cursor: pointer; }
+.filt button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+</style>
+
+<div class="page">
+<nav class="toc" aria-label="Sections">
+  <div class="eyebrow" style="padding:0 8px 8px">Step 1.2</div>
+  <ol>
+    <li><a href="#l1"><span class="n">1</span>One model</a></li>
+    <li><a href="#l2"><span class="n">2</span>Fields</a></li>
+    <li><a href="#l3"><span class="n">3</span>Error bars</a></li>
+    <li><a href="#l4"><span class="n">4</span>Scorecard</a></li>
+    <li><a href="#l5"><span class="n">5</span>Not yet discussed</a></li>
+    <li><a href="#l6"><span class="n">6</span>frankenz</a></li>
+    <li><a href="#l7"><span class="n">7</span>To decide</a></li>
+  </ol>
+</nav>
+<main>
+<header class="top">
+  <div class="eyebrow">pastry walkthrough · Phase 1 · level L1–L2</div>
+  <h1>The landscape, revisited</h1>
+  <p class="lede">The survey behind pastry (<code>reports/Population inference software landscape.md</code>, 22 Oct 2026): what each field already has, what pastry must match or beat, which recommendations the code follows, and which ones we haven't discussed yet.</p>
+</header>
+
+<section id="l1">
+  <div class="sec-head"><span class="n">§1</span><h2>One model, at least ten names</h2></div>
+  <p>Every tool in the survey maximises or samples the same likelihood, $\prod_i \sum_k L_{ik}\rho_k$. The survey's headline: <em>reinvented everywhere, packaged nowhere</em>. Maintained tools are domain-locked, point-estimate-only, or in R/Julia; the ones with honest uncertainty are paper code.</p>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>Field</th><th>Point estimate is called</th><th>Posterior over ρ</th></tr>
+    <tr><td>astronomy (n(z), CMDs, occurrence)</td><td>stacking (one EM step); EM</td><td>Dirichlet Gibbs; mean-field VB (RAIL)</td></tr>
+    <tr><td>gravitational waves</td><td>maximum hyper-likelihood</td><td>NUTS over binned log-rates</td></tr>
+    <tr><td>particle physics</td><td>IBU / D'Agostini / Richardson–Lucy</td><td>Fully Bayesian Unfolding</td></tr>
+    <tr><td>statistics (empirical Bayes)</td><td>NPMLE (Kiefer–Wolfowitz)</td><td>mean-field VB (ashr)</td></tr>
+    <tr><td>machine learning</td><td>EMQ / SLD / MLLS</td><td>BayesianMAPLS (NUTS)</td></tr>
+    <tr><td>genetics, genomics</td><td>conditional ML (SPAM, ONCOR); EM (salmon)</td><td>BAYES, rubias, SourceTracker Gibbs</td></tr>
+  </table></div>
+  <p>The teaching device we already use (2.1 §6) comes from here: stacking is one EM step, IBU with early stopping is truncated EM, and pastry runs the iteration to convergence with uncertainty.</p>
+</section>
+
+<section id="l2">
+  <div class="sec-head"><span class="n">§2</span><h2>Field by field: what to match or beat</h2></div>
+  <p>Tap a field. "Bar" is the existing tool pastry has to be better than for that community to switch.</p>
+  <details class="pr"><summary>Photo-z n(z) <span class="chip revise">replace</span></summary><div class="body">
+    <p><strong>Bar:</strong> RAIL's <code>VarInfStackSummarizer</code>, the only maintained general tool: mean-field VB, flat Dir(1), PDFs evaluated at grid points rather than integrated, no interim-prior correction. HSC Y3 puts its under-coverage at about 20%. Exact samplers (Leistedt's Gibbs, CHIPPR, frankenz) are stale.</p>
+    <p><strong>To win:</strong> exact posterior, interim prior divided out, a RAIL plug-in and <code>qp</code> / CosmoSIS / nz_prior exports. A 2026 KiDS analysis still subsampled to 10⁵ galaxies because the Gibbs sampler was "too slow": speed matters here.</p></div></details>
+  <details class="pr"><summary>Stellar populations, CMDs, Hess diagrams <span class="chip new">engineering bar</span></summary><div class="body">
+    <p><strong>Bar:</strong> extreme deconvolution (Gaussian noise, maximum likelihood, no uncertainty) in practice; StarFormationHistories.jl (Julia) as the engineering exemplar: Poisson template fits, MAP + Hessian, HMC, CI and coverage reports.</p>
+    <p><strong>To win:</strong> Leistedt &amp; Hogg's 1.4 M-star TGAS run is the scale benchmark; correlated Gaussians (#25) and masked 2-D grids (#19) are table stakes.</p></div></details>
+  <details class="pr"><summary>Occurrence rates <span class="chip holds">package it</span></summary><div class="body">
+    <p><strong>Bar:</strong> paper code only. Foreman-Mackey, Hogg &amp; Morton (2014) had the full extension set: completeness, interim-prior weights, GP smoothness, Poisson rates.</p>
+    <p><strong>To win:</strong> exactly that, packaged and tested; completeness from injections (#10, #30); rates per draw (#9).</p></div></details>
+  <details class="pr"><summary>Gravitational waves <span class="chip revise">high bar</span></summary><div class="body">
+    <p><strong>Bar:</strong> the best-engineered neighbour. gwpopulation (Monte Carlo variance accounting, injections, NumPy/CuPy/JAX); PixelPop and gppop run NUTS over 10⁴–8×10⁴ smooth bins on GPUs.</p>
+    <p><strong>To win:</strong> pastry won't replace GW tools, but should match their Monte Carlo accounting (our #31 check is their variance cut) and say plainly that likelihoods supplied on the bins carry no Monte Carlo noise at all. Their bin counts are the scale target for smooth priors, which needs the JAX backend.</p></div></details>
+  <details class="pr"><summary>Particle-physics unfolding <span class="chip holds">vacant niche</span></summary><div class="body">
+    <p><strong>Bar:</strong> RooUnfold (C++/ROOT); PyUnfold frozen since 2018; PyFBU, the one Bayesian package, dead with Theano. No HEP tool takes a per-event likelihood matrix.</p>
+    <p><strong>To win:</strong> fully Bayesian unfolding with response uncertainty inferred jointly (#27, #28), fine bins with coarse functionals (Kuusela). The survey cites a warning that estimated responses "can inadvertently regularize the problem", which #28 addresses.</p></div></details>
+  <details class="pr"><summary>Empirical Bayes (statistics) <span class="chip new">references</span></summary><div class="body">
+    <p><strong>Bar:</strong> mixsqp, REBayes (needs MOSEK), ashr, deconvolveR in R; Empirikos.jl in Julia, the only frequentist intervals for functionals of g. Python has two alphas.</p>
+    <p><strong>To win:</strong> a Python home with uncertainty. Their solvers and bundled datasets are golden values for our tests, which we don't use yet.</p></div></details>
+  <details class="pr"><summary>Quantification (machine learning) <span class="chip revise">API to learn from</span></summary><div class="body">
+    <p><strong>Bar:</strong> QuaPy: EMQ, BayesianMAPLS with NUTS, <code>(estimate, region)</code> pairs, and likelihood tempering tuned on validation coverage. Inputs are features + an sklearn classifier, not likelihoods.</p>
+    <p><strong>To win:</strong> route C with the response inferred (#29), the label-shift test, selection. BayesianCC (Ziegler &amp; Czyż) already learns a confusion matrix jointly with the prevalences: prior art for route B under #28.</p></div></details>
+  <details class="pr"><summary>Genetics and genomics <span class="chip holds">vacant in Python</span></summary><div class="body">
+    <p><strong>Bar:</strong> rubias (archived from CRAN, Feb 2026), SourceTracker2 (unreleased since 2016), salmon/kallisto (equivalence classes = our <code>compress()</code>).</p>
+    <p><strong>To win:</strong> baseline-sample uncertainty is the same machinery as #28; rubias's "reporting-unit bias" is the Dirichlet-on-unequal-groups issue we parked for 3.1.</p></div></details>
+  <details class="pr"><summary>Neural deconvolution <span class="chip drift">later</span></summary><div class="body">
+    <p>Single-paper code, no calibrated uncertainty. On gridded inputs a flexible density needs no IWAE machinery and keeps exact uncertainty, so flows belong to sample-only, multi-dimensional problems, later.</p></div></details>
+</section>
+
+<section id="l3">
+  <div class="sec-head"><span class="n">§3</span><h2>Six ways error bars fail, and pastry's answer</h2></div>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>Failure</th><th>Evidence</th><th>pastry</th></tr>
+    <tr><td>Approximate inference narrows intervals</td><td>RAIL VB ~20% under-coverage; NPMLE and bootstrap intervals too narrow</td><td>exact by default; approximations flagged <span class="chip holds">done</span></td></tr>
+    <tr><td>Regularisation bias breaks coverage</td><td>Kuusela &amp; Panaretos (unfolding); coarse bins regularise</td><td>fine internal resolution, coarse functionals per draw (#4, #20) <span class="chip revise">planned</span></td></tr>
+    <tr><td>A single Dirichlet sees only shot noise</td><td>sample variance up to 10× shot noise in redshift calibration (Sánchez et al.)</td><td>overdispersion layer <span class="chip drift">roadmap; not discussed</span></td></tr>
+    <tr><td>Wrong inputs propagate silently</td><td>interim priors "disastrous" (CHIPPR); miscalibrated classifiers</td><td>required interim; #24–#32 <span class="chip revise">strengthened</span></td></tr>
+    <tr><td>Sample-based likelihoods add Monte Carlo error</td><td>LVK cut: log-likelihood variance &gt; 1</td><td>#31 check <span class="chip revise">planned</span></td></tr>
+    <tr><td>Mixing and numerics at scale</td><td>Gibbs slows with missing information</td><td>NUTS default, missing-information estimate, adaptive routing (#14) <span class="chip revise">partly</span></td></tr>
+  </table></div>
+  <div class="callout approx"><strong>The survey's conclusion we haven't acted on.</strong> At large N, counting noise becomes negligible next to sample variance, miscalibrated per-object PDFs, implicit interim priors and selection. "pastry's competitive edge is the ability to express and test those systematics… rather than raw sampler speed." We've covered interim priors and selection; overdispersion and PDF calibration are still open (§5).</div>
+</section>
+
+<section id="l4">
+  <div class="sec-head"><span class="n">§4</span><h2>Scorecard: the survey's recommendations</h2></div>
+  <div class="filt" role="group" aria-label="Filter recommendations">
+    <button data-f="all" aria-pressed="true">all</button><button data-f="done" aria-pressed="false">done</button><button data-f="changed" aria-pressed="false">changed by us</button><button data-f="missing" aria-pressed="false">not done</button>
+  </div>
+  <div class="tblwrap"><table class="tbl" id="score">
+    <tr><th>Recommendation</th><th>Status</th></tr>
+    <tr data-s="done"><td>Canonical input: (log-)likelihood matrix, dense or sparse, with weights</td><td><span class="chip holds">done</span></td></tr>
+    <tr data-s="done"><td>Interim prior mandatory for posteriors</td><td><span class="chip holds">done</span> (strengthened, #24–#26)</td></tr>
+    <tr data-s="changed"><td>Ragged samples + interim prior; per-object ESS and support checks</td><td><span class="chip revise">changed</span> pointwise π, log-likelihood variance check (#31)</td></tr>
+    <tr data-s="changed"><td>Selection declared; fraction and rate forms</td><td><span class="chip revise">changed</span> on_truth/on_measurement, combined (#7, #8), rates per draw (#9)</td></tr>
+    <tr data-s="missing"><td>Selected and intrinsic populations returned side by side</td><td><span class="chip drift">not done</span></td></tr>
+    <tr data-s="done"><td>Dirichlet presets (1, 1/K, base measure); GD, Dirichlet-tree; RW, GP</td><td><span class="chip holds">done</span>; ICAR / Kronecker GP not built</td></tr>
+    <tr data-s="missing"><td>Overdispersion layer</td><td><span class="chip drift">not done</span> (spec roadmap)</td></tr>
+    <tr data-s="done"><td>MAP with KKT certificate; NUTS on ILR; Gibbs cross-check; VB labelled</td><td><span class="chip holds">done</span></td></tr>
+    <tr data-s="changed"><td>Recommend Gibbs or NUTS from the missing information</td><td><span class="chip revise">changed</span> → adaptive defaults from a benchmark (#14)</td></tr>
+    <tr data-s="done"><td>Deduplicate rows; sparse storage</td><td><span class="chip holds">done</span> (<code>compress</code>, sparse)</td></tr>
+    <tr data-s="missing"><td>Chunked streaming; never materialise a dense L by default</td><td><span class="chip drift">not done</span></td></tr>
+    <tr data-s="done"><td>Draws array + ArviZ DataTree; memberships; per-draw functionals</td><td><span class="chip holds">done</span></td></tr>
+    <tr data-s="missing"><td>Exports: qp, CosmoSIS, nz_prior, popsummary-style HDF5</td><td><span class="chip drift">not done</span> (roadmap)</td></tr>
+    <tr data-s="missing"><td>Run control: generator, checkpoint file, callbacks</td><td><span class="chip drift">not done</span> (runs resume in memory only)</td></tr>
+    <tr data-s="missing"><td>Diagnostics: prior-vs-data information ratio; flags for bins with negligible data support</td><td><span class="chip drift">not done</span></td></tr>
+    <tr data-s="done"><td>One <code>rng=</code> keyword, spawned per chain</td><td><span class="chip holds">done</span></td></tr>
+    <tr data-s="done"><td>Exact cases, Geweke, SBC including the joint log-likelihood</td><td><span class="chip holds">done</span></td></tr>
+    <tr data-s="missing"><td>Golden values against mixsqp / REBayes / Empirikos datasets</td><td><span class="chip drift">not done</span></td></tr>
+    <tr data-s="missing"><td>The published cross-engine coverage benchmark (the survey's "centrepiece")</td><td><span class="chip drift">not done</span> → our 4.6 benchmark matrix</td></tr>
+    <tr data-s="missing"><td>Python ≥ 3.12 (≥ 3.13 after 2026-Q4, SPEC 0)</td><td><span class="chip drift">drift</span>: <code>requires-python = "&gt;=3.11"</code></td></tr>
+    <tr data-s="changed"><td>One-call <code>pastry.fit</code>; sklearn-style estimator; strategy objects (dynesty 3)</td><td><span class="chip revise">changed</span> <code>infer</code> + <code>PopulationEstimator</code>; options objects to design (#16, 1.3 items)</td></tr>
+  </table></div>
+</section>
+
+<section id="l5">
+  <div class="sec-head"><span class="n">§5</span><h2>What the survey raises that we haven't discussed</h2></div>
+  <ol>
+    <li><strong>Overdispersion.</strong> The Dirichlet–multinomial treats objects as independent draws from one ρ, so its width is shot noise only. For a survey field, sample variance (cosmic variance, clustering) can be an order of magnitude larger. Options in the survey: a concentration rescaling (DES's 3sDir), per-field layers $\rho_f \sim \mathrm{Dir}(\lambda\bar\rho)$, or a logistic-normal with a simulation-derived covariance. This also clarifies what ρ <em>means</em> (2.1 §8: the population vs this sample).</li>
+    <li><strong>Calibration of the per-object PDFs.</strong> Over- or under-estimated errors bias the deconvolution ("overestimated errors cause excessive deconvolution"). QuaPy tempers the likelihood on validation coverage. A tempering or error-scaling hyperparameter, fitted or checked, would extend principle 10 ("every uncertain input is modelled") to the likelihoods themselves.</li>
+    <li><strong>Interim prior when it's implicit.</strong> For machine-learning photo-z the interim prior is the training set's distribution, never written down. Quantification estimates it as the mean held-out posterior. A density constructor built from held-out posteriors (e.g. <code>Density.from_heldout(...)</code>) would fit #26.</li>
+    <li><strong>Samples: "50 per star was only slightly worse than 10⁵".</strong> This is Hogg, Myers &amp; Bovy's finding, which seems to contradict our "S ≳ N". The two are consistent: the error grows like N/S and with the mismatch between population and interim prior, so a small catalogue or a population close to the interim tolerates few samples. Worth stating in the docs with the #31 check doing the deciding.</li>
+    <li><strong>Scale and memory.</strong> TGAS on a 100×100 grid needed about 109 GB as a dense matrix. Chunked or streamed likelihoods, and the GPU path for smooth priors, decide whether "blazing fast" (#33) holds at 10⁷–10⁸ objects.</li>
+    <li><strong>Run control.</strong> Checkpoint files and a generator interface (emcee, nautilus) for long runs.</li>
+    <li><strong>Interoperability.</strong> Exports to each field's format (qp/CosmoSIS for cosmology, popsummary for GW, histograms with covariance for HEP) are how a field-neutral package (#37) gets adopted field by field.</li>
+  </ol>
+</section>
+
+<section id="l6">
+  <div class="sec-head"><span class="n">§6</span><h2>frankenz, in one paragraph</h2></div>
+  <p>The survey audited your own frankenz samplers. The data-augmentation Gibbs sampler is exact. The pairwise Metropolis "population" sampler is not (missing Hastings factor; sparse bins collapse to about 1e-13) and the "flexible reference" step belongs to no joint model (Geweke |z| = 70). The largest errors came from inputs: posteriors used as likelihoods biased fractions by up to 12.6 posterior SD, and bin integrals in place of bin averages by up to 28 SD on unequal bins. pastry ported only the Gibbs sampler and built the input conventions around those two mistakes; the coherent replacements for the flexible reference (power prior, hierarchical reference) are still to come and now share machinery with #28.</p>
+</section>
+
+<section id="l7">
+  <div class="sec-head"><span class="n">§7</span><h2>To decide</h2></div>
+  <ul class="qs">
+    <li><span class="tag">§5.1</span><span>Overdispersion: bring it into scope now (it changes what the error bars mean at large N), and design it with the priors in Phase 3?</span></li>
+    <li><span class="tag">§5.2</span><span>PDF calibration: a tempering / error-scale hyperparameter, inferred or checked, as part of principle 10?</span></li>
+    <li><span class="tag">§5.3</span><span>Implicit interim priors: add a held-out-posterior constructor to the density class?</span></li>
+    <li><span class="tag">§4</span><span>Adopt the missing items as Phase 7 work: selected + intrinsic outputs, chunked inputs, checkpoints, data-support flags, prior/data information ratio, golden-value tests, Python ≥ 3.13, exports?</span></li>
+    <li><span class="tag">§2</span><span>Priority among fields for the first tutorials and integrations (RAIL plug-in, HEP unfolding, quantification)?</span></li>
+  </ul>
+</section>
+</main>
+</div>
+<script>
+(function () {
+  const btns = document.querySelectorAll(".filt button"), rows = document.querySelectorAll("#score tr[data-s]");
+  btns.forEach((b) => b.addEventListener("click", () => {
+    btns.forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+    const f = b.dataset.f; rows.forEach((r) => { r.style.display = (f === "all" || r.dataset.s === f) ? "" : "none"; });
+  }));
+})();
+</script>

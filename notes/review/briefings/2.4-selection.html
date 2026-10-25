@@ -1,0 +1,287 @@
+<title>Pastry Selection</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Literata:opsz,wght@7..72,500;7..72,600&display=swap">
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [["$", "$"], ["\\(", "\\)"]], displayMath: [["$$", "$$"]] },
+    svg: { fontCache: "global" },
+    options: { skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"] }
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
+<style>
+/* Layout: sticky section index on the left, a single reading column on the right; explorers break out to full column width. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #18202b;
+  --muted: #5a6573;
+  --rule: #d9dee5;
+  --accent: #1f5fa8;      /* ink blue: the model, exact quantities */
+  --warm: #b4691f;        /* amber: approximations, the flat-within-bin assumption */
+  --good: #2e7d4f;
+  --alt: #8a3b8f;         /* purple: ignoring selection */
+  --code-bg: #eef1f5;
+  --font-display: "Literata", Georgia, serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
+    --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
+  --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body);
+  font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+.page { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 40px; }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-top: 40px; font-size: 13.5px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+nav.toc a { color: var(--muted); text-decoration: none; display: flex; gap: 8px; padding: 4px 8px; border-radius: 4px; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink); background: var(--code-bg); outline: none; }
+nav.toc .n { font-family: var(--font-mono); width: 1.6em; color: var(--muted); }
+nav.toc .now { color: var(--accent); font-weight: 600; }
+nav.toc .done::after { content: "discussed"; margin-left: auto; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--good); }
+main { min-width: 0; padding-top: 40px; }
+header.top { border-bottom: 1px solid var(--rule); padding-bottom: 24px; margin-bottom: 8px; }
+.eyebrow { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 2.3rem; line-height: 1.15; margin: 6px 0 12px; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.55rem; margin: 0 0 8px; text-wrap: balance; }
+h3 { font-size: 1rem; font-weight: 600; margin: 22px 0 6px; }
+.lede { max-width: 66ch; color: var(--muted); margin: 0; }
+section { padding: 36px 0 8px; border-bottom: 1px solid var(--rule); }
+section > p, section > ul, section > ol { max-width: 68ch; }
+.sec-head { display: flex; align-items: baseline; gap: 12px; }
+.sec-head .n { font-family: var(--font-mono); color: var(--muted); font-size: 14px; }
+.files { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+.eq { overflow-x: auto; padding: 4px 0; }
+.callout { border: 1px solid var(--rule); background: var(--surface); padding: 14px 18px; border-radius: 6px; max-width: 68ch; }
+.callout.approx { border-color: var(--warm); }
+.callout.approx strong { color: var(--warm); }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+details.code { margin: 14px 0; max-width: 820px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+details.code summary { cursor: pointer; padding: 8px 14px; font-size: 13.5px; color: var(--muted); }
+details.code summary b { font-family: var(--font-mono); font-weight: 500; color: var(--ink); }
+details.code pre { margin: 0; padding: 12px 14px; overflow-x: auto; background: var(--code-bg); border-top: 1px solid var(--rule); font-family: var(--font-mono); font-size: 12.8px; line-height: 1.5; border-radius: 0 0 6px 6px; }
+.cm { color: var(--muted); }
+.explorer { margin: 22px 0 10px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 18px; }
+.explorer h3 { margin-top: 0; font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px 20px; margin: 10px 0 14px; }
+.controls label { display: grid; gap: 2px; font-size: 13px; color: var(--muted); }
+.controls .val { font-family: var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+canvas { width: 100%; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+.legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+.stats { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 12px; font-size: 13.5px; }
+.stats b { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+.note { font-size: 13.5px; color: var(--muted); max-width: 70ch; }
+table.tbl { border-collapse: collapse; font-size: 13.5px; margin: 10px 0; }
+.tblwrap { overflow-x: auto; }
+table.tbl th, table.tbl td { padding: 6px 12px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+table.tbl th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+pre.mermaid { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 12px; overflow-x: auto; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 10px; }
+.pair figure { margin: 0; min-width: 0; } .pair figcaption { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 4px; }
+.qs { list-style: none; padding: 0; display: grid; gap: 10px; max-width: 72ch; }
+.qs li { display: grid; grid-template-columns: auto 1fr; gap: 12px; border: 1px solid var(--rule); background: var(--surface); padding: 10px 14px; border-radius: 6px; }
+.qs .tag { font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding-top: 2px; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; max-width: 100%; padding: 2px 0; }
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 12px 0; max-width: 820px; }
+.mode { border: 1px solid var(--rule); background: var(--surface); border-radius: 6px; padding: 12px 14px; min-width: 0; }
+.mode h4 { margin: 0 0 6px; font-size: 14px; } .mode h4 code { font-size: 13px; }
+.mode dl { margin: 0; display: grid; gap: 6px; font-size: 14px; } .mode dt { color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; } .mode dd { margin: 0; min-width: 0; }
+input[type=range] { height: 28px; }
+@media (max-width: 860px) {
+  .page { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--rule); margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  nav.toc .eyebrow { display: none; }
+  nav.toc ol { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  nav.toc ol::-webkit-scrollbar { display: none; }
+  nav.toc a { white-space: nowrap; border: 1px solid var(--rule); border-radius: 999px; padding: 6px 12px; }
+  nav.toc .done::after { content: "✓"; letter-spacing: 0; margin-left: 2px; font-size: 12px; }
+  main { padding-top: 20px; }
+  h1 { font-size: 1.7rem; } h2 { font-size: 1.3rem; }
+  section { padding-top: 28px; scroll-margin-top: 64px; }
+  .explorer { padding: 14px 12px; margin-left: -4px; margin-right: -4px; }
+  .sec-head { flex-wrap: wrap; gap: 4px 10px; }
+}
+section { scroll-margin-top: 16px; }
+.sel { font: inherit; width: 100%; padding: 6px; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); color: var(--ink); }
+</style>
+
+<div class="page">
+<nav class="toc" aria-label="Sections">
+  <div class="eyebrow" style="padding:0 8px 8px">Step 2.4</div>
+  <ol>
+    <li><a href="#a1"><span class="n">1</span>The object</a></li>
+    <li><a href="#a2"><span class="n">2</span>The model</a></li>
+    <li><a href="#a3"><span class="n">3</span>Engines</a></li>
+    <li><a href="#a4"><span class="n">4</span>Scale</a></li>
+    <li><a href="#a5"><span class="n">5</span>Inside bins</a></li>
+    <li><a href="#a6"><span class="n">6</span>Gaps</a></li>
+    <li><a href="#a7"><span class="n">7</span>To decide</a></li>
+  </ol>
+</nav>
+<main>
+<header class="top">
+  <div class="eyebrow">pastry walkthrough · Phase 2 · level L2–L3</div>
+  <h1>Selection, in the code</h1>
+  <p class="lede">The design was settled in 2.1 (#7–#10, #30). This page reads how the current code carries selection through the model and each engine, checks it, and lists where it falls short of those decisions. Files: <code>selection.py</code> (110 lines), <code>model.py</code>, <code>samplers/base.py</code>, <code>gibbs.py</code>, <code>vb.py</code>, <code>optimize.py</code>, <code>results.py</code>, <code>simulate.py</code>.</p>
+</header>
+
+<section id="a1">
+  <div class="sec-head"><span class="n">§1</span><h2>The Selection object</h2></div>
+  <div class="files">selection.py · Selection, as_selection</div>
+  <ul>
+    <li>A value object: per-bin values $S_k$ (strictly positive, finite) plus a mode, <code>"observed"</code> or <code>"true"</code> (to become <code>on_measurement</code> / <code>on_truth</code>, #7).</li>
+    <li><code>as_selection</code> enforces the rule from D9: an array needs an explicit mode, a mode needs a selection, and they must agree with a <code>Selection</code> object.</li>
+    <li>Zero values are refused: a bin that can never be seen is not identifiable from the data, so the user is told to remove it.</li>
+    <li>It is reassignable after construction (<code>mode</code>, <code>values</code>), unlike <code>Bins</code> (audit: give it the same immutability guard).</li>
+  </ul>
+</section>
+
+<section id="a2">
+  <div class="sec-head"><span class="n">§2</span><h2>Where it enters the model</h2></div>
+  <div class="files">model.py · __init__ (l. 93–108), _ll_and_deta (l. 149–165), effective_likelihoods (l. 138)</div>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>Step</th><th>Fractions</th><th>Rates</th></tr>
+    <tr><td>Rows</td><td><code>true</code> mode: columns of L multiplied by $S$ once at construction ($\tilde L$)</td><td>same</td></tr>
+    <tr><td>Normaliser</td><td>$-W\log(S\cdot\rho)$, both modes</td><td>$-S\cdot\lambda$ (S is the exposure)</td></tr>
+    <tr><td>Gradient (logits)</td><td>$\hat n_k - W\rho_k S_k/(S\cdot\rho)$</td><td>$\hat n_k - S_k\lambda_k$</td></tr>
+    <tr><td>Imputing missed objects</td><td colspan="2">uses <code>_detect</code> $= S/\max S$ (EM, Gibbs, VB; §3–4)</td></tr>
+  </table></div>
+  <p>A model-level <code>selection=</code> overrides one attached to the likelihoods. This is "selection in two places", one of the deferred 1.3 architecture items.</p>
+</section>
+
+<section id="a3">
+  <div class="sec-head"><span class="n">§3</span><h2>Engine by engine</h2></div>
+  <div class="modes">
+    <div class="mode"><h4>NUTS, Laplace</h4><dl><dt>How</dt><dd>Only through <code>log_prob_and_grad</code>: the normaliser and its gradient. Nothing engine-specific.</dd><dt>Verdict</dt><dd>correct</dd></dl></div>
+    <div class="mode"><h4>EM / MAP</h4><dl><dt>How</dt><dd>E-step adds the expected missed objects, $W\rho_k(1-S_k)/(S\cdot\rho)$, to $\hat n$; M-step is the prior's mode from counts.</dd><dt>Verdict</dt><dd>correct; fixed point independent of the scale of S (§4)</dd></dl></div>
+    <div class="mode"><h4>mix-SQP</h4><dl><dt>How</dt><dd>Solves for the <em>observed</em> fractions $\phi = S\rho/(S\cdot\rho)$ with rows $L_{ik}/S_k$, then maps back. Only with a flat prior: a bijection preserves the maximum likelihood but not a prior's mode.</dd><dt>Verdict</dt><dd>correct; restriction documented (D15 → 4.4)</dd></dl></div>
+    <div class="mode"><h4>Gibbs</h4><dl><dt>How</dt><dd>Each sweep draws the number of missed objects, $n_{\rm miss}\sim\mathrm{NegBin}(W, S\cdot\rho)$, and their bins $\propto \rho_k(1-S_k)$, then $\rho \mid$ all counts.</dd><dt>Verdict</dt><dd>exact (audit: matches quadrature in both modes, with weights)</dd></dl></div>
+    <div class="mode"><h4>Mean-field VB</h4><dl><dt>How</dt><dd>Plug-in expected missed counts at the current mean.</dd><dt>Verdict</dt><dd>converges, but is not coordinate ascent on any ELBO (audit G-6); flagged approximate anyway</dd></dl></div>
+    <div class="mode"><h4>Results</h4><dl><dt>How</dt><dd><code>log_predictive</code> divides by $S\cdot\rho$ per draw (a new <em>detected</em> object). <code>missing_information</code> ignores selection.</dd><dt>Verdict</dt><dd>predictive correct; missing information wrong with selection (audit M-2)</dd></dl></div>
+  </div>
+</section>
+
+<section id="a4">
+  <div class="sec-head"><span class="n">§4</span><h2>Why only ratios of S matter, and when they don't</h2></div>
+  <p>Gibbs and EM impute the number of objects that were never seen, which seems to need absolute detection probabilities. The code uses $S/\max S$ instead. It is still exact for $\rho$, because the imputation follows from a $1/N$ prior on the total number of objects (the same scale-free prior as the rates derivation, #9). Summing over the unseen total:</p>
+  <div class="eq">$$\sum_{m\ge0}\frac{1}{W+m}\binom{W+m}{W}(1-p)^m\,p^W = \frac{1}{W}\quad\Rightarrow\quad p(\rho\mid D)\ \propto\ p(\rho)\,\frac{\prod_i \tilde L_i\cdot\rho}{(S\cdot\rho)^W},$$</div>
+  <p>where $p = S\cdot\rho$. Multiplying $S$ by $c$ multiplies the numerator by $c^W$ and the denominator by $c^W$, so the posterior for $\rho$ doesn't change. The same cancellation makes EM's fixed point scale-free, with or without a Dirichlet prior.</p>
+  <div class="callout approx"><strong>But the total does depend on the scale.</strong> The imputed number of missed objects, and the rates derived per draw under #9 ($\Lambda\sim\mathrm{Gamma}(N_{\rm obs}, S\cdot\rho)$), are only meaningful if $S$ is an absolute probability (or an exposure). Today a <code>Selection</code> doesn't say which it is, and the mocks silently clip values above 1 while the model uses their ratios (audit G-4: true ρ = (0.5, 0.5) fitted as (0.33, 0.67)). Proposal: <code>Selection</code> records whether its values are absolute (probabilities ≤ 1, or exposures) or relative; absolute totals and rates are refused for relative ones.</div>
+</section>
+
+<section id="a5">
+  <div class="sec-head"><span class="n">§5</span><h2>New: selection has its own binning bias</h2></div>
+  <p>$S_k$ must be the detection probability averaged over the objects <em>in</em> bin $k$: $S_k = \int_{B_k} S(z)\,p(z)\,dz \,/ \int_{B_k} p(z)\,dz$. That average depends on the population's shape inside the bin, which is unknown. Users who average $S(z)$ flat over the bin make the flat-within-bin assumption a second time. With a steep completeness edge inside a bin, the error goes straight into $\rho_k$ (for on-truth selection with precise data, $\hat\rho_k \propto n_k/S_k$), and it does not shrink with N.</p>
+  <div class="explorer">
+    <h3>Flat-averaged vs true S<sub>k</sub></h3>
+    <div class="controls">
+      <label>completeness edge width (bin widths) <span class="val" id="s-w-v"></span><input type="range" id="s-w" min="-1.5" max="0.5" step="0.05" value="-0.7"></label>
+      <label>edge position (in bins) <span class="val" id="s-m-v"></span><input type="range" id="s-m" min="3" max="7" step="0.05" value="5.3"></label>
+      <label>population fall-off scale <span class="val" id="s-s-v"></span><input type="range" id="s-s" min="0.05" max="1" step="0.01" value="0.2"></label>
+      <label>objects observed, N <span class="val" id="s-n-v"></span><input type="range" id="s-n" min="2" max="6" step="0.25" value="4"></label>
+    </div>
+    <canvas id="s-main" height="210" aria-label="Relative bias in rho per bin"></canvas>
+    <div class="legend"><span><i style="background:var(--warm)"></i>bias in ρ<sub>k</sub> from a flat-averaged S<sub>k</sub></span><span><i style="background:var(--muted)"></i>±1 statistical s.d.</span></div>
+    <div class="stats" id="s-stats"></div>
+    <p class="note">Ten bins on [0, 1]; population ∝ e<sup>−z/scale</sup>; completeness a logistic edge. Bias = S<sub>k</sub><sup>true</sup>/S<sub>k</sub><sup>flat</sup> − 1 (large N, precise data, on-truth selection); statistical s.d. ≈ 1/√(N ρ<sub>k</sub> S<sub>k</sub> / Σρ S).</p>
+  </div>
+  <p>Defaults (edge 0.2 bin widths wide, inside bin 6, population falling with scale 0.2): bin 6's fraction is off by 11%, which equals its statistical error at N ≈ 6,600 objects. A sharper edge (0.1 bins) gives 15% and N ≈ 3,500; an edge one bin wide still gives 2.3% (N ≈ 120,000); a flatter population (scale 1) shrinks it to 2.2% (N ≈ 45,000). Bins far below the edge have large relative errors too, but too few detections for them to matter.</p>
+  <p>The fix is already decided: a callable $S(z)$ (#10) evaluated at the internal resolution or basis (#4, #5), the same remedy as for the likelihoods. It also belongs in the binning-bias diagnostic (#6).</p>
+</section>
+
+<section id="a6">
+  <div class="sec-head"><span class="n">§6</span><h2>The code against our decisions</h2></div>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>Decision</th><th>Today</th></tr>
+    <tr><td>#7 names on_measurement / on_truth</td><td>"observed" / "true"</td></tr>
+    <tr><td>#8 combined C(z)·T(d)</td><td>one mode at a time</td></tr>
+    <tr><td>#10 arrays, callables, draws; <code>from_injections</code></td><td>arrays only</td></tr>
+    <tr><td>#30 selection inferred jointly (Beta per bin → Gibbs)</td><td>fixed only. The Gibbs sampler already imputes missed objects, so adding $S_k \mid \text{injections}, \text{counts} \sim$ Beta is one more conjugate block</td></tr>
+    <tr><td>#9 rates derived per draw</td><td>separate "rates kind"; needs absolute S (§4)</td></tr>
+    <tr><td>#41 selected + intrinsic populations</td><td>missing; the selected population is just $\phi = S\rho/(S\cdot\rho)$ per draw</td></tr>
+    <tr><td>Audit</td><td>M-2 missing information with selection; G-4 mocks with S &gt; 1; O-1 <code>load()</code> + <code>attach()</code> drops the selection; T-2 SBC misses selection; mutable <code>Selection</code></td></tr>
+  </table></div>
+  <p class="note">Mocks only simulate on-truth selection (thinning on the true bin). An on-measurement mock (a cut on the observed value) is needed to test that mode end to end, and for the #8 worked example.</p>
+</section>
+
+<section id="a7">
+  <div class="sec-head"><span class="n">§7</span><h2>To decide</h2></div>
+  <ul class="qs">
+    <li><span class="tag">§4</span><span><code>Selection</code> states whether its values are absolute (probabilities ≤ 1, or exposures) or relative; totals and rates require absolute values. Default: absolute, with values above 1 refused unless declared relative?</span></li>
+    <li><span class="tag">§5</span><span>Treat within-bin selection as part of the binning-bias story: callables evaluated at internal resolution (already #10), a warning when an array S changes steeply between neighbouring bins, and the selection term in the #6 diagnostic?</span></li>
+    <li><span class="tag">§6</span><span>Add an on-measurement mock (observed-value cut) to <code>simulate</code> and the tests.</span></li>
+    <li><span class="tag">§6</span><span>Return the selected population $\phi$ alongside $\rho$ by default (#41)?</span></li>
+  </ul>
+</section>
+</main>
+</div>
+<script>
+(function () {
+  const root = document.documentElement, tok = (n) => getComputedStyle(root).getPropertyValue(n).trim();
+  function erf(x) { const s = Math.sign(x); x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x); return s * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x)); }
+  const Phi = (x) => 0.5 * (1 + erf(x / Math.SQRT2)), npdf = (x, m, s) => Math.exp(-0.5 * ((x - m) / s) ** 2) / (s * Math.sqrt(2 * Math.PI));
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const gaussOf = (rnd) => () => { let u = 0; while (u === 0) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); };
+  function setup(cv) { const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.getAttribute("height") * 1; cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.height = h + "px"; const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h); ctx.font = "11px " + tok("--font-mono"); return { ctx, w, h }; }
+  function axes(ctx, x0, y0, x1, y1, xt) { ctx.strokeStyle = tok("--rule"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, y1); ctx.lineTo(x1, y1); ctx.stroke(); ctx.fillStyle = tok("--muted"); ctx.textAlign = "center"; ctx.textBaseline = "top"; for (const [v, px] of xt) ctx.fillText(v, px, y1 + 4); }
+  const P = { w: -0.7, m: 5.3, s: 0.2, n: 4 }, K = 10, h = 0.1;
+  const Sz = (z) => 1 / (1 + Math.exp((z - P.m * h) / (Math.pow(10, P.w) * h)));
+  const pop = (z) => Math.exp(-z / P.s);
+  function integ(f, a, b) { let s = 0; const m = 400, d = (b - a) / m; for (let j = 0; j <= m; j++) s += f(a + j * d) * ((j === 0 || j === m) ? 1 : (j % 2 ? 4 : 2)); return s * d / 3; }
+  function draw() {
+    const N = Math.pow(10, P.n), rows = [];
+    let tot = 0, totS = 0;
+    for (let k = 0; k < K; k++) { const a = k * h, b = a + h, pm = integ(pop, a, b), st = integ((z) => Sz(z) * pop(z), a, b) / pm, sf = integ(Sz, a, b) / h; rows.push({ pm, st, sf }); tot += pm; }
+    rows.forEach((r) => { r.rho = r.pm / tot; totS += r.rho * r.st; });
+    rows.forEach((r) => { r.bias = r.st / r.sf - 1; r.sd = 1 / Math.sqrt(N * r.rho * r.st / totS); });
+    const { ctx, w, h: H } = setup(document.getElementById("s-main"));
+    const L0 = 44, R0 = w - 8, T0 = 10, B0 = H - 22;
+    const mx = Math.max(0.05, ...rows.filter((r) => r.sd < 0.5).map((r) => Math.max(Math.abs(r.bias), r.sd))) * 1.15;
+    const X = (k) => L0 + (R0 - L0) * k / K, Y = (v) => (T0 + B0) / 2 - (B0 - T0) / 2 * v / mx;
+    axes(ctx, L0, T0, R0, B0, [["0", X(0)], ["0.5", X(5)], ["1", X(10)]]);
+    ctx.strokeStyle = tok("--rule"); ctx.beginPath(); ctx.moveTo(L0, Y(0)); ctx.lineTo(R0, Y(0)); ctx.stroke();
+    ctx.fillStyle = tok("--muted"); ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    [mx / 1.1, -mx / 1.1].forEach((v) => ctx.fillText((100 * v).toFixed(v > 0.1 || v < -0.1 ? 0 : 1) + "%", L0 - 4, Y(v)));
+    rows.forEach((r, k) => {
+      ctx.globalAlpha = 0.35; ctx.fillStyle = tok("--muted"); const s = Math.min(r.sd, mx); ctx.save(); ctx.beginPath(); ctx.rect(L0, T0, R0 - L0, B0 - T0); ctx.clip(); ctx.fillRect(X(k) + 3, Y(s), X(1) - X(0) - 6, Y(-s) - Y(s)); ctx.restore(); ctx.globalAlpha = 1;
+      ctx.fillStyle = tok("--warm"); const y0 = Y(0), y1 = Y(Math.max(-mx, Math.min(mx, r.bias))); ctx.fillRect(X(k) + 8, Math.min(y0, y1), X(1) - X(0) - 16, Math.max(2, Math.abs(y1 - y0)));
+    });
+    // completeness curve, scaled to the panel
+    ctx.strokeStyle = tok("--accent"); ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]); ctx.beginPath();
+    for (let j = 0; j <= 200; j++) { const z = j / 200, x = L0 + (R0 - L0) * z, y = B0 - (B0 - T0) * Sz(z); j ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke(); ctx.setLineDash([]);
+    let worst = rows.reduce((a, r, k) => (r.bias * r.bias * r.rho * r.st > a.score) ? { b: r.bias, k, sd: r.sd, score: r.bias * r.bias * r.rho * r.st } : a, { b: 0, k: 0, sd: 1, score: -1 });
+    const ncrit = (() => { const r = rows[worst.k]; return Math.abs(worst.b) > 0 ? totS / (r.rho * r.st * worst.b * worst.b) : Infinity; })();
+    document.getElementById("s-stats").innerHTML = `<span>most significant bin: <b>${worst.k + 1}</b>, bias <b>${(100 * worst.b).toFixed(1)}%</b></span><span>its s.d. at this N: <b>${(100 * worst.sd).toFixed(1)}%</b></span><span>bias = 1 s.d. at N ≈ <b>${ncrit < 1e9 ? Math.round(ncrit).toLocaleString() : "∞"}</b></span>`;
+    document.getElementById("s-w-v").textContent = Math.pow(10, P.w).toFixed(2);
+    document.getElementById("s-m-v").textContent = P.m.toFixed(2);
+    document.getElementById("s-s-v").textContent = P.s.toFixed(2);
+    document.getElementById("s-n-v").textContent = Math.round(Math.pow(10, P.n)).toLocaleString();
+  }
+  Object.keys(P).forEach((k) => { const el = document.getElementById("s-" + k); el.addEventListener("input", () => { P[k] = +el.value; draw(); }); });
+  let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(draw, 120); });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+  new MutationObserver(draw).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+  draw();
+})();
+</script>

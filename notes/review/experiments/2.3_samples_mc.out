@@ -1,0 +1,8 @@
+N= 1000 S= 100 rho=truth              bias    -2.01  sd   2.71
+N= 1000 S= 100 rho far from interim   bias   -88.32  sd  11.78
+N= 1000 S=1000 rho=truth              bias    -0.24  sd   0.52
+N= 1000 S=1000 rho far from interim   bias   -12.43  sd   5.24
+N=10000 S= 100 rho=truth              bias   -25.07  sd   7.75
+N=10000 S= 100 rho far from interim   bias  -919.18  sd  47.37
+N=10000 S=1000 rho=truth              bias    -2.51  sd   2.53
+N=10000 S=1000 rho far from interim   bias  -133.19  sd  11.06
