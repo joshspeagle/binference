@@ -19,6 +19,8 @@ from binference import Bins, Likelihoods, PopulationModel
 from binference import _kernels as kern
 from binference import priors as P
 
+from .conftest import sd_mcse
+
 pytestmark = pytest.mark.slow
 
 BINS4 = Bins.linear(0.0, 1.0, 4)
@@ -156,10 +158,6 @@ def test_gibbs_and_nuts_agree_on_larger_problem():
     g = binference.infer(mock.likelihoods, method="gibbs", rng=1, n_samples=4000, check=False)
     n = binference.infer(mock.likelihoods, rng=2, n_samples=1000, check=False)
     mcse = binference.diagnostics.mcse
-
-    def sd_mcse(x):  # MC error of the sd, from the MCSE of the squared deviations
-        return mcse((x - x.mean()) ** 2) / (2 * x.std())
-
     for k in range(15):
         a, b = g.chains[:, :, k], n.chains[:, :, k]
         assert abs(a.mean() - b.mean()) < 5 * np.hypot(mcse(a), mcse(b)), k

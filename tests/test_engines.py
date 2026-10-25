@@ -13,7 +13,7 @@ from binference import priors as P
 from binference.samplers import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
 from binference.warnings import ApproximationWarning, InputWarning
 
-from .conftest import assert_matches_reference
+from .conftest import assert_matches_reference, sd_mcse
 
 
 @pytest.fixture(scope="module")
@@ -201,7 +201,9 @@ def test_nuts_with_a_logistic_prior_matches_a_long_run():
     assert res.samples.shape == (400, 8)
     assert "scale" in res.info["hyperparameters"]
     # Reference: the same call with rng=99, 4 chains x 10000 draws after 1000 warm-up
-    # (ESS > 46000 per bin, R-hat < 1.0002), so its own MC error is negligible here.
+    # (ESS > 46000 per bin, R-hat < 1.0002), so its own MC error is negligible here;
+    # infer(mock.likelihoods, P.LogisticRandomWalk(order=2), rng=99, n_chains=4,
+    #       n_warmup=1000, n_samples=10000) -> .mean, .std, rounded to 6 digits
     mean = [0.028023, 0.261029, 0.163405, 0.175175, 0.270258, 0.091127, 0.009948, 0.001036]
     sd = [0.013765, 0.031731, 0.030073, 0.028615, 0.031246, 0.020168, 0.005868, 0.00146]
     for k in range(8):
@@ -209,8 +211,7 @@ def test_nuts_with_a_logistic_prior_matches_a_long_run():
         assert abs(x.mean() - mean[k]) < 5 * binference.diagnostics.mcse(x), k
         # MC error of the sd from the MCSE of the squared deviations; 6 sigma because
         # these short runs give z-scores with sd up to 1.3 on the skewed edge bins
-        se_sd = binference.diagnostics.mcse((x - x.mean()) ** 2) / (2 * x.std())
-        assert abs(x.std() - sd[k]) < 6 * se_sd, k
+        assert abs(x.std() - sd[k]) < 6 * sd_mcse(x), k
 
 
 # -------------------------------------------------------------------- Gibbs
@@ -559,12 +560,12 @@ def test_bootstrap(k3_problem):
         res = Bootstrap(PopulationModel(mock.likelihoods), rng=1).run(60)
     assert res.samples.shape == (60, 3) and res.approximate
     # At large N the bootstrap sd matches the posterior sd. With B = 200 replicates the
-    # sd has relative MC error ~ 1/sqrt(2B) = 5%; the Gibbs reference (ESS ~ 300) adds
-    # ~4%, so 30% is ~4.5 combined sigma and still catches a factor-sqrt(2) error.
+    # sd has relative MC error ~ 1/sqrt(2B) = 5%, so 30% is 6 sigma against the exact
+    # posterior and still catches a factor-sqrt(2) error.
     big = binference.simulate.mock_1d(
         2000, mock.bins, density=np.array([0.5, 0.15, 0.35]), noise=(0.3, 1.2), rng=12345
     )
-    ref = binference.infer(big.likelihoods, method="gibbs", rng=1, n_samples=1000, check=False)
+    ref = binference.validation.exact_posterior(big.likelihoods)
     with pytest.warns(ApproximationWarning):
         boot = Bootstrap(PopulationModel(big.likelihoods), rng=1).run(200)
     np.testing.assert_allclose(boot.std, ref.std, rtol=0.3)

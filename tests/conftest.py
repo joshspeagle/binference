@@ -52,6 +52,12 @@ def small_1d():
     return binference.simulate.mock_1d(400, binference.Bins.linear(0.0, 3.0, 12), rng=2024)
 
 
+def sd_mcse(x) -> float:
+    """Monte Carlo error of the sd of draws ``x`` (chains, draws): the MCSE of the squared
+    deviations, by the delta method."""
+    return diag.mcse((x - x.mean()) ** 2) / (2 * x.std())
+
+
 def assert_matches_reference(result, mean, sd, z: float = 5.0, sd_rtol: float = 0.15):
     """Compare posterior means (within z * MCSE) and sds (relative tolerance)."""
     C = result.chains
