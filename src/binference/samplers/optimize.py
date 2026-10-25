@@ -18,6 +18,14 @@ from .base import Engine, em_update, interior_start
 
 __all__ = ["MAP"]
 
+#: a run that can no longer improve its objective in floating point is converged where
+#: its optimality gap is below this many times ``tol`` (DECISIONS #71)
+_ROUNDOFF = 1e3
+
+
+def _converged(gap: float, tol: float, stalled: bool) -> bool:
+    return gap <= tol or (stalled and gap <= _ROUNDOFF * tol)
+
 
 def _mixsqp(
     L,
@@ -61,7 +69,7 @@ def _mixsqp(
     x = np.maximum(np.asarray(x0, dtype=float), 1e-12)
     x = x / x.sum()
     f = objective(x)
-    converged = False
+    gap, stalled = np.inf, False
     it = 0
     for it in range(1, max_iter + 1):  # noqa: B007 (used after the loop)
         s = np.asarray(L @ x).ravel()
@@ -69,8 +77,8 @@ def _mixsqp(
         g = -np.asarray(L.T @ u).ravel() / W + c
         if A > 0:
             g[pos] -= a[pos] / (W * x[pos])
-        if np.min(g) >= -tol:
-            converged = True
+        gap = -float(np.min(g))
+        if gap <= tol:
             break
         d2 = u / s  # w_i / s_i^2
         if dense:
@@ -95,7 +103,7 @@ def _mixsqp(
         step = y - x
         slope = float(g @ step)
         if slope >= 0:  # no descent direction left: at the optimum up to round-off
-            converged = bool(np.min(g) >= -1e3 * tol)
+            stalled = True
             break
         t = 1.0
         while t > 1e-12:
@@ -105,15 +113,14 @@ def _mixsqp(
                 break
             t *= 0.5
         else:
-            converged = bool(np.min(g) >= -1e3 * tol)
+            stalled = True
             break
         stalled = f - fc <= 1e-15 * max(abs(f), 1.0)
         x, f = cand, fc
         if stalled:  # the objective no longer resolves the remaining KKT violation
-            converged = bool(np.min(g) >= -1e3 * tol)
             break
     x = np.maximum(x, 0.0)
-    return x / x.sum(), it, converged
+    return x / x.sum(), it, _converged(gap, tol, stalled)
 
 
 class MAP(Engine):
@@ -146,12 +153,13 @@ class MAP(Engine):
         the prior density is unbounded at the boundary (concentrations below
         one, Polya trees), where the simplex mode can have exact zeros.
     tol : float
-        Tolerance on first-order optimality, the same for every algorithm: the
-        KKT gap (:meth:`~binference.PopulationModel.kkt_gap`) on the simplex or
-        orthant, and the largest absolute gradient divided by ``max(1, W)`` in
-        unconstrained coordinates. A run that can no longer improve the
-        objective in floating point counts as converged when that measure is
-        below ``1e3 * tol``.
+        Tolerance on first-order optimality: the KKT gap
+        (:meth:`~binference.PopulationModel.kkt_gap`) for EM, and for mix-SQP
+        the same gap of the problem it solves (in the observed fractions under
+        selection, the composition for rates); the largest absolute gradient
+        divided by ``max(1, W)`` for L-BFGS. A run that can no longer improve
+        the objective in floating point counts as converged when that measure
+        is below ``1e3 * tol``.
     max_iter : int
         Maximum number of (accelerated) EM iterations or L-BFGS iterations.
     accelerate : bool
@@ -231,19 +239,24 @@ class MAP(Engine):
     #: the bootstrap turns them off, as it reads only the values
     _diagnostics = True
 
-    def _estimate(self, m, v, n_iter, converged, algorithm, x=None, **info) -> PointEstimate:
+    def _estimate(self, m, v, n_iter, converged, algorithm, x=None, **extra) -> PointEstimate:
         # a mode with its certificate: on the simplex (or orthant), or in unconstrained x;
         # log_posterior is the density of the fractions or rates for every algorithm (audit M-8)
         simplex = x is None
-        info = {"space": "simplex" if simplex else "unconstrained", "algorithm": algorithm, **info}
+        info = {
+            "space": "simplex" if simplex else "unconstrained",
+            "algorithm": algorithm,
+            **extra,
+        }
         full = self._diagnostics
+        ll = m.log_likelihood(v) if full else np.nan
         return PointEstimate(
             m,
             v,
             method="map",
             x=x,
-            log_posterior=m.log_posterior(v) if full and m.prior.has_density else np.nan,
-            log_likelihood=m.log_likelihood(v) if full else np.nan,
+            log_posterior=ll + m.log_prior(v) if full else np.nan,
+            log_likelihood=ll,
             kkt_gap=m.kkt_gap(v) if simplex and full else np.nan,
             n_iter=n_iter,
             converged=converged,
@@ -278,9 +291,12 @@ class MAP(Engine):
         if e is not None:
             x0 = x0 * e
         x, n_iter, converged = _mixsqp(L, m._w, a, x0, tol=self.tol, max_iter=self.max_iter)
-        if e is not None:
+        if e is not None:  # back from psi to the fractions or rates
             x = x / e
-            x *= (m.W + a.sum()) if rates else 1.0 / x.sum()
+            if rates:
+                x *= m.W + a.sum()
+            else:
+                x /= x.sum()
         if not converged:
             warn(f"mix-SQP did not converge in {n_iter} iterations.", ConvergenceWarning)
         return self._estimate(m, x, n_iter, converged, "mixsqp")
@@ -306,7 +322,7 @@ class MAP(Engine):
             )
         converged = False
         n_iter = 0
-        for n_iter in range(1, self.max_iter + 1):  # noqa: B007 (used after the loop)
+        for n_iter in range(1, self.max_iter + 1):
             if self.accelerate:
                 v_new, f_new = self._squarem_step(m, F, v, fractions)
             else:
@@ -322,10 +338,12 @@ class MAP(Engine):
                 break
             df = (f_new - f_old) / (abs(f_new) + 1.0)  # EM never decreases the objective
             v, f_old = v_new, f_new
-            if df <= self.tol:  # the objective has nearly stopped: check optimality (audit M-6)
+            # once the objective has nearly stopped, check optimality every tenth step
+            # (two passes over the data each; audit M-6)
+            if df <= self.tol and n_iter % 10 == 0:
                 gap = m.kkt_gap(v)
                 stalled = df <= 0.0  # EM is monotone: no gain is the round-off floor
-                if gap <= self.tol or (stalled and gap <= 1e3 * self.tol):
+                if _converged(gap, self.tol, stalled):
                     converged = True
                     break
                 if stalled:
@@ -405,7 +423,7 @@ class MAP(Engine):
         lp, g = m.log_density_unconstrained_and_grad(x)
         gnorm = float(np.max(np.abs(g))) if g.size else 0.0
         # res.success without a small gradient means the objective stopped improving
-        converged = gnorm <= self.tol * scale or (res.success and gnorm <= 1e3 * self.tol * scale)
+        converged = _converged(gnorm / scale, self.tol, bool(res.success))
         if not converged:
             warn(
                 f"L-BFGS did not converge ({res.message}); max |gradient| = {gnorm:.2e}.",
@@ -425,7 +443,5 @@ class MAP(Engine):
 
 
 def _objective(m: PopulationModel, v: np.ndarray) -> float:
-    # log posterior on the simplex (or orthant), up to the likelihoods' log-scales;
-    # components clipped to zero are active constraints: the prior is evaluated at a tiny
-    # positive value so the objective stays finite (and constant) for them
-    return m.log_likelihood(v, absolute=False) + float(m.prior.log_density(np.maximum(v, 1e-300)))
+    # log posterior on the simplex (or orthant), up to the likelihoods' log-scales
+    return m.log_likelihood(v, absolute=False) + m.log_prior(v)

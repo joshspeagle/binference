@@ -98,7 +98,8 @@ First development version.
   `max(1, W)` for L-BFGS, and EM is converged only when the gap is below it (M-6, M-9).
   `GammaRates` with shapes of at least one use mix-SQP, with the total rate profiled
   out (M-6). `PointEstimate.log_posterior` is `model.log_posterior(value)` for every
-  algorithm (NaN for priors without a closed-form density); L-BFGS adds
+  algorithm (NaN for priors without a closed-form density; `model.log_prior` is finite at
+  zeros on the boundary); L-BFGS adds
   `info["log_density_unconstrained"]` (M-8). mix-SQP drops its SVD and starts after
   10 EM steps instead of 50, 2–3 times faster on large dense inputs (M-5); a failed
   quadratic subproblem ends it unconverged instead of raising (M-13); Dirichlet priors
