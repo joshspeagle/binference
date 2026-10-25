@@ -16,10 +16,12 @@ from typing import Any
 import numpy as np
 from scipy import special, stats
 
+from ._quadrature import _subbin_points
 from ._utils import RNGLike, as_generator
 from .bins import Bins
-from .likelihoods import Likelihoods, _subbin_points
-from .priors import Prior
+from .density import Density
+from .likelihoods import Likelihoods
+from .priors import PopulationPrior
 
 __all__ = [
     "Mock",
@@ -116,6 +118,14 @@ def _density_2d(name: str, bins: Bins) -> Callable[[np.ndarray], np.ndarray]:
 
 
 def _as_density(density: Any, bins: Bins) -> Callable[[np.ndarray], np.ndarray] | None:
+    # a pointwise density of z, or None when only bin masses are given
+    if isinstance(density, Density):
+        if density._kind == "function":
+            return density._value
+        if density._kind == "distribution":
+            d = density._value
+            return (lambda z: np.exp(d.logpdf(z))) if hasattr(d, "logpdf") else d.pdf
+        return None
     if callable(density):
         return density
     if isinstance(density, str):
@@ -127,7 +137,9 @@ def _as_density(density: Any, bins: Bins) -> Callable[[np.ndarray], np.ndarray] 
 
 
 def population(bins: Bins, density: Any = "bimodal", n_sub: int = 8) -> np.ndarray:
-    """Population fractions per bin from a density (name, callable) or an array."""
+    """Population fractions per bin from a density name, callable, :class:`Density` or array."""
+    if isinstance(density, Density):
+        return density.masses(bins, n_sub)
     f = _as_density(density, bins)
     if f is None:
         rho = np.asarray(density, dtype=float).ravel()
@@ -456,7 +468,7 @@ def mock_unfolding(
 # prior predictive simulator (for SBC)
 # ----------------------------------------------------------------------------
 def prior_predictive(
-    prior: Prior,
+    prior: PopulationPrior,
     bins: Bins,
     n_objects: int = 200,
     *,

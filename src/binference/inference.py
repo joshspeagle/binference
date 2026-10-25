@@ -7,7 +7,7 @@ from typing import Any
 from ._utils import RNGLike
 from .bins import Bins
 from .model import PopulationModel
-from .priors import Prior
+from .priors import PopulationPrior
 from .results import PointEstimate, PopulationResult
 from .samplers import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
 
@@ -37,7 +37,7 @@ def _auto_method(model: PopulationModel) -> str:
 
 def infer(
     likelihoods: Any,
-    prior: Prior | None = None,
+    prior: PopulationPrior | None = None,
     *,
     bins: Bins | None = None,
     selection: Any = None,
@@ -58,7 +58,7 @@ def infer(
         converting posteriors, samples, Gaussian measurements, response
         matrices or classifier outputs). A raw array is treated as
         likelihoods over categorical bins (or ``bins``).
-    prior : Prior, optional
+    prior : PopulationPrior, optional
         Population prior (default ``Dirichlet(1.0)``). Use
         :class:`~binference.priors.GammaRates` to infer rates.
     bins : Bins, optional

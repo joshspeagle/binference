@@ -20,7 +20,7 @@ import numpy as np
 from scipy import special
 
 from ..bins import Bins
-from .base import BoundPrior, Prior
+from .base import BoundPrior, PopulationPrior
 
 __all__ = ["GammaRates"]
 
@@ -40,7 +40,7 @@ def _gamma_draw(shape, rate, rng: np.random.Generator, size=None) -> np.ndarray:
     return np.maximum(g / rate, _TINY)
 
 
-class GammaRates(Prior):
+class GammaRates(PopulationPrior):
     r"""Independent Gamma priors on per-bin rates, :math:`\lambda_k \sim \mathrm{Gamma}(a_k, b_k)`.
 
     Use this to infer expected *counts* (e.g. occurrence rates, or number
@@ -86,7 +86,7 @@ class _BoundGammaRates(BoundPrior):
     conjugate = True
     has_density = True
 
-    def __init__(self, prior: Prior, bins: Bins, a: np.ndarray, b: np.ndarray) -> None:
+    def __init__(self, prior: PopulationPrior, bins: Bins, a: np.ndarray, b: np.ndarray) -> None:
         super().__init__(prior, bins)
         self.a = a
         self.b = b

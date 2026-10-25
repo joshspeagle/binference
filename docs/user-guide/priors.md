@@ -25,7 +25,7 @@ The default is `Dirichlet(1.0)`.
 ```python
 flat = priors.Dirichlet(1.0)                   # uniform on the simplex (default)
 sparse = priors.Dirichlet.reference()          # alpha = 1/K: K pseudo-counts become 1
-by_volume = priors.Dirichlet.from_base_measure(5.0)  # alpha proportional to bin width
+by_volume = priors.Dirichlet.from_base_measure(5.0)  # alpha proportional to bin width (in u)
 ref_counts = np.bincount(mock.truth.labels[:50], minlength=30)
 informed = priors.Dirichlet.from_counts(ref_counts, strength=0.5)  # alpha = 1 + 0.5 m
 
@@ -38,9 +38,10 @@ for p in (flat, sparse, informed):
   estimate; `Dirichlet.reference()` ($\alpha=1/K$) adds one pseudo-count in
   total.
 - **Unequal bins.** A symmetric $\alpha$ is not consistent under merging
-  bins. `from_base_measure` makes $\alpha_k$ proportional to a base measure
-  (bin volumes by default), so the prior describes the same density
-  however you bin it.
+  bins. `from_base_measure` makes $\alpha_k$ proportional to the bin masses of
+  a base measure, a `binference.Density` (by default flat in the measure
+  coordinate: bin widths on linear bins, widths in $\log z$ on log bins), so the
+  prior describes the same density however you bin it.
 - **Reference samples.** `from_counts(m, strength)` encodes a reference
   sample with counts $m$ as a power prior. `strength=1` trusts it fully;
   smaller values down-weight a sample that may not be representative.

@@ -21,6 +21,9 @@ First development version.
   clean-wheel import; pushes to `main` publish the docs to GitHub Pages.
 - Development process: issue and pull-request templates and the rules in `CLAUDE.md` and
   `CONTRIBUTING.md`.
+- The prior base class is now `binference.priors.PopulationPrior` (was `Prior`).
+- On log bins, the default base measure of `Dirichlet.from_base_measure` and the
+  "flat" interim prior are flat in log z (they were flat in z; DECISIONS #63).
 
 ### Added
 
@@ -34,6 +37,13 @@ First development version.
   results.
 - `Bins` with edges `-0.0` and `0.0` now hash alike (I-12); `Bins.index` refuses
   multi-column values for 1-D bins (I-22).
+- **`Density`** (DECISIONS #26, #63): one fixed density over the bin coordinate for
+  interim priors, the Dirichlet base measure and simulation truth. `Density.flat()` is
+  flat in the measure coordinate. An array interim prior on unequal bins needs
+  `interim_representation`, so every constructor reads it the same way (I-1); a
+  callable on categories receives the labels (I-17).
+- `Likelihoods.stack()` uses the interim prior the likelihoods were built with
+  (I-5) and raises on rows with no support under it (I-6).
 
 - **Inputs.** `Bins` (linear, log, from centres, N-D grids, categories) and
   `Likelihoods` with constructors for:

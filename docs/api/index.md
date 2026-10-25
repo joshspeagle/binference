@@ -14,6 +14,7 @@ namespace; priors, engines and helpers live in sub-modules.
 
    Bins
    Measure
+   Density
    Likelihoods
    Selection
    PopulationModel

@@ -30,7 +30,7 @@ from scipy import special
 
 from .._simplex import helmert_basis, softmax
 from ..bins import Bins
-from .base import BoundPrior, Prior
+from .base import BoundPrior, PopulationPrior
 from .hyper import Fixed, HalfNormal, Hyperprior, InverseGamma, as_hyperprior
 
 __all__ = ["LogisticGP", "LogisticNormal", "LogisticRandomWalk"]
@@ -115,7 +115,7 @@ class _BoundLogistic(BoundPrior):
 
     def __init__(
         self,
-        prior: Prior,
+        prior: PopulationPrior,
         bins: Bins,
         basis: _KronBasis,
         active: np.ndarray,
@@ -281,7 +281,7 @@ def _resolve_mean(mean: Any, bins: Bins) -> np.ndarray:
 # ----------------------------------------------------------------------------
 # LogisticNormal
 # ----------------------------------------------------------------------------
-class LogisticNormal(Prior):
+class LogisticNormal(PopulationPrior):
     r"""Logistic-normal prior on the population fractions.
 
     :math:`\eta \sim \mathcal N(\mu, \Sigma)` and :math:`\rho = \mathrm{softmax}(\eta)`.
@@ -345,7 +345,7 @@ class _BoundLogisticNormal(_BoundLogistic):
 # ----------------------------------------------------------------------------
 # LogisticRandomWalk
 # ----------------------------------------------------------------------------
-class LogisticRandomWalk(Prior):
+class LogisticRandomWalk(PopulationPrior):
     r"""Random-walk (intrinsic GMRF) smoothness prior on log-fractions over a grid.
 
     The ``order``-th differences of :math:`\eta = \log\rho` (between adjacent
@@ -437,7 +437,7 @@ class _BoundRandomWalk(_BoundLogistic):
 _KERNELS = {"rbf": None, "se": None, "matern12": 0.5, "matern32": 1.5, "matern52": 2.5}
 
 
-class LogisticGP(Prior):
+class LogisticGP(PopulationPrior):
     r"""Gaussian-process prior on log-fractions over a 1-D or N-D grid.
 
     Uses the Hilbert-space reduced-rank approximation (Solin & Sarkka 2020):

@@ -11,7 +11,7 @@ from ._utils import RNGLike, as_generator
 from .bins import Bins
 from .inference import infer
 from .likelihoods import Likelihoods
-from .priors import Prior
+from .priors import PopulationPrior
 from .results import PointEstimate, PopulationResult
 
 __all__ = ["PopulationEstimator"]
@@ -31,7 +31,7 @@ class PopulationEstimator:
 
     Parameters
     ----------
-    prior : Prior, optional
+    prior : PopulationPrior, optional
         Population prior (default ``Dirichlet(1.0)``).
     method : str
         Inference engine (see :func:`binference.infer`).
@@ -51,7 +51,7 @@ class PopulationEstimator:
 
     def __init__(
         self,
-        prior: Prior | None = None,
+        prior: PopulationPrior | None = None,
         *,
         method: str = "nuts",
         selection: Any = None,

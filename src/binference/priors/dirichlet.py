@@ -21,7 +21,8 @@ from scipy import special
 
 from .._simplex import helmert_basis, log_softmax
 from ..bins import Bins
-from .base import BoundPrior, Prior
+from ..density import Density
+from .base import BoundPrior, PopulationPrior
 
 __all__ = ["Dirichlet", "DirichletTree", "GeneralizedDirichlet", "PolyaTree"]
 
@@ -55,7 +56,7 @@ class _SimplexBound(BoundPrior):
     has_prior_transform = True
     conjugate = True
 
-    def __init__(self, prior: Prior, bins: Bins) -> None:
+    def __init__(self, prior: PopulationPrior, bins: Bins) -> None:
         super().__init__(prior, bins)
         self.dim = self.K - 1
         self.V = helmert_basis(self.K)
@@ -83,7 +84,7 @@ class _SimplexBound(BoundPrior):
 # ----------------------------------------------------------------------------
 # Dirichlet
 # ----------------------------------------------------------------------------
-class Dirichlet(Prior):
+class Dirichlet(PopulationPrior):
     r"""Dirichlet prior :math:`\rho \sim \mathrm{Dir}(\alpha)` on bin fractions.
 
     The default prior of binference (``alpha=1``, uniform on the simplex).
@@ -141,23 +142,33 @@ class Dirichlet(Prior):
 
     @classmethod
     def from_base_measure(
-        cls, concentration: float = 1.0, base: Sequence[float] | np.ndarray | None = None
+        cls, concentration: float = 1.0, base: Density | Sequence[float] | None = None
     ) -> Dirichlet:
-        """``alpha_k = concentration * base_k / sum(base)``; ``base`` defaults to bin volumes."""
+        """``alpha_k = concentration * B_k``, with ``B`` the normalised bin masses of ``base``.
+
+        ``base`` is a :class:`~binference.Density`, or an array of masses per
+        bin; the default :meth:`Density.flat() <binference.Density.flat>` is
+        flat in the measure coordinate (proportional to bin volumes on linear
+        bins).
+        """
         if concentration <= 0:
             raise ValueError("concentration must be positive.")
+        if base is None:
+            base = Density.flat()
+        elif not isinstance(base, Density):
+            base = Density.from_masses(base)
         obj = cls(1.0)
-        obj._base = (float(concentration), None if base is None else np.asarray(base, float))
+        obj._base = (float(concentration), base)
         return obj
 
     def resolve_alpha(self, bins: Bins) -> np.ndarray:
         K = bins.K
         if self._base is not None:
             conc, base = self._base
-            b = np.asarray(bins.volumes, float) if base is None else base
-            if b.shape != (K,) or np.any(b <= 0):
-                raise ValueError("base must be a positive array of length K.")
-            return conc * b / b.sum()
+            b = base.masses(bins)
+            if np.any(b <= 0):
+                raise ValueError("The base measure must give every bin positive mass.")
+            return conc * b
         if isinstance(self.alpha, str):
             return np.full(K, 1.0 / K)
         a = np.asarray(self.alpha, dtype=float)
@@ -172,7 +183,7 @@ class Dirichlet(Prior):
 
 
 class _BoundDirichlet(_SimplexBound):
-    def __init__(self, prior: Prior, bins: Bins, alpha: np.ndarray) -> None:
+    def __init__(self, prior: PopulationPrior, bins: Bins, alpha: np.ndarray) -> None:
         super().__init__(prior, bins)
         self.alpha = alpha
         self.A = float(alpha.sum())
@@ -339,7 +350,7 @@ class _TreeStructure:
 
 
 class _BoundTree(_SimplexBound):
-    def __init__(self, prior: Prior, bins: Bins, tree: _TreeStructure) -> None:
+    def __init__(self, prior: PopulationPrior, bins: Bins, tree: _TreeStructure) -> None:
         super().__init__(prior, bins)
         self.tree = tree
         self._a1 = tree.leaf_coef + 1.0
@@ -460,7 +471,7 @@ def _parse_nested(tree: Any) -> list[list[tuple[str, int]]]:
     return [n for n in nodes if n is not None]
 
 
-class DirichletTree(Prior):
+class DirichletTree(PopulationPrior):
     """Dirichlet-tree prior: independent Dirichlet splits along a tree of bins.
 
     Generalises the Dirichlet (a single node) and the generalised Dirichlet (a

@@ -126,17 +126,26 @@ lk_post = binference.Likelihoods.from_posteriors(P, bins, interim_prior=interim)
 np.testing.assert_allclose(lk_post.toarray(), binference.Likelihoods(L, bins).toarray(), atol=1e-12)
 ```
 
-`interim_prior` can be:
-- `"flat"`, a uniform density in the bin coordinate;
-- an array with one value per bin;
-- a callable density, integrated over each bin.
+The interim prior is a `binference.Density`, a fixed density over the bin
+coordinate with the same meaning in every constructor:
+
+```python
+D = binference.Density
+D.flat()                             # flat in the measure coordinate (equal mass per decade on log bins)
+D.flat("z")                          # flat in z
+D.from_masses(interim)               # probability mass per bin
+D.from_densities(interim / bins.volumes)   # density per unit z in each bin
+D.from_function(lambda z: np.exp(-z))      # a callable density, integrated over each bin
+```
+
+`D.from_distribution(dist)` takes a frozen `scipy.stats` distribution. In place of a
+`Density` you can pass `"flat"`, a callable, a distribution or an array. An array is
+accepted on its own only where masses and densities agree: on categories and on bins of
+equal volume. On unequal bins, pass `interim_representation="mass"` or `"density"`.
 
 Posteriors can be masses per bin (the default) or densities at bin centres
-(`representation="density"`). An array-valued interim prior is read in the
-same representation as the posteriors; pass `interim_representation` if it
-differs. binference warns if the rows do not look like the representation you
-declared. The distinction matters for unequal bins: a mass and a density
-differ by the bin volume.
+(`representation="density"`). binference warns if the rows do not look like the
+representation you declared.
 
 ## Posterior samples
 
@@ -214,7 +223,15 @@ stack = lk.stack()                   # naive stacked estimate, for comparison on
 print(sub.N, dense.shape, stack.sum().round(6))
 ```
 
-`lk.stack()` is the familiar "stacked PDF". It is exactly one EM step from
-the interim prior, and it is biased whenever measurement errors are
-comparable to the features of the population. It is there for comparison,
-not for inference.
+`lk.stack()` is the familiar "stacked PDF": the mean of the per-object posteriors
+under the interim prior the likelihoods were built with (flat if there was none),
+so for `from_posteriors` input it reproduces the mean of the input posteriors. It is
+exactly one EM step from the interim prior, and it is biased whenever measurement
+errors are comparable to the features of the population. It is there for
+comparison, not for inference. The KKT gap measures how far it is from the
+maximum-likelihood population (zero at the optimum):
+
+```python
+model = binference.PopulationModel(lk)
+print(model.kkt_gap(lk.stack()), model.kkt_gap(binference.infer(lk, method="map").rho))
+```

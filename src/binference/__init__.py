@@ -28,6 +28,7 @@ Main entry points
 from . import diagnostics, priors, samplers, simulate, validation
 from ._version import __version__
 from .bins import Bins
+from .density import Density
 from .estimator import PopulationEstimator
 from .inference import infer
 from .likelihoods import Likelihoods
@@ -42,6 +43,7 @@ __all__ = [
     "BinferenceWarning",
     "Bins",
     "ConvergenceWarning",
+    "Density",
     "InputWarning",
     "Likelihoods",
     "Measure",

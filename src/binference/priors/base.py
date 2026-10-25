@@ -1,6 +1,6 @@
 """Base classes for population priors.
 
-A :class:`Prior` is a lightweight configuration object (what the user writes);
+A :class:`PopulationPrior` is a lightweight configuration object (what the user writes);
 ``prior.bind(bins)`` validates it against the bins and returns a
 :class:`BoundPrior` that implements the numerical interface used by models and
 engines:
@@ -22,10 +22,10 @@ import numpy as np
 
 from ..bins import Bins
 
-__all__ = ["BoundPrior", "Prior"]
+__all__ = ["BoundPrior", "PopulationPrior"]
 
 
-class Prior:
+class PopulationPrior:
     """Base class for priors on population fractions or rates."""
 
     #: ``"fractions"`` (a distribution on the simplex) or ``"rates"``
@@ -58,7 +58,7 @@ class BoundPrior:
     has_density: bool = False
     has_prior_transform: bool = False
 
-    def __init__(self, prior: Prior, bins: Bins) -> None:
+    def __init__(self, prior: PopulationPrior, bins: Bins) -> None:
         self.prior = prior
         self.bins = bins
         self.K = bins.K

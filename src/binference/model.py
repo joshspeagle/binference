@@ -35,7 +35,7 @@ from ._simplex import softmax
 from ._utils import RNGLike, as_generator
 from .bins import Bins
 from .likelihoods import Likelihoods, _scale_columns
-from .priors import Dirichlet, Prior
+from .priors import Dirichlet, PopulationPrior
 from .priors.base import BoundPrior
 from .selection import Selection, as_selection
 
@@ -50,7 +50,7 @@ class PopulationModel:
     likelihoods : Likelihoods or array_like (N, K)
         Per-object bin-averaged likelihoods. A raw array is wrapped with
         ``Likelihoods(array, bins)``.
-    prior : Prior, optional
+    prior : PopulationPrior, optional
         Population prior; defaults to ``Dirichlet(1.0)``. Use
         :class:`~binference.priors.GammaRates` to infer rates instead of fractions.
     selection : array_like (K,) or Selection, optional
@@ -75,7 +75,7 @@ class PopulationModel:
     def __init__(
         self,
         likelihoods: Likelihoods | Any,
-        prior: Prior | None = None,
+        prior: PopulationPrior | None = None,
         *,
         selection: Any = None,
         selection_mode: str | None = None,
@@ -87,8 +87,8 @@ class PopulationModel:
             raise ValueError("bins differ from the bins attached to the likelihoods.")
         self.likelihoods = likelihoods
         self.prior_spec = Dirichlet(1.0) if prior is None else prior
-        if not isinstance(self.prior_spec, Prior):
-            raise TypeError("prior must be a binference.priors.Prior instance.")
+        if not isinstance(self.prior_spec, PopulationPrior):
+            raise TypeError("prior must be a binference.priors.PopulationPrior instance.")
         self.prior: BoundPrior = self.prior_spec.bind(likelihoods.bins)
         if selection is None and selection_mode is None:
             sel = likelihoods.selection

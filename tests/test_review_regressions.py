@@ -86,7 +86,7 @@ def test_from_response_with_explicit_efficiency():
         Likelihoods.from_response(counts, 2.0 * migration, bins=mu.bins)
 
 
-def test_interim_density_follows_posterior_representation():
+def test_an_array_interim_on_unequal_bins_needs_its_representation():
     bins = Bins.log(0.05, 5.0, 12)
     rng = np.random.default_rng(4)
     z = rng.uniform(0.1, 4.0, 200)
@@ -95,7 +95,15 @@ def test_interim_density_follows_posterior_representation():
     prior_density = 1.0 / c  # interim prior density at the bin centres
     post_density = like * prior_density
     post_density /= (post_density * bins.volumes).sum(axis=1, keepdims=True)
-    lk = Likelihoods.from_posteriors(post_density, bins, prior_density, representation="density")
+    with pytest.raises(ValueError, match="ambiguous"):
+        Likelihoods.from_posteriors(post_density, bins, prior_density, representation="density")
+    lk = Likelihoods.from_posteriors(
+        post_density,
+        bins,
+        prior_density,
+        representation="density",
+        interim_representation="density",
+    )
     expected = Likelihoods(like, bins)
     np.testing.assert_allclose(lk.toarray(), expected.toarray(), rtol=1e-8, atol=1e-12)
 
