@@ -65,11 +65,10 @@ def _subbin_points(bins: Bins, n_sub: int) -> tuple[np.ndarray, np.ndarray]:
     u, wu = _gauss_legendre_unit(n_sub)
     edges = bins.edges
     per_axis = [e[:-1, None] + np.diff(e)[:, None] * u[None, :] for e in edges]  # (K_d, n)
+    cell_idx = bins.grid_index(np.arange(bins.K))  # per axis, (K,)
     if bins.ndim == 1:
-        return per_axis[0].ravel(), wu
-    # tensor-product points per cell, cell order C-ordered over the grid
-    grids = np.meshgrid(*[np.arange(s) for s in bins.shape], indexing="ij")
-    cell_idx = [g.ravel() for g in grids]  # (K,) per axis
+        return per_axis[0][cell_idx[0]].ravel(), wu
+    # tensor-product points per cell, in the order of the (active) bins
     sub = np.meshgrid(*[np.arange(n_sub)] * bins.ndim, indexing="ij")
     sub_idx = [s.ravel() for s in sub]  # (M,) per axis
     pts = np.stack(
@@ -657,7 +656,7 @@ class Likelihoods:
             else:
                 logL = (logL[:, :, None] + lm[:, None, :]).reshape(mu.shape[0], -1)
         lk = cls(
-            logL,
+            logL[:, bins.cells] if bins.is_masked else logL,
             bins,
             log=True,
             weights=weights,

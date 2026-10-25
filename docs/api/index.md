@@ -13,6 +13,7 @@ namespace; priors, engines and helpers live in sub-modules.
    :nosignatures:
 
    Bins
+   Measure
    Likelihoods
    Selection
    PopulationModel

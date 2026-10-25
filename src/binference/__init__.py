@@ -31,6 +31,7 @@ from .bins import Bins
 from .estimator import PopulationEstimator
 from .inference import infer
 from .likelihoods import Likelihoods
+from .measure import Measure
 from .model import PopulationModel
 from .results import PointEstimate, PopulationResult, Summary
 from .selection import Selection
@@ -43,6 +44,7 @@ __all__ = [
     "ConvergenceWarning",
     "InputWarning",
     "Likelihoods",
+    "Measure",
     "PointEstimate",
     "PopulationEstimator",
     "PopulationModel",

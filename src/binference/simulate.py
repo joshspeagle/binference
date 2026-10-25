@@ -146,21 +146,15 @@ def _draw_values(bins: Bins, density: Any, n: int, rng: np.random.Generator):
     if f is None:
         rho = population(bins, density)
         labels = rng.choice(bins.K, size=n, p=rho)
-        multi = np.unravel_index(labels, bins.shape)
-        vals = [
-            e[j] + np.diff(e)[j] * rng.random(n) for e, j in zip(bins.edges, multi, strict=True)
-        ]
-        values = vals[0] if bins.ndim == 1 else np.stack(vals, axis=1)
-        return values, labels
+        return bins.sample_within(labels, rng), labels
     # fine grid inverse-CDF (piecewise-constant) sampling
     fine = [np.linspace(e[0], e[-1], 20 * (len(e) - 1) + 1) for e in bins.edges]
     fb = Bins.grid(*fine)
     pts = fb.centers
     dens = np.clip(np.asarray(f(pts), dtype=float).ravel(), 0.0, None) * fb.volumes
+    dens[~bins.contains(pts)] = 0.0  # no objects in masked cells
     cell = rng.choice(fb.K, size=n, p=dens / dens.sum())
-    multi = np.unravel_index(cell, fb.shape)
-    vals = [e[j] + np.diff(e)[j] * rng.random(n) for e, j in zip(fb.edges, multi, strict=True)]
-    values = vals[0] if bins.ndim == 1 else np.stack(vals, axis=1)
+    values = fb.sample_within(cell, rng)
     labels = bins.index(values)
     return values, labels
 

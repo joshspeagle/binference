@@ -386,6 +386,8 @@ class LogisticRandomWalk(Prior):
     def bind(self, bins: Bins) -> _BoundRandomWalk:
         if bins.is_categorical:
             raise ValueError("Smoothness priors need ordered (grid) bins, not categories.")
+        if bins.is_masked:
+            raise NotImplementedError("Smoothness priors do not yet support masked grids.")
         eig = [_rw_eigen(n, self.order) for n in bins.shape]
         basis = _KronBasis([U for _, U in eig])
         lam = np.zeros(1)
@@ -492,6 +494,8 @@ class LogisticGP(Prior):
     def bind(self, bins: Bins) -> _BoundGP:
         if bins.is_categorical:
             raise ValueError("Smoothness priors need ordered (grid) bins, not categories.")
+        if bins.is_masked:
+            raise NotImplementedError("Smoothness priors do not yet support masked grids.")
         D = bins.ndim
         nb = (
             [min(n, 48) for n in bins.shape]
