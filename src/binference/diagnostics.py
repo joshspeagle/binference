@@ -258,7 +258,8 @@ def psis(log_weights: Any) -> tuple[np.ndarray, float]:
         Normalised (``logsumexp == 0``) smoothed log-weights.
     k_hat : float
         Estimated Pareto shape: the estimate is reliable below
-        :func:`psis_threshold` of the number of weights (0.7 from about 2,000).
+        :func:`psis_threshold` of the number of weights (0.7 from about 2,000);
+        ``-inf`` for equal weights, which have no tail.
     """
     lw = np.array(log_weights, dtype=float).ravel()
     n = lw.size
@@ -266,6 +267,8 @@ def psis(log_weights: Any) -> tuple[np.ndarray, float]:
         raise ValueError("Need at least 5 importance weights.")
     lw[~np.isfinite(lw)] = -np.inf
     lw = lw - np.max(lw)
+    if np.all(lw > -1e-10):  # equal weights (to round-off): exact, no tail to fit
+        return lw - np.log(n), -np.inf
     tail_len = int(np.ceil(min(0.2 * n, 3.0 * np.sqrt(n))))  # rounded up, as ArviZ and loo
     sorted_lw = np.sort(lw)
     exp_cut = max(np.exp(sorted_lw[-tail_len - 1]), np.finfo(float).tiny)

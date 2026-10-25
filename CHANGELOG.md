@@ -44,6 +44,10 @@ First development version.
   population, also `which="selected"`), `realized_counts(full=True)` (with the missed
   objects), `data_support` and the `support` summary column, `prior_information_ratio()`
   (Efron's ratio), `check(support_min=)`, and `PointEstimate.check()` for the KKT gap.
+- **Best fit and leave-one-out** (DECISIONS #35, #51, #52, #85): every result has
+  `result.best` (the MAP estimate, computed on first use) and per-object outputs at it
+  with a `_best` suffix; `assignment_probabilities_loo` gives leave-one-out posteriors
+  by Pareto-smoothed importance sampling, with the Pareto k-hat per object.
 - **Value draws from within-bin information** (DECISIONS #50, #84): `sample_values`
   resamples the samples of `from_samples` inside the drawn bin (`keep_samples=`),
   evaluates `from_density` densities inside 1-D bins (interim divided out for
