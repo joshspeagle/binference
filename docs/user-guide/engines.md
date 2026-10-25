@@ -120,8 +120,11 @@ gives exact joint draws from any engine's output.
   (concentrations below one, Pólya trees) and all non-conjugate priors use
   L-BFGS in unconstrained coordinates, which keeps the mode in the interior.
 - **The certificate** is the KKT optimality gap, which should be about zero.
-  `MAP(tol=1e-8)` is the tolerance on it for every algorithm (on the largest
-  gradient over the total weight for L-BFGS), and `est.log_posterior` is
+  `MAP(tol=1e-8)` bounds it for EM, bounds the same gap of the problem mix-SQP
+  solves (the observed fractions under selection, the composition for rates),
+  and bounds the largest gradient over the total weight for L-BFGS. A run that
+  can no longer improve its objective in floating point is accepted below
+  `1e3 * tol`. `est.log_posterior` is
   always the density of the fractions or rates, `model.log_posterior(est.value)`;
   L-BFGS also stores the density in its own coordinates as
   `est.info["log_density_unconstrained"]`.

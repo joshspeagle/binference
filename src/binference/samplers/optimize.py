@@ -90,15 +90,14 @@ def _mixsqp(
             H[pos, pos] += a[pos] / (W * x[pos] ** 2)  # only where a_k > 0 (audit T-4)
         H[np.diag_indices(K)] += 1e-10 * max(np.trace(H) / K, 1e-300)
         try:
-            Lc = np.linalg.cholesky(H)
-        except np.linalg.LinAlgError:
-            H[np.diag_indices(K)] += 1e-6 * max(np.trace(H) / K, 1e-300)
-            Lc = np.linalg.cholesky(H)
-        q = g - H @ x
-        b = -np.linalg.solve(Lc, q)
-        try:
+            try:
+                Lc = np.linalg.cholesky(H)
+            except np.linalg.LinAlgError:
+                H[np.diag_indices(K)] += 1e-6 * max(np.trace(H) / K, 1e-300)
+                Lc = np.linalg.cholesky(H)
+            b = -np.linalg.solve(Lc, g - H @ x)
             y, _ = optimize.nnls(Lc.T, b, maxiter=50 * K)
-        except RuntimeError:  # the quadratic subproblem did not converge (audit M-13)
+        except (np.linalg.LinAlgError, RuntimeError):  # no quadratic step (audit M-13)
             break
         step = y - x
         slope = float(g @ step)
@@ -297,14 +296,20 @@ class MAP(Engine):
                 x *= m.W + a.sum()
             else:
                 x /= x.sum()
-        if not converged:
-            warn(f"mix-SQP did not converge in {n_iter} iterations.", ConvergenceWarning)
+        if not converged:  # EM takes over from where mix-SQP stopped (audit M-13)
+            warn(
+                f"mix-SQP did not converge in {n_iter} iterations; continuing with EM.",
+                ConvergenceWarning,
+            )
+            return self._run_em(m, x)
         return self._estimate(m, x, n_iter, converged, "mixsqp")
 
     # ------------------------------------------------------------------- EM
-    def _run_em(self, m: PopulationModel) -> PointEstimate:
+    def _run_em(self, m: PopulationModel, start: np.ndarray | None = None) -> PointEstimate:
         fractions = m.kind == "fractions"
-        v = interior_start(m) if self.init is None else self.init.copy()
+        if start is None:
+            start = interior_start(m) if self.init is None else self.init
+        v = start.copy()
         if fractions:
             v = v / v.sum()
 
@@ -338,9 +343,9 @@ class MAP(Engine):
                 break
             df = (f_new - f_old) / (abs(f_new) + 1.0)  # EM never decreases the objective
             v, f_old = v_new, f_new
-            # once the objective has nearly stopped, check optimality every tenth step
-            # (two passes over the data each; audit M-6)
-            if df <= self.tol and n_iter % 10 == 0:
+            # once the objective has nearly stopped, check optimality every tenth step (two
+            # passes over the data each), at a fixed point and at the last step (audit M-6)
+            if df <= self.tol and (n_iter % 10 == 0 or df <= 0.0 or n_iter == self.max_iter):
                 gap = m.kkt_gap(v)
                 stalled = df <= 0.0  # EM is monotone: no gain is the round-off floor
                 if _converged(gap, self.tol, stalled):
@@ -422,8 +427,8 @@ class MAP(Engine):
         x = res.x
         lp, g = m.log_density_unconstrained_and_grad(x)
         gnorm = float(np.max(np.abs(g))) if g.size else 0.0
-        # res.success without a small gradient means the objective stopped improving
-        converged = _converged(gnorm / scale, self.tol, bool(res.success))
+        # any stop but the iteration limit means the objective stopped improving
+        converged = _converged(gnorm / scale, self.tol, stalled=res.status != 1)
         if not converged:
             warn(
                 f"L-BFGS did not converge ({res.message}); max |gradient| = {gnorm:.2e}.",
@@ -443,5 +448,7 @@ class MAP(Engine):
 
 
 def _objective(m: PopulationModel, v: np.ndarray) -> float:
-    # log posterior on the simplex (or orthant), up to the likelihoods' log-scales
-    return m.log_likelihood(v, absolute=False) + m.log_prior(v)
+    # log posterior on the simplex (or orthant), up to the likelihoods' log-scales;
+    # components clipped to zero are active constraints: the prior is evaluated at a tiny
+    # positive value so the objective stays finite (and constant) for them
+    return m.log_likelihood(v, absolute=False) + m.log_prior(np.maximum(v, 1e-300))

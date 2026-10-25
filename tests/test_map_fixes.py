@@ -85,7 +85,7 @@ def test_mixsqp_starts_from_its_init():
     np.testing.assert_allclose(again.value, mode.value, atol=1e-8)
 
 
-def test_a_failed_quadratic_subproblem_ends_mixsqp_unconverged(monkeypatch):
+def test_a_failed_quadratic_subproblem_hands_mixsqp_over_to_em(monkeypatch):
     from binference.samplers import optimize
 
     def fail(*args, **kwargs):
@@ -93,6 +93,48 @@ def test_a_failed_quadratic_subproblem_ends_mixsqp_unconverged(monkeypatch):
 
     monkeypatch.setattr(optimize.optimize, "nnls", fail)
     m = PopulationModel(_mock().likelihoods)
-    with pytest.warns(ConvergenceWarning, match="mix-SQP"):
+    with pytest.warns(ConvergenceWarning, match="continuing with EM"):
         est = MAP(m).run()
-    assert not est.converged and np.all(np.isfinite(est.value))
+    assert est.info["algorithm"] == "squarem" and est.converged and est.kkt_gap < 1e-5
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2, 3])
+def test_a_zero_rate_under_a_gamma_prior_is_no_kkt_violation(seed):
+    # the prior gradient at a zero rate is -b, not 0
+    sel = Selection(np.linspace(2.0, 0.5, 12), "on_truth", scale="exposure")
+    m = PopulationModel(_mock(seed=seed).likelihoods, P.GammaRates(1.0, 0.5), selection=sel)
+    est = MAP(m).run()
+    assert est.converged and est.kkt_gap < 1e-6
+
+
+def test_the_rates_gap_is_one_sided_at_a_rate_near_zero():
+    m = PopulationModel(_mock(K=20, noise=0.05).likelihoods, P.GammaRates(1.0, 1e-12))
+    lam = MAP(m).run().value
+    assert np.any(lam == 0.0)
+    near = np.where(lam == 0.0, 1e-12, lam)  # where EM leaves a rate it drives to zero
+    assert m.kkt_gap(near) < 1e-6
+
+
+@pytest.mark.parametrize("alpha", [0.5, 0.9])
+def test_priors_unbounded_at_the_boundary_converge_on_the_simplex(alpha):
+    m = PopulationModel(_mock(K=20, noise=0.2).likelihoods, P.Dirichlet(alpha))
+    with pytest.warns(binference.InputWarning, match="unbounded"):
+        est = MAP(m, space="simplex").run()  # a ConvergenceWarning is an error here
+    assert est.converged and np.any(est.value == 0.0)
+
+
+def test_the_prior_density_is_reported_as_it_is_on_the_boundary():
+    lk = _mock(K=4).likelihoods
+    at_zero = np.array([0.0, 0.2, 0.3, 0.5])
+    assert PopulationModel(lk, P.Dirichlet(2.0)).log_prior(at_zero) == -np.inf
+    assert PopulationModel(lk, P.Dirichlet(0.5)).log_prior(at_zero) == np.inf
+    assert np.isnan(PopulationModel(lk, P.LogisticGP()).log_prior(at_zero))
+    tree = PopulationModel(lk, P.PolyaTree(c=1.0))
+    assert np.isnan(tree.log_prior(np.array([0.0, 0.0, 0.5, 0.5])))  # inf - inf, quietly
+
+
+def test_em_started_at_its_fixed_point_converges_at_once():
+    m = PopulationModel(_mock().likelihoods, P.Dirichlet(2.0))
+    mode = MAP(m, algorithm="em").run()
+    again = MAP(m, algorithm="em", init=mode.value, max_iter=5).run()
+    assert again.converged and again.n_iter < 5

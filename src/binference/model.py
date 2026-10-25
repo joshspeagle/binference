@@ -277,14 +277,15 @@ class PopulationModel:
         """Prior log-density of fractions (on the simplex) or rates, where defined.
 
         A density in the fractions (or rates) themselves, without the Jacobian of
-        any reparametrisation (DECISIONS #15); NaN for priors without a
-        closed-form density (logistic priors). Components at exactly zero are
-        evaluated at 1e-300, so the value stays finite where the density is zero
-        or unbounded at the boundary of the simplex (DECISIONS #71).
+        any reparametrisation (DECISIONS #15). On the boundary it is -inf where
+        the density is zero, +inf where it is unbounded and NaN where it is
+        undefined (a Polya tree); NaN for priors without a closed-form density
+        (logistic priors).
         """
         if not self.prior.has_density:
             return np.nan
-        return float(self.prior.log_density(np.maximum(np.asarray(value, dtype=float), 1e-300)))
+        with np.errstate(invalid="ignore"):
+            return float(self.prior.log_density(np.asarray(value, dtype=float)))
 
     def log_posterior(self, value: np.ndarray) -> float:
         """Unnormalised log posterior density of fractions (on the simplex) or rates.
@@ -347,7 +348,10 @@ class PopulationModel:
         elif self.selection is not None:
             G = G - self.W * self.selection / float(self.selection @ v)
         if include_prior and self.prior.has_density:
-            G = G + self.prior.grad_log_density(v)
+            # at a zero, the gradient at 1e-300 (as in the MAP objective): -b for rates of
+            # shape one, hugely negative where the density is unbounded there (no violation),
+            # hugely positive where it vanishes (DECISIONS #71)
+            G = G + self.prior.grad_log_density(np.maximum(v, 1e-300))
         mu = float(v[pos] @ G[pos])
         if self.kind == "rates":
             # G <= 0 everywhere and lambda . G = 0 (the total), relative to the exposure so

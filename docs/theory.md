@@ -135,9 +135,9 @@ estimate (`PointEstimate.kkt_gap`); it is infinite where an object has zero
 likelihood. For rates, with $G$ the gradient of the log posterior in $\lambda$,
 the conditions are $G_k\le0$ with equality where $\hat\lambda_k>0$, and the gap is
 the larger of $\max_kG_k/S_k$ and $|\lambda\cdot G|/(S\cdot\lambda)$, so it does
-not depend on the exposure's units. Every MAP algorithm stops when this gap (or,
-in unconstrained coordinates, the largest gradient over $\max(1,W)$) is below
-`tol`. With
+not depend on the exposure's units. `MAP(tol=)` bounds this gap for EM and
+the same gap of the problem mix-SQP solves (below); see
+{class}`~binference.samplers.MAP` for the rule in full. With
 a $\mathrm{Dir}(\alpha)$ prior the MAP update adds $\alpha_k-1$ pseudo-counts. EM
 is slow when likelihoods are broad (a large fraction of missing information), so
 binference accelerates it with SQUAREM (Varadhan & Roland 2008).
