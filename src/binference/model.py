@@ -24,7 +24,12 @@ with expected counts :math:`\hat n_k = \rho_k \sum_i w_i L_{ik}/(L_i\cdot\rho)`.
 A selection on the truth measured by injections is inferred with the population: the
 unconstrained coordinates gain :math:`y = \mathrm{logit}\,S` after the prior's, the
 likelihood uses that :math:`S`, and :math:`\partial\ell/\partial y_k =
-(1 - S_k)\,\partial\ell/\partial\eta_k` (DECISIONS #80).
+(1 - S_k)\,\partial\ell/\partial\eta_k` (DECISIONS #80). A response tallied from events
+(binned measurements) is inferred the same way: the coordinates gain the isometric
+log-ratios of each column of :math:`R` with its lost share, under their Dirichlet
+posterior given the tallies, and the likelihood is
+:math:`\sum_j c_j\log(R_{j\cdot}\cdot\rho) - W\log(\epsilon\cdot\rho)` with
+:math:`\epsilon` the column sums (DECISIONS #28, #81).
 """
 
 from __future__ import annotations
@@ -36,7 +41,7 @@ import numpy as np
 from scipy import linalg, special
 
 from . import _kernels as kern
-from ._simplex import helmert_basis, softmax
+from ._simplex import helmert_basis, log_softmax, softmax
 from ._utils import RNGLike, as_generator
 from .bins import Bins
 from .likelihoods import Likelihoods, _scale_columns
@@ -122,6 +127,26 @@ class PopulationModel:
                 "Rates need an absolute selection (exposures); this one is relative "
                 "(DECISIONS #46)."
             )
+        resp = likelihoods.meta.get("response")
+        #: a response tallied from events, inferred with the population (or ``None``)
+        self.response = resp if resp is not None and resp.uncertain else None
+        if self.response is not None:
+            if not (selection is None and selection_mode is None):
+                raise ValueError(
+                    "The efficiency of a response inferred from its tallies is the selection; "
+                    "to set another, build the likelihoods from response.fixed()."
+                )
+            if self.prior.kind == "rates":
+                raise ValueError(
+                    "A response is inferred jointly for fractions only; for rates build the "
+                    "likelihoods from response.fixed()."
+                )
+            J = self.response.measured_bins.K
+            # observed objects per measured bin, and the columns' Dirichlet parameters
+            self._c = np.bincount(
+                likelihoods.meta["measured_bin"], weights=likelihoods.weights, minlength=J
+            )
+            self._alpha = self.response._dirichlet().T  # (K, J + 1), the lost share last
         self.selection_spec: Selection | None = sel
         #: per-bin selection values (or ``None``)
         self.selection = None if sel is None else sel.values
@@ -153,6 +178,12 @@ class PopulationModel:
         leaves the total unidentified (DECISIONS #46)."""
         sel = self.selection_spec
         return None if sel is not None and sel.scale == "relative" else self._S
+
+    @property
+    def joint(self) -> bool:
+        """Whether a selection from injections or a tallied response is inferred with the
+        population, as extra unconstrained coordinates (DECISIONS #80, #81)."""
+        return self.selection_uncertain or self.response is not None
 
     @property
     def selection_uncertain(self) -> bool:
@@ -197,7 +228,10 @@ class PopulationModel:
     def dim(self) -> int:
         """Dimension of the unconstrained parameter vector: the prior's, plus ``K`` for
         :math:`\\mathrm{logit}\\,S` when the selection is inferred."""
-        return self.prior.dim + (self.K if self.selection_uncertain else 0)
+        extra = self.K if self.selection_uncertain else 0
+        if self.response is not None:
+            extra = self.K * self.response.measured_bins.K
+        return self.prior.dim + extra
 
     def selection_at(self, X: np.ndarray) -> np.ndarray | None:
         """The selection :math:`S` at unconstrained points ``X`` ``(..., dim)``, or ``None``
@@ -205,6 +239,67 @@ class PopulationModel:
         if not self.selection_uncertain:
             return None
         return special.expit(np.asarray(X, dtype=float)[..., self.prior.dim :])
+
+    def _response_logits(self, X: np.ndarray) -> np.ndarray:
+        # log compositions (..., K, J + 1) of the response's columns from their log-ratios
+        J = self.response.measured_bins.K
+        Y = np.asarray(X, dtype=float)[..., self.prior.dim :].reshape(*np.shape(X)[:-1], -1, J)
+        return log_softmax(Y @ helmert_basis(J + 1).T)
+
+    def response_at(self, X: np.ndarray) -> np.ndarray | None:
+        """The response :math:`R` ``(..., J, K)`` at unconstrained points ``X``
+        ``(..., dim)``, or ``None`` when it is fixed."""
+        if self.response is None:
+            return None
+        return np.swapaxes(np.exp(self._response_logits(X))[..., :-1], -1, -2)
+
+    def _joint_info(self, X: np.ndarray) -> dict[str, np.ndarray]:
+        """Draws of what is inferred with the population at points ``X`` (..., dim)."""
+        if self.selection_uncertain:
+            return {"selection_draws": self.selection_at(X)}
+        if self.response is not None:
+            return {"response_draws": self.response_at(X)}
+        return {}
+
+    def _joint_log_density(self, x: np.ndarray) -> float:
+        """Log density at ``x`` of what is inferred with the population, given the
+        injections or tallies alone, in its own space (S or R, without the Jacobian of
+        its unconstrained coordinates)."""
+        y = np.asarray(x, dtype=float)[self.prior.dim :]
+        if self.selection_uncertain:
+            ls, _ = _logit_density(y, self.selection_spec.injections)
+            return ls - float(np.sum(special.log_expit(y) + special.log_expit(-y)))
+        if self.response is not None:
+            return float(np.sum((self._alpha - 1.0) * self._response_logits(x)))
+        return 0.0
+
+    def _response_terms(self, value: np.ndarray, R: np.ndarray):
+        r"""Log-likelihood of the counts per measured bin given ``R``, with its gradients in
+        the logits of :math:`\rho` and in :math:`R` ``(J, K)``."""
+        on = self._c > 0
+        c, Ro = self._c[on], R[on]
+        q = Ro @ value
+        se = float(R.sum(axis=0) @ value)
+        if not (np.all(q > 0) and se > 0):
+            return -np.inf, None, None
+        ll = float(c @ np.log(q)) - self.W * np.log(se)
+        t = c / q
+        nhat = value * (Ro.T @ t)
+        d_eta = nhat - self.W * value * R.sum(axis=0) / se
+        G = np.broadcast_to(-self.W * value / se, R.shape).copy()
+        G[on] += np.outer(t, value)
+        return ll, d_eta, G
+
+    def _response_density(self, x: np.ndarray, G: np.ndarray) -> tuple[float, np.ndarray]:
+        # the columns' Dirichlet density in their log-ratios (with the Jacobian) and the
+        # gradient of it plus the likelihood's (G in R; the lost share has none)
+        logP = self._response_logits(x)
+        P = np.exp(logP)
+        a = self._alpha
+        Gf = np.zeros_like(P)
+        Gf[:, :-1] = G.T
+        d = P * (Gf - np.sum(P * Gf, axis=1, keepdims=True)) + a - a.sum(axis=1)[:, None] * P
+        return float(np.sum(a * logP)), (d @ helmert_basis(P.shape[1])).ravel()
 
     def effective_likelihoods(self, likelihoods: Likelihoods):
         """Likelihood matrix of (new) objects with this model's selection applied."""
@@ -271,7 +366,12 @@ class PopulationModel:
         if not np.isfinite(value.sum()):
             return -np.inf, np.zeros_like(x)
         S = self.selection_at(x)
-        ll, d_eta = self._ll_and_deta(value, S)
+        R = self.response_at(x)
+        if R is None:
+            ll, d_eta = self._ll_and_deta(value, S)
+            ll += self._ll_const
+        else:  # absolute already: the response's own rows
+            ll, d_eta, G = self._response_terms(value, R)
         if not np.isfinite(ll):
             return -np.inf, np.zeros_like(x)
         lp, g = self.prior.log_prior_and_grad(x[:d], cache, value, d_eta)
@@ -279,7 +379,11 @@ class PopulationModel:
             ls, g_y = _logit_density(x[d:], self.selection_spec.injections)
             lp += ls
             g = np.concatenate([g, g_y + d_eta * (1.0 - S)])
-        return ll + lp + self._ll_const, g
+        if R is not None:  # the response's block (DECISIONS #81)
+            lr, g_r = self._response_density(x, G)
+            lp += lr
+            g = np.concatenate([g, g_r])
+        return ll + lp, g
 
     def log_density_unconstrained(self, x: np.ndarray) -> float:
         """Log posterior density in the unconstrained coordinates ``x`` (with the Jacobian).
@@ -336,14 +440,14 @@ class PopulationModel:
         uncertain selection is being drawn); Gibbs's counterpart of
         :meth:`_complete_counts` (audit G-7).
         """
-        if self.selection is None or self.kind == "rates":
+        if (self.selection is None and S is None) or self.kind == "rates":
             return counts
         S = self._detect if S is None else S
         rho = value / value.sum()
         n_missed = rng.negative_binomial(self.W, float(np.clip(S @ rho, 1e-300, 1.0)))
         if n_missed == 0:
             return counts
-        q = rho * (1.0 - S)
+        q = rho * np.maximum(1.0 - S, 0.0)  # an efficiency may round to above one
         return counts + rng.multinomial(n_missed, q / q.sum())
 
     def to_value(self, x: np.ndarray) -> np.ndarray:
@@ -365,21 +469,41 @@ class PopulationModel:
         """An unconstrained point corresponding to fractions (or rates) ``value`` (and to
         the selection's :attr:`~Selection.values` when it is inferred)."""
         x = self.prior.init_from_value(np.asarray(value, dtype=float))
-        if not self.selection_uncertain:
-            return x
-        return np.concatenate([x, special.logit(self.selection)])
+        if self.selection_uncertain:
+            return np.concatenate([x, special.logit(self.selection)])
+        if self.response is not None:  # the posterior means of the columns
+            a = self._alpha
+            y = np.log(a / a.sum(axis=1, keepdims=True)) @ helmert_basis(a.shape[1])
+            return np.concatenate([x, y.ravel()])
+        return x
 
     # ----------------------------------------------- fraction/rate space
     def log_likelihood(
-        self, value: np.ndarray, absolute: bool = True, S: np.ndarray | None = None
+        self,
+        value: np.ndarray,
+        absolute: bool = True,
+        S: np.ndarray | None = None,
+        response: np.ndarray | None = None,
     ) -> float:
         """Marginal log-likelihood of the population (including the selection term).
 
         With ``absolute=True`` the per-object log-scales of the likelihoods are
         included, so values are comparable across binnings and models. ``S`` is a
-        value of an inferred selection (by default its :attr:`~Selection.values`).
+        value of an inferred selection (by default its :attr:`~Selection.values`), and
+        ``response`` ``(J, K)`` one of an inferred response (by default its tallied
+        matrix).
         """
         v = np.asarray(value, dtype=float)
+        if response is not None:
+            if self.response is None:
+                raise ValueError("response applies only to a response inferred from tallies.")
+            R = np.asarray(response, dtype=float)
+            if R.shape != self.response.matrix.shape or np.any(R < 0):
+                raise ValueError(
+                    f"response must be non-negative with shape {self.response.matrix.shape}."
+                )
+            ll = self._response_terms(v, R)[0]
+            return ll if absolute else ll - self._ll_const
         if S is not None:
             if not self.selection_uncertain:
                 raise ValueError("S applies only to a selection inferred from injections.")

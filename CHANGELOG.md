@@ -38,6 +38,10 @@ First development version.
   by Gibbs, NUTS, Laplace and `MAP(space="unconstrained")` (logit S as extra
   coordinates); `smooth=τ` ties neighbouring bins by a random walk on logit S;
   `at_mean()` fixes it for VB and the bootstrap.
+- **Responses inferred with the population** (DECISIONS #28, #81): a response tallied
+  from events (`Response.from_counts`, `from_simulation`, `from_labelled`) has a
+  Dirichlet posterior per column (`prior=β`, default 1 per cell) and is inferred jointly
+  by Gibbs, NUTS, Laplace and unconstrained MAP; `response.fixed()` takes it as known.
 - **Totals and rates from fractions** (DECISIONS #9, #78): every fractions result has
   `total` (draws of Λ ~ Gamma(W, S·ρ), exact under a scale-free prior) and `rates`
   (Λρ), with an absolute or no selection; point estimates give W/(S·ρ̂).

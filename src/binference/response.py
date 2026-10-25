@@ -9,6 +9,10 @@ response is the matrix
 whose column sums are the efficiencies :math:`\epsilon_k \le 1`. Every object
 measured in bin :math:`j` has likelihood row :math:`R_{j\cdot}`
 (:meth:`Likelihoods.from_binned`).
+
+A response tallied from events is uncertain: each column, with its lost share
+:math:`1 - \epsilon_k`, has a Dirichlet posterior given the tallies, and the engines
+infer it jointly with the population (DECISIONS #28, #81).
 """
 
 from __future__ import annotations
@@ -18,7 +22,7 @@ from typing import Any
 import numpy as np
 from scipy import stats
 
-from ._utils import frozen, warn
+from ._utils import as_generator, check_positive, frozen, warn
 from .bins import Bins
 from .warnings import InputWarning
 
@@ -50,10 +54,19 @@ class Response:
 
     A response tallied from events (:meth:`from_counts` and the constructors
     built on it) records the events generated per true bin, :attr:`generated`,
-    which measure how well each column is known.
+    which measure how well each column is known. It is :attr:`uncertain` and is
+    inferred jointly with the population; :meth:`fixed` takes it as known.
     """
 
-    __slots__ = ("_matrix", "generated", "measured_bins", "open_ended", "origin", "truth_bins")
+    __slots__ = (
+        "_matrix",
+        "generated",
+        "measured_bins",
+        "open_ended",
+        "origin",
+        "prior",
+        "truth_bins",
+    )
 
     def __init__(
         self,
@@ -66,7 +79,17 @@ class Response:
     ) -> None:
         self._setup(matrix, truth_bins, measured_bins, efficiency, open_ended, None, "matrix")
 
-    def _setup(self, matrix, truth_bins, measured_bins, efficiency, open_ended, generated, origin):
+    def _setup(
+        self,
+        matrix,
+        truth_bins,
+        measured_bins,
+        efficiency,
+        open_ended,
+        generated,
+        origin,
+        prior=None,
+    ):
         R = np.array(matrix, dtype=float)
         if R.ndim != 2 or R.shape[1] != truth_bins.K:
             raise ValueError(
@@ -108,6 +131,7 @@ class Response:
         self.open_ended = bool(open_ended)
         self.generated = None if generated is None else frozen(np.array(generated, dtype=float))
         self.origin = str(origin)
+        self.prior = None if prior is None else float(prior)
 
     def __setattr__(self, name: str, value: Any) -> None:
         if name in Response.__slots__ and not hasattr(self, name):
@@ -123,6 +147,7 @@ class Response:
             self.open_ended,
             self.generated,
             self.origin,
+            self.prior,
         )
 
     @classmethod
@@ -135,6 +160,7 @@ class Response:
         *,
         open_ended: bool = False,
         origin: str = "counts",
+        prior: float = 1.0,
     ) -> Response:
         """A response tallied from events: ``counts[j, k]`` of ``generated[k]`` measured in ``j``.
 
@@ -148,7 +174,14 @@ class Response:
             As for :class:`Response`.
         origin : str
             Where the tallies come from, as :meth:`PopulationResult.summary` reports it.
+        prior : float
+            Concentration :math:`\\beta` of the Dirichlet prior on each cell of a column (the
+            ``J`` measured bins and the lost share); column :math:`k` has the posterior
+            :math:`\\mathrm{Dir}(\\beta + \\text{counts}_{\\cdot k},\\ \\beta + \\text{lost}_k)`.
+            The default 1 is uniform; below 1, cells with no events give NUTS long tails
+            (DECISIONS #81).
         """
+        prior = float(check_positive(prior, "prior"))
         g = np.asarray(generated, dtype=float).ravel()
         if g.shape != (truth_bins.K,) or not np.all(np.isfinite(g)):
             raise ValueError("generated must give one count per truth bin.")
@@ -167,6 +200,7 @@ class Response:
             open_ended,
             g,
             origin,
+            prior,
         )
         return out
 
@@ -181,6 +215,7 @@ class Response:
         weights: Any = None,
         open_ended: bool = False,
         origin: str = "simulation",
+        prior: float = 1.0,
     ) -> Response:
         r"""Tally the response from simulated events.
 
@@ -199,7 +234,7 @@ class Response:
             effective events, :math:`(\sum w)^2/\sum w^2` per true bin, so that
             they measure how well each column is known whatever the scale of the
             weights.
-        origin : str
+        origin, prior : str, float
             As for :meth:`from_counts`.
 
         Events whose true value lies outside ``truth_bins`` are left out; a
@@ -244,6 +279,7 @@ class Response:
             measured_bins,
             open_ended=open_ended,
             origin=origin,
+            prior=prior,
         )
 
     @classmethod
@@ -255,6 +291,7 @@ class Response:
         *,
         classes: Any = None,
         n_bins: int = 10,
+        prior: float = 1.0,
     ) -> Response:
         """Tally the response of a classifier from a labelled validation set.
 
@@ -278,6 +315,8 @@ class Response:
             The classes, in order (default: the sorted distinct labels).
         n_bins : int
             Number of equal-count score bins when ``measured_bins`` is not given.
+        prior : float
+            As for :meth:`from_counts`.
         """
         y = np.asarray(labels).ravel()
         s = np.asarray(scores)
@@ -295,7 +334,7 @@ class Response:
         elif measured_bins is None:
             measured_bins = Bins.categories(np.unique(s).tolist())
         return cls.from_simulation(
-            y, s, truth, measured_bins, open_ended=open_ended, origin="labelled data"
+            y, s, truth, measured_bins, open_ended=open_ended, origin="labelled data", prior=prior
         )
 
     # -------------------------------------------------------------- properties
@@ -314,6 +353,33 @@ class Response:
         """Tallied events per measured and true bin ``(J, K)``, or ``None`` for a given matrix."""
         return None if self.generated is None else self._matrix * self.generated
 
+    @property
+    def uncertain(self) -> bool:
+        """Whether the response is tallied from events and inferred with the population."""
+        return self.generated is not None
+
+    def fixed(self) -> Response:
+        """This response taken as known: its matrix without the tallies (a plug-in that
+        ignores their uncertainty)."""
+        return _rebuild(
+            self._matrix, self.truth_bins, self.measured_bins, self.open_ended, None, self.origin
+        )
+
+    def _dirichlet(self) -> np.ndarray:
+        """Dirichlet parameters ``(J + 1, K)`` of the columns given the tallies, the lost
+        share last."""
+        counts = self.counts
+        lost = np.maximum(self.generated - counts.sum(axis=0), 0.0)
+        return np.vstack([counts, lost]) + self.prior
+
+    def draw(self, n: int, rng: Any = None) -> np.ndarray:
+        """``(n, J, K)`` posterior draws of the matrix given the tallies alone."""
+        if not self.uncertain:
+            raise ValueError("Only a response tallied from events has draws.")
+        a = self._dirichlet()
+        G = as_generator(rng).gamma(a, size=(int(n), *a.shape))
+        return (G / G.sum(axis=1, keepdims=True))[:, :-1]
+
     def index(self, values: Any) -> np.ndarray:
         """Measured bin of each value (``-1`` outside the measured bins, or for NaN)."""
         if self.open_ended:
@@ -326,7 +392,7 @@ class Response:
         q = self._matrix @ np.asarray(rho, dtype=float)
         return q / q.sum()
 
-    def predictive_pvalue(self, counts: Any, rho_draws: Any) -> float:
+    def predictive_pvalue(self, counts: Any, rho_draws: Any, response_draws: Any = None) -> float:
         r"""Posterior predictive p-value of counts per measured bin, over draws of the fractions.
 
         For each draw, the discrepancy :math:`D = d^\top \Sigma^{-} d` of the
@@ -335,18 +401,21 @@ class Response:
         of its estimated columns; the p-value is the mean of
         :math:`P(\chi^2_{J-1} \ge D)` over draws (DECISIONS #68). A small value
         means the response does not describe the counts; for a classifier, that
-        label shift is violated.
+        label shift is violated. With ``response_draws`` ``(n_draws, J, K)``, drawn
+        with the fractions when the response is inferred jointly, each draw uses its
+        own response and the tallies' covariance is left out (DECISIONS #81).
         """
-        n = np.asarray(counts, dtype=float).ravel()
-        live = self._matrix.sum(axis=1) > 0
-        if np.any(n[~live] > 0):
-            return 0.0  # counts where the response allows none
-        R, n = self._matrix[live], n[live]
-        N, J = n.sum(), n.size
-        eff = R.sum(axis=0)
+        n_all = np.asarray(counts, dtype=float).ravel()
         draws = np.atleast_2d(np.asarray(rho_draws, dtype=float))
         D = np.empty(len(draws))
         for s, rho in enumerate(draws):
+            R = self._matrix if response_draws is None else np.asarray(response_draws[s])
+            live = R.sum(axis=1) > 0
+            if np.any(n_all[~live] > 0):
+                return 0.0  # counts where the response allows none
+            R, n = R[live], n_all[live]
+            N, J = n.sum(), n.size
+            eff = R.sum(axis=0)
             scale = eff @ rho
             q = R @ rho / scale
             # covariance diag(a) + V S V^T: the multinomial counts, plus the columns of a
@@ -354,7 +423,7 @@ class Response:
             # to N, so the bin with the largest q is dropped and the rest inverted by
             # Woodbury, O(J K^2) per draw
             a, V, S = N * q, q[:, None], np.array([[-N]])
-            if self.generated is not None:
+            if self.generated is not None and response_draws is None:
                 c = rho**2 / self.generated / scale**2
                 Rc, sc = R @ c, np.sqrt(c)
                 a = a + N**2 * Rc
@@ -378,7 +447,9 @@ class Response:
         return f"Response(J={J} measured bins, K={K} truth bins, from {self.origin})"
 
 
-def _rebuild(matrix, truth_bins, measured_bins, open_ended, generated, origin) -> Response:
+def _rebuild(
+    matrix, truth_bins, measured_bins, open_ended, generated, origin, prior=None
+) -> Response:
     out = Response.__new__(Response)
-    out._setup(matrix, truth_bins, measured_bins, None, open_ended, generated, origin)
+    out._setup(matrix, truth_bins, measured_bins, None, open_ended, generated, origin, prior)
     return out

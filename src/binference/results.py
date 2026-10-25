@@ -143,17 +143,31 @@ class _IndividualMixin:
         R = self._weight_draws() if components else self._rho_draws()
         return R[_draw_index(R.shape[0], n_draws)]
 
+    def _inferred_selection(self) -> np.ndarray | None:
+        """Per-draw selection ``(chain, draw, K)`` when a selection from injections or a
+        tallied response (its efficiencies) is inferred with the population."""
+        info = getattr(self, "info", {})
+        if "response_draws" in info:
+            return np.asarray(info["response_draws"]).sum(axis=-2)
+        return info.get("selection_draws")
+
     def _object_draws(self, n_draws: int | None):
         """The likelihoods and per-draw column weights for per-object methods.
 
         With a selection inferred jointly (DECISIONS #79) these are the bare
         likelihoods and :math:`\\rho\\circ S` with each draw's own :math:`S`, which is
-        also returned; otherwise the model's likelihoods (selection on the truth
-        applied) and :math:`\\rho`, and ``None``.
+        also returned; with a response inferred jointly (DECISIONS #81), each draw's
+        rows ``(n_draws, N, K)`` and :math:`\\rho`; otherwise the model's likelihoods
+        (selection on the truth applied) and :math:`\\rho`, and ``None``.
         """
         model = self._require_model()
         R = self._select_draws(n_draws, components=True)
-        S = getattr(self, "info", {}).get("selection_draws")
+        info = getattr(self, "info", {})
+        if "response_draws" in info:
+            Rd = np.asarray(info["response_draws"])
+            Rd = Rd.reshape(-1, *Rd.shape[-2:])[_draw_index(Rd.size // Rd[0, 0].size, n_draws)]
+            return Rd[:, model.likelihoods.meta["measured_bin"]], R, None
+        S = info.get("selection_draws")
         if S is not None:
             S = np.asarray(S).reshape(-1, model.K)[_draw_index(S.size // model.K, n_draws)]
         return *model._rows(R, S), S
@@ -209,15 +223,15 @@ class _IndividualMixin:
         """
         model = self._require_model()
         L, R, _ = self._object_draws(n_draws)
-        L = L if idx is None else L[np.atleast_1d(np.arange(model.N)[idx])]
-        n = L.shape[0]
+        L = _objects(L, model.N, idx)
+        n = L.shape[-2]
         out = np.zeros((n, model.K))
         for sl in chunk_slices(n, chunk):
-            block = L[sl]
+            block = L[:, sl] if L.ndim == 3 else L[sl]
             block = block.toarray() if hasattr(block, "toarray") else np.asarray(block)
-            acc = np.zeros((block.shape[0], model.K))
-            for rho in R:
-                P = block * rho
+            acc = np.zeros((block.shape[-2], model.K))
+            for s, rho in enumerate(R):
+                P = _draw_rows(block, s) * rho
                 tot = P.sum(axis=1, keepdims=True)
                 acc += P / np.where(tot > 0, tot, 1.0)  # rows with no support stay zero
             out[sl] = acc / R.shape[0]
@@ -239,8 +253,10 @@ class _IndividualMixin:
     def _component_labels(self, idx: Any, n_draws: int | None, gen: np.random.Generator):
         model = self._require_model()
         L, R, _ = self._object_draws(n_draws)
-        L = L if idx is None else L[np.atleast_1d(np.arange(model.N)[idx])]
-        return np.stack([kern.sample_labels(L, rho, gen) for rho in R])
+        L = _objects(L, model.N, idx)
+        return np.stack(
+            [kern.sample_labels(_draw_rows(L, s), rho, gen) for s, rho in enumerate(R)]
+        )
 
     def realized_counts(self, n_draws: int | None = None, rng: RNGLike = None) -> np.ndarray:
         """Draws of the realised histogram of the observed objects' true bins.
@@ -258,11 +274,12 @@ class _IndividualMixin:
         integer = bool(np.all(np.abs(w - np.round(w)) < 1e-12))
         out = np.empty((R.shape[0], self.bins.K))
         for s, rho in enumerate(R):
+            Ls = _draw_rows(L, s)
             if unit or integer:
-                n = kern.sample_counts(L, w, rho, gen, unit_weights=unit)[0]
+                n = kern.sample_counts(Ls, w, rho, gen, unit_weights=unit)[0]
                 out[s] = self._counts_to_bins(n, gen)
             else:
-                labels = self._labels_to_bins(kern.sample_labels(L, rho, gen), gen)
+                labels = self._labels_to_bins(kern.sample_labels(Ls, rho, gen), gen)
                 out[s] = np.bincount(labels, weights=w, minlength=self.bins.K)
         return out
 
@@ -358,6 +375,19 @@ class _IndividualMixin:
         with np.errstate(divide="ignore"):
             lp = special.logsumexp(np.log(S), axis=1) - np.log(R.shape[0])
         return lp + lk.log_scale
+
+
+def _objects(L: Any, N: int, idx: Any) -> Any:
+    # the rows of objects idx (all by default), of per-draw rows (n_draws, N, K) too
+    if idx is None:
+        return L
+    rows = np.atleast_1d(np.arange(N)[idx])
+    return L[:, rows] if L.ndim == 3 else L[rows]
+
+
+def _draw_rows(L: Any, s: int) -> Any:
+    # draw s's rows when they differ by draw (an inferred response), else the rows
+    return L[s] if L.ndim == 3 else L
 
 
 def _draw_index(n_total: int, n_draws: int | None) -> np.ndarray | slice:
@@ -601,7 +631,7 @@ class PopulationResult(_IndividualMixin):
         across different draws, and leave the caller's generator untouched.
         """
         if self._total is None and self.model is not None:
-            S = self.info.get("selection_draws")  # an uncertain selection, per draw
+            S = self._inferred_selection()  # per draw, when inferred with the population
             self._total = self.model.draw_total(self._params, _draws_rng(self._params), S)
         return None if self._total is None else self._total.ravel()
 
@@ -751,8 +781,8 @@ class PopulationResult(_IndividualMixin):
             out["ess_tail"] = np.array([diag.ess(C[:, :, k], "tail") for k in range(self.K)])
             if self.n_chains >= 2:
                 out["rhat"] = np.array([diag.rhat(C[:, :, k]) for k in range(self.K)])
-            if "selection_draws" in self.info:  # a selection inferred with the population
-                Sd = np.asarray(self.info["selection_draws"])
+            Sd = self._inferred_selection()  # a selection, or a response's efficiencies
+            if Sd is not None:
                 out["ess_bulk_selection"] = np.array(
                     [diag.ess(Sd[:, :, k], "bulk") for k in range(Sd.shape[-1])]
                 )
@@ -904,8 +934,11 @@ class PopulationResult(_IndividualMixin):
             resp = lk.meta["response"]
             J, K = resp.matrix.shape
             n = np.bincount(lk.meta["measured_bin"], weights=lk.weights, minlength=J)
+            Rd = self.info.get("response_draws")  # an inferred response, drawn with rho
+            if Rd is not None:
+                Rd = np.asarray(Rd).reshape(-1, J, K)[_draw_index(Rd.size // (J * K), n_draws)]
             self._cache[key] = (
-                resp.predictive_pvalue(n, self._select_draws(n_draws)) if J > K else None
+                resp.predictive_pvalue(n, self._select_draws(n_draws), Rd) if J > K else None
             )
         return self._cache[key]
 
@@ -1062,7 +1095,7 @@ class PointEstimate(_IndividualMixin):
             return float(self.value.sum())
         if self.model is None:
             return None
-        S = self.info.get("selection_draws")  # an inferred selection, at the mode
+        S = self._inferred_selection()  # inferred, at the mode
         S = self.model.total_exposure if S is None else np.ravel(S)
         return None if S is None else float(self.model.W / (S @ self.value))
 

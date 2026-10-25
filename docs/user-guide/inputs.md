@@ -299,6 +299,20 @@ Responses built from events keep the tallies (`response.counts`, `response.gener
 `open_ended=True` lets the outer two of 1-D measured bins take every value below or above
 them; `from_labelled` sets it for its score bins.
 
+A response tallied from events is known only as well as its events allow, so by default
+it is **inferred with the population** (DECISIONS #28, #81). Each column, with its lost
+share $1-\epsilon_k$, has a $\mathrm{Dir}(\beta + \text{counts}_{\cdot k},\
+\beta + \text{lost}_k)$ posterior given the tallies (`prior=β`, default 1 per cell), and
+the engines sample it with $\rho$: Gibbs from its conjugate conditional (`method="auto"`
+chooses Gibbs for conjugate priors), NUTS, Laplace and `MAP(space="unconstrained")` in
+the log-ratios of each column. The draws are in `result.info["response_draws"]`
+`(chain, draw, J, K)`; the total and the per-object methods use them draw by draw.
+`response.fixed()` takes the tallied matrix as known instead (VB and the bootstrap need
+it), and a `Response(matrix)` is always fixed. With few events this matters: with 30 or
+100 validation objects per class, three classes, 10 score bins and 1000 target objects,
+68% intervals of the fractions from the fixed response contained the truth 23% and 34%
+of the time, and from the inferred one 58% and 62% (100 simulations, Gibbs).
+
 **Classifiers** reach the population by one of two routes, chosen by what you have
 (DECISIONS #29); `result.summary()` names the inputs in its title (`posteriors` for
 route A, `binned, response from labelled data` for route C).
@@ -314,8 +328,9 @@ route A, `binned, response from labelled data` for route C).
 
 When there are more measured bins than truth bins, `result.check()` compares the
 measured counts with those each posterior draw predicts through the response (a
-posterior predictive p-value that includes the response's own sampling noise). It warns
-when $p<10^{-3}$, which for a classifier means label shift is violated.
+posterior predictive p-value; an inferred response is drawn with the fractions, and a
+fixed tallied one adds the tallies' sampling noise). It warns when $p<10^{-3}$, which
+for a classifier means label shift is violated.
 
 ```python
 mu = binference.simulate.mock_unfolding(3000, rng=2)
