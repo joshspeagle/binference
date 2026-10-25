@@ -314,7 +314,7 @@ it; its predictive check still counts the tallies' noise), and a `Response(matri
 always fixed. With few events this matters: with 30 or
 100 validation objects per class, three classes, 10 score bins and 1000 target objects,
 68% intervals of the fractions from the fixed response contained the truth 23% and 34%
-of the time, and from the inferred one 58% and 62% (100 simulations, Gibbs).
+of the time, and from the inferred one 57% and 60% (100 simulations, Gibbs).
 
 **Classifiers** reach the population by one of two routes, chosen by what you have
 (DECISIONS #29); `result.summary()` names the inputs in its title (`posteriors` for
