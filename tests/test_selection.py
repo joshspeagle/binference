@@ -86,3 +86,29 @@ def test_an_open_end_of_the_measured_range_lets_everything_through():
     above = _measured_pass(z, (0.05, 0.5), (1.0, None))
     np.testing.assert_allclose(below + above, 1.0, rtol=1e-12)
     assert np.all((below > 0) & (above > 0))
+
+
+_S = [1.0, 0.8, 0.6, 0.45, 0.35, 0.3, 0.25, 0.2, 0.15, 0.1]
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {"selection": _S},
+        {"measured_range": (0.5, None)},
+        {"selection": _S, "measured_range": (0.5, None)},
+    ],
+    ids=["on_truth", "on_measurement", "combined"],
+)
+def test_mocks_with_each_kind_of_selection_recover_the_population(kw):
+    from binference.simulate import population
+
+    bins = Bins.linear(0, 3, 10)
+    rho = population(bins, "bimodal")
+    mock = mock_1d(20000, bins, density=rho, noise=(0.02, 1.0), rng=3, **kw)
+    fit = binference.infer(mock.likelihoods, method="laplace", rng=0, check=False)
+    sd = fit.samples.std(axis=0)
+    naive = binference.infer(mock.likelihoods.with_selection(None), method="map").value
+    # z-scores against the truth: below 2.5 in 12 trial fits; ignoring selection, 11 to 23
+    assert np.abs((fit.mean - rho) / sd).max() < 4
+    assert np.abs((naive - rho) / sd).max() > 8
