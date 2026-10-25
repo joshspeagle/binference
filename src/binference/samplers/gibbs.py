@@ -15,6 +15,9 @@ from .base import Engine, interior_start
 
 __all__ = ["Gibbs"]
 
+#: smallest detection probability a chain holds (Beta draws can underflow to zero)
+S_FLOOR = 1e-12
+
 
 class Gibbs(Engine):
     r"""Data-augmentation Gibbs sampler (the "hierarchical" sampler).
@@ -130,7 +133,7 @@ class Gibbs(Engine):
         exposure = m._S if m.kind == "rates" else None
         self._state = [m.prior.posterior_sample(nhat, r, exposure=exposure) for r in self._rngs]
         if m.selection_uncertain:  # each chain starts from a draw given the injections
-            self._sel = [m.selection_spec.draw(1, r)[0] for r in self._rngs]
+            self._sel = [np.maximum(m.selection_spec.draw(1, r)[0], S_FLOOR) for r in self._rngs]
 
     def _iterate(self, c: int) -> tuple[np.ndarray, np.ndarray | None]:
         m = self.model
@@ -160,7 +163,8 @@ class Gibbs(Engine):
         )
         missed = m._draw_missed(value, counts, rng, S=S) - counts  # with the absolute S
         injected, recovered, (a, b) = m.selection_spec.injections
-        self._sel[c] = rng.beta(a + recovered + counts, b + injected - recovered + missed)
+        S = rng.beta(a + recovered + counts, b + injected - recovered + missed)
+        self._sel[c] = np.maximum(S, S_FLOOR)  # an underflow to zero would void its bin
         self._state[c] = m.prior.posterior_sample(counts + missed, rng)
         return self._state[c], labels
 

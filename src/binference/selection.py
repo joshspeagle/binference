@@ -136,8 +136,9 @@ class Selection:
         :math:`d_k`; with a :math:`\\mathrm{Beta}(a, b)` prior each :math:`S_k` has the
         posterior :math:`\\mathrm{Beta}(a + d_k, b + n_k - d_k)` given the
         injections alone. The selection is uncertain: Gibbs sampling infers it
-        jointly with the population, where the catalogue (and the objects it
-        missed) inform it as well (DECISIONS #10, #30); :meth:`at_mean` gives a
+        jointly with the population, where the catalogue informs the ratios
+        between the :math:`S_k` (their level comes from the injections; DECISIONS
+        #10, #30, #79); :meth:`at_mean` gives a
         fixed selection at the posterior means, ignoring the uncertainty.
 
         Parameters
@@ -162,10 +163,16 @@ class Selection:
         d = np.asarray(detected)
         if d.ndim != 1 or not (d.dtype == bool or np.isin(d, (0, 1)).all()):
             raise ValueError("detected must be a 1-D array of booleans (or zeros and ones).")
-        k = bins.index(z)
+        try:
+            k = bins.index(z)
+        except ValueError as err:
+            raise ValueError(f"z: {err}") from None
         if k.shape != d.shape:
             raise ValueError(f"z has {k.size} injections but detected has {d.size}.")
-        a, b = (float(x) for x in prior)
+        try:
+            a, b = (float(x) for x in prior)
+        except (TypeError, ValueError):
+            a = b = np.nan
         if not (a > 0 and b > 0 and np.isfinite(a) and np.isfinite(b)):
             raise ValueError(f"prior must be two positive numbers (a, b); got {prior!r}.")
         inside = k >= 0
@@ -291,7 +298,7 @@ class Selection:
             (self.mode, self.scale) == (other.mode, other.scale)
             and np.array_equal(self.values, other.values)
             and (self.row is None or np.array_equal(self.row, other.row))
-            and (self.injections is None) == (other.injections is None)
+            and _same_injections(self.injections, other.injections)
         )
 
     def __hash__(self) -> int:
@@ -305,6 +312,12 @@ def _combined(on_truth: Any, on_measurement: Any, scale: str) -> Selection:
     if T.shape != C.shape:
         raise ValueError("on_truth and on_measurement must have one value per bin.")
     return _rebuild(C * T, C, scale)
+
+
+def _same_injections(a: Any, b: Any) -> bool:
+    if a is None or b is None:
+        return a is b
+    return np.array_equal(a[0], b[0]) and np.array_equal(a[1], b[1]) and a[2] == b[2]
 
 
 def _per_bin(values: Any, K: int) -> np.ndarray:
@@ -340,7 +353,15 @@ def _rebuild(
     )
     out.scale = scale
     out.basis = basis
-    out.injections = injections
+    out.injections = (
+        None
+        if injections is None
+        else (
+            frozen(np.array(injections[0])),
+            frozen(np.array(injections[1])),
+            tuple(injections[2]),
+        )
+    )
     return out
 
 

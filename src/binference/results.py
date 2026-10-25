@@ -141,10 +141,23 @@ class _IndividualMixin:
 
     def _select_draws(self, n_draws: int | None, components: bool = False) -> np.ndarray:
         R = self._weight_draws() if components else self._rho_draws()
-        if n_draws is None or n_draws >= R.shape[0]:
-            return R
-        idx = np.linspace(0, R.shape[0] - 1, int(n_draws)).round().astype(int)
-        return R[idx]
+        return R[_draw_index(R.shape[0], n_draws)]
+
+    def _object_draws(self, n_draws: int | None):
+        """The likelihoods and per-draw column weights for per-object methods.
+
+        With a selection inferred jointly (DECISIONS #79) these are the bare
+        likelihoods and :math:`\\rho\\circ S` with each draw's own :math:`S`, which is
+        also returned; otherwise the model's likelihoods (selection on the truth
+        applied) and :math:`\\rho`, and ``None``.
+        """
+        model = self._require_model()
+        R = self._select_draws(n_draws, components=True)
+        S = getattr(self, "info", {}).get("selection_draws")
+        if S is None:
+            return model._L, R, None
+        S = np.asarray(S).reshape(-1, model.K)[_draw_index(S.size // model.K, n_draws)]
+        return model.likelihoods.values, R * S, S
 
     def _to_bins(self, P: np.ndarray) -> np.ndarray:
         """Per-component values ``(..., C)`` summed into the bins ``(..., K)``."""
@@ -196,8 +209,8 @@ class _IndividualMixin:
         Returns an ``(n, K)`` array for the objects ``idx`` (all by default).
         """
         model = self._require_model()
-        R = self._select_draws(n_draws, components=True)
-        L = model._L if idx is None else model._L[np.atleast_1d(np.arange(model.N)[idx])]
+        L, R, _ = self._object_draws(n_draws)
+        L = L if idx is None else L[np.atleast_1d(np.arange(model.N)[idx])]
         n = L.shape[0]
         out = np.zeros((n, model.K))
         for sl in chunk_slices(n, chunk):
@@ -226,8 +239,8 @@ class _IndividualMixin:
 
     def _component_labels(self, idx: Any, n_draws: int | None, gen: np.random.Generator):
         model = self._require_model()
-        R = self._select_draws(n_draws, components=True)
-        L = model._L if idx is None else model._L[np.atleast_1d(np.arange(model.N)[idx])]
+        L, R, _ = self._object_draws(n_draws)
+        L = L if idx is None else L[np.atleast_1d(np.arange(model.N)[idx])]
         return np.stack([kern.sample_labels(L, rho, gen) for rho in R])
 
     def realized_counts(self, n_draws: int | None = None, rng: RNGLike = None) -> np.ndarray:
@@ -240,17 +253,17 @@ class _IndividualMixin:
         """
         model = self._require_model()
         gen = as_generator(rng)
-        R = self._select_draws(n_draws, components=True)
+        L, R, _ = self._object_draws(n_draws)
         w = model._w
         unit = bool(np.all(w == 1))
         integer = bool(np.all(np.abs(w - np.round(w)) < 1e-12))
         out = np.empty((R.shape[0], self.bins.K))
         for s, rho in enumerate(R):
             if unit or integer:
-                n = kern.sample_counts(model._L, w, rho, gen, unit_weights=unit)[0]
+                n = kern.sample_counts(L, w, rho, gen, unit_weights=unit)[0]
                 out[s] = self._counts_to_bins(n, gen)
             else:
-                labels = self._labels_to_bins(kern.sample_labels(model._L, rho, gen), gen)
+                labels = self._labels_to_bins(kern.sample_labels(L, rho, gen), gen)
                 out[s] = np.bincount(labels, weights=w, minlength=self.bins.K)
         return out
 
@@ -320,8 +333,8 @@ class _IndividualMixin:
         """Posterior over bins for *new* objects under the inferred population."""
         model = self._require_model()
         lk = self._new_likelihoods(likelihoods)
-        R = self._select_draws(n_draws, components=True)
-        L = model.effective_likelihoods(lk)
+        _, R, S = self._object_draws(n_draws)
+        L = model.effective_likelihoods(lk) if S is None else lk.values
         L = L.toarray() if hasattr(L, "toarray") else np.asarray(L)
         acc = np.zeros_like(L)
         for rho in R:
@@ -338,13 +351,21 @@ class _IndividualMixin:
         """
         model = self._require_model()
         lk = self._new_likelihoods(likelihoods)
-        R = self._select_draws(n_draws, components=True)  # rates rescale out of the ratio
-        S = np.asarray(model.effective_likelihoods(lk) @ R.T)  # (N_new, n_draws)
+        _, R, Sd = self._object_draws(n_draws)  # rates rescale out of the ratio
+        L = model.effective_likelihoods(lk) if Sd is None else lk.values
+        S = np.asarray(L @ R.T)  # (N_new, n_draws)
         if model.selection is not None:  # a new *detected* object: divide by S . rho
-            S = S / (R @ model.selection)[None, :]
+            S = S / (R.sum(axis=1) if Sd is not None else R @ model.selection)[None, :]
         with np.errstate(divide="ignore"):
             lp = special.logsumexp(np.log(S), axis=1) - np.log(R.shape[0])
         return lp + lk.log_scale
+
+
+def _draw_index(n_total: int, n_draws: int | None) -> np.ndarray | slice:
+    # up to n_draws draws spread evenly over all of them
+    if n_draws is None or n_draws >= n_total:
+        return slice(None)
+    return np.linspace(0, n_total - 1, int(n_draws)).round().astype(int)
 
 
 def _draws_rng(draws: np.ndarray) -> np.random.Generator:
@@ -731,6 +752,15 @@ class PopulationResult(_IndividualMixin):
             out["ess_tail"] = np.array([diag.ess(C[:, :, k], "tail") for k in range(self.K)])
             if self.n_chains >= 2:
                 out["rhat"] = np.array([diag.rhat(C[:, :, k]) for k in range(self.K)])
+            if "selection_draws" in self.info:  # a selection inferred with the population
+                Sd = np.asarray(self.info["selection_draws"])
+                out["ess_bulk_selection"] = np.array(
+                    [diag.ess(Sd[:, :, k], "bulk") for k in range(Sd.shape[-1])]
+                )
+                if self.n_chains >= 2:
+                    out["rhat_selection"] = np.array(
+                        [diag.rhat(Sd[:, :, k]) for k in range(Sd.shape[-1])]
+                    )
         for key in (
             "n_divergent",
             "k_hat",
@@ -783,15 +813,17 @@ class PopulationResult(_IndividualMixin):
         d = self.diagnostics
         msgs = []
         hints = []
-        if "rhat" in d and np.nanmax(d["rhat"]) > rhat_max:
-            msgs.append(f"max R-hat = {np.nanmax(d['rhat']):.3f} > {rhat_max}")
-        if "ess_bulk" in d:
-            per_chain = np.nanmin(d["ess_bulk"]) / max(1, self.n_chains)
-            if self.method in ("nuts", "gibbs") and per_chain < ess_min:
-                msgs.append(
-                    f"min bulk ESS = {np.nanmin(d['ess_bulk']):.0f} "
-                    f"({per_chain:.0f} per chain < {ess_min:.0f})"
-                )
+        for suffix, what in (("", ""), ("_selection", " of the selection")):
+            if "rhat" + suffix in d and np.nanmax(d["rhat" + suffix]) > rhat_max:
+                msgs.append(f"max R-hat{what} = {np.nanmax(d['rhat' + suffix]):.3f} > {rhat_max}")
+            if "ess_bulk" + suffix in d:
+                ess = np.nanmin(d["ess_bulk" + suffix])
+                per_chain = ess / max(1, self.n_chains)
+                if self.method in ("nuts", "gibbs") and per_chain < ess_min:
+                    msgs.append(
+                        f"min bulk ESS{what} = {ess:.0f} "
+                        f"({per_chain:.0f} per chain < {ess_min:.0f})"
+                    )
         if msgs and self.method == "gibbs":
             hint = "Gibbs mixes slowly when likelihoods are broad compared with the bins"
             f = self._missing_information()
@@ -799,7 +831,10 @@ class PopulationResult(_IndividualMixin):
                 tau = (1.0 + f) / max(1.0 - f, 1e-12)
                 tau_text = f"~{tau:.0f}" if tau < 1000 else "over 1000"
                 hint += f" (missing information {f:.2f}: autocorrelation time {tau_text})"
-            hints.append(hint + "; run longer or use method='nuts'")
+            if self.model is not None and self.model.selection_uncertain:
+                hints.append(hint + "; run longer (only Gibbs infers this selection)")
+            else:
+                hints.append(hint + "; run longer or use method='nuts'")
         if d.get("n_divergent", 0):
             n_div = int(d["n_divergent"])
             share = 100.0 * n_div / max(self.n_draws, 1)

@@ -115,14 +115,16 @@ counting how many are recovered. `Selection.from_injections(z, detected, bins,
 each $S_k$ a $\mathrm{Beta}(a + d_k, b + n_k - d_k)$ posterior (prior
 `(a, b) = (1, 1)`). The selection is then uncertain, and Gibbs sampling infers it
 with the population: the catalogue's objects count as detections in their
-bins and the objects it missed (imputed at each step) as non-detections, so
-both inform $S$ along with the injections. The draws of $S$ are in
+bins and the objects it missed (imputed at each step) as non-detections. The
+catalogue informs only the ratios between the $S_k$ (its likelihood does not
+change when all of them are scaled together), so their level, and with it
+the total, comes from the injections. The draws of $S$ are in
 `result.info["selection_draws"]`, and the total uses them draw by draw.
 
 ```python
 rng = np.random.default_rng(3)
 z_inj = rng.uniform(0.0, 3.0, 600)
-recovered = rng.random(600) < np.interp(z_inj, mock.likelihoods.bins.centers, S)
+recovered = rng.random(600) < S[mock.likelihoods.bins.index(z_inj)]  # the mock's S
 measured = binference.Selection.from_injections(z_inj, recovered, mock.likelihoods.bins, "on_truth")
 joint = binference.infer(lk, selection=measured, method="gibbs", n_samples=300, rng=1, check=False)
 print(joint.mean.round(3), joint.info["selection_draws"].mean(axis=(0, 1)).round(2))

@@ -100,6 +100,11 @@ def exact_posterior(
         )
     if model.K not in (2, 3):
         raise ValueError("exact_posterior supports K = 2 or 3 bins.")
+    if model.selection_uncertain:
+        raise ValueError(
+            "exact_posterior integrates the population only; a selection from injections "
+            "would be fixed at its means. Pass selection.at_mean() to compare with that."
+        )
     s, ws = np.polynomial.legendre.leggauss(int(n_grid))
     s, ws = 0.5 * (s + 1.0), 0.5 * ws
     x = 0.5 * (1.0 - np.cos(np.pi * s))

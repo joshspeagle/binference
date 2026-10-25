@@ -151,7 +151,11 @@ class PopulationModel:
 
     @property
     def selection_uncertain(self) -> bool:
-        """Whether the selection comes from injections and is inferred with the population."""
+        """Whether the selection comes from injections and is inferred with the population.
+
+        Methods that take a population value (``log_likelihood``, ``kkt_gap``, ...)
+        then use the selection's posterior means.
+        """
         return self.selection_spec is not None and self.selection_spec.injections is not None
 
     def draw_total(

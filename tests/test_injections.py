@@ -109,3 +109,42 @@ def test_joint_inference_of_population_and_selection_is_calibrated():
     names = [f"rho[{k}]" for k in range(4)] + [f"S[{k}]" for k in range(4)]
     p = SBCResult(np.array(ranks), n_draws, names).pvalues(n_bins=10)
     assert np.all(p > 1e-3 / p.size), dict(zip(names, p, strict=True))
+
+
+def test_per_object_methods_use_each_draws_selection():
+    lk, sel = _problem()
+    res = Gibbs(binference.PopulationModel(lk, selection=sel), n_warmup=30, rng=0).run(40)
+    S = res.info["selection_draws"].reshape(-1, 4)
+    L = lk.values[:3]
+    expect = np.mean(
+        [L * r * s / (L @ (r * s))[:, None] for r, s in zip(res.samples, S, strict=True)], axis=0
+    )
+    np.testing.assert_allclose(res.assignment_probabilities(idx=[0, 1, 2], n_draws=None), expect)
+    assert "ess_bulk_selection" in res.diagnostics and "rhat_selection" in res.diagnostics
+
+
+def test_equal_means_from_different_injections_are_different_selections():
+    bins = Bins.linear(0, 1, 2)
+    a = Selection.from_injections([0.2, 0.2, 0.7, 0.7], [1, 0, 1, 0], bins, "on_truth")
+    b = Selection.from_injections([0.2] * 4 + [0.7] * 4, [1, 0] * 4, bins, "on_truth")
+    assert np.allclose(a.values, b.values) and a != b  # Beta(2, 2) against Beta(3, 3)
+    import pickle
+
+    back = pickle.loads(pickle.dumps(a))
+    assert back == a and not back.injections[0].flags.writeable
+
+
+def test_auto_and_exact_refuse_what_they_cannot_infer():
+    lk, sel = _problem()
+    with pytest.raises(ValueError, match="at_mean"):
+        binference.infer(lk, binference.priors.LogisticRandomWalk(), selection=sel, method="auto")
+    m = binference.PopulationModel(
+        Likelihoods(lk.toarray()[:, :3], Bins.linear(0, 1, 3)),
+        selection=Selection.from_injections([0.1, 0.5], [1, 1], Bins.linear(0, 1, 3), "on_truth"),
+    )
+    with pytest.raises(ValueError, match="at_mean"):
+        binference.validation.exact_posterior(m)
+    with pytest.raises(ValueError, match="prior"):
+        Selection.from_injections([0.1], [1], Bins.linear(0, 1, 3), "on_truth", prior=1.0)
+    with pytest.raises(ValueError, match="z"):
+        Selection.from_injections(np.ones((2, 2)), [1, 1], Bins.linear(0, 1, 3), "on_truth")
