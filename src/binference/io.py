@@ -120,6 +120,8 @@ def save_result(result: PopulationResult, path: str) -> None:
     if result.basis is not None:  # the draws per bin follow from the component draws
         meta["basis"] = _basis_meta(result.basis)
         payload["component_draws"] = result.component_draws
+    if result.kind == "fractions" and result._total is not None:
+        payload["total"] = result._total  # derived draws: kept so a load reproduces them
     payload["meta"] = np.array(json.dumps(meta))
     payload.update(arrays)
     if result.log_density_unconstrained is not None:
@@ -174,6 +176,7 @@ def load_result(path: str) -> PopulationResult:
             label_index=np.array(data["label_index"]) if "label_index" in data.files else None,
             prior_repr=meta.get("prior"),
             basis=basis,
+            total=np.array(data["total"]) if "total" in data.files else None,
         )
 
 

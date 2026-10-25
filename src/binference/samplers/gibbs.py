@@ -195,4 +195,5 @@ class Gibbs(Engine):
             labels=labels,
             label_index=self.label_index,
             info=info,
+            rng=self._result_rng(),
         )

@@ -30,6 +30,16 @@ class Engine:
         self.model = model
         self.rng = as_generator(rng)
         self.progress = bool(progress)
+        self._result_seed = None
+
+    def _result_rng(self) -> np.random.Generator:
+        """The same child stream for every result of this engine (derived totals).
+
+        Spawned on first use, after the chains, so their streams are unchanged.
+        """
+        if self._result_seed is None:
+            self._result_seed = self.rng.spawn(1)[0].bit_generator.seed_seq
+        return np.random.default_rng(self._result_seed)
 
     def run(self, *args: Any, **kwargs: Any):  # pragma: no cover - abstract
         raise NotImplementedError

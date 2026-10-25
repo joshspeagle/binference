@@ -93,8 +93,9 @@ def plot_population(
     bins = result.bins
     X = _draws(result, which)
     med = np.median(X, axis=0)
-    rates = getattr(result, "rates", None)
-    total = 1.0 if rates is None else float(np.mean(np.sum(np.atleast_2d(rates), axis=-1)))
+    # overlays of rates (and of densities of rate models) are scaled to the mean total
+    scaled = which == "rate" or getattr(result, "kind", "fractions") == "rates"
+    total = float(np.mean(result.total)) if scaled else 1.0
     if bins.ndim == 2 and not bins.is_categorical:
         return _plot_2d(result, X, plt, ax)
     if ax is None:

@@ -166,4 +166,5 @@ class Laplace(Engine):
             x=X[None],
             approximate=approximate,
             info=info,
+            rng=self._result_rng(),
         )

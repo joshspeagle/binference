@@ -38,8 +38,7 @@ def test_plot_1d_2d_categorical(res1d, small_1d):
     mc = binference.simulate.mock_categorical(200, 3, rng=1)
     rc = binference.infer(mc.likelihoods, method="gibbs", rng=1, n_samples=50, check=False)
     rc.plot(truth=mc.truth.rho)
-    with pytest.raises(ValueError):
-        res1d.plot(which="rate")
+    assert res1d.plot(which="rate").get_ylabel() == "rate"  # derived rates (DECISIONS #78)
     plt.close("all")
 
 

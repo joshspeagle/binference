@@ -116,9 +116,10 @@ held-out objects with `result.log_predictive` (see {doc}`results`).
 
 `GammaRates(shape, rate)` puts independent Gamma priors on the **expected
 number** of objects per bin, $\lambda_k$. The data then form a Poisson
-process. Use rates when the total number matters, for example occurrence rates
-per star or counts per unit exposure, and combine them with an exposure or
-selection function (see {doc}`selection`).
+process. Every fit of fractions already gives the total and the rates under a
+scale-free prior on the total (see {doc}`selection`); use `GammaRates` when
+the rates need their own prior, for example bin-specific shapes or an
+informative total, and combine them with an exposure or selection function.
 
 ```python
 est = binference.infer(lk, priors.GammaRates(shape=1.0, rate=1e-3), method="map")

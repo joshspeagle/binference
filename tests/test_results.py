@@ -36,9 +36,13 @@ def test_basic_summaries(fitted):
     with pytest.raises(ValueError):
         fitted.interval(0.5, kind="mode")
     np.testing.assert_allclose(fitted.density(), X / fitted.bins.volumes)
-    assert fitted.rates is None
-    with pytest.raises(ValueError):
-        fitted.quantile(0.5, which="rates")
+    # derived rates (DECISIONS #78): Lambda | rho ~ Gamma(W, 1) without a selection
+    W = fitted.model.W
+    np.testing.assert_allclose(fitted.rates, fitted.total[:, None] * X)
+    assert abs(fitted.total.mean() - W) < 5 * np.sqrt(W / fitted.n_draws)
+    np.testing.assert_allclose(
+        fitted.quantile(0.5, which="rates"), np.median(fitted.rates, axis=0)
+    )
 
 
 def test_summary_table(fitted):
@@ -138,7 +142,7 @@ def test_point_estimate(small_1d):
     est = binference.infer(small_1d.likelihoods, method="map")
     assert isinstance(est, binference.PointEstimate)
     np.testing.assert_allclose(est.rho.sum(), 1.0)
-    assert est.rates is None
+    np.testing.assert_allclose(est.rates, small_1d.likelihoods.W * est.rho)  # W / (S . rho)
     p = est.assignment_probabilities(idx=[0, 1])
     np.testing.assert_allclose(p.sum(1), 1.0)
     np.testing.assert_allclose(est.density(), est.rho / small_1d.bins.volumes)

@@ -86,5 +86,11 @@ class MeanFieldVB(Engine):
         )
         info = {"n_iter": it, "converged": converged, "state": state}
         return PopulationResult(
-            self.model, draws[None], method="vb", kind=self.model.kind, approximate=True, info=info
+            self.model,
+            draws[None],
+            method="vb",
+            kind=self.model.kind,
+            approximate=True,
+            info=info,
+            rng=self._result_rng(),
         )

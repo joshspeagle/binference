@@ -113,4 +113,5 @@ class Bootstrap(Engine):
                 "estimate": base.value,
                 "n_not_converged": n_not_converged,
             },
+            rng=self._result_rng(),
         )
