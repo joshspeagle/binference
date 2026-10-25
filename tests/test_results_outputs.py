@@ -24,7 +24,8 @@ def test_the_selected_population_reweights_each_draw_by_its_selection():
     phi = res.samples * S / (res.samples @ S)[:, None]
     np.testing.assert_allclose(res.selected, phi)
     np.testing.assert_allclose(res.summary(which="selected")["mean"], phi.mean(0))
-    np.testing.assert_allclose(_fit(selection=None)[1].selected, _fit(selection=None)[1].samples)
+    plain = _fit(selection=None)[1]
+    np.testing.assert_allclose(plain.selected, plain.samples)
     est = binference.infer(
         res.model.likelihoods, method="map", selection=S, selection_mode="on_truth"
     )
@@ -55,7 +56,7 @@ def test_full_sample_counts_add_the_missed_objects():
     relative = binference.PopulationModel(
         res.model.likelihoods, selection=Selection(S, "on_truth", scale="relative")
     )
-    rel = Gibbs(relative, n_warmup=10, rng=0).run(10)
+    rel = Gibbs(relative, n_warmup=0, rng=0).run(2)
     with pytest.raises(ValueError, match="relative"):
         rel.realized_counts(full=True)
 
@@ -75,7 +76,7 @@ def test_a_point_estimate_check_flags_its_kkt_gap_and_convergence():
 def test_data_support_counts_objects_worth_of_likelihood_per_bin():
     lk, res = _fit(selection=None)
     L = lk.toarray()
-    np.testing.assert_allclose(res.data_support, (L / L.sum(1, keepdims=True)).sum(0) * 1.0)
+    np.testing.assert_allclose(res.data_support, (L / L.sum(1, keepdims=True)).sum(0))
     np.testing.assert_allclose(res.summary()["support"], res.data_support)
     with pytest.warns(binference.BinferenceWarning) as caught:  # short chains warn too
         res.check(support_min=res.data_support.max() + 1)
