@@ -56,12 +56,24 @@ def _bins_from_parts(meta: dict[str, Any], arrays: Any) -> Bins:
     return Bins.grid(*edges, measure=measures, mask=mask)
 
 
+def _basis_meta(basis: Basis) -> dict[str, Any]:
+    return {
+        "order": basis.order,
+        "resolution": list(basis.resolution),
+        "oversample": basis.oversample,
+    }
+
+
 def result_to_dict(result: PopulationResult) -> dict[str, Any]:
     """Arrays and metadata of a result as a plain dictionary."""
     meta, arrays = _bins_to_parts(result.bins)
     out: dict[str, Any] = {
         "draws": result._draws,
-        **({} if result.basis is None else {"component_draws": result.component_draws}),
+        **(
+            {}
+            if result.basis is None
+            else {"component_draws": result.component_draws, "basis": _basis_meta(result.basis)}
+        ),
         "method": result.method,
         "kind": result.kind,
         "approximate": bool(result.approximate),
@@ -106,12 +118,7 @@ def save_result(result: PopulationResult, path: str) -> None:
     meta["info"] = scalars
     payload: dict[str, Any] = {"draws": result._draws}
     if result.basis is not None:  # the draws per bin follow from the component draws
-        b = result.basis
-        meta["basis"] = {
-            "order": b.order,
-            "resolution": list(b.resolution),
-            "oversample": b.oversample,
-        }
+        meta["basis"] = _basis_meta(result.basis)
         payload["component_draws"] = result.component_draws
     payload["meta"] = np.array(json.dumps(meta))
     payload.update(arrays)

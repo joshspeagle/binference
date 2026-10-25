@@ -39,7 +39,8 @@ First development version.
   bins. Every constructor takes a `Basis` for `bins` (`Likelihoods.on_basis` for
   per-bin likelihoods); callable selections are averaged with each component as the
   weight. Results report per bin and keep `component_draws`; save and load keep the
-  basis. `Bins.refine` is the counterpart of `coarsen`.
+  basis. `Bins.refine` is the counterpart of `coarsen`. `sample_values` on non-linear
+  measures now draws flat in `u` within a bin (it ignored `T'(z)`).
 - **Masked grids** (DECISIONS #19): `mask=` on `Bins`, `Bins.grid`, `Bins.linear` and
   `Bins.log`; masked cells leave the support and the model. Saved and loaded with
   results.

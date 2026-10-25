@@ -12,6 +12,7 @@ from . import _kernels as kern
 from . import diagnostics as diag
 from ._utils import RNGLike, as_generator, chunk_slices, warn
 from .bins import Bins
+from .measure import Measure
 from .warnings import ConvergenceWarning, InputWarning
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -263,23 +264,24 @@ class _IndividualMixin:
         """Joint draws of the continuous true values of objects ``idx``.
 
         Labels are drawn as in :meth:`sample_assignments`. Within the drawn bin
-        the population is flat, so a true value follows the object's own
-        likelihood there:
+        the population is flat in the measure coordinate ``u`` (its density in
+        ``z`` carries :math:`T'(z)`), so a true value follows the object's own
+        likelihood times that density:
 
-        * exactly (truncated Gaussians) for likelihoods built with
-          :meth:`Likelihoods.from_gaussian` and independent errors (``sigma``);
-          correlated errors (``cov``) take the top-hat route below;
+        * exactly (truncated Gaussians) on linear axes for likelihoods built
+          with :meth:`Likelihoods.from_gaussian` and independent errors
+          (``sigma``), and by inverse-CDF sampling on ``n_sub`` sub-points per
+          bin on other axes; correlated errors (``cov``) take the top-hat route;
         * by inverse-CDF sampling on ``n_sub`` sub-points per bin (1-D bins)
           if ``loglike(z, i)`` is given, returning the log-likelihood of object
           ``i`` (an index into the likelihoods) at the points ``z``;
-        * otherwise uniformly within the bin, the top-hat approximation, which
-          is accurate only when likelihoods are nearly flat within bins.
+        * otherwise flat in ``u`` within the bin, the top-hat approximation,
+          which is accurate only when likelihoods are nearly flat within bins.
 
         With a :class:`~binference.Basis` the label is a component: flat
-        components are sampled as above on their cells; for hats the
-        population inside is the hat, so ``loglike`` weights are multiplied by
-        its height, and other values proposed on its support are accepted with
-        that height.
+        components are sampled as above on their cells; inside a hat the
+        population is the hat, so sub-point weights include its height, and
+        other draws on its support are kept with that height.
 
         With weighted (compressed) rows each row is treated as one object.
         Returns ``(n_draws, n_objects)`` (1-D) or ``(n_draws, n_objects, ndim)``.
@@ -303,20 +305,11 @@ class _IndividualMixin:
             if hat:
                 lo, hi = basis.support(lab)
             else:
-                lo, hi = (
-                    np.stack(
-                        [
-                            u[j + k]
-                            for u, j in zip(bins.u_edges, bins.grid_index(lab), strict=True)
-                        ],
-                        -1,
-                    )
-                    for k in (0, 1)
-                )
-            shape = basis.shape if hat else None
-            z, ok = _propose_values(model, objects[todo], lab, lo, hi, gen, loglike, n_sub, shape)
-            if hat:
-                ok &= bins.contains(z if bins.ndim > 1 else z[:, 0])  # masked cells
+                cells = list(zip(bins.u_edges, bins.grid_index(lab), strict=True))
+                lo = np.stack([u[j] for u, j in cells], axis=-1)
+                hi = np.stack([u[j + 1] for u, j in cells], axis=-1)
+            height = basis.height if hat else None
+            z, ok = _propose_values(model, objects[todo], lab, lo, hi, gen, loglike, n_sub, height)
             at = np.flatnonzero(todo)[ok]
             out.reshape(-1, bins.ndim)[at] = z[ok]
             todo.ravel()[at] = False
@@ -353,48 +346,69 @@ class _IndividualMixin:
         return lp + lk.log_scale
 
 
-def _propose_values(model, objects, labels, lo, hi, gen, loglike, n_sub, shape):
-    """Values in the boxes ``[lo, hi]`` (in ``u``, ``(n, ndim)``) from each object's
-    likelihood, and whether to accept them.
+def _same_layout(a: Basis | None, b: Basis | None) -> bool:
+    # equal bases up to the identity of their measures, which do not survive save and load
+    if a is None or b is None:
+        return a is b
+    return (a.order, a.resolution, a.oversample, a.K, a.C) == (
+        b.order,
+        b.resolution,
+        b.oversample,
+        b.K,
+        b.C,
+    ) and all(np.allclose(x, y) for x, y in zip(a.bins.edges, b.bins.edges, strict=True))
 
-    ``shape(labels, u)``, if given, is the population's height (at most one)
-    inside the box: ``loglike`` weights include it, and other proposals are
-    accepted with it.
+
+def _propose_values(model, objects, labels, lo, hi, gen, loglike, n_sub, height):
+    """Values in the boxes ``[lo, hi]`` (in ``u``, ``(n, ndim)``), and whether to keep them.
+
+    Inside a box the population is flat in ``u`` times ``height(labels, d, u)``
+    per axis (a hat; ``None`` for flat), so its density in ``z`` carries
+    :math:`T'(z)`. Each axis is drawn from the object's likelihood times that
+    density: a truncated Gaussian on linear axes (kept with the hat's height),
+    else inverse-CDF sampling on ``n_sub`` sub-points per box, with ``loglike``
+    or the Gaussian as the likelihood, or the population alone without either.
     """
-    measures = model.bins.measures
     meta = model.likelihoods.meta
+    gauss = "gaussian_mean" in meta
     n, nd = lo.shape
-    z = np.empty((n, nd))
-    if loglike is not None:  # one call per object and box; the shape is in the weights
-        m = measures[0]
-        t = (np.arange(n_sub) + 0.5) / n_sub
-        key = np.stack([objects, labels], axis=1)
-        for i, k in np.unique(key, axis=0):
-            sel = np.flatnonzero((objects == i) & (labels == k))
-            zlo, zhi = m.inverse(lo[sel[0], 0]), m.inverse(hi[sel[0], 0])
-            zz = zlo + (zhi - zlo) * t
-            lw = np.asarray(loglike(zz, int(i)), dtype=float).ravel()
-            w = np.exp(lw - np.max(lw))
-            if shape is not None:
-                w = w * shape(np.full(n_sub, k), m.forward(zz)[:, None])
-            cell = gen.choice(n_sub, size=sel.size, p=w / w.sum())
-            z[sel, 0] = zz[cell] + (zhi - zlo) / n_sub * (gen.random(sel.size) - 0.5)
-        return z, np.ones(n, dtype=bool)
-    for d, m in enumerate(measures):
+    z, ok = np.empty((n, nd)), np.ones(n, dtype=bool)
+    t = (np.arange(n_sub) + 0.5) / n_sub
+    for d, m in enumerate(model.bins.measures):
         zlo, zhi = m.inverse(lo[:, d]), m.inverse(hi[:, d])
-        if "gaussian_mean" in meta:
-            from scipy import stats
-
+        if gauss:
             mu = np.asarray(meta["gaussian_mean"])[objects, d]
             sig = np.asarray(meta["gaussian_sigma"])[objects, d]
+        if gauss and m == Measure.linear():
+            from scipy import stats
+
             a, b = (zlo - mu) / sig, (zhi - mu) / sig
             z[:, d] = stats.truncnorm.rvs(a, b, loc=mu, scale=sig, random_state=gen)
-        else:  # the top-hat approximation: flat in u
-            z[:, d] = m.inverse(lo[:, d] + (hi[:, d] - lo[:, d]) * gen.random(n))
-    if shape is None:
-        return z, np.ones(n, dtype=bool)
-    u = np.stack([m.forward(z[:, d]) for d, m in enumerate(measures)], axis=-1)
-    return z, gen.random(n) < shape(labels, u)
+            if height is not None:
+                ok &= gen.random(n) < height(labels, d, z[:, d])
+            continue
+        zz = zlo[:, None] + (zhi - zlo)[:, None] * t  # (n, n_sub) sub-points in z
+        with np.errstate(divide="ignore"):
+            logw = m.log_jacobian(zz) + (
+                0.0 if height is None else np.log(height(labels, d, m.forward(zz)))
+            )
+        if gauss:
+            logw = logw - 0.5 * ((zz - mu[:, None]) / sig[:, None]) ** 2
+        elif loglike is not None:  # one call per object and box
+            key = np.stack([objects, labels], axis=1)
+            pairs, inverse = np.unique(key, axis=0, return_inverse=True)
+            order = np.argsort(inverse.ravel(), kind="stable")
+            for i, members in zip(
+                pairs[:, 0],
+                np.split(order, np.cumsum(np.bincount(inverse.ravel()))[:-1]),
+                strict=True,
+            ):
+                logw[members] += np.asarray(loglike(zz[members[0]], int(i)), dtype=float).ravel()
+        w = np.exp(logw - np.max(logw, axis=1, keepdims=True))
+        c = np.cumsum(w, axis=1)
+        cell = np.sum(c < gen.random(n)[:, None] * c[:, -1:], axis=1)
+        z[:, d] = zz[np.arange(n), cell] + (zhi - zlo) / n_sub * (gen.random(n) - 0.5)
+    return z, ok
 
 
 # ----------------------------------------------------------------------------
@@ -496,7 +510,7 @@ class PopulationResult(_IndividualMixin):
         m = likelihoods_or_model
         if not isinstance(m, PopulationModel):
             m = PopulationModel(m)
-        if m.likelihoods.basis != self.basis:
+        if not _same_layout(m.likelihoods.basis, self.basis):
             raise ValueError("The likelihoods use a different basis than this result.")
         K = self.bins.K if self.basis is None else self.basis.C
         if m.K != K:

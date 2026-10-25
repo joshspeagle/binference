@@ -291,6 +291,14 @@ def _accepts_basis(within_bins: bool, exact: Callable[[dict], bool] | None = Non
             direct = exact is not None and exact(bound.arguments)
             if not direct:
                 bound.arguments["bins"] = basis.grid if within_bins else basis.bins
+            interim = bound.arguments.get("interim")
+            if within_bins and interim is not None:
+                dens = Density.coerce(interim, bound.arguments.pop("interim_representation", None))
+                if dens._values is not None:  # per reporting bin: flat in u within each
+                    g, k = basis.grid, basis.grid_to_bins
+                    share = g.u_volumes / basis.bins.u_volumes[k]
+                    dens = Density.from_masses(dens.masses(basis.bins)[k] * share)
+                bound.arguments["interim"] = dens
             lk = f(*bound.args, **bound.kwargs)
             lk = lk._copy(basis=basis) if direct else lk.on_basis(basis)
             return lk.with_selection(sel, mode)
@@ -663,7 +671,10 @@ class Likelihoods:
         EM step from the interim prior, not the maximum-likelihood population;
         it is biased toward the interim prior and broadened by the measurement
         noise, and is provided for comparison only. Its distance from the
-        optimum is ``PopulationModel(lk).kkt_gap(lk.stack())``.
+        optimum is ``PopulationModel(lk).kkt_gap(lk.stack())``. With a
+        :class:`~binference.Basis` it is over the components (map it with
+        ``lk.basis.to_bins``), under a flat interim prior unless ``interim``
+        is given.
         """
         if interim is None:
             Pi = self.meta.get("interim_prior_masses")
@@ -681,8 +692,7 @@ class Likelihoods:
             )
         P = (sp.diags_array(1.0 / tot) @ P) if sp.issparse(P) else P / tot[:, None]
         out = np.asarray(P.T @ self._weights).ravel()
-        out /= out.sum()
-        return out if self._basis is None else self._basis.to_bins(out)
+        return out / out.sum()
 
     def log_evidence_terms(self, rho: np.ndarray) -> np.ndarray:
         r"""Per-object absolute log marginal likelihoods :math:`\log(L_i\cdot\rho)`, unweighted."""
@@ -936,8 +946,10 @@ class Likelihoods:
         a = np.asarray(rho, dtype=float).ravel()
         if a.shape != (self.K,):
             raise ValueError(f"rho must have length K={self.K}.")
-        if self._basis is not None:  # the samples were binned on the quadrature cells
-            a = self._basis.grid_masses @ a
+        if self._basis is not None:  # back to the cells the samples were binned on
+            b = self._basis
+            on_grid = self.meta["sample_sum"].shape[1] == b.grid.K
+            a = (b.grid_masses if on_grid else b.matrix) @ a
         m = np.asarray(self.meta["sample_sum"] @ a).ravel()
         q = np.asarray(self.meta["sample_sq"] @ a**2).ravel()
         est = (

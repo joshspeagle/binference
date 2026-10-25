@@ -77,7 +77,7 @@ components the model fits. The population is a mixture
 $f(z) = \sum_k w_k \phi_k(z)$ of components of unit mass on the bins refined
 `resolution` times per axis; `order=0` makes each component flat on its cell,
 `order=1` a linear B-spline (a hat centred on its cell, so the density is
-continuous). Fractions are reported in the bins,
+continuous; unmasked grids only). Fractions are reported in the bins,
 $\rho_j = \sum_k A_{jk} w_k$, with $A_{jk}$ the mass of component $k$ in bin
 $j$ (`basis.matrix`).
 

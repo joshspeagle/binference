@@ -29,11 +29,20 @@ def test_hat_masses_are_exact_and_columns_sum_to_one():
     np.testing.assert_allclose(basis.matrix.sum(axis=0), 1.0)
 
 
-def test_hats_on_a_masked_grid_are_renormalised_over_active_cells():
+def test_masked_grids_take_flat_components_only():
     G = Bins.grid([0, 1, 2, 3], [0, 1, 2], mask=np.array([[1, 1], [1, 0], [1, 1]], bool))
-    basis = Basis(G, order=1)
-    assert basis.matrix.shape == (5, 5)
+    basis = Basis(G, resolution=2)
+    assert basis.matrix.shape == (5, 20)
     np.testing.assert_allclose(basis.matrix.sum(axis=0), 1.0)
+    # next to a masked cell the hats would not sum to one, biasing the bins there
+    with pytest.raises(ValueError, match="unmasked"):
+        Basis(G, order=1)
+
+
+def test_resolution_is_checked_by_name():
+    for bad in (0, 1.5, (2, 2), "x"):
+        with pytest.raises(ValueError, match="resolution"):
+            Basis(Bins.linear(0, 1, 4), resolution=bad)
 
 
 def test_refine_and_coarsen_are_inverse():
@@ -181,3 +190,59 @@ def test_results_report_bins_and_keep_component_draws(tmp_path):
     back.attach(lk).assignment_probabilities(idx=[0])
     with pytest.raises(ValueError, match="basis"):
         back.attach(Likelihoods.from_gaussian(d, s, mock.likelihoods.bins))
+
+
+def test_sample_likelihoods_moved_onto_a_basis_keep_their_monte_carlo_error():
+    rng = np.random.default_rng(4)
+    bins = Bins.linear(0, 3, 6)
+    samples = rng.normal(rng.uniform(0.5, 2.5, 50)[:, None], 0.3, (50, 400))
+    flat = Likelihoods.from_samples(samples, bins, interim="flat")
+    basis = Basis(bins, resolution=2)
+    w = np.full(12, 1 / 12)
+    for lk in (flat.on_basis(basis), Likelihoods.from_samples(samples, basis, interim="flat")):
+        var, _ = lk.sample_variance(w)
+        assert var.shape == (50,) and np.all(np.isfinite(var))
+
+
+def test_an_interim_array_per_bin_works_with_a_basis():
+    rng = np.random.default_rng(5)
+    bins = Bins.linear(0, 3, 6)
+    samples = rng.normal(rng.uniform(0.5, 2.5, 30)[:, None], 0.3, (30, 300))
+    basis = Basis(bins, order=1)
+    a = Likelihoods.from_samples(samples, basis, interim=np.full(6, 1 / 6))
+    b = Likelihoods.from_samples(samples, basis, interim="flat")
+    np.testing.assert_allclose(a.toarray(), b.toarray(), rtol=1e-12)
+
+
+def test_the_stack_on_a_basis_is_in_the_model_parameters():
+    mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 6), rng=6)
+    basis = Basis(mock.likelihoods.bins, order=1, resolution=2)
+    lk = Likelihoods.from_gaussian(mock.measurements["mean"], mock.measurements["sigma"], basis)
+    st = lk.stack()
+    assert st.shape == (12,)
+    assert np.isfinite(PopulationModel(lk).kkt_gap(st))
+
+
+def test_values_on_log_bins_are_flat_in_log_within_bins():
+    # broad likelihoods: values follow the population, flat in log z within each bin
+    bins = Bins.log(1.0, 100.0, 4)
+    n = 4000
+    lk = Likelihoods.from_gaussian(np.full(n, 50.0), np.full(n, 1e4), bins, warn_outside=False)
+    rho = np.array([0.1, 0.4, 0.3, 0.2])
+    v = binference.PointEstimate(PopulationModel(lk), rho).sample_values(rng=0)[0]
+    e = np.log(bins.edges[0])
+    cdf = lambda x: np.interp(np.log(x), e, np.concatenate([[0], np.cumsum(rho)]))  # noqa: E731
+    assert stats.kstest(v, cdf).pvalue > 1e-3
+
+
+def test_a_reloaded_result_attaches_on_a_transform_axis(tmp_path):
+    tb = Bins(np.linspace(0, 3, 7), measure=binference.Measure.transform(np.arcsinh, np.sinh))
+    mock = binference.simulate.mock_1d(100, tb, rng=7)
+    lk = Likelihoods.from_gaussian(
+        mock.measurements["mean"], mock.measurements["sigma"], Basis(tb, order=1)
+    )
+    res = binference.infer(lk, method="gibbs", n_samples=20, n_warmup=10, rng=0, check=False)
+    res.save(str(tmp_path / "r.npz"))
+    back = PopulationResult.load(str(tmp_path / "r.npz"))
+    back.attach(lk).assignment_probabilities(idx=[0])
+    assert back.to_dict()["basis"]["order"] == 1

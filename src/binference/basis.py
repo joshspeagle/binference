@@ -13,8 +13,8 @@ on its cell (the histogram; at ``resolution=1`` exactly the plain bins);
 ``order=1`` makes it a linear B-spline (hat) centred on its cell, linear in
 ``u`` between neighbouring centres and constant from the outermost centres to
 the range edges, so the components form a partition of unity and the density
-has no steps at bin edges. Grids use tensor products; on masked grids only
-active cells count and each component is renormalised over them.
+has no steps at bin edges. Grids use tensor products; order 1 needs an
+unmasked grid, and on masked grids flat components cover the active cells.
 """
 
 from __future__ import annotations
@@ -84,6 +84,21 @@ class Basis:
             raise ValueError("A basis needs a grid; categories have no within-bin shape.")
         if order not in (0, 1):
             raise ValueError(f"order must be 0 (flat) or 1 (linear); got {order!r}.")
+        if order == 1 and bins.is_masked:
+            raise ValueError(
+                "Linear components need an unmasked grid: next to a masked cell the hats "
+                "would not sum to one, biasing the bins there. Use order=0 on masked grids."
+            )
+        try:
+            res = np.broadcast_to(np.asarray(resolution), (bins.ndim,))
+            valid = all(float(r).is_integer() and r >= 1 for r in res)
+        except (TypeError, ValueError):
+            valid = False
+        if not valid:
+            raise ValueError(
+                f"resolution must be a positive integer, or one per axis ({bins.ndim}); "
+                f"got {resolution!r}."
+            )
         if oversample is None:
             oversample = 1 if order == 0 else DEFAULT_OVERSAMPLE.get(bins.ndim, 2)
         if not float(oversample).is_integer() or oversample < 1:
@@ -91,7 +106,7 @@ class Basis:
         self.bins = bins
         self.order = int(order)
         self.oversample = int(oversample)
-        self.components, _ = bins.refine(resolution)
+        self.components, _ = bins.refine(res.astype(int))
         self.resolution = tuple(
             (len(c) - 1) // (len(b) - 1)
             for c, b in zip(self.components.edges, bins.edges, strict=True)
@@ -175,23 +190,23 @@ class Basis:
             hi.append(b)
         return np.stack(lo, axis=-1), np.stack(hi, axis=-1)
 
-    def shape(self, k: Any, u: Any) -> np.ndarray:
-        """Heights (at most one) of the unnormalised components ``k`` at points ``u``."""
-        k = np.asarray(k).ravel()
-        u = np.asarray(u, dtype=float).reshape(k.size, -1)
-        out = np.ones(k.size)
+    def height(self, k: Any, d: int, u: Any) -> np.ndarray:
+        """Height (at most one) along axis ``d`` of the unnormalised components ``k`` at
+        ``u``; ``u`` has ``k``'s shape, or one more trailing axis of points per component.
+
+        A component's shape is the product of its heights over the axes (one for
+        flat components inside their cell).
+        """
+        k = np.asarray(k)
+        x = np.asarray(u, dtype=float)
         if self.order == 0:
-            return out
-        for d, (ue, j) in enumerate(
-            zip(self.components.u_edges, self.components.grid_index(k), strict=True)
-        ):
-            a, mid, b, first, last = _hat(ue, j)
-            x = u[:, d]
-            with np.errstate(divide="ignore", invalid="ignore"):
-                up = np.where(first, 1.0, (x - a) / (mid - a))
-                down = np.where(last, 1.0, (b - x) / (b - mid))
-            out *= np.clip(np.where(x < mid, up, down), 0.0, 1.0)
-        return out
+            return np.ones(x.shape)
+        j = self.components.grid_index(k)[d].reshape(k.shape + (1,) * (x.ndim - k.ndim))
+        a, mid, b, first, last = _hat(self.components.u_edges[d], j)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            up = np.where(first, 1.0, (x - a) / (mid - a))
+            down = np.where(last, 1.0, (b - x) / (b - mid))
+        return np.clip(np.where(x < mid, up, down), 0.0, 1.0)
 
     def to_bins(self, weights: Any) -> np.ndarray:
         """Map component weights ``(..., C)`` to reporting-bin fractions ``(..., K)``."""
