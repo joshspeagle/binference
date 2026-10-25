@@ -19,10 +19,18 @@ from typing import Any
 import numpy as np
 from scipy import special
 
-from .._simplex import helmert_basis, log_softmax
+from .._simplex import helmert_basis, log_softmax, softmax
+from .._utils import check_positive
 from ..bins import Bins
 from ..density import Density
-from .base import _TINY, BoundPrior, PopulationPrior, _log_gamma_variates, _stick_break
+from .base import (
+    _TINY,
+    BoundPrior,
+    PopulationPrior,
+    _log_gamma_variates,
+    _per_item,
+    _stick_break,
+)
 
 __all__ = ["Dirichlet", "DirichletTree", "GeneralizedDirichlet", "PolyaTree"]
 
@@ -31,15 +39,7 @@ def _dirichlet_draw(alpha: np.ndarray, rng: np.random.Generator, size: int | Non
     """Dirichlet draws without exact zeros, even for tiny concentrations (floored at 1e-300)."""
     alpha = np.asarray(alpha, dtype=float)
     shape = alpha.shape if size is None else (int(size), *alpha.shape)
-    lg = _log_gamma_variates(alpha, rng, shape)
-    return np.maximum(np.exp(lg - special.logsumexp(lg, axis=-1, keepdims=True)), _TINY)
-
-
-def _positive(value: Any, name: str) -> np.ndarray:
-    a = np.asarray(value, dtype=float)
-    if not np.all(np.isfinite(a)) or np.any(a <= 0):
-        raise ValueError(f"{name} must be finite and strictly positive.")
-    return a
+    return np.maximum(softmax(_log_gamma_variates(alpha, rng, shape)), _TINY)
 
 
 class _SimplexBound(BoundPrior):
@@ -101,7 +101,7 @@ class Dirichlet(PopulationPrior):
             if alpha != "reference":
                 raise ValueError("alpha must be positive numbers or 'reference'.")
         else:
-            _positive(alpha, "Dirichlet alpha")
+            check_positive(alpha, "Dirichlet alpha")
         self.alpha = alpha
         self._base: tuple[float, Any] | None = None
 
@@ -140,7 +140,7 @@ class Dirichlet(PopulationPrior):
         read as masses per bin). The default is flat in the measure coordinate,
         proportional to bin volumes on linear bins.
         """
-        _positive(concentration, "concentration")
+        check_positive(concentration, "concentration")
         obj = cls(1.0)
         obj.alpha = None  # set at binding, from the base measure
         obj._base = (float(concentration), Density.coerce(base, "mass", name="base"))
@@ -156,12 +156,7 @@ class Dirichlet(PopulationPrior):
             return conc * b
         if isinstance(self.alpha, str):
             return np.full(K, 1.0 / K)
-        a = np.asarray(self.alpha, dtype=float)
-        if a.ndim == 0:
-            return np.full(K, float(a))
-        if a.shape != (K,):
-            raise ValueError(f"alpha must be a scalar or have length K={K}; got {a.shape}.")
-        return a.copy()
+        return _per_item(self.alpha, K, "alpha").astype(float)
 
     def bind(self, bins: Bins) -> _BoundDirichlet:
         return _BoundDirichlet(self, bins, self.resolve_alpha(bins))
@@ -365,12 +360,9 @@ class _BoundTree(_SimplexBound):
         t = self.tree
         u = np.asarray(u, dtype=float)
         theta = np.empty((*u.shape[:-1], t.slot_alpha.size))
-        j = 0
-        for c in range(t.C):  # one stick-breaking per internal node
-            sl = slice(t.ptr[c], t.ptr[c + 1])
-            m = sl.stop - sl.start
-            theta[..., sl] = _stick_break(t.slot_alpha[sl], u[..., j : j + m - 1])
-            j += m - 1
+        for c in range(t.C):  # one stick-breaking per internal node, of m - 1 uniforms
+            lo, hi = t.ptr[c], t.ptr[c + 1]
+            theta[..., lo:hi] = _stick_break(t.slot_alpha[lo:hi], u[..., lo - c : hi - c - 1])
         return t.compose(theta)
 
     def posterior_sample(self, counts, rng, exposure=None):
@@ -477,18 +469,15 @@ class DirichletTree(_TreePrior):
     def _resolve_alphas(self, alpha) -> list[np.ndarray]:
         # per-node arrays may differ in length, so test the container before np.ndim
         if not isinstance(alpha, list | tuple) and np.ndim(alpha) == 0:
-            a = float(_positive(alpha, "alpha"))
+            a = float(check_positive(alpha, "alpha"))
             return [np.full(len(ch), a) for ch in self._nodes]
-        alphas = [_positive(a, "alpha").ravel() for a in alpha]
+        alphas = [check_positive(a, "alpha").ravel() for a in alpha]
         if len(alphas) != len(self._nodes):
             raise ValueError(f"Need one alpha array per internal node ({len(self._nodes)}).")
         for c, (a, ch) in enumerate(zip(alphas, self._nodes, strict=True)):
             if a.size != len(ch):
                 raise ValueError(f"alpha for node {c} needs one value per child ({len(ch)}).")
         return alphas
-
-    def _params(self):
-        return {"tree": self.tree, "alpha": self.alpha}
 
     def _structure(self, bins: Bins) -> _TreeStructure:
         return _TreeStructure(self._nodes, self._alphas, bins.K)
@@ -519,12 +508,12 @@ class GeneralizedDirichlet(_TreePrior):
         b: float | Sequence[float] | np.ndarray | None = None,
         order: Sequence[int] | None = None,
     ) -> None:
-        _positive(a, "a")
+        check_positive(a, "a")
         if b is None:
             if np.ndim(a) != 0:
                 raise ValueError("Pass b explicitly when a is an array.")
         else:
-            _positive(b, "b")
+            check_positive(b, "b")
         if order is not None:
             o = np.asarray(order)
             if o.ndim != 1 or sorted(o.tolist()) != list(range(o.size)):
@@ -533,25 +522,16 @@ class GeneralizedDirichlet(_TreePrior):
         self.b = b
         self.order = order
 
-    def _params(self):
-        return {"a": self.a, "b": self.b, "order": self.order}
-
-    def _per_split(self, value: Any, name: str, K: int) -> np.ndarray:
-        v = np.asarray(value, dtype=float)
-        if v.ndim and v.shape != (K - 1,):
-            raise ValueError(f"{name} must be a scalar or have length K-1={K - 1}; got {v.shape}.")
-        return np.broadcast_to(v, (K - 1,)).copy()
-
     def _structure(self, bins: Bins) -> _TreeStructure:
         K = bins.K
         order = np.arange(K) if self.order is None else np.asarray(self.order, dtype=int)
         if order.size != K:
             raise ValueError(f"order must be a permutation of 0..K-1 with K={K}.")
-        a = self._per_split(self.a, "a", K)
+        a = _per_item(self.a, K - 1, "a").astype(float)
         if self.b is None:
             b = (K - 1 - np.arange(K - 1)) * float(self.a)
         else:
-            b = self._per_split(self.b, "b", K)
+            b = _per_item(self.b, K - 1, "b").astype(float)
         nodes: list[list[tuple[str, int]]] = []
         alphas: list[np.ndarray] = []
         for k in range(K - 1):
@@ -589,15 +569,12 @@ class PolyaTree(_TreePrior):
         power: float = 2.0,
         base: Any = "flat",
     ) -> None:
-        _positive(c, "c")
+        check_positive(c, "c")
         if not (np.isfinite(power) and power >= 0):
             raise ValueError("power must be finite and non-negative.")
         self.c = float(c)
         self.power = float(power)
         self.base = Density.coerce(base, "mass", name="base")
-
-    def _params(self):
-        return {"c": self.c, "power": self.power, "base": self.base}
 
     def _structure(self, bins: Bins) -> _TreeStructure:
         if bins.is_categorical or bins.ndim != 1:

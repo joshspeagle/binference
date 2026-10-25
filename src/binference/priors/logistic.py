@@ -29,9 +29,10 @@ import numpy as np
 from scipy import special
 
 from .._simplex import helmert_basis, softmax
+from .._utils import check_positive
 from ..bins import Bins
 from ..density import Density
-from .base import BoundPrior, PopulationPrior
+from .base import BoundPrior, PopulationPrior, _per_item
 from .hyper import Fixed, HalfNormal, Hyperprior, InverseGamma, as_hyperprior
 
 __all__ = ["LogisticGP", "LogisticNormal", "LogisticRandomWalk"]
@@ -300,31 +301,25 @@ class LogisticNormal(PopulationPrior):
     def __init__(self, mean: Any = None, cov: Any = None, scale: Any = None) -> None:
         self.mean = mean
         self.cov = cov
+        # basis and scales of a covariance matrix, or None (i.i.d. with a common variance)
         self._eig = None if cov is None else _zero_sum_eigen(cov)
         if scale is None:
             scale = HalfNormal(2.0) if cov is None else Fixed(1.0)
         self.scale = as_hyperprior(scale)
 
-    def _params(self):
-        cov = "iid" if self.cov is None else self.cov if np.ndim(self.cov) == 0 else "full"
-        return {"mean": self.mean, "cov": cov, "scale": self.scale}
-
     def bind(self, bins: Bins) -> _BoundLogisticNormal:
         K = bins.K
         mu = _resolve_mean(self.mean, bins)
-        if self._eig is None or np.ndim(self.cov) == 0:
+        if self._eig is None:
             base = 1.0 if self.cov is None else float(np.sqrt(self.cov))
             B = helmert_basis(K)
             s0 = np.full(K - 1, base)
         else:
-            lam, U = self._eig
-            if U.shape[0] != K:
+            B, s0 = self._eig
+            if B.shape[0] != K:
                 raise ValueError(
                     f"cov must be a (K, K) array with K={K}; got {np.shape(self.cov)}."
                 )
-            keep = lam > 1e-10 * lam.max()
-            B = U[:, keep]
-            s0 = np.sqrt(lam[keep])
         basis = _KronBasis([np.asarray(B)])
         return _BoundLogisticNormal(
             self, bins, basis, np.arange(B.shape[1]), mu, [("scale", self.scale)], s0
@@ -332,14 +327,14 @@ class LogisticNormal(PopulationPrior):
 
 
 def _zero_sum_eigen(cov: Any) -> tuple[np.ndarray, np.ndarray] | None:
-    # validates cov; for a matrix, the eigen-decomposition of its zero-sum part
+    # validates cov; for a matrix, the eigenvectors and square-root eigenvalues of its
+    # zero-sum part, on its numerical rank
     C = np.asarray(cov, dtype=float)
+    if C.ndim == 0:
+        check_positive(C, "A scalar cov (a variance)")
+        return None
     if not np.all(np.isfinite(C)):
         raise ValueError("cov must be finite.")
-    if C.ndim == 0:
-        if not C > 0:
-            raise ValueError("A scalar cov is a variance and must be positive.")
-        return None
     if C.ndim != 2 or C.shape[0] != C.shape[1] or not np.allclose(C, C.T):
         raise ValueError("cov must be a positive number or a symmetric (K, K) array.")
     K = C.shape[0]
@@ -349,7 +344,8 @@ def _zero_sum_eigen(cov: Any) -> tuple[np.ndarray, np.ndarray] | None:
         raise ValueError(
             "cov must be positive semi-definite on zero-sum vectors and not constant."
         )
-    return lam, U
+    keep = lam > 1e-10 * lam.max()
+    return U[:, keep], np.sqrt(lam[keep])
 
 
 class _BoundLogisticNormal(_BoundLogistic):
@@ -408,20 +404,11 @@ class LogisticRandomWalk(PopulationPrior):
     ) -> None:
         if order not in (1, 2, 3):
             raise ValueError("order must be 1, 2 or 3.")
-        if not (np.isfinite(trend_scale) and trend_scale > 0):
-            raise ValueError("trend_scale must be finite and positive.")
+        check_positive(trend_scale, "trend_scale")
         self.order = int(order)
         self.scale = as_hyperprior(HalfNormal(1.0) if scale is None else scale)
         self.mean = mean
         self.trend_scale = float(trend_scale)
-
-    def _params(self):
-        return {
-            "order": self.order,
-            "scale": self.scale,
-            "mean": self.mean,
-            "trend_scale": self.trend_scale,
-        }
 
     def bind(self, bins: Bins) -> _BoundRandomWalk:
         _require_full_grid(bins)
@@ -447,20 +434,20 @@ class LogisticRandomWalk(PopulationPrior):
             lam[active],
             null[active],
             # the modes have unit norm, so a root-mean-square size of 1/sqrt(K) (audit P-6)
-            self.trend_scale * np.sqrt(bins.K),
+            null_sd=self.trend_scale * np.sqrt(bins.K),
         )
 
 
 class _BoundRandomWalk(_BoundLogistic):
-    def __init__(self, prior, bins, basis, active, mu, hypers, lam, null, trend_scale):
+    def __init__(self, prior, bins, basis, active, mu, hypers, lam, null, null_sd):
         super().__init__(prior, bins, basis, active, mu, hypers)
         self.null = null
         self.inv_sqrt_lam = np.where(null, 0.0, 1.0 / np.sqrt(np.where(null, 1.0, lam)))
-        self.trend_scale = trend_scale
+        self.null_sd = null_sd
 
     def scales(self, theta):
         tau = theta[0]
-        s = np.where(self.null, self.trend_scale, tau * self.inv_sqrt_lam)
+        s = np.where(self.null, self.null_sd, tau * self.inv_sqrt_lam)
         dlogs = np.where(self.null, 0.0, 1.0)[None, :]
         return s, dlogs
 
@@ -533,26 +520,13 @@ class LogisticGP(PopulationPrior):
         self.n_basis = n_basis
         self.boundary_factor = float(boundary_factor)
 
-    def _params(self):
-        return {
-            "kernel": self.kernel,
-            "amplitude": self.amplitude,
-            "length_scale": self.length_scale,
-            "mean": self.mean,
-            "n_basis": self.n_basis,
-            "boundary_factor": self.boundary_factor,
-        }
-
     def bind(self, bins: Bins) -> _BoundGP:
         _require_full_grid(bins)
         D = bins.ndim
         if self.n_basis is None:
             nb = [min(n, 48) for n in bins.shape]
         else:
-            nb = np.asarray(self.n_basis)
-            if nb.ndim and nb.size != D:
-                raise ValueError(f"n_basis needs one value per axis ({D}); got {nb.size}.")
-            nb = list(np.broadcast_to(nb, (D,)))
+            nb = list(_per_item(self.n_basis, D, "n_basis (one per axis)"))
         factors, omegas = [], []
         for d, e in enumerate(bins.edges):
             lo, hi = float(e[0]), float(e[-1])

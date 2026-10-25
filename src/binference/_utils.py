@@ -10,7 +10,14 @@ from typing import Any
 
 import numpy as np
 
-__all__ = ["as_generator", "check_positive_weights", "chunk_slices", "progress", "spawn"]
+__all__ = [
+    "as_generator",
+    "check_positive",
+    "check_positive_weights",
+    "chunk_slices",
+    "progress",
+    "spawn",
+]
 
 RNGLike = int | np.random.Generator | np.random.SeedSequence | None
 
@@ -75,9 +82,15 @@ def check_positive_weights(weights: Any, n: int) -> np.ndarray:
         w = np.full(n, float(w))
     if w.shape != (n,):
         raise ValueError(f"weights must have shape ({n},); got {w.shape}.")
-    if not np.all(np.isfinite(w)) or np.any(w <= 0):
-        raise ValueError("weights must be finite and strictly positive.")
-    return w
+    return check_positive(w, "weights")
+
+
+def check_positive(value: Any, name: str) -> np.ndarray:
+    """``value`` as a float array, after checking that it is finite and strictly positive."""
+    a = np.asarray(value, dtype=float)
+    if not np.all(np.isfinite(a)) or np.any(a <= 0):
+        raise ValueError(f"{name} must be finite and strictly positive.")
+    return a
 
 
 def is_integer_array(x: np.ndarray, atol: float = 1e-12) -> bool:

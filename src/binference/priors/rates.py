@@ -19,8 +19,9 @@ from typing import Any
 import numpy as np
 from scipy import special
 
+from .._utils import check_positive
 from ..bins import Bins
-from .base import _TINY, BoundPrior, PopulationPrior, _log_gamma_variates
+from .base import _TINY, BoundPrior, PopulationPrior, _log_gamma_variates, _per_item
 
 __all__ = ["GammaRates"]
 
@@ -54,22 +55,14 @@ class GammaRates(PopulationPrior):
     kind = "rates"
 
     def __init__(self, shape: Any = 1.0, rate: Any = 1e-6) -> None:
-        a = np.asarray(shape, dtype=float)
-        b = np.asarray(rate, dtype=float)
-        if np.any(a <= 0) or not np.all(np.isfinite(a)):
-            raise ValueError("shape must be finite and positive.")
-        if np.any(b <= 0) or not np.all(np.isfinite(b)):
-            raise ValueError("rate must be finite and positive.")
+        check_positive(shape, "shape")
+        check_positive(rate, "rate")
         self.shape = shape
         self.rate = rate
 
-    def _params(self):
-        return {"shape": self.shape, "rate": self.rate}
-
     def bind(self, bins: Bins) -> _BoundGammaRates:
-        K = bins.K
-        a = np.broadcast_to(np.asarray(self.shape, dtype=float), (K,)).copy()
-        b = np.broadcast_to(np.asarray(self.rate, dtype=float), (K,)).copy()
+        a = _per_item(self.shape, bins.K, "shape").astype(float)
+        b = _per_item(self.rate, bins.K, "rate").astype(float)
         return _BoundGammaRates(self, bins, a, b)
 
 

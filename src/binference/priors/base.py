@@ -16,6 +16,7 @@ engines:
 
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 import numpy as np
@@ -63,8 +64,10 @@ class PopulationPrior:
     def bind(self, bins: Bins) -> BoundPrior:  # pragma: no cover - abstract
         raise NotImplementedError
 
-    def _params(self) -> dict[str, Any]:  # pragma: no cover - overridden
-        return {}
+    def _params(self) -> dict[str, Any]:
+        # every constructor argument, read from the attribute of the same name (audit P-14)
+        names = list(inspect.signature(type(self).__init__).parameters)[1:]
+        return {k: getattr(self, k) for k in names}
 
     def __repr__(self) -> str:
         args = ", ".join(f"{k}={_short(v)}" for k, v in self._params().items())
@@ -72,11 +75,24 @@ class PopulationPrior:
 
 
 def _short(v: Any) -> str:
+    if isinstance(v, list | tuple):
+        try:
+            v = np.asarray(v, dtype=float)
+        except (TypeError, ValueError):  # ragged (a tree) or not numbers
+            return repr(v)
     if isinstance(v, np.ndarray):
         if v.size <= 4:
             return np.array2string(v, precision=3, separator=", ")
         return f"array(shape={v.shape})"
     return repr(v)
+
+
+def _per_item(value: Any, n: int, name: str) -> np.ndarray:
+    """A scalar broadcast to ``n`` values, or an array of exactly ``n`` values."""
+    v = np.asarray(value)
+    if v.ndim and v.shape != (n,):
+        raise ValueError(f"{name} must be a scalar or have length {n}; got shape {v.shape}.")
+    return np.broadcast_to(v, (n,)).copy()
 
 
 class BoundPrior:

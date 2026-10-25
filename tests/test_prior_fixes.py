@@ -79,7 +79,7 @@ def test_hyperpriors_accept_numpy_scalars_but_not_booleans():
 def test_generalized_dirichlet_arguments_are_checked():
     with pytest.raises(ValueError, match="positive"):
         P.GeneralizedDirichlet(a=[1.0, -1.0], b=1.0)
-    with pytest.raises(ValueError, match="K-1=3"):
+    with pytest.raises(ValueError, match="b must be a scalar or have length 3"):
         P.GeneralizedDirichlet(a=1.0, b=[1.0, 2.0]).bind(Bins.categories(4))
 
 
