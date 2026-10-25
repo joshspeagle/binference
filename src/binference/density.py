@@ -235,11 +235,16 @@ def _dist_log_masses(dist: Any, edges: np.ndarray) -> np.ndarray:
     return log_interval_masses(lc, ls)
 
 
-def log_interval_masses(lc: np.ndarray, ls: np.ndarray) -> np.ndarray:
+def log_interval_masses(
+    lc: np.ndarray, ls: np.ndarray, centred: np.ndarray | None = None
+) -> np.ndarray:
     """Log mass between consecutive edges from the log-CDF ``lc`` and log-survival ``ls``.
 
     Uses the side that keeps precision: the survival function for intervals
-    above the median. The edges run along the last axis.
+    above the median. Near the median both logs are close to ``log(1/2)`` and
+    their difference cancels; ``centred``, the CDF minus one half computed
+    without that loss (``erf(x/sqrt 2)/2`` for a Gaussian), is then used for
+    intervals inside the central half of the mass. The edges run along the last axis.
     """
     a, b = (..., slice(None, -1)), (..., slice(1, None))
     upper = lc[a] > np.log(0.5)  # the interval lies above the median: use survival functions
@@ -247,6 +252,9 @@ def log_interval_masses(lc: np.ndarray, ls: np.ndarray) -> np.ndarray:
     lo = np.where(upper, ls[b], lc[a])
     with np.errstate(divide="ignore", invalid="ignore"):
         out = hi + np.log1p(-np.exp(lo - hi))
+        if centred is not None:
+            near = (np.abs(centred[a]) < 0.25) & (np.abs(centred[b]) < 0.25)
+            out = np.where(near, np.log(centred[b] - centred[a]), out)
     return np.where(hi > lo, out, -np.inf)
 
 

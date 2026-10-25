@@ -6,7 +6,7 @@ import warnings
 
 import numpy as np
 
-from .._utils import PACKAGE_DIR, RNGLike, progress
+from .._utils import RNGLike, is_integer_array, progress, warn
 from ..model import PopulationModel
 from ..results import PopulationResult
 from ..warnings import ApproximationWarning, ConvergenceWarning
@@ -72,7 +72,7 @@ class Bootstrap(Engine):
         """Return ``n_samples`` bootstrap replicates of the estimate."""
         m = self.model
         w = m.likelihoods.weights
-        integer = bool(np.all(np.abs(w - np.round(w)) < 1e-9))
+        integer = is_integer_array(w)
         rates = m.kind == "rates"
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", ConvergenceWarning)
@@ -87,11 +87,10 @@ class Bootstrap(Engine):
                 warnings.simplefilter("ignore", ConvergenceWarning)
                 est = MAP(m, tol=self.tol, max_iter=self.max_iter, init=start).run(weights=wb)
             out[b] = est.value
-        warnings.warn(
+        warn(
             "Bootstrap replicates describe the sampling distribution of the MAP estimator, not "
             "the posterior.",
             ApproximationWarning,
-            skip_file_prefixes=PACKAGE_DIR,
         )
         return PopulationResult(
             m,

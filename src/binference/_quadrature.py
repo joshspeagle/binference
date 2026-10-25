@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Callable
 from itertools import product
 from typing import Literal
@@ -10,7 +9,7 @@ from typing import Literal
 import numpy as np
 from scipy import special
 
-from ._utils import PACKAGE_DIR, chunk_slices
+from ._utils import chunk_slices, warn
 from .bins import Bins
 from .measure import _identity
 from .warnings import InputWarning
@@ -173,11 +172,10 @@ def bin_log_average(
             row = np.repeat(row[keep], len(corners))
         fine, *coarse = (integrate(rule, lo, hi, row) for rule in rules)
     if unconverged.any():
-        warnings.warn(
+        warn(
             f"Bin averages did not reach tol={tol:g} in {int(unconverged.sum())} bin(s) after "
             f"{max_depth} refinements; raise max_depth or tol.",
             InputWarning,
-            skip_file_prefixes=PACKAGE_DIR,
         )
     return out
 

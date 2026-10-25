@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import math
-import warnings
 from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
 
-from ._utils import PACKAGE_DIR
+from ._utils import frozen, warn
 from .measure import Measure
 from .warnings import InputWarning
 
@@ -20,6 +19,11 @@ MeasureLike = Measure | str
 
 def _as_edges(e: Any, axis: int = 0) -> np.ndarray:
     # adding 0.0 turns -0.0 into 0.0, so equal edges also hash equally
+    if np.ndim(e) > 1:
+        raise ValueError(
+            f"Edges along axis {axis} must be 1-D; for a grid pass one array per axis, "
+            "e.g. Bins.grid(x_edges, y_edges), or unpack a 2-D array with Bins.grid(*edges)."
+        )
     arr = np.array(e, dtype=float).ravel() + 0.0
     if arr.size < 2:
         raise ValueError(f"Edges along axis {axis} need at least two values; got {arr.size}.")
@@ -27,8 +31,7 @@ def _as_edges(e: Any, axis: int = 0) -> np.ndarray:
         raise ValueError(f"Edges along axis {axis} must be finite.")
     if not np.all(np.diff(arr) > 0):
         raise ValueError(f"Edges along axis {axis} must be strictly increasing.")
-    arr.setflags(write=False)
-    return arr
+    return frozen(arr)
 
 
 def _looks_geometric(e: np.ndarray) -> bool:
@@ -37,11 +40,6 @@ def _looks_geometric(e: np.ndarray) -> bool:
     d = np.diff(e)
     r = e[1:] / e[:-1]
     return bool(np.allclose(r, r[0], rtol=1e-6) and not np.allclose(d, d[0], rtol=1e-6))
-
-
-def _frozen(a: np.ndarray) -> np.ndarray:
-    a.setflags(write=False)
-    return a
 
 
 class Bins:
@@ -105,12 +103,11 @@ class Bins:
         if measure is None:
             for d, e in enumerate(edges):
                 if _looks_geometric(e):
-                    warnings.warn(
+                    warn(
                         f"The edges of axis {d} are geometrically spaced but the measure is "
                         "linear, so the population is taken as flat in z within each bin. "
                         "Pass measure='log' (or use Bins.log) if it should be flat in log z.",
                         InputWarning,
-                        skip_file_prefixes=PACKAGE_DIR,
                     )
             measure = "linear"
         if isinstance(measure, Measure | str):
@@ -120,7 +117,7 @@ class Bins:
             if len(measures) != nd:
                 raise ValueError(f"measure needs one entry per axis ({nd}); got {len(measures)}.")
         u_edges = tuple(
-            _frozen(m._check(e, d)) for d, (m, e) in enumerate(zip(measures, edges, strict=True))
+            frozen(m._check(e, d)) for d, (m, e) in enumerate(zip(measures, edges, strict=True))
         )
         shape = tuple(len(e) - 1 for e in edges)
         n = math.prod(shape)
@@ -135,10 +132,10 @@ class Bins:
             if cells.size == 0:
                 raise ValueError("mask leaves no bins in the support.")
             if cells.size < n:
-                active = _frozen(cells)
+                active = frozen(cells)
                 lookup = np.full(n, -1, dtype=np.int64)
                 lookup[active] = np.arange(active.size)
-                lookup = _frozen(lookup)
+                lookup = frozen(lookup)
         self._edges = edges
         self._shape = shape
         self._ordered = True
@@ -148,7 +145,7 @@ class Bins:
         self._active = active
         self._lookup = lookup
         k = np.arange(n) if active is None else active
-        self._cell_index = tuple(_frozen(i) for i in np.unravel_index(k, shape))
+        self._cell_index = tuple(frozen(i) for i in np.unravel_index(k, shape))
         vol = np.ones(())
         for e in edges:
             vol = np.multiply.outer(vol, np.diff(e))
@@ -161,8 +158,8 @@ class Bins:
             centers = np.stack([m.ravel() for m in mesh], axis=-1)
         if active is not None:
             vol, centers = vol[active], centers[active]
-        self._volumes = _frozen(np.ascontiguousarray(vol, dtype=float))
-        self._centers = _frozen(np.ascontiguousarray(centers, dtype=float))
+        self._volumes = frozen(np.ascontiguousarray(vol, dtype=float))
+        self._centers = frozen(np.ascontiguousarray(centers, dtype=float))
 
     @classmethod
     def _from_parts(cls, edges, labels, ordered, measure, mask=None) -> Bins:
@@ -179,9 +176,9 @@ class Bins:
             obj._u_edges = None
             obj._active = None
             obj._lookup = None
-            obj._cell_index = (_frozen(np.arange(K)),)
-            obj._volumes = _frozen(np.ones(K))
-            obj._centers = _frozen(np.arange(K, dtype=float))
+            obj._cell_index = (frozen(np.arange(K)),)
+            obj._volumes = frozen(np.ones(K))
+            obj._centers = frozen(np.arange(K, dtype=float))
         return obj
 
     # ------------------------------------------------------------ constructors
@@ -234,17 +231,10 @@ class Bins:
         for every axis or a sequence with one per axis; ``mask`` has the grid's
         shape.
         """
-        if len(edges) == 0 or any(np.size(e) == 0 for e in edges):
-            raise ValueError("grid() needs one non-empty array of edges per axis.")
+        if len(edges) == 0 or np.size(edges[0]) == 0:
+            raise ValueError("grid() needs one array of edges per axis.")
         if len(edges) == 1 and isinstance(edges[0], Sequence) and np.ndim(edges[0][0]) > 0:
             edges = tuple(edges[0])
-        if any(np.size(e) == 0 for e in edges):
-            raise ValueError("grid() needs one non-empty array of edges per axis.")
-        if any(np.ndim(e) > 1 for e in edges):
-            raise ValueError(
-                "grid() takes one 1-D array of edges per axis, e.g. Bins.grid(x_edges, y_edges); "
-                "unpack a 2-D array with Bins.grid(*edges)."
-            )
         obj = cls.__new__(cls)
         obj._set_grid(tuple(_as_edges(e, i) for i, e in enumerate(edges)), measure, mask)
         return obj

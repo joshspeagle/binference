@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import warnings
 from typing import Any
 
 import numpy as np
 from scipy import optimize
 
-from .._utils import PACKAGE_DIR, RNGLike
+from .._utils import RNGLike, warn
 from ..likelihoods import _scale_columns
 from ..model import PopulationModel
 from ..results import PointEstimate
@@ -195,12 +194,11 @@ class MAP(Engine):
             if not simplex_ok:
                 raise ValueError("space='simplex' needs a conjugate prior; use 'unconstrained'.")
             if m.prior.unbounded_density():
-                warnings.warn(
+                warn(
                     "The prior density is unbounded at the boundary of the simplex (e.g. "
                     "concentrations below one, or a Polya tree), so the EM solution can clip "
                     "components to exactly zero; space='unconstrained' gives an interior mode.",
                     InputWarning,
-                    skip_file_prefixes=PACKAGE_DIR,
                 )
             return "simplex"
         if self.space == "unconstrained":
@@ -257,11 +255,7 @@ class MAP(Engine):
             x = x / m._detect
             x /= x.sum()
         if not converged:
-            warnings.warn(
-                f"mix-SQP did not converge in {n_iter} iterations.",
-                ConvergenceWarning,
-                skip_file_prefixes=PACKAGE_DIR,
-            )
+            warn(f"mix-SQP did not converge in {n_iter} iterations.", ConvergenceWarning)
         return PointEstimate(
             m,
             x,
@@ -322,11 +316,7 @@ class MAP(Engine):
             msg = f"EM did not converge in {self.max_iter} iterations"
             if weights is None and m.K <= 500:  # EM is slow when information is missing
                 msg += f" (missing information {m.missing_information(v):.3f})"
-            warnings.warn(
-                msg + "; raise max_iter.",
-                ConvergenceWarning,
-                skip_file_prefixes=PACKAGE_DIR,
-            )
+            warn(msg + "; raise max_iter.", ConvergenceWarning)
         gap = m.kkt_gap(v) if weights is None else np.nan
         return PointEstimate(
             m,
@@ -394,10 +384,9 @@ class MAP(Engine):
         gnorm = float(np.max(np.abs(g))) if g.size else 0.0
         converged = bool(res.success) or gnorm < 1e-5 * scale
         if not converged:
-            warnings.warn(
+            warn(
                 f"L-BFGS did not converge ({res.message}); max |gradient| = {gnorm:.2e}.",
                 ConvergenceWarning,
-                skip_file_prefixes=PACKAGE_DIR,
             )
         v = m.to_value(x)
         return PointEstimate(

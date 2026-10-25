@@ -10,7 +10,7 @@ from typing import Any
 
 import numpy as np
 
-from .._utils import PACKAGE_DIR, RNGLike, progress, spawn
+from .._utils import RNGLike, progress, spawn, warn
 from ..model import PopulationModel
 from ..results import PopulationResult
 from ..warnings import ConvergenceWarning
@@ -424,11 +424,10 @@ class NUTS(Engine):
             AttributeError,
             TypeError,
         ) as err:
-            warnings.warn(
+            warn(
                 f"Could not run chains in parallel ({type(err).__name__}: {err}); "
                 "running them serially.",
                 RuntimeWarning,
-                skip_file_prefixes=PACKAGE_DIR,
             )
             self.n_jobs = 1  # do not try again for this engine
             return None

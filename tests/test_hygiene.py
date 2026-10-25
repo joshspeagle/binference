@@ -91,7 +91,25 @@ def test_broad_gaussians_give_flat_rows():
 
 
 def test_grid_explains_a_two_dimensional_array():
-    with pytest.raises(ValueError, match="one 1-D array of edges per axis"):
+    with pytest.raises(ValueError, match="must be 1-D"):
         Bins.grid(np.array([[0.0, 1.0, 2.0], [0.0, 1.0, 2.0]]))
-    with pytest.raises(ValueError, match="non-empty"):
+    with pytest.raises(ValueError, match="one array of edges per axis"):
         Bins.grid([])
+
+
+def test_fractional_weights_reach_every_constructor():
+    with pytest.warns(InputWarning, match="pseudo-likelihood"):
+        lk = Likelihoods.from_gaussian(
+            [0.3, 0.6], 0.1, Bins.linear(0, 1, 4), weights=[0.5, 1.5], fractional_weights=True
+        )
+    assert lk.W == 2.0
+
+
+def test_scipy_gaussians_keep_precision_near_the_mean_too():
+    from scipy import stats
+
+    with pytest.warns(InputWarning, match="outside the bins"):
+        lk = Likelihoods.from_density(
+            [stats.norm(0.5, 1e8)], Bins.linear(0, 1, 4), kind="likelihood"
+        )
+    np.testing.assert_allclose(lk.toarray(), 1.0, rtol=1e-6)

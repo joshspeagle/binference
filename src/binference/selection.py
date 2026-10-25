@@ -70,9 +70,10 @@ class Selection:
         self.mode = mode
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if hasattr(self, name):
+        if name in Selection.__slots__ and not hasattr(self, name):
+            object.__setattr__(self, name, value)
+        else:
             raise AttributeError("Selection objects are immutable.")
-        object.__setattr__(self, name, value)
 
     @property
     def K(self) -> int:

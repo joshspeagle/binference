@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import warnings
-
 import numpy as np
 
 from .. import _kernels as kern
-from .._utils import PACKAGE_DIR, RNGLike
+from .._utils import RNGLike, warn
 from ..model import PopulationModel
 from ..results import PopulationResult
 from ..warnings import ApproximationWarning, ConvergenceWarning
@@ -73,22 +71,17 @@ class MeanFieldVB(Engine):
                 break
             mean_old = mean
         if not converged:
-            warnings.warn(
-                "Mean-field VB did not converge.",
-                ConvergenceWarning,
-                skip_file_prefixes=PACKAGE_DIR,
-            )
+            warn("Mean-field VB did not converge.", ConvergenceWarning)
         return state, it, converged
 
     def run(self, n_samples: int = 4000) -> PopulationResult:
         """Fit and return ``n_samples`` independent draws from the variational posterior."""
         state, it, converged = self.fit()
         draws = self.model.prior.vb_sample(state, int(n_samples), self.rng)
-        warnings.warn(
+        warn(
             "Mean-field VB underestimates posterior uncertainty, especially for broad per-object "
             "PDFs; use NUTS (the default) for error bars.",
             ApproximationWarning,
-            skip_file_prefixes=PACKAGE_DIR,
         )
         info = {"n_iter": it, "converged": converged, "state": state}
         return PopulationResult(
