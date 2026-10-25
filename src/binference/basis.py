@@ -24,12 +24,14 @@ from typing import Any
 import numpy as np
 import scipy.sparse as sp
 
+from ._utils import frozen
 from .bins import Bins
 
 __all__ = ["Basis"]
 
-#: quadrature cells per component and axis for order 1 (likelihoods, selection)
-DEFAULT_OVERSAMPLE = 8
+#: quadrature cells per component and axis for order 1, by dimension (likelihoods,
+#: selection); about 8 to 16 cells per component
+DEFAULT_OVERSAMPLE = {1: 8, 2: 4}
 
 
 class Basis:
@@ -47,7 +49,8 @@ class Basis:
     oversample : int, optional
         Quadrature cells per component and axis used to integrate likelihoods
         and selection functions against the components (default 1 for order 0,
-        where the integrals are exact, and 8 for order 1).
+        where the integrals are exact; for order 1, 8 in 1-D, 4 in 2-D and 2
+        in more dimensions).
 
     Attributes
     ----------
@@ -82,7 +85,7 @@ class Basis:
         if order not in (0, 1):
             raise ValueError(f"order must be 0 (flat) or 1 (linear); got {order!r}.")
         if oversample is None:
-            oversample = 1 if order == 0 else DEFAULT_OVERSAMPLE
+            oversample = 1 if order == 0 else DEFAULT_OVERSAMPLE.get(bins.ndim, 2)
         if not float(oversample).is_integer() or oversample < 1:
             raise ValueError(f"oversample must be a positive integer; got {oversample!r}.")
         self.bins = bins
@@ -94,9 +97,11 @@ class Basis:
             for c, b in zip(self.components.edges, bins.edges, strict=True)
         )
         fine = tuple(r * self.oversample for r in self.resolution)
-        self.grid, self.grid_to_bins = bins.refine(fine)
+        self.grid, grid_to_bins = bins.refine(fine)
+        self.grid_to_bins = frozen(grid_to_bins)
         self.matrix = self.masses(bins)
         self._grid_masses: sp.csr_array | None = None
+        self._shares: sp.csr_array | None = None
 
     @property
     def K(self) -> int:
@@ -120,6 +125,29 @@ class Basis:
             self._grid_masses = self.masses(self.grid)
         return self._grid_masses
 
+    @property
+    def shares(self) -> sp.csr_array:
+        """``(C, K)``: each component's mass in each reporting bin (rows sum to one; cached)."""
+        if self._shares is None:
+            self._shares = sp.csr_array(self.matrix.T)
+        return self._shares
+
+    def axis_masses(self, grid: Bins) -> list[sp.csr_array]:
+        """Per-axis masses of the components' factors in ``grid``'s intervals (no mask).
+
+        On an unmasked grid :meth:`masses` is their Kronecker product, so
+        separable inputs can be projected one axis at a time.
+        """
+        comp = self.components
+        if grid.is_categorical or grid.ndim != comp.ndim or grid.measures != comp.measures:
+            raise ValueError("grid must be a grid with the components' measures.")
+        out = []
+        for u_grid, u_comp in zip(grid.u_edges, comp.u_edges, strict=True):
+            if not np.allclose([u_grid[0], u_grid[-1]], [u_comp[0], u_comp[-1]]):
+                raise ValueError("grid must cover the same range as the basis.")
+            out.append(_axis_masses(u_grid, u_comp, self.order))
+        return out
+
     def masses(self, grid: Bins) -> sp.csr_array:
         r"""``(grid.K, C)`` sparse masses :math:`M_{qk} = \int_{B_q} \phi_k\,du`.
 
@@ -127,31 +155,24 @@ class Basis:
         reporting bins, the components or any refinement of them). Each column
         sums to one over the active cells of ``grid``.
         """
-        comp = self.components
-        if grid.is_categorical or grid.ndim != comp.ndim or grid.measures != comp.measures:
-            raise ValueError("grid must be a grid with the components' measures.")
         M = None
-        for u_grid, u_comp in zip(grid.u_edges, comp.u_edges, strict=True):
-            if not np.allclose([u_grid[0], u_grid[-1]], [u_comp[0], u_comp[-1]]):
-                raise ValueError("grid must cover the same range as the basis.")
-            m = _axis_masses(u_grid, u_comp, self.order)
+        for m in self.axis_masses(grid):
             M = m if M is None else sp.kron(M, m, format="csr")
-        M = sp.csr_array(M)[grid.cells][:, comp.cells]
+        M = sp.csr_array(M)[grid.cells][:, self.components.cells]
         tot = np.asarray(M.sum(axis=0)).ravel()  # below one where a hat crosses a mask
-        return sp.csr_array(M @ sp.diags_array(1.0 / tot))
+        M.data /= tot[M.indices]
+        for a in (M.data, M.indices, M.indptr):  # shared by every object on this basis
+            frozen(a)
+        return M
 
     def support(self, k: Any) -> tuple[np.ndarray, np.ndarray]:
         """``(lo, hi)`` in ``u`` of the supports of components ``k``, each ``(n, ndim)``."""
         k = np.asarray(k).ravel()
         lo, hi = [], []
         for u, j in zip(self.components.u_edges, self.components.grid_index(k), strict=True):
-            if self.order == 0:
-                lo.append(u[j])
-                hi.append(u[j + 1])
-                continue
-            c, n = 0.5 * (u[1:] + u[:-1]), len(u) - 1
-            lo.append(np.where(j == 0, u[0], c[np.maximum(j - 1, 0)]))
-            hi.append(np.where(j == n - 1, u[-1], c[np.minimum(j + 1, n - 1)]))
+            a, _, b, _, _ = _hat(u, j) if self.order == 1 else (u[j], 0, u[j + 1], 0, 0)
+            lo.append(a)
+            hi.append(b)
         return np.stack(lo, axis=-1), np.stack(hi, axis=-1)
 
     def shape(self, k: Any, u: Any) -> np.ndarray:
@@ -164,12 +185,12 @@ class Basis:
         for d, (ue, j) in enumerate(
             zip(self.components.u_edges, self.components.grid_index(k), strict=True)
         ):
-            c, n, x = 0.5 * (ue[1:] + ue[:-1]), len(ue) - 1, u[:, d]
-            prev, nxt = c[np.maximum(j - 1, 0)], c[np.minimum(j + 1, n - 1)]
+            a, mid, b, first, last = _hat(ue, j)
+            x = u[:, d]
             with np.errstate(divide="ignore", invalid="ignore"):
-                up = np.where(j == 0, 1.0, (x - prev) / (c[j] - prev))
-                down = np.where(j == n - 1, 1.0, (nxt - x) / (nxt - c[j]))
-            out *= np.clip(np.where(x < c[j], up, down), 0.0, 1.0)
+                up = np.where(first, 1.0, (x - a) / (mid - a))
+                down = np.where(last, 1.0, (b - x) / (b - mid))
+            out *= np.clip(np.where(x < mid, up, down), 0.0, 1.0)
         return out
 
     def to_bins(self, weights: Any) -> np.ndarray:
@@ -223,18 +244,25 @@ def _axis_masses(u_grid: np.ndarray, u_comp: np.ndarray, order: int) -> sp.csr_a
 
 def _antiderivative(u_comp: np.ndarray, k: np.ndarray, x: np.ndarray, order: int) -> np.ndarray:
     """Integral from the range's start to ``x`` of component ``k``'s unnormalised shape."""
-    left, right = u_comp[k], u_comp[k + 1]
     if order == 0:
-        return np.clip(x, left, right) - left
-    n = len(u_comp) - 1
-    c = 0.5 * (u_comp[1:] + u_comp[:-1])
-    mid = c[k]
-    first, last = k == 0, k == n - 1
-    a = np.where(first, u_comp[0], c[np.maximum(k - 1, 0)])  # support of the hat
-    b = np.where(last, u_comp[-1], c[np.minimum(k + 1, n - 1)])
+        return np.clip(x, u_comp[k], u_comp[k + 1]) - u_comp[k]
+    a, mid, b, first, last = _hat(u_comp, k)
     y = np.clip(x, a, mid)
     with np.errstate(divide="ignore", invalid="ignore"):
         up = np.where(first, y - a, (y - a) ** 2 / (2 * (mid - a)))
         y = np.clip(x, mid, b)
         down = np.where(last, y - mid, ((b - mid) ** 2 - (b - y) ** 2) / (2 * (b - mid)))
     return up + down
+
+
+def _hat(u: np.ndarray, j: np.ndarray) -> tuple[np.ndarray, ...]:
+    """Support ``(a, b)``, peak and first/last flags of the hats of an axis's cells ``j``.
+
+    A hat peaks at its cell's centre and falls to zero at the neighbouring
+    centres; the first and last stay at one out to the range's edges.
+    """
+    c, n = 0.5 * (u[1:] + u[:-1]), len(u) - 1
+    first, last = j == 0, j == n - 1
+    a = np.where(first, u[0], c[np.maximum(j - 1, 0)])
+    b = np.where(last, u[-1], c[np.minimum(j + 1, n - 1)])
+    return a, c[j], b, first, last

@@ -104,16 +104,16 @@ def save_result(result: PopulationResult, path: str) -> None:
             for name, draws in v.items():
                 arrays[f"hyper_{name}"] = np.asarray(draws, dtype=float)
     meta["info"] = scalars
-    draws = result._draws
-    if result.basis is not None:  # the component draws, from which the bins' follow
+    payload: dict[str, Any] = {"draws": result._draws}
+    if result.basis is not None:  # the draws per bin follow from the component draws
         b = result.basis
         meta["basis"] = {
             "order": b.order,
             "resolution": list(b.resolution),
             "oversample": b.oversample,
         }
-        draws = result.component_draws
-    payload: dict[str, Any] = {"draws": draws, "meta": np.array(json.dumps(meta))}
+        payload["component_draws"] = result.component_draws
+    payload["meta"] = np.array(json.dumps(meta))
     payload.update(arrays)
     if result.log_density_unconstrained is not None:
         payload["log_density_unconstrained"] = np.asarray(result.log_density_unconstrained)
@@ -149,7 +149,7 @@ def load_result(path: str) -> PopulationResult:
         basis = Basis(bins, **meta["basis"]) if "basis" in meta else None
         return PopulationResult(
             None,
-            np.array(data["draws"]),
+            np.array(data["component_draws" if basis is not None else "draws"]),
             method=meta["method"],
             kind=meta["kind"],
             bins=bins,

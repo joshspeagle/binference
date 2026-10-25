@@ -202,9 +202,7 @@ class SBCResult:
 def _draws_of_value(res: PopulationResult) -> np.ndarray:
     """Draws on the scale the model is parametrised in: rates for rate models, and the
     component weights with a :class:`~binference.Basis` (as the prior draws them)."""
-    if res.basis is not None:
-        return res.component_draws.reshape(-1, res.basis.C)
-    return res.rates if res.kind == "rates" else res.samples
+    return res.component_draws.reshape(-1, res.component_draws.shape[-1])
 
 
 def _thin_draws(res: PopulationResult, n_draws: int) -> np.ndarray:

@@ -133,7 +133,8 @@ def test_per_bin_likelihoods_move_onto_a_basis_as_flat_within_bins():
         Likelihoods(L, Bins.linear(0, 2, 4)).on_basis(basis)
 
 
-def test_values_drawn_inside_hats_follow_the_population():
+@pytest.mark.parametrize("route", ["gaussian", "loglike"])
+def test_values_drawn_inside_hats_follow_the_population(route):
     # broad likelihoods: an object's value then follows the population density itself
     bins = Bins.linear(0, 3, 6)
     basis = Basis(bins, order=1)
@@ -141,10 +142,24 @@ def test_values_drawn_inside_hats_follow_the_population():
     lk = Likelihoods.from_gaussian(np.full(n, 1.5), np.full(n, 50.0), basis, warn_outside=False)
     w = np.array([0.0, 0.7, 0.0, 0.0, 0.3, 0.0])  # separate hats: triangles, not boxes
     est = binference.PointEstimate(PopulationModel(lk), w)
-    v = est.sample_values(rng=0)[0]
+    loglike = (lambda z, i: -0.5 * ((z - 1.5) / 50.0) ** 2) if route == "loglike" else None
+    v = est.sample_values(rng=0, loglike=loglike, n_sub=256)[0]
     z = np.linspace(0, 3, 30001)
     cdf = np.concatenate([[0], integrate.cumulative_trapezoid(w @ _hats(bins, z), z)])
     assert stats.kstest(v, lambda x: np.interp(x, z, cdf)).pvalue > 1e-3
+
+
+def test_hat_labels_are_shared_among_bins_by_mass():
+    # broad likelihoods: an object's component follows the weights, its bin then A @ w
+    bins = Bins.linear(0, 3, 6)
+    basis = Basis(bins, order=1)
+    n = 20000
+    lk = Likelihoods.from_gaussian(np.full(n, 1.5), np.full(n, 50.0), basis, warn_outside=False)
+    w = np.array([0.05, 0.3, 0.25, 0.2, 0.15, 0.05])
+    labels = binference.PointEstimate(PopulationModel(lk), w).sample_assignments(rng=1)[0]
+    p = basis.to_bins(w)
+    freq = np.bincount(labels, minlength=6) / n
+    assert np.all(np.abs(freq - p) < 5 * np.sqrt(p * (1 - p) / n))
 
 
 def test_results_report_bins_and_keep_component_draws(tmp_path):
