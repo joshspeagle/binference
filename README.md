@@ -36,8 +36,8 @@ prior. binference runs the iteration to convergence and quantifies its uncertain
 
 ## Installation
 
-binference is in alpha. Until it is released on PyPI as `binference` (the
-name `binference` is taken), install it from GitHub:
+binference is in alpha. Until it is released on PyPI as `binference`, install it
+from GitHub:
 
 ```bash
 pip install "binference[plot] @ git+https://github.com/joshspeagle/binference"

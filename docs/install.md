@@ -5,8 +5,8 @@ pure-Python package threadpoolctl, which keeps parallel chains from
 oversubscribing the cores. Plotting needs matplotlib, and export to
 ArviZ-style `DataTree`s needs xarray. Both are optional extras.
 
-binference is in alpha. Until it is released on PyPI as `binference` (the
-name `binference` is taken), install it from GitHub:
+binference is in alpha. Until it is released on PyPI as `binference`, install it
+from GitHub:
 
 ```bash
 pip install "binference[plot] @ git+https://github.com/joshspeagle/binference"
