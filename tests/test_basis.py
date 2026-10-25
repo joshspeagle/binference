@@ -4,7 +4,6 @@ import itertools
 
 import numpy as np
 import pytest
-import scipy.sparse as sp
 from scipy import integrate, stats
 
 import binference
@@ -247,12 +246,3 @@ def test_a_reloaded_result_attaches_on_a_transform_axis(tmp_path):
     back = PopulationResult.load(str(tmp_path / "r.npz"))
     back.attach(lk).assignment_probabilities(idx=[0])
     assert back.to_dict()["basis"]["order"] == 1
-
-
-def test_projection_stores_rows_widened_by_hats_densely():
-    # one-hot rows are 10% full; on hats each spreads over three components (DECISIONS #77)
-    bins = Bins.linear(0, 1, 10)
-    lk = Likelihoods(sp.csr_array(np.eye(10)[np.arange(40) % 10]), bins)
-    assert lk.is_sparse
-    assert not lk.on_basis(Basis(bins, order=1)).is_sparse
-    assert lk.on_basis(Basis(bins)).is_sparse  # flat components keep the fill

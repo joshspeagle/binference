@@ -5,6 +5,7 @@ fractions; times kern.loglike_and_counts for dense float64 and CSR storage with 
 environment's BLAS threads.
 """
 
+import os
 import time
 
 import numpy as np
@@ -13,19 +14,24 @@ import scipy.sparse as sp
 from binference import _kernels as kern
 
 rng = np.random.default_rng(0)
+print(f"BLAS threads: {os.environ.get('OPENBLAS_NUM_THREADS', 'default')}, cores: {os.cpu_count()}")
 
 
-def bench(L, w, rho, reps=10):
+def bench(L, w, rho, reps=10, repeats=5):
+    # the best of several repeats, against the noise of a shared container
     kern.loglike_and_counts(L, w, rho)
-    t = time.perf_counter()
-    for _ in range(reps):
-        kern.loglike_and_counts(L, w, rho)
-    return (time.perf_counter() - t) / reps
+    best = np.inf
+    for _ in range(repeats):
+        t = time.perf_counter()
+        for _ in range(reps):
+            kern.loglike_and_counts(L, w, rho)
+        best = min(best, (time.perf_counter() - t) / reps)
+    return best
 
 
 for N, K in [(200000, 100), (50000, 1000)]:
     w, rho = np.ones(N), np.full(K, 1.0 / K)
-    for fill in (0.02, 0.05, 0.1, 0.2, 0.3, 0.5):
+    for fill in (0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5):
         width = max(1, int(fill * K))
         start = rng.integers(0, K - width + 1, N)
         cols = (start[:, None] + np.arange(width)).ravel()

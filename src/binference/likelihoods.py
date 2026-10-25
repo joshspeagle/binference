@@ -265,8 +265,6 @@ def _project_values(norm: Any, log_scale: np.ndarray, M: Any) -> tuple[Any, np.n
     # likelihoods flat in the cells of a grid (the rows of M) as likelihoods of the
     # basis components: L_ik = sum_q L_iq M_qk (DECISIONS #76)
     norm, extra = _normalise_linear(norm @ M)
-    if sp.issparse(norm) and norm.nnz > kern.SPARSE_FILL * norm.shape[0] * norm.shape[1]:
-        norm = norm.toarray()  # wider components fill the rows in
     return norm, log_scale + extra
 
 
