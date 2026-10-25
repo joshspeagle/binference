@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import sys
+import warnings
 from collections.abc import Iterable, Iterator
 from typing import Any
 
@@ -11,6 +13,21 @@ import numpy as np
 __all__ = ["as_generator", "check_positive_weights", "chunk_slices", "progress", "spawn"]
 
 RNGLike = int | np.random.Generator | np.random.SeedSequence | None
+
+#: frames under this directory are skipped, so warnings point at the caller's line
+PACKAGE_DIR = (os.path.dirname(os.path.abspath(__file__)) + os.sep,)
+
+
+def warn(message: str, category: type[Warning]) -> None:
+    """Issue a warning attributed to the first line outside the package."""
+    warnings.warn(message, category, skip_file_prefixes=PACKAGE_DIR)
+
+
+def frozen(a: Any) -> Any:
+    """``a`` made read-only (a dense array, or the arrays of a sparse CSR matrix)."""
+    for arr in (a.data, a.indices, a.indptr) if hasattr(a, "indptr") else (a,):
+        arr.setflags(write=False)
+    return a
 
 
 def as_generator(rng: RNGLike = None) -> np.random.Generator:

@@ -13,6 +13,7 @@ from typing import Any, Literal
 import numpy as np
 
 from ._quadrature import bin_log_average
+from ._utils import frozen
 from .bins import Bins
 
 __all__ = ["Density"]
@@ -232,22 +233,42 @@ def _dist_log_masses(dist: Any, edges: np.ndarray) -> np.ndarray:
             ls = np.asarray(dist.logsf(edges), dtype=float)
         else:
             ls = np.log1p(-np.exp(lc))
-    return log_interval_masses(lc, ls)
+    out = log_interval_masses(lc, ls)
+    # near the median a small interval's CDF difference cancels; the density is then
+    # nearly constant across it, so a 5-point quadrature of the pdf keeps full precision
+    near = (out < np.log(1e-3)) & (np.abs(np.exp(lc[:-1]) - 0.5) < 0.25)
+    if near.any() and _has_pdf(dist):
+        x, w = np.polynomial.legendre.leggauss(5)
+        lo, hi = edges[:-1][near], edges[1:][near]
+        pts = lo[:, None] + (hi - lo)[:, None] * (0.5 * (x + 1.0))
+        dens = np.exp(_dist_logpdf(dist, pts.ravel()).reshape(pts.shape))
+        with np.errstate(divide="ignore"):
+            out[near] = np.log((dens @ (0.5 * w)) * (hi - lo))
+    return out
 
 
-def log_interval_masses(lc: np.ndarray, ls: np.ndarray) -> np.ndarray:
+def log_interval_masses(
+    lc: np.ndarray, ls: np.ndarray, centred: np.ndarray | None = None
+) -> np.ndarray:
     """Log mass between consecutive edges from the log-CDF ``lc`` and log-survival ``ls``.
 
     Uses the side that keeps precision: the survival function for intervals
-    above the median. The edges run along the last axis.
+    above the median. Near the median both logs are close to ``log(1/2)`` and
+    their difference cancels; ``centred``, the CDF minus one half computed
+    without that loss (``erf(x/sqrt 2)/2`` for a Gaussian), is then used for
+    intervals inside the central half of the mass. The edges run along the last axis.
     """
     a, b = (..., slice(None, -1)), (..., slice(1, None))
     upper = lc[a] > np.log(0.5)  # the interval lies above the median: use survival functions
     hi = np.where(upper, ls[a], lc[b])
     lo = np.where(upper, ls[b], lc[a])
+    near = False
     with np.errstate(divide="ignore", invalid="ignore"):
         out = hi + np.log1p(-np.exp(lo - hi))
-    return np.where(hi > lo, out, -np.inf)
+        if centred is not None:
+            near = (np.abs(centred[a]) < 0.25) & (np.abs(centred[b]) < 0.25)
+            out = np.where(near, np.log(centred[b] - centred[a]), out)
+    return np.where(near | (hi > lo), out, -np.inf)
 
 
 def _log_nonneg(values: Any) -> np.ndarray:
@@ -262,5 +283,4 @@ def _nonneg(a: Any, name: str) -> np.ndarray:
     arr = np.array(a, dtype=float).ravel()
     if not np.all(np.isfinite(arr)) or np.any(arr < 0):
         raise ValueError(f"{name} must be finite and non-negative.")
-    arr.setflags(write=False)
-    return arr
+    return frozen(arr)

@@ -27,6 +27,8 @@ from typing import Any
 
 import numpy as np
 
+from ._utils import frozen
+
 __all__ = ["SELECTION_MODES", "Selection", "as_selection"]
 
 SELECTION_MODES = ("observed", "true")
@@ -65,9 +67,14 @@ class Selection:
                 "selection values must be finite and strictly positive (bins that can never be "
                 "observed are not identifiable; remove them from the bins)."
             )
-        v.setflags(write=False)
-        self.values = v
+        self.values = frozen(v)
         self.mode = mode
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in Selection.__slots__ and not hasattr(self, name):
+            object.__setattr__(self, name, value)
+        else:
+            raise AttributeError("Selection objects are immutable.")
 
     @property
     def K(self) -> int:

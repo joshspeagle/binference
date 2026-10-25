@@ -246,18 +246,17 @@ R-BINS-1: smoothness priors require ordered grids and raise a clear error on cat
 
 | Constructor | Input | Conversion |
 |---|---|---|
-| `Likelihoods(values, bins=None, representation="density", weights=None)` | likelihoods (bin-averaged values, or masses) | §3.5; `bins=None` gives `Bins.categories(K)` |
+| `Likelihoods(values, bins=None, representation="density", weights=None, fractional_weights=False)` | low-level: likelihoods (bin-averaged values, or masses); integer weights unless `fractional_weights` | §3.5; `bins=None` gives `Bins.categories(K)` |
 | `Likelihoods.from_log(log_values, ...)` | log-likelihoods | stable exponentiation |
-| `Likelihoods.from_posteriors(P, bins, interim_prior, representation="mass", interim_representation="mass")` | posteriors on the bins | $L\propto P/\Pi$ (§3.4–3.5) |
-| `Likelihoods.from_samples(samples, bins, interim_prior, sample_weights=None)` (no default interim prior, per R-INPUT-1) | per-object posterior samples (list of arrays, or `(N, S[, ndim])`) | histogram masses divided by interim masses; out-of-range mass reported; per-object effective sample counts stored in `meta` |
-| `Likelihoods.from_gaussian(mean, sigma, bins)` | Gaussian measurement model, 1-D or N-D with diagonal $\sigma$ | exact CDF differences divided by volume |
-| `Likelihoods.from_distributions(dists, bins)` | objects with `.cdf` (1-D) or `.logpdf` | CDF differences, or sub-bin quadrature (`n_sub`) |
-| `Likelihoods.from_function(loglike, bins, n_sub=5)` | callable on sub-bin points | quadrature |
-| `Likelihoods.from_response(counts, response, efficiency=None, bins=None)` | HEP: reco counts $c_j$ and response $R_{jk}=P(\text{reco }j\mid\text{true }k)$ | rows $R_{j\cdot}$ with weights $c_j$; efficiency becomes `selection` |
+| `Likelihoods.from_table(values, bins, kind="likelihood" \| interim=..., representation=None, interim_representation=None)` | a table of likelihoods or of posteriors (one of `kind`, `interim`) | $L\propto P/\Pi$ for posteriors (§3.4–3.5) |
+| `Likelihoods.from_samples(samples, bins, interim, sample_weights=None)` (no default interim prior, per R-INPUT-1) | per-object posterior samples (list of arrays, or `(N, S[, ndim])`) | histogram masses divided by interim masses; out-of-range mass reported; per-object effective sample counts stored in `meta` |
+| `Likelihoods.from_gaussian(mean, sigma, bins, tol=1e-3)` | Gaussian measurement model, 1-D or N-D with diagonal $\sigma$ | exact CDF differences on linear axes, adaptive quadrature in $u$ otherwise |
+| `Likelihoods.from_density(f, bins, kind="likelihood" \| interim=..., tol=1e-3, max_depth=12, n_sub=None)` | a vectorised function or distribution objects | exact log-CDF masses where valid, else adaptive quadrature (DECISIONS #23, #64) |
+| `Likelihoods.from_response(counts, response, efficiency="from_response", bins=None)` | HEP: reco counts $c_j$ and response $R_{jk}=P(\text{reco }j\mid\text{true }k)$ | rows $R_{j\cdot}$ with weights $c_j$; efficiency becomes `selection` |
 | `Likelihoods.from_classifier(probs, train_prior, labels=None)` | calibrated classifier posteriors | $L\propto p/\pi_\text{train}$ |
 
 Methods:
-- `compress()`: merge identical rows into integer weights.
+- `compress(decimals=None)`: merge identical rows into integer weights (sparse stays sparse).
 - Views and copies: `subset(idx)`, `to_dense()`, `to_sparse(rtol=…)`.
 - `with_weights(w)`.
 - `rebin(groups)`: only where valid. Merging bins requires the within-bin population shape, so the documentation recommends inferring on fine bins and summarising functionals.

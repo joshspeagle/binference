@@ -16,6 +16,8 @@ from functools import lru_cache
 
 import numpy as np
 
+from ._utils import frozen
+
 __all__ = ["clr", "helmert_basis", "ilr", "ilr_inv", "log_softmax", "softmax"]
 
 
@@ -26,8 +28,7 @@ def _helmert(K: int) -> np.ndarray:
         V[:j, j - 1] = 1.0 / j
         V[j, j - 1] = -1.0
         V[:, j - 1] *= np.sqrt(j / (j + 1.0))
-    V.setflags(write=False)
-    return V
+    return frozen(V)
 
 
 def helmert_basis(K: int) -> np.ndarray:

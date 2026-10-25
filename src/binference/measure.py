@@ -14,6 +14,8 @@ from typing import Any
 import numpy as np
 from scipy.integrate import cumulative_trapezoid
 
+from ._utils import frozen
+
 __all__ = ["Measure"]
 
 
@@ -91,8 +93,7 @@ class Measure:
             raise ValueError("z and u must be 1-D arrays of the same length (at least 2).")
         if not (np.all(np.diff(z) > 0) and np.all(np.diff(u) > 0)):
             raise ValueError("z and u must both be strictly increasing.")
-        z.setflags(write=False)
-        u.setflags(write=False)
+        z, u = frozen(z), frozen(u)
         return cls(
             name,
             lambda x: np.interp(x, z, u),

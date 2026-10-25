@@ -265,3 +265,8 @@ Append-only. One entry per working session (or per step within a long session).
 
 - #22 (measures and masks) merged after its reviews; phase B closed (#6).
 - C2 issue #23 and PR #24 (`Density`): one fixed density for interim priors, base measures, logistic means and mocks; flat in the measure coordinate by default (DECISIONS #63); array interim priors need a representation on unequal bins (I-1); `PopulationPrior`; `stack()` honours the recorded interim (I-5, I-6). /simplify (four reviewers) and /code-review high done, all findings addressed or answered in the PR.
+
+## 2026-10-25: C2 and C3 merged; C3b reviewed
+
+- #24 (Density) and #27 (constructors by input form, adaptive quadrature in the measure coordinate, outside mass; DECISIONS #64) merged. In #27 the efficiency review caught a 25 s regression for Gaussians on log bins (refinement for every object at once); per-object refinement brought it to 0.03 s. Code review caught a false non-convergence warning (fixed reference scale) and N-D shape bugs.
+- C3b #28 (#26): weights policy (DECISIONS #1, #65), read-only storage, sparse compress, near-median Gaussian precision, warnings attributed to the caller via skip_file_prefixes, validation and docs drift. /simplify (two reviewers, two angles each) and /code-review high done; two regressions caught and fixed (uneven grid edges in one list, scalar Gaussian mean).

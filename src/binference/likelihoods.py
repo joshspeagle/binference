@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Callable, Sequence
 from functools import partial
 from typing import Any, Literal
@@ -12,7 +11,7 @@ import scipy.sparse as sp
 from scipy import special
 
 from ._quadrature import bin_log_average
-from ._utils import check_positive_weights
+from ._utils import check_positive_weights, frozen, is_integer_array, warn
 from .bins import Bins
 from .density import (
     Density,
@@ -91,13 +90,61 @@ def _check_kind(kind: Any, interim: Any) -> bool:
     return interim is not None
 
 
-def _common(weights, selection, selection_mode, drop_empty) -> dict[str, Any]:
+def _check_weights(weights: Any, n: int, fractional: bool) -> np.ndarray:
+    """Positive integer multiplicities, or any positive weights if ``fractional`` (#1)."""
+    w = check_positive_weights(weights, n)
+    if not is_integer_array(w):
+        if not fractional:
+            raise ValueError(
+                "weights are integer multiplicities; pass fractional_weights=True "
+                "(or with_weights(..., fractional=True)) for a weighted pseudo-likelihood."
+            )
+        warn(
+            "Non-integer weights define a pseudo-likelihood: the posterior is not a proper "
+            "posterior and its uncertainties are not calibrated.",
+            InputWarning,
+        )
+    return w
+
+
+def _divide_interim(P: Any, Pi: np.ndarray, what: str) -> Any:
+    """Columns of ``P`` divided by the interim masses ``Pi``; refuses mass where ``Pi`` is zero."""
+    zero = Pi <= 0
+    if np.any(zero) and np.any(np.asarray(P.sum(axis=0)).ravel()[zero] > 0):
+        raise ValueError(
+            f"{what} have mass in bins where the interim prior is zero; "
+            "the interim prior must be positive wherever they are."
+        )
+    return _scale_columns(P, np.where(zero, 0.0, 1.0 / np.where(zero, 1.0, Pi)))
+
+
+def _group_rows(keys: list) -> tuple[np.ndarray, np.ndarray]:
+    # (first row of each distinct key, group of every row), groups in order of first appearance
+    ids: dict = {}
+    first: list[int] = []
+    group = np.empty(len(keys), dtype=np.intp)
+    for i, k in enumerate(keys):
+        group[i] = g = ids.setdefault(k, len(ids))
+        if g == len(first):
+            first.append(i)
+    return np.array(first, dtype=np.intp), group
+
+
+def _read_only(a: Any) -> np.ndarray:
+    # a float array that cannot be changed in place: reused only when it is already
+    # read-only and owns its data (a read-only view could still change through its base)
+    a = np.asarray(a, dtype=float)
+    return a if not a.flags.writeable and a.base is None else frozen(a.copy())
+
+
+def _common(weights, selection, selection_mode, drop_empty, fractional_weights) -> dict[str, Any]:
     # the keyword arguments every constructor passes on to Likelihoods
     return {
         "weights": weights,
         "selection": selection,
         "selection_mode": selection_mode,
         "drop_empty": drop_empty,
+        "fractional_weights": fractional_weights,
     }
 
 
@@ -144,18 +191,17 @@ def _log_gauss_rows(z: np.ndarray, r: np.ndarray, mu: np.ndarray, sig: np.ndarra
 OUTSIDE_THRESHOLD, OUTSIDE_SHARE = 0.9, 0.1
 
 
-def _record_outside(lk: Likelihoods, outside: np.ndarray, warn: bool = True) -> None:
+def _record_outside(lk: Likelihoods, outside: np.ndarray, enabled: bool = True) -> None:
     """Store each object's mass fraction outside the active bins, and warn if many lose most."""
     _attach_per_object(lk, outside_fraction=outside)
     outside, threshold = lk.meta["outside_fraction"], OUTSIDE_THRESHOLD
     many = outside > threshold
-    if warn and outside.size and many.mean() > OUTSIDE_SHARE:
-        warnings.warn(
+    if enabled and outside.size and many.mean() > OUTSIDE_SHARE:
+        warn(
             f"{int(many.sum())} of {outside.size} objects have more than {threshold:.0%} of "
             "their likelihood mass outside the bins (see meta['outside_fraction']); "
             "consider wider bins.",
             InputWarning,
-            stacklevel=3,
         )
 
 
@@ -194,8 +240,12 @@ class Likelihoods:
         *integrated* over the bin (e.g. CDF differences); it is divided by the
         bin volume. The distinction only matters for unequal bin volumes.
     weights : array_like, shape (N,), optional
-        Positive object weights. Integer weights are multiplicities (e.g. from
-        :meth:`compress`); non-integer weights define a weighted likelihood.
+        Positive integer multiplicities: an object with weight 3 counts as three
+        identical objects (as produced by :meth:`compress`).
+    fractional_weights : bool
+        Allow non-integer weights. They define a weighted pseudo-likelihood,
+        not the likelihood of any data set, so posteriors from it are not
+        proper posteriors; a warning says so (DECISIONS #1).
     selection : array_like (K,) or Selection, optional
         Detection probability (or exposure) per bin, used by models unless
         overridden; see :doc:`/user-guide/selection`.
@@ -229,7 +279,12 @@ class Likelihoods:
         selection_mode: str | None = None,
         drop_empty: bool = False,
         log: bool = False,
+        fractional_weights: bool = False,
     ) -> None:
+        if representation not in ("density", "mass"):
+            raise ValueError(
+                f"representation must be 'density' or 'mass'; got {representation!r}."
+            )
         meta: dict[str, Any] = {"source": "values", "representation": representation}
         if log:
             norm, log_scale = _normalise_log(values)
@@ -246,9 +301,7 @@ class Likelihoods:
             norm = _scale_columns(norm, 1.0 / vol)
             norm, extra = _normalise_linear(norm)
             log_scale = log_scale + extra
-        elif representation != "density":
-            raise ValueError("representation must be 'density' or 'mass'.")
-        weights = check_positive_weights(weights, N)
+        weights = _check_weights(weights, N, fractional_weights)
         sel = as_selection(selection, selection_mode, K)
         self._init_from_parts(norm, log_scale, bins, weights, sel, meta, drop_empty)
 
@@ -262,26 +315,28 @@ class Likelihoods:
                     f"{bad.size} object(s) have zero likelihood in every bin (first: {bad[:5]}). "
                     "Check that the bins cover the data, or pass drop_empty=True."
                 )
-            warnings.warn(
-                f"Dropping {bad.size} object(s) with zero likelihood in every bin.",
-                InputWarning,
-                stacklevel=3,
-            )
+            warn(f"Dropping {bad.size} object(s) with zero likelihood in every bin.", InputWarning)
             keep = ~empty
             norm = norm[keep] if not sp.issparse(norm) else sp.csr_array(norm)[keep]
             log_scale = log_scale[keep]
             weights = weights[keep]
             meta = _slice_per_object({**meta, "dropped": bad}, keep)
-            if norm.shape[0] == 0:
-                raise ValueError("No objects left after dropping empty rows.")
-        self._values = norm
-        self._log_scale = np.asarray(log_scale, dtype=float)
+        if norm.shape[0] == 0:
+            raise ValueError("Likelihoods need at least one object.")
+        self._values = frozen(norm)
+        self._log_scale = _read_only(log_scale)
         self._bins = bins
-        self._weights = np.asarray(weights, dtype=float)
+        self._weights = _read_only(weights)
         if selection is not None and not isinstance(selection, Selection):
             raise TypeError("internal error: selection must be a Selection object")
         self._selection = selection
         self.meta = dict(meta)
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        # pickling and deepcopy rebuild writable arrays: freeze them again
+        self.__dict__.update(state)
+        for name in ("_values", "_log_scale", "_weights"):
+            frozen(getattr(self, name))
 
     @classmethod
     def _from_parts(cls, norm, log_scale, bins, weights, selection, meta, drop_empty=False):
@@ -371,7 +426,12 @@ class Likelihoods:
         )
 
     def to_sparse(self, rtol: float = 0.0) -> Likelihoods:
-        """Copy with sparse CSR storage, dropping entries below ``rtol`` (relative to row max)."""
+        """Copy with sparse CSR storage, dropping entries below ``rtol`` (relative to row max).
+
+        ``0 <= rtol <= 1``: rows are normalised to a maximum of one, which is always kept.
+        """
+        if not 0.0 <= rtol <= 1.0:
+            raise ValueError(f"rtol must lie in [0, 1]; got {rtol}.")
         M = sp.csr_array(self._values, copy=True)  # never touch this object's storage
         if rtol > 0:
             M.data[M.data < rtol] = 0.0
@@ -394,9 +454,12 @@ class Likelihoods:
             _slice_per_object({**self.meta, "subset_of": self.N}, rows),
         )
 
-    def with_weights(self, weights: Any) -> Likelihoods:
-        """Copy with new object weights."""
-        w = check_positive_weights(weights, self.N)
+    def with_weights(self, weights: Any, fractional: bool = False) -> Likelihoods:
+        """Copy with new object weights (``fractional`` as ``fractional_weights``)."""
+        return self._reweighted(_check_weights(weights, self.N, fractional))
+
+    def _reweighted(self, w: np.ndarray) -> Likelihoods:
+        # copy with validated weights, for internal resampling schemes
         return Likelihoods._from_parts(
             self._values, self._log_scale, self._bins, w, self._selection, self.meta
         )
@@ -411,25 +474,35 @@ class Likelihoods:
     def compress(self, decimals: int | None = None) -> Likelihoods:
         """Merge identical rows into weighted rows.
 
-        Rows are compared after row normalisation (optionally rounded to
-        ``decimals``). Weights add, and log-scales are combined so that total
-        absolute log-likelihoods are preserved exactly. Inference on the
+        Rows are compared after row normalisation, optionally rounded to
+        ``decimals``. Weights add and log-scales are combined, so total absolute
+        log-likelihoods are preserved exactly when ``decimals`` is None; with
+        rounding, each group is represented by its first row. Inference on the
         population is unchanged; Gibbs sampling then draws multinomial counts
-        per unique row.
+        per unique row. Sparse storage stays sparse. Always returns a new object.
         """
-        dense = self.toarray()
-        key = dense if decimals is None else np.round(dense, decimals)
-        uniq, inverse = np.unique(key, axis=0, return_inverse=True)
-        inverse = np.asarray(inverse).ravel()
-        if uniq.shape[0] == self.N:
-            return self
-        w = np.bincount(inverse, weights=self._weights, minlength=uniq.shape[0])
-        ls = np.bincount(inverse, weights=self._weights * self._log_scale, minlength=uniq.shape[0])
-        rows = dense[np.unique(inverse, return_index=True)[1]] if decimals is not None else uniq
-        vals = sp.csr_array(rows) if self.is_sparse else rows
+        V = self._values
+        if sp.issparse(V):
+            V = sp.csr_array(V)
+            K = V
+            if decimals is not None:  # entries that round to zero leave the key, as when dense
+                K = V.copy()
+                K.data = np.round(K.data, decimals)
+                K.eliminate_zeros()
+            keys = [
+                (K.indices[a:b].tobytes(), K.data[a:b].tobytes())
+                for a, b in zip(K.indptr[:-1], K.indptr[1:], strict=True)
+            ]
+        else:
+            key = V if decimals is None else np.round(V, decimals)
+            keys = [row.tobytes() for row in np.ascontiguousarray(key)]
+        first, inverse = _group_rows(keys)
+        n = first.size
+        w = np.bincount(inverse, weights=self._weights, minlength=n)
+        ls = np.bincount(inverse, weights=self._weights * self._log_scale, minlength=n)
         meta = {k: v for k, v in self.meta.items() if k not in _PER_OBJECT_KEYS}
         meta["compressed_from"] = self.N
-        return Likelihoods._from_parts(vals, ls / w, self._bins, w, self._selection, meta)
+        return Likelihoods._from_parts(V[first], ls / w, self._bins, w, self._selection, meta)
 
     def stack(
         self,
@@ -493,6 +566,7 @@ class Likelihoods:
         selection: Any = None,
         selection_mode: str | None = None,
         drop_empty: bool = False,
+        fractional_weights: bool = False,
     ) -> Likelihoods:
         r"""Likelihoods from a table of per-object values on the bins.
 
@@ -531,7 +605,7 @@ class Likelihoods:
             raise ValueError(
                 f"representation must be 'mass' or 'density'; got {representation!r}."
             )
-        tail = _common(weights, selection, selection_mode, drop_empty)
+        tail = _common(weights, selection, selection_mode, drop_empty, fractional_weights)
         if not posterior:
             lk = cls(values, bins, representation=representation, log=log, **tail)
             lk.meta["source"] = "table"
@@ -546,16 +620,7 @@ class Likelihoods:
         if representation == "density":
             P = _scale_columns(P, vol)
         Pi = _interim_masses(interim, bins, interim_representation)
-        zero = Pi <= 0
-        if np.any(zero):
-            col_mass = np.asarray(P.sum(axis=0)).ravel()
-            if np.any(col_mass[zero] > 0):
-                raise ValueError(
-                    "Posteriors have mass in bins where the interim prior is zero; "
-                    "the interim prior must be positive wherever posteriors are."
-                )
-        inv = np.where(zero, 0.0, 1.0 / np.where(zero, 1.0, Pi))
-        lk = cls(_scale_columns(P, inv), bins, **tail)
+        lk = cls(_divide_interim(P, Pi, "Posteriors"), bins, **tail)
         lk.meta.update(source="posteriors", representation=representation, interim_prior_masses=Pi)
         return lk
 
@@ -573,6 +638,7 @@ class Likelihoods:
         selection_mode: str | None = None,
         sparse: bool | None = None,
         drop_empty: bool = False,
+        fractional_weights: bool = False,
         min_samples: int = 20,
         warn_outside: bool = True,
     ) -> Likelihoods:
@@ -615,24 +681,17 @@ class Likelihoods:
         M = sp.coo_array(
             (sw[inside], (obj_ids[inside], flat_idx[inside])), shape=(n_obj, bins.K)
         ).tocsr()
-        M.sum_duplicates()
         Pi = _interim_masses(interim, bins, interim_representation)
-        if np.any(Pi <= 0):
-            col_mass = np.asarray(M.sum(axis=0)).ravel()
-            if np.any(col_mass[Pi <= 0] > 0):
-                raise ValueError("Samples fall in bins where the interim prior is zero.")
-        inv = np.where(Pi > 0, 1.0 / np.where(Pi > 0, Pi, 1.0), 0.0)
-        M = _scale_columns(M, inv)
+        M = _divide_interim(M, Pi, "Samples")
         density = M.nnz / max(1, n_obj * bins.K)
         if sparse is None:
             sparse = density < 0.3
         values = M if sparse else M.toarray()
         if np.median(n_eff) < min_samples:
-            warnings.warn(
+            warn(
                 f"Median effective number of samples per object is {np.median(n_eff):.1f}; "
                 "histogrammed likelihoods will be noisy (consider more samples or wider bins).",
                 InputWarning,
-                stacklevel=2,
             )
         lk = cls(
             values,
@@ -641,6 +700,7 @@ class Likelihoods:
             selection=selection,
             selection_mode=selection_mode,
             drop_empty=drop_empty,
+            fractional_weights=fractional_weights,
         )
         lk.meta.update(source="samples", interim_prior_masses=Pi)
         _attach_per_object(lk, n_eff=n_eff)
@@ -658,6 +718,7 @@ class Likelihoods:
         selection: Any = None,
         selection_mode: str | None = None,
         drop_empty: bool = False,
+        fractional_weights: bool = False,
         tol: float = 1e-3,
         max_depth: int = 12,
         warn_outside: bool = True,
@@ -686,18 +747,26 @@ class Likelihoods:
         if bins.is_categorical:
             raise ValueError("from_gaussian needs ordered (grid) bins.")
         mu = np.asarray(mean, dtype=float)
-        if bins.ndim == 1:
+        if bins.ndim == 1 and (mu.ndim <= 1 or (mu.ndim == 2 and mu.shape[1] == 1)):
             mu = mu.reshape(-1, 1)
         if mu.ndim != 2 or mu.shape[1] != bins.ndim:
-            raise ValueError(f"mean must have shape (N,) or (N, {bins.ndim}).")
+            shapes = "(N,) or (N, 1)" if bins.ndim == 1 else f"(N, {bins.ndim})"
+            raise ValueError(f"mean must have shape {shapes}; got {np.shape(mean)}.")
         sig = np.asarray(sigma, dtype=float)
-        if sig.ndim == 1:
-            if bins.ndim == 1 or sig.shape[0] == mu.shape[0]:
+        if sig.ndim == 1 and bins.ndim > 1:
+            if sig.shape[0] == mu.shape[0] == bins.ndim:
+                raise ValueError(
+                    f"sigma of length {bins.ndim} is ambiguous with N = ndim = {bins.ndim}: pass "
+                    "shape (N, 1) for one sigma per object or (1, ndim) for one per axis."
+                )
+            if sig.shape[0] == mu.shape[0]:
                 sig = sig[:, None]  # one sigma per object (shared across axes)
             elif sig.shape[0] == bins.ndim:
                 sig = sig[None, :]  # one sigma per axis (shared across objects)
             else:
                 raise ValueError("sigma has an incompatible shape.")
+        elif sig.ndim == 1:
+            sig = sig[:, None]
         try:
             sig = np.broadcast_to(sig, mu.shape)
         except ValueError:
@@ -713,7 +782,9 @@ class Likelihoods:
             bins.edges, bins.measures, bins.cell_index, mu.T, sig.T, strict=True
         ):
             x = (e[None, :] - mu_d[:, None]) / sig_d[:, None]
-            lm = log_interval_masses(special.log_ndtr(x), special.log_ndtr(-x))
+            lm = log_interval_masses(
+                special.log_ndtr(x), special.log_ndtr(-x), 0.5 * special.erf(x / np.sqrt(2))
+            )
             if m == Measure.linear():
                 avg = lm - np.log(np.diff(e))[None, :]
             else:
@@ -734,6 +805,7 @@ class Likelihoods:
             selection=selection,
             selection_mode=selection_mode,
             drop_empty=drop_empty,
+            fractional_weights=fractional_weights,
         )
         lk.meta.update(source="gaussian")
         # kept so that true values can be drawn from the likelihood within bins
@@ -758,6 +830,7 @@ class Likelihoods:
         selection: Any = None,
         selection_mode: str | None = None,
         drop_empty: bool = False,
+        fractional_weights: bool = False,
         warn_outside: bool = True,
     ) -> Likelihoods:
         """Likelihoods from per-object densities over the bin coordinate.
@@ -827,7 +900,7 @@ class Likelihoods:
             interim=interim,
             representation="density",
             log=True,
-            **_common(weights, selection, selection_mode, drop_empty),
+            **_common(weights, selection, selection_mode, drop_empty, fractional_weights),
         )
         lk.meta["source"] = "density"
         if log_inside is not None:
@@ -842,6 +915,7 @@ class Likelihoods:
         *,
         bins: Bins | None = None,
         efficiency: Literal["from_response"] | Any | None = "from_response",
+        fractional_weights: bool = False,
     ) -> Likelihoods:
         r"""HEP-style unfolding input: observed counts and a response matrix.
 
@@ -887,7 +961,14 @@ class Likelihoods:
                 "probabilities P(reco j | true k). Normalise each column by the number of "
                 "simulated events generated in that true bin."
             )
+        if not fractional_weights and not is_integer_array(c):
+            raise ValueError(
+                "counts must be integers; pass fractional_weights=True for weighted (e.g. "
+                "simulation-weighted) counts, which give a pseudo-likelihood."
+            )
         keep = c > 0
+        if not keep.any():
+            raise ValueError("counts are all zero: there are no observed events.")
         eff: np.ndarray | None
         if isinstance(efficiency, str):
             if efficiency != "from_response":
@@ -900,16 +981,17 @@ class Likelihoods:
             if eff.shape != (R.shape[1],):
                 raise ValueError("efficiency must have one value per true bin.")
             if not np.allclose(col[col > 0], 1.0, atol=1e-3):
-                warnings.warn(
+                warn(
                     "With an explicit efficiency the response should be a migration matrix "
                     "whose columns sum to one; these columns do not, so the efficiency may "
                     "be counted twice.",
                     InputWarning,
-                    stacklevel=2,
                 )
             R = R * eff[None, :]
         sel = None if eff is None else Selection(eff, "observed")
-        lk = cls(R[keep], bins, weights=c[keep], selection=sel)
+        lk = cls(
+            R[keep], bins, weights=c[keep], selection=sel, fractional_weights=fractional_weights
+        )
         lk.meta.update(source="response", reco_bins_used=np.flatnonzero(keep))
         return lk
 
@@ -921,6 +1003,7 @@ class Likelihoods:
         *,
         labels: Sequence[Any] | None = None,
         weights: Any = None,
+        fractional_weights: bool = False,
     ) -> Likelihoods:
         r"""Quantification input: calibrated classifier posteriors over classes.
 
@@ -936,7 +1019,13 @@ class Likelihoods:
         bins = Bins.categories(labels if labels is not None else C)
         if bins.K != C:
             raise ValueError("labels must have one entry per class.")
-        lk = cls.from_table(p, bins, interim=np.asarray(train_prior, dtype=float), weights=weights)
+        lk = cls.from_table(
+            p,
+            bins,
+            interim=np.asarray(train_prior, dtype=float),
+            weights=weights,
+            fractional_weights=fractional_weights,
+        )
         lk.meta["source"] = "classifier"
         return lk
 
@@ -1035,12 +1124,11 @@ def _check_posterior_representation(P, vol: np.ndarray, representation: str) -> 
     mismatched = ~np.isclose(sums, 1.0, rtol=1e-2)
     looks_other = np.isclose(alt, 1.0, rtol=1e-2)
     if np.mean(mismatched & looks_other) > 0.5:
-        warnings.warn(
+        warn(
             f"Most posterior rows integrate to one only if interpreted as '{other}' values; "
             f"did you mean representation='{other}'? "
             "(Bins have unequal volumes, so this matters.)",
             InputWarning,
-            stacklevel=3,
         )
 
 
