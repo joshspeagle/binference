@@ -123,12 +123,12 @@ def infer(
         key = _auto_method(model)
     if key not in METHODS:
         raise ValueError(f"Unknown method {method!r}; choose from {sorted([*METHODS, 'auto'])}.")
-    if key == "em":  # MAP by EM itself, not mix-SQP (audit O-17)
+    if key == "em" and not model.joint:  # MAP by EM itself, not mix-SQP (audit O-17)
         engine_kwargs.setdefault("algorithm", "em")
     engine = METHODS[key](model, rng=rng, progress=progress, **engine_kwargs)
     if key in ("map", "em"):
         if n_samples is not None:
-            raise ValueError("n_samples does not apply to method='map'.")
+            raise ValueError(f"n_samples does not apply to method={key!r}.")
         return engine.run()
     result = engine.run(_DEFAULT_SAMPLES[key] if n_samples is None else int(n_samples))
     if auto:

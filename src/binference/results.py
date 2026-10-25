@@ -217,7 +217,11 @@ class _IndividualMixin:
             if isinstance(likelihoods, Likelihoods)
             else Likelihoods(likelihoods, basis or model.bins)
         )
-        if lk.K != model.K or lk.basis != basis or (basis is None and lk.bins != model.bins):
+        if (
+            lk.K != model.K
+            or lk.basis != basis
+            or (basis is None and not _same_bins(lk.bins, model.bins))
+        ):
             raise ValueError("New likelihoods must use the same bins (and basis) as the fit.")
         return lk
 
@@ -326,8 +330,9 @@ class _IndividualMixin:
         # C12c (DECISIONS #50) narrows this to inputs without within-bin information
         if loglike is None and "gaussian_mean" not in model.likelihoods.meta:
             warn(
-                "sample_values draws values flat within each bin: these likelihoods carry no "
-                "within-bin information; pass loglike= for each object's own likelihood.",
+                "sample_values draws values from the population alone within each bin: these "
+                "likelihoods carry no within-bin information; pass loglike= for each object's "
+                "own likelihood.",
                 InputWarning,
             )
         rows = np.atleast_1d(np.arange(model.N)[slice(None) if idx is None else idx])
@@ -401,15 +406,24 @@ def _mean_responsibilities(L: Any, R: np.ndarray, chunk: int) -> np.ndarray:
     for sl in chunk_slices(n, chunk):
         block = L[:, sl] if L.ndim == 3 else L[sl]
         block = block.toarray() if hasattr(block, "toarray") else np.asarray(block)
+        rows = np.arange(sl.start, sl.stop)
         if block.ndim == 2:  # rows shared by the draws: mean_s L R_s / (L.R_s), two products
             T = block @ R.T
-            with np.errstate(divide="ignore"):
-                out[sl] = block * (np.where(T > 0, 1.0 / T, 0.0) @ R)  # no support: zero
-            continue
-        for s, rho in enumerate(R):
+            tiny = np.finfo(float).tiny  # 1/T overflows below: those rows go draw by draw
+            inv = np.divide(1.0, T, out=np.zeros_like(T), where=T > tiny)  # no support: zero
+            out[sl] = block * (inv @ R)
+            slow = np.any((T > 0) & (T <= tiny), axis=1)
+            if not slow.any():
+                continue
+            rows, block = (
+                rows[slow],
+                np.broadcast_to(block[slow], (len(R), slow.sum(), out.shape[1])),
+            )
+            out[rows] = 0.0
+        for s, rho in enumerate(R):  # draw by draw
             P = block[s] * rho
             tot = P.sum(axis=1, keepdims=True)
-            out[sl] += P / np.where(tot > 0, tot, 1.0)
+            out[rows] += P / np.where(tot > 0, tot, 1.0)
     return out / R.shape[0]
 
 
@@ -466,6 +480,20 @@ def _draws_rng(draws: np.ndarray) -> np.random.Generator:
     # and independent of any generator a caller holds (DECISIONS #78)
     digest = hashlib.sha256(np.ascontiguousarray(draws).tobytes()).digest()
     return np.random.default_rng(np.frombuffer(digest, dtype=np.uint32))
+
+
+def _same_bins(a: Bins, b: Bins) -> bool:
+    # equal bins up to the identity of their measures, which do not survive save and load
+    # (a transform axis loads as a table)
+    if a.is_categorical or b.is_categorical:
+        return a == b
+    return (
+        a.shape == b.shape
+        and all(np.array_equal(x, y) for x, y in zip(a.edges, b.edges, strict=True))
+        and [m.name for m in a.measures] == [m.name for m in b.measures]
+        and a.is_masked == b.is_masked
+        and (not a.is_masked or np.array_equal(a.mask, b.mask))
+    )
 
 
 def _same_layout(a: Basis | None, b: Basis | None) -> bool:
@@ -676,11 +704,11 @@ class PopulationResult(_IndividualMixin):
         if not isinstance(m, PopulationModel):
             lk = m if isinstance(m, Likelihoods) else Likelihoods(m, self.basis or self.bins)
             m = PopulationModel(lk, selection=None if lk.selection is not None else saved)
-        if saved is not None and m.selection_spec != saved:
+        if m.selection_spec != saved:
             raise ValueError("The likelihoods (or model) carry another selection than this fit.")
         if not _same_layout(m.likelihoods.basis, self.basis):
             raise ValueError("The likelihoods use a different basis than this result.")
-        if self.basis is None and m.bins != self.bins:
+        if self.basis is None and not _same_bins(m.bins, self.bins):
             raise ValueError(f"The likelihoods are on other bins ({m.bins}) than this result.")
         self.model = m
         self._selection = m.selection_spec
@@ -855,6 +883,8 @@ class PopulationResult(_IndividualMixin):
         (e.g. from :meth:`Bins.coarsen`) or a sequence of lists of bin indices.
         Returns ``(n_draws, n_groups)``.
         """
+        if _which_name(which) == "density":
+            raise ValueError("Densities per unit volume do not add across bins; rebin fractions.")
         X = self._which(which)
         try:
             arr = np.asarray(groups)
@@ -950,11 +980,13 @@ class PopulationResult(_IndividualMixin):
         # Markov chains (any engine but the approximations), whose draws are correlated
         mcmc = not self.approximate and self.method not in ("laplace", "vb", "bootstrap")
         for suffix, what in (("", ""), ("_selection", " of the selection")):
+            if not mcmc:  # independent draws: R-hat and ESS describe no chain
+                break
             if "rhat" + suffix in d and np.nanmax(d["rhat" + suffix]) > rhat_max:
                 msgs.append(f"max R-hat{what} = {np.nanmax(d['rhat' + suffix]):.3f} > {rhat_max}")
             for kind in ("bulk", "tail"):
                 key = f"ess_{kind}{suffix}"
-                if key in d and mcmc:
+                if key in d:
                     ess = np.nanmin(d[key])
                     per_chain = ess / max(1, self.n_chains)
                     if per_chain < ess_min:

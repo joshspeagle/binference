@@ -69,8 +69,6 @@ __all__ = [
     "__version__",
     "diagnostics",
     "infer",
-    "io",
-    "plotting",
     "priors",
     "samplers",
     "simulate",

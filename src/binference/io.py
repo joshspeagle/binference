@@ -171,8 +171,10 @@ def load_result(path: str) -> PopulationResult:
     """
     from .results import PopulationResult
 
-    if not os.path.exists(path) and os.path.exists(path + ".npz"):
-        path += ".npz"  # np.savez_compressed adds the suffix (audit O-10)
+    if isinstance(path, str | os.PathLike):  # np.savez_compressed adds .npz (audit O-10)
+        name = os.fspath(path)
+        if not os.path.exists(name) and os.path.exists(name + ".npz"):
+            path = name + ".npz"
     with np.load(path, allow_pickle=False) as data:
         meta = json.loads(str(data["meta"]))
         if meta.get("schema", 0) > SCHEMA_VERSION:

@@ -252,3 +252,66 @@ def test_the_datatree_uses_arviz_names_numeric_centres_and_hyperparameters():
     assert set(res.info["hyperparameters"]) <= set(post.data_vars)
     assert stats["diverging"].dtype == bool
     assert "acceptance_rate" in stats.data_vars and "n_steps" in stats.data_vars
+
+
+def test_a_reloaded_fit_on_a_transform_axis_attaches_without_a_basis(tmp_path):
+    # the axis loads as a table, which compares unequal to the transform
+    tb = Bins(np.linspace(0, 3, 7), measure=binference.Measure.transform(np.arcsinh, np.sinh))
+    lk = binference.simulate.mock_1d(80, tb, rng=7).likelihoods
+    res = binference.infer(lk, method="gibbs", n_samples=20, n_warmup=10, rng=0, check=False)
+    res.save(str(tmp_path / "t"))
+    PopulationResult.load(str(tmp_path / "t")).attach(lk).assignment_probabilities(idx=[0])
+
+
+def test_independent_draws_get_no_chain_diagnostics():
+    _, res = _fit_with_selection()
+    trend = np.random.default_rng(0).dirichlet(np.ones(4) * 50, size=(1, 200))
+    trend[0, :, 0] += np.linspace(0, 0.2, 200)
+    trend /= trend.sum(axis=-1, keepdims=True)
+    assert PopulationResult(res.model, trend, method="bootstrap").check() == []
+
+
+def test_load_takes_paths_and_file_objects(tmp_path):
+    import io
+    import pathlib
+
+    _, res = _fit_with_selection()
+    res.save(pathlib.Path(tmp_path / "p"))
+    assert PopulationResult.load(pathlib.Path(tmp_path / "p")).n_draws == res.n_draws
+    buf = io.BytesIO((tmp_path / "p.npz").read_bytes())
+    assert PopulationResult.load(buf).n_draws == res.n_draws
+
+
+def test_method_em_on_a_joint_model_runs_its_optimiser():
+    lk, _ = _fit_with_selection()
+    z = np.linspace(0.05, 0.95, 40)
+    sel = binference.Selection.from_injections(z, np.tile([True, False], 20), lk.bins, "on_truth")
+    assert binference.infer(lk, selection=sel, method="em").info["space"] == "unconstrained"
+
+
+def test_attach_refuses_a_selection_the_fit_did_not_have(tmp_path):
+    lk, _ = _fit_with_selection()
+    res = binference.infer(lk, method="gibbs", n_samples=20, rng=0, check=False)
+    with pytest.raises(ValueError, match="another selection"):
+        res.attach(lk.with_selection(np.full(4, 0.5), "on_truth"))
+
+
+def test_a_star_import_leaves_the_standard_io_module_alone():
+    ns: dict = {}
+    exec("import io\nfrom binference import *", ns)
+    assert hasattr(ns["io"], "BytesIO")
+
+
+def test_responsibilities_survive_a_subnormal_population_draw():
+    from binference.results import _mean_responsibilities
+
+    L = np.array([[1.0, 0.0], [0.5, 0.5]])
+    R = np.array([[1e-310, 1.0], [0.5, 0.5]])
+    out = _mean_responsibilities(L, R, chunk=10)
+    np.testing.assert_allclose(out, [[1.0, 0.0], [0.5 * 1e-310 / (1 + 1e-310) + 0.25, 0.75]])
+
+
+def test_densities_do_not_rebin():
+    _, res = _fit_with_selection()
+    with pytest.raises(ValueError, match="Densities"):
+        res.rebin([0, 0, 1, 1], which="density")
