@@ -69,6 +69,11 @@ class Selection:
         self.values = v
         self.mode = mode
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        if hasattr(self, name):
+            raise AttributeError("Selection objects are immutable.")
+        object.__setattr__(self, name, value)
+
     @property
     def K(self) -> int:
         return int(self.values.size)

@@ -370,7 +370,7 @@ class MAP(Engine):
         m = self.model
         if weights is not None:
             keep = weights > 0
-            lk = m.likelihoods.subset(np.flatnonzero(keep)).with_weights(weights[keep])
+            lk = m.likelihoods.subset(np.flatnonzero(keep))._reweighted(weights[keep])
             m = PopulationModel(lk, m.prior_spec, selection=m.selection_spec)
         v0 = interior_start(m) if self.init is None else self.init
         x0 = m.from_value(v0)

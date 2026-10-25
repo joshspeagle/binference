@@ -69,8 +69,10 @@ masked grids.
 
 ## Likelihood matrices
 
-If you already have $L_{ik}$, for example a likelihood evaluated at bin
-centres, pass it directly:
+If you already have $L_{ik}$, pass it directly. A likelihood evaluated at bin
+centres, as below, is only an approximation to the bin average $L_{ik}$; for narrow
+likelihoods it can be far off, and `from_gaussian` or `from_density` compute the
+bin averages properly:
 
 ```python
 z_true = rng.uniform(0.2, 2.8, size=500)
@@ -93,10 +95,15 @@ print(lk)
   differences; it is divided by the bin volume. This only matters for unequal
   bins, where it matters a lot (see {doc}`pitfalls`).
 - **Sparse matrices.** SciPy sparse matrices are kept sparse.
-  `lk.to_sparse(rtol)` drops entries below `rtol` times the row maximum.
-- **Weights.** `weights=` gives each object a multiplicity. `lk.compress()`
+  `lk.to_sparse(rtol)` drops entries below `rtol` times the row maximum
+  ($0\le$ `rtol` $\le 1$).
+- **Weights.** `weights=` gives each object an integer multiplicity. `lk.compress()`
   merges identical rows into weighted rows: inference is unchanged, and it
-  can be much faster for discrete data such as binned counts.
+  can be much faster for discrete data such as binned counts. Non-integer weights
+  need `fractional_weights=True` and give a weighted pseudo-likelihood, whose
+  posterior is not a proper posterior; binference warns.
+- **Stored arrays are read-only.** `lk.values`, `lk.log_scale` and `lk.weights` cannot
+  be changed in place; use `with_weights`, `subset` or a new constructor call.
 - **Objects with no support.** A row of zeros means the object cannot be in
   any bin. That is an error, unless you pass `drop_empty=True` to drop such
   objects with a warning.

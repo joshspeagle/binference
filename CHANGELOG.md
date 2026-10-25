@@ -53,6 +53,12 @@ First development version.
   are refined to `tol` (default 1e-3), in the measure coordinate for likelihoods
   (DECISIONS #21); `from_gaussian` averages in u on non-linear axes. Far tails no longer
   underflow to empty rows (I-2, I-3).
+- `weights` are integer multiplicities; non-integer weights need `fractional_weights=True`
+  and warn that the result is a pseudo-likelihood (DECISIONS #1, #65). Stored arrays
+  are read-only (I-14); `compress()` keeps sparse storage and is fast on it (I-7, I-19);
+  warnings point at the caller's line; clearer errors for bad `rtol`, Gaussian shapes,
+  zero objects and 2-D arrays passed to `Bins.grid` (I-8, I-10, I-11, I-20); broad
+  Gaussians keep full precision near the mean (I-15).
 - Each object's likelihood mass outside the bins is recorded in
   `meta["outside_fraction"]`, with a warning when many objects lose most of it
   (DECISIONS #18).

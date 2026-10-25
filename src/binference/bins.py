@@ -234,10 +234,17 @@ class Bins:
         for every axis or a sequence with one per axis; ``mask`` has the grid's
         shape.
         """
+        if len(edges) == 0 or any(np.size(e) == 0 for e in edges):
+            raise ValueError("grid() needs one non-empty array of edges per axis.")
         if len(edges) == 1 and isinstance(edges[0], Sequence) and np.ndim(edges[0][0]) > 0:
             edges = tuple(edges[0])
-        if len(edges) == 0:
-            raise ValueError("grid() needs at least one array of edges.")
+        if any(np.size(e) == 0 for e in edges):
+            raise ValueError("grid() needs one non-empty array of edges per axis.")
+        if any(np.ndim(e) > 1 for e in edges):
+            raise ValueError(
+                "grid() takes one 1-D array of edges per axis, e.g. Bins.grid(x_edges, y_edges); "
+                "unpack a 2-D array with Bins.grid(*edges)."
+            )
         obj = cls.__new__(cls)
         obj._set_grid(tuple(_as_edges(e, i) for i, e in enumerate(edges)), measure, mask)
         return obj
@@ -510,7 +517,9 @@ class Bins:
         or wholly masked, since a coarse bin's volume is its full block.
         """
         if self.is_categorical:
-            raise ValueError("Use explicit groups to merge categories.")
+            raise ValueError(
+                "Categories have no geometry to coarsen; merge them with result.rebin(groups)."
+            )
         f = np.broadcast_to(np.asarray(factor, dtype=int), (self.ndim,))
         new_edges = []
         for d, e in enumerate(self._edges):
