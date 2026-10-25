@@ -114,7 +114,7 @@ class Gibbs(Engine):
         else:
             base = interior_start(m)
             nhat = m.expected_counts(base)
-            exposure = m._exposure() if m.kind == "rates" else None
+            exposure = m._S if m.kind == "rates" else None
             starts = [m.prior.posterior_sample(nhat, r, exposure=exposure) for r in self._rngs]
         self._state = starts
 
@@ -133,7 +133,7 @@ class Gibbs(Engine):
             if n_missed > 0:
                 q = rho * (1.0 - S)
                 counts = counts + rng.multinomial(n_missed, q / q.sum())
-        exposure = m._exposure() if m.kind == "rates" else None
+        exposure = m._S if m.kind == "rates" else None
         self._state[c] = m.prior.posterior_sample(counts, rng, exposure=exposure)
         return self._state[c], labels
 

@@ -520,9 +520,10 @@ class LogisticGP(PopulationPrior):
         ls = self.length_scale
         if ls is None:
             ls_h = [
-                # between two bin widths and the range (half the range for two bins, M-14)
+                # between two bin widths and the range; half the range when two bin
+                # widths reach it (two bins, M-14)
                 InverseGamma.from_quantiles(
-                    min(2.0 * float(np.min(np.diff(e))), 0.5 * float(e[-1] - e[0])),
+                    _lower_scale(float(np.min(np.diff(e))), float(e[-1] - e[0])),
                     float(e[-1] - e[0]),
                 )
                 for e in bins.edges
@@ -579,3 +580,8 @@ class _BoundGP(_BoundLogistic):
         for d in range(self.D):
             dlogs[1 + d] = 0.5 * (1.0 + 2.0 * a2[:, d] * dlog_dr2)
         return s, dlogs
+
+
+def _lower_scale(width: float, span: float) -> float:
+    # the default length scale's lower quantile: two bin widths, or half the span
+    return 2.0 * width if 2.0 * width < span else 0.5 * span

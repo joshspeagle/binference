@@ -157,26 +157,23 @@ class PopulationModel:
         return f"PopulationModel(N={self.N}, K={self.K}, prior={self.prior_spec!r}{sel})"
 
     # ------------------------------------------------- likelihood internals
-    def _exposure(self) -> np.ndarray:
-        return self._S
-
     def _selection_term(self, value: np.ndarray) -> float:
         # -S.lambda for rates, -W log(S.rho) for fractions with selection
         if self.kind == "rates":
             return -float(self._S @ value)
-        return 0.0 if self.selection is None else -self.W * np.log(float(self.selection @ value))
+        return 0.0 if self.selection is None else -self.W * np.log(float(self._S @ value))
 
     def _ll_and_deta(self, value: np.ndarray) -> tuple[float, np.ndarray]:
         ll, nhat, _ = kern.loglike_and_counts(self._L, self._w, value)
         if not np.isfinite(ll):
             return -np.inf, np.zeros_like(value)
+        ll += self._selection_term(value)
+        # gradient in the logits (or log-rates) of ll, selection term included
         if self.kind == "rates":
-            S = self._exposure()
-            return ll - float(S @ value), nhat - S * value
+            return ll, nhat - self._S * value
         if self.selection is None:
             return ll, nhat - self.W * value
-        sp_ = float(self.selection @ value)
-        return ll - self.W * np.log(sp_), nhat - self.W * value * self.selection / sp_
+        return ll, nhat - self.W * value * self._S / float(self._S @ value)
 
     def _value(self, eta: np.ndarray) -> np.ndarray:
         if self.kind == "rates":
@@ -334,13 +331,13 @@ class PopulationModel:
         certificate checks the rest.
         """
         v = np.asarray(value, dtype=float)
-        s = kern.evidence(self._L, v)
-        if s is None:
+        s = kern.matvec(self._L, v)
+        if not kern.possible(s):
             return np.inf  # an object is impossible here (audit M-3)
         G = kern.rmatvec(self._L, self._w / s)
         pos = v > 0
         if self.kind == "rates":
-            G = G - self._exposure()
+            G = G - self._S
         elif self.selection is not None:
             G = G - self.W * self.selection / float(self.selection @ v)
         if include_prior and self.prior.has_density:
@@ -348,7 +345,7 @@ class PopulationModel:
         if self.kind == "rates":
             # relative to the exposure: n_k / (lambda_k S_k) - 1 without a prior, free of
             # the exposure's units (audit M-4)
-            viol = np.where(pos, np.abs(G), np.maximum(G, 0.0)) / self._exposure()
+            viol = np.where(pos, np.abs(G), np.maximum(G, 0.0)) / self._S
             return float(viol.max())
         mu = float(v[pos] @ G[pos])
         return max(0.0, float(np.max(G - mu))) / max(self.W, 1.0)
@@ -368,7 +365,8 @@ class PopulationModel:
         (integrated autocorrelation time roughly ``(1 + f) / (1 - f)``). With a
         selection function the missed objects count as missing data, as EM and
         Gibbs impute them; ``include_prior`` adds a Dirichlet prior's term, as in
-        the MAP EM (audit M-2; other priors add none). Computed on the support
+        the MAP EM (audit M-2; other priors add none; NaN where a prior with
+        concentrations below one outweighs the data). Computed on the support
         of ``value`` and on a random subset of at most ``max_objects`` objects.
         """
         v = np.asarray(value, dtype=float)
@@ -402,7 +400,10 @@ class PopulationModel:
             # complete data: the observed objects and, with selection, the imputed missed ones
             S = np.ones(on.sum()) if self.selection is None else self._detect[on]
             phi = S * rho / float(S @ rho)
-            I_c = (self.W / float(S @ rho) + extra) * C
+            n_complete = self.W / float(S @ rho) + extra
+            if n_complete <= 0:  # a prior with concentrations below one outweighs the data
+                return np.nan
+            I_c = n_complete * C
             I_obs = self.W * (np.diag(phi) - np.outer(phi, phi)) - Im + extra * C
             V = helmert_basis(rho.size)
             I_c, I_obs = V.T @ I_c @ V, V.T @ I_obs @ V

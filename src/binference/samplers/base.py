@@ -47,7 +47,7 @@ def em_update(model: PopulationModel, value: np.ndarray) -> np.ndarray | None:
     ll, nhat, _ = kern.loglike_and_counts(model._L, model._w, value)
     if not np.isfinite(ll):
         return None
-    exposure = model._exposure() if model.kind == "rates" else None
+    exposure = model._S if model.kind == "rates" else None
     return model.prior.map_from_counts(model._complete_counts(value, nhat), exposure=exposure)
 
 
@@ -68,5 +68,5 @@ def interior_start(model: PopulationModel, n_iter: int = 50) -> np.ndarray:
     if model.kind == "rates":
         # rho is the composition of the observed objects, n_k proportional to S_k lambda_k
         # (rates impute nothing), so the MLE-like start is W rho_k / S_k (audit M-7)
-        return np.maximum(model.W * rho / np.maximum(model._exposure(), 1e-12), 1e-12)
+        return np.maximum(model.W * rho / np.maximum(model._S, 1e-12), 1e-12)
     return rho

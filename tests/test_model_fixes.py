@@ -53,14 +53,31 @@ def test_em_stops_with_a_warning_where_an_object_becomes_impossible():
     with pytest.warns(binference.InputWarning, match="pseudo-likelihood"):
         lk = Likelihoods(L, Bins.categories(4), weights=w, fractional_weights=True)
     m = PopulationModel(lk, P.Dirichlet(0.5))
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        est = MAP(m, space="simplex").run()  # also warns that the prior is unbounded
-    assert any(
-        issubclass(w.category, ConvergenceWarning) and "zero likelihood" in str(w.message)
-        for w in caught
-    )
-    assert np.isfinite(est.log_posterior) and not np.allclose(est.value, 0.25)
+    for accelerate in (True, False):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            # also warns that the prior is unbounded
+            est = MAP(m, space="simplex", accelerate=accelerate).run()
+        assert any(
+            issubclass(w.category, ConvergenceWarning) and "zero likelihood" in str(w.message)
+            for w in caught
+        )
+        assert np.isfinite(est.log_posterior) and not np.allclose(est.value, 0.25)
+
+
+def test_an_init_that_makes_an_object_impossible_is_refused():
+    m = PopulationModel(Likelihoods(_one_object_bin(), Bins.categories(5)))
+    with pytest.raises(ValueError, match="init"):
+        MAP(m, algorithm="em", init=[0.25, 0.25, 0.25, 0.25, 0.0]).run()
+
+
+def test_missing_information_is_nan_where_a_sparse_prior_outweighs_the_data():
+    mock = binference.simulate.mock_1d(5, Bins.linear(0, 3, 10), rng=7)
+    m = PopulationModel(mock.likelihoods, P.Dirichlet(0.3))
+    assert np.isnan(m.missing_information(np.full(10, 0.1), include_prior=True))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        MAP(m, space="simplex", max_iter=3).run()  # warns, does not crash
 
 
 def _em_jacobian_radius(m, value, h=1e-6):
@@ -121,6 +138,13 @@ def test_the_rates_start_is_the_observed_composition_over_the_exposure():
     start = interior_start(m)
     mle = MAP(m).run().value
     np.testing.assert_allclose(start.sum(), mle.sum(), rtol=0.1)
+
+
+def test_the_gp_length_scale_default_changes_only_where_two_widths_reach_the_range():
+    from binference.priors.logistic import _lower_scale
+
+    assert _lower_scale(1.0, 3.0) == 2.0  # three equal bins: two widths, as before
+    assert _lower_scale(1.0, 2.0) == 1.0  # two equal bins: half the range
 
 
 def test_a_gp_prior_works_on_two_bins():

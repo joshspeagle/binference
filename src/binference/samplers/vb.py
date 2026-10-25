@@ -51,7 +51,7 @@ class MeanFieldVB(Engine):
         """Run coordinate ascent; returns ``(state, n_iter, converged)``."""
         m = self.model
         prior = m.prior
-        exposure = m._exposure() if m.kind == "rates" else None
+        exposure = m._S if m.kind == "rates" else None
         state = prior.vb_update(np.full(m.K, m.W / m.K), exposure=exposure)
         mean_old = prior.vb_mean(state)
         converged = False

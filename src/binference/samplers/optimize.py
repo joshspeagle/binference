@@ -223,6 +223,34 @@ class MAP(Engine):
             return self._run_em(m)
         return self._run_lbfgs(m)
 
+    #: whether results carry their log-likelihood, KKT gap and convergence diagnostics;
+    #: the bootstrap turns them off, as it reads only the values
+    _diagnostics = True
+
+    def _estimate(
+        self, m, v, n_iter, converged, algorithm, x=None, log_posterior=None, grad_norm=None
+    ) -> PointEstimate:
+        # a mode with its certificate: on the simplex (or orthant), or in unconstrained x
+        simplex = x is None
+        info = {"space": "simplex" if simplex else "unconstrained", "algorithm": algorithm}
+        if grad_norm is not None:
+            info["grad_norm"] = grad_norm
+        full = self._diagnostics
+        if log_posterior is None and full:
+            log_posterior = _objective(m, v)
+        return PointEstimate(
+            m,
+            v,
+            method="map",
+            x=x,
+            log_posterior=np.nan if log_posterior is None else log_posterior,
+            log_likelihood=m.log_likelihood(v) if full else np.nan,
+            kkt_gap=m.kkt_gap(v) if simplex and full else np.nan,
+            n_iter=n_iter,
+            converged=converged,
+            info=info,
+        )
+
     def _mixsqp_applies(self) -> bool:
         m = self.model
         if not (
@@ -250,7 +278,7 @@ class MAP(Engine):
             x /= x.sum()
         if not converged:
             warn(f"mix-SQP did not converge in {n_iter} iterations.", ConvergenceWarning)
-        return _estimate(m, x, n_iter, converged, "mixsqp")
+        return self._estimate(m, x, n_iter, converged, "mixsqp")
 
     # ------------------------------------------------------------------- EM
     def _run_em(self, m: PopulationModel) -> PointEstimate:
@@ -266,6 +294,11 @@ class MAP(Engine):
             return out / out.sum() if fractions else out
 
         f_old = _objective(m, v)
+        if not np.isfinite(f_old):
+            raise ValueError(
+                "init gives some object zero likelihood; pass an init that is positive "
+                "wherever an object has support."
+            )
         converged = False
         n_iter = 0
         for n_iter in range(1, self.max_iter + 1):  # noqa: B007 (used after the loop)
@@ -274,7 +307,7 @@ class MAP(Engine):
             else:
                 v_new = F(v)
                 f_new = -np.inf if v_new is None else _objective(m, v_new)
-            if v_new is None:
+            if not np.isfinite(f_new):  # keep the last population where every object is possible
                 warn(
                     "EM reached a population under which an object has zero likelihood (a "
                     "component clipped to zero, e.g. by concentrations below one); "
@@ -290,22 +323,27 @@ class MAP(Engine):
                 break
         else:
             msg = f"EM did not converge in {self.max_iter} iterations"
-            if m.K <= 500:  # EM is slow when information is missing
+            if self._diagnostics and m.K <= 500:  # EM is slow when information is missing
                 f = m.missing_information(v, include_prior=True)
-                msg += f" (missing information {f:.3f})"
+                if np.isfinite(f):
+                    msg += f" (missing information {f:.3f})"
             warn(msg + "; raise max_iter.", ConvergenceWarning)
-        return _estimate(m, v, n_iter, converged, "squarem" if self.accelerate else "em")
+        algorithm = "squarem" if self.accelerate else "em"
+        return self._estimate(m, v, n_iter, converged, algorithm, log_posterior=f_old)
 
     def _squarem_step(self, m, F, v, fractions):
-        # one SQUAREM step; (None, -inf) when a plain EM step meets an impossible object
+        # one SQUAREM step; (None, -inf) when the first plain EM step meets an impossible object
         r1 = F(v)
-        r2 = None if r1 is None else F(r1)
-        if r2 is None:
+        f1 = -np.inf if r1 is None else _objective(m, r1)
+        if not np.isfinite(f1):
             return None, -np.inf
+        r2 = F(r1)
+        f2 = -np.inf if r2 is None else _objective(m, r2)
+        if not np.isfinite(f2):
+            return r1, f1  # the next step stops there
         d1 = r1 - v
         d2 = r2 - 2.0 * r1 + v
         n2 = float(np.sqrt(np.sum(d2**2)))
-        f2 = _objective(m, r2)
         if n2 == 0.0:
             return r2, f2
         step = min(-float(np.sqrt(np.sum(d1**2))) / n2, -1.0)
@@ -355,29 +393,9 @@ class MAP(Engine):
                 ConvergenceWarning,
             )
         v = m.to_value(x)
-        return _estimate(
+        return self._estimate(
             m, v, int(res.nit), converged, "l-bfgs-b", x=x, log_posterior=lp, grad_norm=gnorm
         )
-
-
-def _estimate(m, v, n_iter, converged, algorithm, x=None, log_posterior=None, grad_norm=None):
-    # a mode with its certificate: on the simplex (or orthant), or in unconstrained x
-    simplex = x is None
-    info = {"space": "simplex" if simplex else "unconstrained", "algorithm": algorithm}
-    if grad_norm is not None:
-        info["grad_norm"] = grad_norm
-    return PointEstimate(
-        m,
-        v,
-        method="map",
-        x=x,
-        log_posterior=_objective(m, v) if log_posterior is None else log_posterior,
-        log_likelihood=m.log_likelihood(v),
-        kkt_gap=m.kkt_gap(v) if simplex else np.nan,
-        n_iter=n_iter,
-        converged=converged,
-        info=info,
-    )
 
 
 def _objective(m: PopulationModel, v: np.ndarray) -> float:
