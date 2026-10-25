@@ -146,21 +146,23 @@ def _draw_values(bins: Bins, density: Any, n: int, rng: np.random.Generator):
     if f is None:
         rho = population(bins, density)
         labels = rng.choice(bins.K, size=n, p=rho)
-        multi = np.unravel_index(labels, bins.shape)
-        vals = [
-            e[j] + np.diff(e)[j] * rng.random(n) for e, j in zip(bins.edges, multi, strict=True)
-        ]
-        values = vals[0] if bins.ndim == 1 else np.stack(vals, axis=1)
-        return values, labels
-    # fine grid inverse-CDF (piecewise-constant) sampling
-    fine = [np.linspace(e[0], e[-1], 20 * (len(e) - 1) + 1) for e in bins.edges]
-    fb = Bins.grid(*fine)
+        return bins.sample_within(labels, rng), labels
+    # inverse-CDF sampling on a grid that splits every bin into 20 equal steps in u,
+    # so each fine cell lies inside one bin and inherits its mask
+    t = np.linspace(0.0, 1.0, 21)[:-1]
+    fine = [
+        m.inverse(np.append((u[:-1, None] + np.diff(u)[:, None] * t).ravel(), u[-1]))
+        for m, u in zip(bins.measures, bins.u_edges, strict=True)
+    ]
+    fb = Bins.grid(*fine, measure=bins.measures)
     pts = fb.centers
     dens = np.clip(np.asarray(f(pts), dtype=float).ravel(), 0.0, None) * fb.volumes
+    if bins.is_masked:
+        dens[~bins.contains(pts)] = 0.0  # no objects in masked cells
+    if not dens.sum() > 0:
+        raise ValueError("density has no mass on the active bins.")
     cell = rng.choice(fb.K, size=n, p=dens / dens.sum())
-    multi = np.unravel_index(cell, fb.shape)
-    vals = [e[j] + np.diff(e)[j] * rng.random(n) for e, j in zip(fb.edges, multi, strict=True)]
-    values = vals[0] if bins.ndim == 1 else np.stack(vals, axis=1)
+    values = fb.sample_within(cell, rng)
     labels = bins.index(values)
     return values, labels
 
@@ -299,18 +301,23 @@ def _draw_selected(bins, density, n_objects, selection, gen):
 
 
 def _posterior_samples_1d(obs, sigma, bins, pi_dens, pi_masses, n_samples, gen):
-    lo, hi = bins.range[0]
-    grid = np.linspace(lo, hi, 50 * bins.K + 1)
+    e = bins.edges[0]  # 50 steps per bin, so each step lies inside one bin
+    grid = np.append(
+        (e[:-1, None] + np.diff(e)[:, None] * np.linspace(0, 1, 51)[:-1]).ravel(), e[-1]
+    )
     mid = 0.5 * (grid[1:] + grid[:-1])
+    k = bins.index(mid)
     if pi_dens is not None:
         prior = np.asarray(pi_dens(mid), dtype=float)
     elif pi_masses is not None:
-        prior = pi_masses[bins.index(mid)] / bins.volumes[bins.index(mid)]
+        prior = pi_masses[k] / bins.volumes[k]
     else:
         prior = np.ones_like(mid)
+    with np.errstate(divide="ignore"):
+        log_prior = np.where(k >= 0, np.log(prior), -np.inf)  # no mass in masked bins
     out = np.empty((obs.size, n_samples))
     for i in range(obs.size):
-        logp = -0.5 * ((mid - obs[i]) / sigma[i]) ** 2 + np.log(np.maximum(prior, 1e-300))
+        logp = -0.5 * ((mid - obs[i]) / sigma[i]) ** 2 + log_prior
         p = np.exp(logp - logp.max())
         cdf = np.concatenate(([0.0], np.cumsum(p)))
         cdf /= cdf[-1]

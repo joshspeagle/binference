@@ -24,6 +24,17 @@ First development version.
 
 ### Added
 
+- **Measures** (DECISIONS #21): each grid axis has a `Measure`, the coordinate
+  `u = T(z)` in which the population is flat within a bin: linear, log, a transform with
+  its inverse, or the cumulative integral of a positive density. `Bins.log` uses the log
+  measure; bin centres are midpoints in `u`; `Bins.from_centers` takes midpoints in `u`
+  (positive edges for log-spaced centres, I-16). Geometric hand-built edges warn.
+- **Masked grids** (DECISIONS #19): `mask=` on `Bins`, `Bins.grid`, `Bins.linear` and
+  `Bins.log`; masked cells leave the support and the model. Saved and loaded with
+  results.
+- `Bins` with edges `-0.0` and `0.0` now hash alike (I-12); `Bins.index` refuses
+  multi-column values for 1-D bins (I-22).
+
 - **Inputs.** `Bins` (linear, log, from centres, N-D grids, categories) and
   `Likelihoods` with constructors for:
   - likelihood matrices (density or mass representation, dense or sparse,

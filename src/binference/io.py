@@ -9,6 +9,7 @@ import numpy as np
 
 from ._version import __version__
 from .bins import Bins
+from .measure import Measure
 
 if TYPE_CHECKING:  # pragma: no cover
     from .results import PopulationResult
@@ -25,7 +26,14 @@ def _bins_to_parts(bins: Bins) -> tuple[dict[str, Any], dict[str, np.ndarray]]:
             return {"bins": "categories", "labels": [int(lab) for lab in labels]}, {}
         return {"bins": "categories", "labels": [str(lab) for lab in labels]}, {}
     arrays = {f"edges_{d}": np.asarray(e) for d, e in enumerate(bins.edges)}
-    return {"bins": "grid", "ndim": bins.ndim}, arrays
+    names = []
+    for d, (m, e) in enumerate(zip(bins.measures, bins.edges, strict=True)):
+        names.append(m.name)
+        if not m.is_named:  # other measures are saved as tables
+            arrays[f"measure_z_{d}"], arrays[f"measure_u_{d}"] = m._tabulate(e)
+    if bins.is_masked:
+        arrays["mask"] = bins.mask
+    return {"bins": "grid", "ndim": bins.ndim, "measures": names}, arrays
 
 
 def _bins_from_parts(meta: dict[str, Any], arrays: Any) -> Bins:
@@ -34,7 +42,17 @@ def _bins_from_parts(meta: dict[str, Any], arrays: Any) -> Bins:
         if all(isinstance(lab, int) for lab in labels) and labels == list(range(len(labels))):
             return Bins.categories(len(labels))
         return Bins.categories(labels)
-    return Bins.grid(*[np.asarray(arrays[f"edges_{d}"]) for d in range(int(meta["ndim"]))])
+    nd = int(meta["ndim"])
+    measures = []
+    for d, name in enumerate(meta.get("measures", ["linear"] * nd)):
+        if f"measure_z_{d}" not in arrays:
+            measures.append(name)
+        else:
+            z, u = arrays[f"measure_z_{d}"], arrays[f"measure_u_{d}"]
+            measures.append(Measure.tabulated(z, u, name=name))
+    mask = np.asarray(arrays["mask"]) if "mask" in arrays else None
+    edges = [np.asarray(arrays[f"edges_{d}"]) for d in range(nd)]
+    return Bins.grid(*edges, measure=measures, mask=mask)
 
 
 def result_to_dict(result: PopulationResult) -> dict[str, Any]:
@@ -59,7 +77,12 @@ def result_to_dict(result: PopulationResult) -> dict[str, Any]:
 
 
 def save_result(result: PopulationResult, path: str) -> None:
-    """Save a result to a compressed ``.npz`` file (versioned schema)."""
+    """Save a result to a compressed ``.npz`` file (versioned schema).
+
+    A :meth:`Measure.transform <binference.Measure.transform>` axis is saved as
+    a table of points, so it loads as a tabulated measure: the loaded bins
+    compare unequal to the original ones.
+    """
     meta, arrays = _bins_to_parts(result.bins)
     meta.update(
         schema=SCHEMA_VERSION,

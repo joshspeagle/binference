@@ -31,6 +31,42 @@ Bins know their `edges`, `centers`, `volumes` (widths in 1-D) and how to
 `flatten` to move between the `(K,)` vector and the grid. Categories have unit
 volumes and no geometry.
 
+### Measures: flat in which coordinate?
+
+Within a bin the population is taken to be flat in some coordinate
+$u = T(z)$, the bin axis's *measure*. `Bins.linear` and explicit edges use
+$u = z$; `Bins.log` uses $u = \log z$, so a log bin's centre is the geometric
+mean of its edges. Pass `measure=` to choose: `"linear"`, `"log"`, or a
+`binference.Measure` built from a transform and its inverse or from a positive
+density $g(z)$ (the map is then its cumulative integral, computed on a fine grid).
+Hand-built edges that are geometrically spaced raise an `InputWarning` unless a
+measure is given.
+
+```python
+sqrt_bins = binference.Bins([0.0, 1.0, 4.0, 9.0],
+                            measure=binference.Measure.transform(np.sqrt, np.square))
+custom = binference.Bins(np.linspace(1.0, 10.0, 6),
+                         measure=binference.Measure.density(lambda z: 1 / z, 1.0, 10.0))
+print(sqrt_bins.centers, sqrt_bins.u_edges[0])
+```
+
+### Masked grids
+
+A `mask` removes cells from the support, for example the unphysical corner of
+a colour–magnitude diagram. Masked cells take no part in the model: `K` counts
+the active cells, `index` returns `-1` for values in a masked cell, and
+`unflatten` fills masked cells with NaN.
+
+```python
+mask = np.ones((4, 5), dtype=bool)
+mask[0, 0] = False
+masked = binference.Bins.grid(np.linspace(0, 4, 5), np.linspace(0, 5, 6), mask=mask)
+print(masked.K, masked.shape, masked.index([[0.5, 0.5], [0.5, 1.5]]))
+```
+
+Smoothness priors (`LogisticRandomWalk`, `LogisticGP`) do not yet accept
+masked grids.
+
 ## Likelihood matrices
 
 If you already have $L_{ik}$, for example a likelihood evaluated at bin

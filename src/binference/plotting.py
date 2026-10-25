@@ -133,8 +133,8 @@ def plot_population(
             if step:
                 ax.fill_between(
                     edges,
-                    np.append(lo, lo[-1]),
-                    np.append(hi, hi[-1]),
+                    _step_y(bins, lo),
+                    _step_y(bins, hi),
                     step="post",
                     color=color,
                     alpha=alpha,
@@ -144,19 +144,19 @@ def plot_population(
                 ax.fill_between(centers, lo, hi, color=color, alpha=alpha, lw=0)
         lab = label or "posterior median"
         if step:
-            ax.step(edges, np.append(med, med[-1]), where="post", color=color, lw=1.5, label=lab)
+            ax.step(edges, _step_y(bins, med), where="post", color=color, lw=1.5, label=lab)
         else:
             ax.plot(centers, med, color=color, lw=1.5, label=lab)
         if truth is not None:
             t = _to_which(truth, bins, which, total)
             ax.step(
-                edges, np.append(t, t[-1]), where="post", color=INK, lw=1.5, ls="--", label="truth"
+                edges, _step_y(bins, t), where="post", color=INK, lw=1.5, ls="--", label="truth"
             )
         if stack is not None:
             s = _to_which(stack, bins, which, total)
             ax.step(
                 edges,
-                np.append(s, s[-1]),
+                _step_y(bins, s),
                 where="post",
                 color=STACK_COLOR,
                 lw=1.5,
@@ -179,6 +179,12 @@ def plot_population(
     _tidy(ax)
     ax.legend(frameon=False)
     return ax
+
+
+def _step_y(bins, y):
+    # per-bin values on the full 1-D grid (NaN, a gap, in masked bins), padded for step="post"
+    full = bins.unflatten(np.asarray(y, dtype=float))
+    return np.append(full, full[-1])
 
 
 def _band_patch(color: str, alpha: float, label: str):
@@ -293,7 +299,7 @@ def plot_individual(result: Any, i: int, ax: Any = None, n_draws: int = 200):
         vol = bins.volumes
         ax.step(
             edges,
-            np.append(own / vol, own[-1] / vol[-1]),
+            _step_y(bins, own / vol),
             where="post",
             color="0.45",
             lw=1.5,
@@ -302,7 +308,7 @@ def plot_individual(result: Any, i: int, ax: Any = None, n_draws: int = 200):
         )
         ax.step(
             edges,
-            np.append(shrunk / vol, shrunk[-1] / vol[-1]),
+            _step_y(bins, shrunk / vol),
             where="post",
             color=POSTERIOR_COLOR,
             lw=1.5,

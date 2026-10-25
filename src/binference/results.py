@@ -90,8 +90,9 @@ def _bin_labels(bins: Bins) -> np.ndarray:
         return np.array([str(lab) for lab in bins.labels], dtype=object)
     if bins.ndim == 1:
         e = bins.edges[0]
-        return np.array([f"[{e[k]:.4g}, {e[k + 1]:.4g})" for k in range(bins.K)], dtype=object)
-    idx = np.indices(bins.shape).reshape(bins.ndim, -1).T
+        j = bins.cell_index[0]
+        return np.array([f"[{e[k]:.4g}, {e[k + 1]:.4g})" for k in j], dtype=object)
+    idx = np.stack(bins.cell_index, axis=1)
     return np.array([str(tuple(int(i) for i in row)) for row in idx], dtype=object)
 
 
@@ -229,7 +230,7 @@ class _IndividualMixin:
         gen = as_generator(rng)
         rows = np.atleast_1d(np.arange(model.N)[slice(None) if idx is None else idx])
         labels = self.sample_assignments(idx=rows, n_draws=n_draws, rng=gen)
-        multi = np.unravel_index(labels, bins.shape)
+        multi = bins.grid_index(labels)
         meta = model.likelihoods.meta
         if "gaussian_mean" in meta:
             from scipy import stats
@@ -250,8 +251,8 @@ class _IndividualMixin:
             u = (np.arange(n_sub) + 0.5) / n_sub
             out = np.empty(labels.shape)
             for c, i in enumerate(rows):
-                for k in np.unique(labels[:, c]):
-                    sel = labels[:, c] == k
+                for k in np.unique(multi[0][:, c]):
+                    sel = multi[0][:, c] == k
                     z = e[k] + (e[k + 1] - e[k]) * u
                     lw = np.asarray(loglike(z, int(i)), dtype=float).ravel()
                     w = np.exp(lw - np.max(lw))
@@ -259,12 +260,7 @@ class _IndividualMixin:
                     width = (e[k + 1] - e[k]) / n_sub
                     out[sel, c] = z[cell] + width * (gen.random(cell.size) - 0.5)
             return out
-        vals = []
-        for d, e in enumerate(bins.edges):
-            j = multi[d]
-            lo, hi = e[j], e[j + 1]
-            vals.append(lo + (hi - lo) * gen.random(labels.shape))
-        return vals[0] if bins.ndim == 1 else np.stack(vals, axis=-1)
+        return bins.sample_within(labels, gen)
 
     def predict_proba(self, likelihoods: Likelihoods | Any, n_draws: int | None = 500):
         """Posterior over bins for *new* objects under the inferred population."""
