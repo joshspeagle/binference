@@ -142,8 +142,7 @@ class Density:
         if self._flat is not None:
             if bins.is_categorical or self._flat == "z":
                 return bins.volumes
-            widths = [np.diff(u)[j] for u, j in zip(bins.u_edges, bins.cell_index, strict=True)]
-            return np.prod(widths, axis=0)
+            return bins.u_volumes
         if self._values is not None:
             v = self._values
             if v.size != bins.K:

@@ -624,7 +624,7 @@ class PopulationResult(_IndividualMixin):
                 )
         lk = self.model.likelihoods if self.model is not None else None
         if lk is not None and "sample_sum" in lk.meta:
-            var, _ = lk.sample_variance(self.samples.mean(axis=0))
+            var, _ = lk.sample_variance(self.mean)
             total = float(np.sum(lk.weights * var))
             if total > 1.0:
                 msgs.append(

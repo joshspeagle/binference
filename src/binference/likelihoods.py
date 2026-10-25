@@ -361,7 +361,7 @@ class Likelihoods:
                 )
             warn(f"Dropping {bad.size} object(s) with zero likelihood in every bin.", InputWarning)
             keep = ~empty
-            norm = norm[keep] if not sp.issparse(norm) else sp.csr_array(norm)[keep]
+            norm = _take_rows(norm, keep)
             log_scale = log_scale[keep]
             weights = weights[keep]
             meta = _slice_per_object({**meta, "dropped": bad}, keep)
@@ -743,36 +743,45 @@ class Likelihoods:
         flat, obj_ids, idx, sw, n_obj = _bin_samples(samples, bins, sample_weights)
         density = Density.coerce(interim, interim_representation)
         Pi = density.masses(bins)
-        pointwise = density._pointwise()
+        du = bins.u_volumes
         inside = idx >= 0
-        if pointwise is None:  # per-bin interim prior: counts over interim masses
-            w, divisor = sw, Pi
-        else:  # weight each sample by T'(z) / pi(z)
-            pi = np.asarray(pointwise(flat[inside]), dtype=float).ravel()
-            if np.any(~np.isfinite(pi)) or np.any(pi <= 0):
-                raise ValueError("Samples fall where the interim density is zero or undefined.")
-            zz = flat[inside].reshape(-1, bins.ndim)
-            log_jac = sum(m.log_jacobian(zz[:, d]) for d, m in enumerate(bins.measures))
-            w = np.zeros_like(sw)
-            w[inside] = sw[inside] * np.exp(log_jac - np.log(pi))
-            divisor = _u_volumes(bins)
-        rows, cols = obj_ids[inside], idx[inside]
+        rows, cols, sw_in = obj_ids[inside], idx[inside], sw[inside]
+        # weight each sample by T'(z) / pi(z); a per-bin prior is flat in u within bins
+        pointwise = density._pointwise()
+        with np.errstate(divide="ignore", invalid="ignore"):
+            if pointwise is None:
+                log_pi_u = np.log(Pi[cols] / du[cols])
+            else:
+                zz = flat[inside].reshape(-1, bins.ndim)
+                pi = np.asarray(pointwise(zz[:, 0] if bins.ndim == 1 else zz), dtype=float)
+                log_pi_u = np.log(pi).ravel() - sum(
+                    m.log_jacobian(zz[:, d]) for d, m in enumerate(bins.measures)
+                )
+        if not np.all(np.isfinite(log_pi_u)):
+            raise ValueError("Samples fall where the interim density is zero or undefined.")
+        w = sw_in * np.exp(-log_pi_u)
+        # sum the weights and their squares per (object, bin) entry with one sort
+        entry, inv = np.unique(rows * bins.K + cols, return_inverse=True)
+        s1, s2 = np.bincount(inv, weights=w), np.bincount(inv, weights=w**2)
+        er, ec = np.divmod(entry, bins.K)
         shape = (n_obj, bins.K)
-        S1 = sp.coo_array((w[inside], (rows, cols)), shape=shape).tocsr()
-        S2 = sp.coo_array((w[inside] ** 2, (rows, cols)), shape=shape).tocsr()
-        est = _divide_interim(S1, divisor, "Samples")  # proportional to the bin averages
+        S1 = sp.csr_array((s1 / du[ec], (er, ec)), shape=shape)
+        S2 = sp.csr_array((s2 / du[ec] ** 2, (er, ec)), shape=shape)
         n_samples = np.bincount(obj_ids, weights=sw, minlength=n_obj)
-        inside_w = np.bincount(obj_ids[inside], weights=sw[inside], minlength=n_obj)
+        inside_w = np.bincount(rows, weights=sw_in, minlength=n_obj)
         outside = 1.0 - inside_w / np.where(n_samples > 0, n_samples, 1.0)
-        if floor > 0:  # as counts: c + floor * Pi, divided by Pi
-            counts = _scale_columns(est, Pi)
-            tot = np.asarray(counts.sum(axis=1)).ravel()
-            scale = np.where(tot > 0, inside_w / np.where(tot > 0, tot, 1.0), 0.0)
-            est = (sp.diags_array(scale) @ est).toarray() + floor
-        n_eff = _n_eff(obj_ids[inside], w[inside], n_obj)
-        nnz = est.nnz if sp.issparse(est) else np.count_nonzero(est)
+        n_eff = _ess(
+            np.bincount(er, weights=s1, minlength=n_obj),
+            np.bincount(er, weights=s2, minlength=n_obj),
+        )
+        est = S1  # proportional to the bin averages
+        if floor > 0:  # as counts c + floor * Pi, divided by Pi, with sum(c) = inside_w
+            tot = S1 @ Pi
+            est = S1.toarray()
+            est *= (inside_w / np.where(tot > 0, tot, 1.0))[:, None]
+            est += floor
         if sparse is None:
-            sparse = nnz < 0.3 * n_obj * bins.K
+            sparse = floor == 0 and S1.nnz < 0.3 * n_obj * bins.K
         values = sp.csr_array(est) if sparse else (est.toarray() if sp.issparse(est) else est)
         short = n_eff < min_samples
         if short.mean() > 0.1:
@@ -795,8 +804,8 @@ class Likelihoods:
         _attach_per_object(
             lk,
             n_eff=n_eff,
-            sample_sum=_scale_columns(S1, 1.0 / divisor),
-            sample_sq=_scale_columns(S2, 1.0 / divisor**2),
+            sample_sum=S1,
+            sample_sq=S2,
             sample_count=n_samples,
         )
         _record_outside(lk, outside, warn_outside)
@@ -819,9 +828,8 @@ class Likelihoods:
         m = np.asarray(self.meta["sample_sum"] @ a).ravel()
         q = np.asarray(self.meta["sample_sq"] @ a**2).ravel()
         with np.errstate(divide="ignore", invalid="ignore"):
-            n_eff = np.where(q > 0, m**2 / q, 0.0)
             var = np.where(m > 0, q / m**2 - 1.0 / self.meta["sample_count"], np.inf)
-        return np.maximum(var, 0.0), n_eff
+        return np.maximum(var, 0.0), _ess(m, q)
 
     @classmethod
     def from_gaussian(
@@ -1186,27 +1194,27 @@ _PER_OBJECT_KEYS = (
 )
 
 
+def _take_rows(v: Any, rows: Any) -> Any:
+    # rows of a dense or sparse per-object array, by index or boolean mask
+    return sp.csr_array(v)[np.arange(v.shape[0])[rows]] if sp.issparse(v) else np.asarray(v)[rows]
+
+
 def _slice_per_object(meta: dict[str, Any], rows: Any) -> dict[str, Any]:
     out = dict(meta)
     for key in _PER_OBJECT_KEYS:
         if key in out:
-            v = out[key]
-            out[key] = (
-                sp.csr_array(v)[np.arange(v.shape[0])[rows]]
-                if sp.issparse(v)
-                else np.asarray(v)[rows]
-            )
+            out[key] = _take_rows(out[key], rows)
     return out
 
 
-def _attach_per_object(lk: Likelihoods, **arrays: np.ndarray) -> None:
+def _attach_per_object(lk: Likelihoods, **arrays: Any) -> None:
     """Store per-object arrays aligned with the rows that survived ``drop_empty``."""
     dropped = lk.meta.get("dropped")
     for key, arr in arrays.items():
-        if dropped is not None and len(dropped):
-            keep = np.setdiff1d(np.arange(arr.shape[0]), dropped)
-            arr = sp.csr_array(arr)[keep] if sp.issparse(arr) else np.asarray(arr)[keep]
-        lk.meta[key] = arr if sp.issparse(arr) else np.asarray(arr)
+        keep = np.ones(arr.shape[0], dtype=bool)
+        if dropped is not None:
+            keep[dropped] = False
+        lk.meta[key] = _take_rows(arr, keep)
 
 
 def _normalise_linear(values: Any):
@@ -1285,15 +1293,8 @@ def _check_posterior_representation(P, vol: np.ndarray, representation: str) -> 
         )
 
 
-def _u_volumes(bins: Bins) -> np.ndarray:
-    # each active bin's volume in the measure coordinate
-    widths = [np.diff(u)[j] for u, j in zip(bins.u_edges, bins.cell_index, strict=True)]
-    return np.prod(widths, axis=0)
-
-
-def _n_eff(rows: np.ndarray, w: np.ndarray, n: int) -> np.ndarray:
-    tot = np.bincount(rows, weights=w, minlength=n)
-    tot2 = np.bincount(rows, weights=w**2, minlength=n)
+def _ess(tot: np.ndarray, tot2: np.ndarray) -> np.ndarray:
+    # effective number of samples from the sums of the weights and of their squares
     with np.errstate(invalid="ignore", divide="ignore"):
         return np.where(tot2 > 0, tot**2 / tot2, 0.0)
 
