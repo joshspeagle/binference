@@ -68,7 +68,8 @@ findings are fixed in Phase C.
 | C6 | Selection: names, absolute/relative, combined (per-bin), callables, steep-S warning; mocks for truth, measurement and both | #7, #8, #10 (arrays, callables), #46, #47 (warning), #48 | G-4, G-10, G-11 |
 | C7 | Model and kernels: KKT fixes, missing information, zero-weight rows, each concept once, Jacobian naming | #15, #56, #57 | M-1–M-4, M-7, M-10–M-12, M-14 |
 | C8 | MAP / EM / mix-SQP fixes | – | M-5, M-6, M-8, M-9, M-13, T-4 |
-| C9 | Priors fixes (GP in the measure coordinate, K = 2, trees, validation) | #21 (GP) | P-1–P-22 |
+| C9a | Priors fixes (trees, validation, trend scale, reprs, speed) | – | P-4, P-6, P-8–P-22 |
+| C9b | GP defaults (measure coordinate, basis size, boundary, scale floor, coarse grids) | #21 (GP) | P-1–P-3, P-5, P-7 |
 | C10 | NUTS and Laplace fixes | – | N-1–N-15 |
 | C11 | Gibbs, VB, bootstrap, validation fixes | – | G-1–G-3, G-5–G-9, G-12 |
 | C12 | Results and outputs: selected population, derived total and rates, full-sample counts, value draws from within-bin information, KKT in check(), data-support flags, prior-vs-data ratio | #9 (derived rates), #12, #41, #49, #50, #53 | O-1–O-21 |

@@ -20,24 +20,16 @@ import numpy as np
 from scipy import special
 
 from ..bins import Bins
-from .base import BoundPrior, PopulationPrior
+from .base import _TINY, BoundPrior, PopulationPrior, _log_gamma_variates
 
 __all__ = ["GammaRates"]
-
-_TINY = 1e-300
 
 
 def _gamma_draw(shape, rate, rng: np.random.Generator, size=None) -> np.ndarray:
     """Gamma(shape, rate) draws without exact zeros (log space for shape < 1)."""
-    shape = np.asarray(shape, dtype=float)
-    out_shape = np.broadcast_shapes(shape.shape, np.shape(rate)) if size is None else size
-    a = np.broadcast_to(shape, out_shape)
-    if np.min(a) >= 1.0:
-        g = rng.standard_gamma(a)
-    else:
-        lg = np.log(rng.standard_gamma(a + 1.0)) + np.log(rng.random(out_shape)) / a
-        g = np.exp(np.maximum(lg, np.log(_TINY)))
-    return np.maximum(g / rate, _TINY)
+    out_shape = np.broadcast_shapes(np.shape(shape), np.shape(rate)) if size is None else size
+    lg = _log_gamma_variates(shape, rng, out_shape) - np.log(rate)
+    return np.exp(np.maximum(lg, np.log(_TINY)))
 
 
 class GammaRates(PopulationPrior):
@@ -46,8 +38,8 @@ class GammaRates(PopulationPrior):
     Use this to infer expected *counts* (e.g. occurrence rates, or number
     densities with a known exposure) rather than fractions. Results report
     both ``rates`` and the implied fractions ``rho = lambda / sum(lambda)``.
-    Without selection effects, ``GammaRates(alpha, b)`` implies
-    ``rho ~ Dirichlet(alpha)``.
+    Without selection effects and with a common rate ``b``,
+    ``GammaRates(alpha, b)`` implies ``rho ~ Dirichlet(alpha)``.
 
     Parameters
     ----------
@@ -85,6 +77,7 @@ class _BoundGammaRates(BoundPrior):
     kind = "rates"
     conjugate = True
     has_density = True
+    has_prior_transform = True
 
     def __init__(self, prior: PopulationPrior, bins: Bins, a: np.ndarray, b: np.ndarray) -> None:
         super().__init__(prior, bins)
@@ -117,6 +110,9 @@ class _BoundGammaRates(BoundPrior):
         v = np.asarray(value, dtype=float)
         pos = v > 0
         return np.where(pos, (self.a - 1.0) / np.where(pos, v, 1.0) - self.b, 0.0)
+
+    def prior_transform(self, u):
+        return special.gammaincinv(self.a, np.asarray(u, dtype=float)) / self.b
 
     def _exposure(self, exposure):
         return np.ones(self.K) if exposure is None else exposure

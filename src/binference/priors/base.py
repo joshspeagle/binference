@@ -19,10 +19,39 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+from scipy import special
 
 from ..bins import Bins
 
 __all__ = ["BoundPrior", "PopulationPrior"]
+
+#: floor of drawn fractions and rates, so their logarithms stay finite
+_TINY = 1e-300
+
+
+def _log_gamma_variates(a: Any, rng: np.random.Generator, shape: tuple) -> np.ndarray:
+    """Logarithms of Gamma(a, 1) draws, without underflow for small shapes.
+
+    For ``min(a) < 1`` they use ``Gamma(a) = Gamma(a + 1) * U**(1/a)`` in log space;
+    ordinary draws underflow to exactly 0 (about 12% of ``Gamma(0.003)`` draws).
+    """
+    a = np.broadcast_to(np.asarray(a, dtype=float), shape)
+    if np.min(a) >= 1.0:
+        return np.log(rng.standard_gamma(a))
+    return np.log(rng.standard_gamma(a + 1.0)) + np.log(rng.random(shape)) / a
+
+
+def _stick_break(a: np.ndarray, u: np.ndarray) -> np.ndarray:
+    """Dirichlet(a) from uniforms ``u`` (last axis of length ``len(a) - 1``) by stick-breaking."""
+    tail = np.cumsum(a[::-1])[::-1]  # tail[k] = sum_{j >= k} a_j
+    out = np.empty((*u.shape[:-1], a.size))
+    remaining = np.ones(u.shape[:-1])
+    for k in range(a.size - 1):
+        v = special.betaincinv(a[k], tail[k + 1], u[..., k])
+        out[..., k] = remaining * v
+        remaining = remaining * (1.0 - v)
+    out[..., -1] = remaining
+    return out
 
 
 class PopulationPrior:
@@ -81,7 +110,11 @@ class BoundPrior:
         raise NotImplementedError
 
     def init_from_value(self, value: np.ndarray) -> np.ndarray:  # pragma: no cover
-        """Unconstrained point corresponding (approximately) to fractions/rates."""
+        """An unconstrained starting point near the given fractions or rates.
+
+        Exact for the Dirichlet family and rates; for the logistic priors a
+        ridge-regularised fit that shrinks towards the prior mean.
+        """
         raise NotImplementedError
 
     # -- draws and densities -------------------------------------------------
@@ -109,7 +142,10 @@ class BoundPrior:
         raise NotImplementedError(f"{type(self.prior).__name__} has no closed-form density.")
 
     def prior_transform(self, u: np.ndarray) -> np.ndarray:
-        """Map the unit hypercube ``[0, 1]^(K-1)`` to prior draws (nested sampling)."""
+        """Map the unit hypercube ``[0, 1]^dim`` to prior draws (nested sampling).
+
+        ``dim`` is ``K - 1`` for fractions and ``K`` for rates.
+        """
         raise NotImplementedError(f"{type(self.prior).__name__} has no prior transform.")
 
     # -- conjugate updates ----------------------------------------------------

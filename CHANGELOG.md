@@ -106,6 +106,19 @@ First development version.
   quadratic step hands over to EM instead of raising (M-13); Dirichlet priors
   mixing concentrations of one and above one no longer warn (T-4). The rates KKT gap
   is one-sided, so a rate EM drives towards zero no longer reads as a violation.
+- **Priors** (DECISIONS #72): `LogisticRandomWalk(trend_scale=3.0)` is the standard
+  deviation of each unpenalised mode's root-mean-square size across the grid, so its
+  meaning no longer depends on K (was 10 in basis units, which tightened as 1/√K; P-6).
+  Arguments are checked when a prior is made: `DirichletTree` per-node alphas of
+  different lengths now work (P-4), `LogisticNormal(cov=)` must be a positive variance
+  or a matrix positive semi-definite on zero-sum vectors (P-8), `LogisticGP` `n_basis`
+  and `boundary_factor` are checked and `length_scale` takes an array (P-10, P-11),
+  `PolyaTree` needs two bins and a non-negative power (P-9), `GeneralizedDirichlet`
+  `a`, `b` and `order` are checked (P-22). Reprs show every argument (P-14); tree VB
+  draws have no exact zeros (P-12); `GammaRates` has a `prior_transform` (P-15).
+  `GeneralizedDirichlet` and `PolyaTree` are no longer subclasses of `DirichletTree`
+  (P-13). `LogisticRandomWalk(2).bind` at K = 1000 and 20,000 GP draws are about twice
+  as fast (P-20).
 - **Correlated Gaussians** (DECISIONS #2, #25, #66): `from_gaussian(..., cov=)` takes full
   per-object covariances, averaged over N-D bins by adaptive cubature in log space.
 - `weights` are integer multiplicities; non-integer weights need `fractional_weights=True`

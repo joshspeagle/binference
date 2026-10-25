@@ -58,12 +58,14 @@ class _KronBasis:
         self.K = int(np.prod(self.out_shape))
 
     def matvec(self, v: np.ndarray) -> np.ndarray:
+        """``B @ v`` for ``v`` of shape (J,), or row by row for shape (n, J)."""
         if len(self.factors) == 1:
-            return self.factors[0] @ v
-        t = v.reshape(self.in_shape)
+            return v @ self.factors[0].T
+        t = v.reshape(*v.shape[:-1], *self.in_shape)
+        lead = v.ndim - 1
         for d, f in enumerate(self.factors):
-            t = np.moveaxis(np.tensordot(f, t, axes=([1], [d])), 0, d)
-        return t.reshape(self.K)
+            t = np.moveaxis(np.tensordot(f, t, axes=([1], [lead + d])), 0, lead + d)
+        return t.reshape(*v.shape[:-1], self.K)
 
     def rmatvec(self, u: np.ndarray) -> np.ndarray:
         if len(self.factors) == 1:
@@ -102,7 +104,7 @@ def _rw_eigen(n: int, order: int) -> tuple[np.ndarray, np.ndarray]:
     U_rest = U_rest - null @ (null.T @ U_rest)
     U_rest, _ = np.linalg.qr(U_rest)
     U_rest = U_rest[:, : n - order]
-    lam_rest = np.einsum("ij,jk,ki->i", U_rest.T, Q, U_rest)
+    lam_rest = np.sum(U_rest * (Q @ U_rest), axis=0)  # Rayleigh quotients
     return np.concatenate([np.zeros(order), lam_rest]), np.concatenate([null, U_rest], axis=1)
 
 
@@ -133,6 +135,8 @@ class _BoundLogistic(BoundPrior):
         self.n_free = len(self.free)
         self.dim = self.n_active + self.n_free
         self.hyper_names = [hypers[i][0] for i in self.free]
+        # hyperparameter values with the fixed ones in place (the free ones are filled per x)
+        self._theta0 = np.array([h.median() if h.fixed else 0.0 for _, h in hypers])
         # Partial non-centring: coefficient j is c_j = s_j**lam_j * x_j with
         # x_j ~ N(0, s_j**(2 (1 - lam_j))); lam = 1 is the whitened
         # (non-centred) form, lam = 0 the centred one.
@@ -159,7 +163,7 @@ class _BoundLogistic(BoundPrior):
         raise NotImplementedError
 
     def _theta(self, u: np.ndarray) -> np.ndarray:
-        theta = np.array([h.median() if h.fixed else 0.0 for _, h in self.hypers])
+        theta = self._theta0.copy()
         if self.n_free:
             # clipping keeps absurd excursions (e.g. in a diverging trajectory) finite
             theta[self.free] = np.exp(np.clip(u, -350.0, 350.0))
@@ -169,25 +173,19 @@ class _BoundLogistic(BoundPrior):
         """All hyperparameter values (fixed and free) at unconstrained ``x``."""
         return self._theta(np.asarray(x)[self.n_active :])
 
-    def _eta(self, xi: np.ndarray, s: np.ndarray) -> np.ndarray:
-        """Log-fractions from whitened coefficients ``xi`` and scales ``s``."""
-        v = np.zeros(self.basis.J)
-        v[self.active] = s * xi
+    def _eta(self, c: np.ndarray) -> np.ndarray:
+        """Log-fractions from basis coefficients ``c`` on the active modes (last axis)."""
+        v = np.zeros((*c.shape[:-1], self.basis.J))
+        v[..., self.active] = c
         return self.mu + self.basis.matvec(v)
 
     def forward(self, x):
         z = x[: self.n_active]
         u = x[self.n_active :]
-        theta = self._theta(u)
-        s, dlogs = self.scales(theta)
-        if self.lam is None or np.all(self.lam == 1.0):
-            m = s
-        else:
-            m = s**self.lam
+        s, dlogs = self.scales(self._theta(u))
+        m = s if np.all(self.lam == 1.0) else s**self.lam
         c = m * z
-        v = np.zeros(self.basis.J)
-        v[self.active] = c
-        return self.mu + self.basis.matvec(v), (z, s, m, c, dlogs, u)
+        return self._eta(c), (z, s, m, c, dlogs, u)
 
     def log_prior_and_grad(self, x, cache, value, d_eta):
         z, s, m, c, dlogs, u = cache
@@ -257,14 +255,9 @@ class _BoundLogistic(BoundPrior):
         return np.concatenate([xi * s0 ** (1.0 - self.lam), u0])
 
     def sample(self, n, rng):
-        out = np.empty((n, self.K))
-        draws = {i: h.sample(n, rng) for i, (_, h) in enumerate(self.hypers)}
-        for t in range(n):
-            theta = np.array([draws[i][t] for i in range(len(self.hypers))])
-            s, _ = self.scales(theta)
-            xi = rng.standard_normal(self.n_active)
-            out[t] = softmax(self._eta(xi, s))
-        return out
+        theta = np.stack([h.sample(n, rng) for _, h in self.hypers], axis=1)
+        s = np.stack([self.scales(t)[0] for t in theta])
+        return softmax(self._eta(s * rng.standard_normal((n, self.n_active))), axis=-1)
 
 
 def _resolve_mean(mean: Any, bins: Bins) -> np.ndarray:
@@ -294,8 +287,11 @@ class LogisticNormal(PopulationPrior):
         reference fractions. Defaults to a density flat in the measure
         coordinate, so the prior acts on the log-density whatever the binning.
     cov : array_like (K, K) or float, optional
-        Covariance of :math:`\eta`. ``None`` means i.i.d. components with
-        standard deviation ``scale``.
+        Covariance of :math:`\eta`: a positive variance, or a symmetric matrix
+        that is positive semi-definite on zero-sum vectors. Only that zero-sum
+        part matters, since adding a constant to :math:`\eta` leaves
+        :math:`\rho` unchanged. ``None`` means i.i.d. components with standard
+        deviation ``scale``.
     scale : Hyperprior or float
         Multiplies the standard deviations. Defaults to ``HalfNormal(2.0)``
         (inferred) when ``cov`` is ``None`` and to ``Fixed(1.0)`` otherwise.
@@ -304,26 +300,28 @@ class LogisticNormal(PopulationPrior):
     def __init__(self, mean: Any = None, cov: Any = None, scale: Any = None) -> None:
         self.mean = mean
         self.cov = cov
+        self._eig = None if cov is None else _zero_sum_eigen(cov)
         if scale is None:
             scale = HalfNormal(2.0) if cov is None else Fixed(1.0)
         self.scale = as_hyperprior(scale)
 
     def _params(self):
-        return {"cov": "iid" if self.cov is None else "full", "scale": self.scale}
+        cov = "iid" if self.cov is None else self.cov if np.ndim(self.cov) == 0 else "full"
+        return {"mean": self.mean, "cov": cov, "scale": self.scale}
 
     def bind(self, bins: Bins) -> _BoundLogisticNormal:
         K = bins.K
         mu = _resolve_mean(self.mean, bins)
-        if self.cov is None or np.ndim(self.cov) == 0:
+        if self._eig is None or np.ndim(self.cov) == 0:
             base = 1.0 if self.cov is None else float(np.sqrt(self.cov))
             B = helmert_basis(K)
             s0 = np.full(K - 1, base)
         else:
-            C = np.asarray(self.cov, dtype=float)
-            if C.shape != (K, K) or not np.allclose(C, C.T):
-                raise ValueError("cov must be a symmetric (K, K) array.")
-            P = np.eye(K) - 1.0 / K
-            lam, U = np.linalg.eigh(P @ C @ P)
+            lam, U = self._eig
+            if U.shape[0] != K:
+                raise ValueError(
+                    f"cov must be a (K, K) array with K={K}; got {np.shape(self.cov)}."
+                )
             keep = lam > 1e-10 * lam.max()
             B = U[:, keep]
             s0 = np.sqrt(lam[keep])
@@ -331,6 +329,27 @@ class LogisticNormal(PopulationPrior):
         return _BoundLogisticNormal(
             self, bins, basis, np.arange(B.shape[1]), mu, [("scale", self.scale)], s0
         )
+
+
+def _zero_sum_eigen(cov: Any) -> tuple[np.ndarray, np.ndarray] | None:
+    # validates cov; for a matrix, the eigen-decomposition of its zero-sum part
+    C = np.asarray(cov, dtype=float)
+    if not np.all(np.isfinite(C)):
+        raise ValueError("cov must be finite.")
+    if C.ndim == 0:
+        if not C > 0:
+            raise ValueError("A scalar cov is a variance and must be positive.")
+        return None
+    if C.ndim != 2 or C.shape[0] != C.shape[1] or not np.allclose(C, C.T):
+        raise ValueError("cov must be a positive number or a symmetric (K, K) array.")
+    K = C.shape[0]
+    P = np.eye(K) - 1.0 / K
+    lam, U = np.linalg.eigh(P @ C @ P)
+    if lam.max() <= 0 or lam.min() < -1e-8 * lam.max():
+        raise ValueError(
+            "cov must be positive semi-definite on zero-sum vectors and not constant."
+        )
+    return lam, U
 
 
 class _BoundLogisticNormal(_BoundLogistic):
@@ -354,7 +373,10 @@ class LogisticRandomWalk(PopulationPrior):
     ``order=1`` penalises jumps, ``order=2`` penalises curvature. N-D grids
     use the Kronecker-sum (ICAR-type) precision. Polynomial modes not
     penalised by the random walk (e.g. a linear trend for ``order=2``) get a
-    broad Gaussian prior with standard deviation ``trend_scale``.
+    broad Gaussian prior set by ``trend_scale``. On N-D grids these are the
+    products of each axis's unpenalised polynomials, so for ``order=2`` in 2-D
+    the surface :math:`xy` is unpenalised too (and :math:`x^2y^2` for
+    ``order=3``).
 
     Smoothness is measured per bin step, so the natural scale of ``scale``
     depends on the binning.
@@ -371,7 +393,10 @@ class LogisticRandomWalk(PopulationPrior):
         reference fractions. Defaults to a density flat in the measure
         coordinate, so differences penalise the log-density.
     trend_scale : float
-        Prior standard deviation of the unpenalised polynomial modes.
+        Prior standard deviation of the root-mean-square size, across the grid,
+        of each unpenalised polynomial mode (a linear trend of root-mean-square
+        size ``t`` changes the log-density by about ``3.5 t`` end to end),
+        whatever the number of bins.
     """
 
     def __init__(
@@ -379,17 +404,24 @@ class LogisticRandomWalk(PopulationPrior):
         order: int = 2,
         scale: Any = None,
         mean: Any = None,
-        trend_scale: float = 10.0,
+        trend_scale: float = 3.0,
     ) -> None:
         if order not in (1, 2, 3):
             raise ValueError("order must be 1, 2 or 3.")
+        if not (np.isfinite(trend_scale) and trend_scale > 0):
+            raise ValueError("trend_scale must be finite and positive.")
         self.order = int(order)
         self.scale = as_hyperprior(HalfNormal(1.0) if scale is None else scale)
         self.mean = mean
         self.trend_scale = float(trend_scale)
 
     def _params(self):
-        return {"order": self.order, "scale": self.scale}
+        return {
+            "order": self.order,
+            "scale": self.scale,
+            "mean": self.mean,
+            "trend_scale": self.trend_scale,
+        }
 
     def bind(self, bins: Bins) -> _BoundRandomWalk:
         _require_full_grid(bins)
@@ -414,7 +446,8 @@ class LogisticRandomWalk(PopulationPrior):
             [("scale", self.scale)],
             lam[active],
             null[active],
-            self.trend_scale,
+            # the modes have unit norm, so a root-mean-square size of 1/sqrt(K) (audit P-6)
+            self.trend_scale * np.sqrt(bins.K),
         )
 
 
@@ -453,7 +486,7 @@ class LogisticGP(PopulationPrior):
     amplitude : Hyperprior or float
         Marginal standard deviation of the log-density field; inferred with a
         ``HalfNormal(2.0)`` prior by default.
-    length_scale : Hyperprior, float, or sequence (one per axis)
+    length_scale : Hyperprior, float, or sequence or array (one per axis)
         Length scale(s) in the units of the bin coordinates. Default: per axis,
         an inverse gamma with 1% prior mass below two (narrowest) bin widths
         and 1% above the axis range, so the field is neither rougher than the
@@ -480,11 +513,22 @@ class LogisticGP(PopulationPrior):
     ) -> None:
         if kernel not in _KERNELS:
             raise ValueError(f"kernel must be one of {sorted(_KERNELS)}.")
-        if boundary_factor <= 1.0:
+        if not boundary_factor > 1.0:
             raise ValueError("boundary_factor must exceed 1.")
+        if n_basis is not None:
+            nb = np.asarray(n_basis)
+            if nb.ndim > 1 or nb.dtype.kind not in "iu" or np.any(nb < 1):
+                raise ValueError("n_basis must be a positive integer or one per axis.")
         self.kernel = kernel
         self.amplitude = as_hyperprior(HalfNormal(2.0) if amplitude is None else amplitude)
         self.length_scale = length_scale
+        per_axis = isinstance(length_scale, list | tuple) or np.ndim(length_scale) == 1
+        if length_scale is None:
+            self._ls = None
+        elif per_axis:
+            self._ls = [as_hyperprior(v) for v in length_scale]
+        else:
+            self._ls = as_hyperprior(length_scale)
         self.mean = mean
         self.n_basis = n_basis
         self.boundary_factor = float(boundary_factor)
@@ -494,16 +538,21 @@ class LogisticGP(PopulationPrior):
             "kernel": self.kernel,
             "amplitude": self.amplitude,
             "length_scale": self.length_scale,
+            "mean": self.mean,
+            "n_basis": self.n_basis,
+            "boundary_factor": self.boundary_factor,
         }
 
     def bind(self, bins: Bins) -> _BoundGP:
         _require_full_grid(bins)
         D = bins.ndim
-        nb = (
-            [min(n, 48) for n in bins.shape]
-            if self.n_basis is None
-            else list(np.broadcast_to(np.asarray(self.n_basis, int), (D,)))
-        )
+        if self.n_basis is None:
+            nb = [min(n, 48) for n in bins.shape]
+        else:
+            nb = np.asarray(self.n_basis)
+            if nb.ndim and nb.size != D:
+                raise ValueError(f"n_basis needs one value per axis ({D}); got {nb.size}.")
+            nb = list(np.broadcast_to(nb, (D,)))
         factors, omegas = [], []
         for d, e in enumerate(bins.edges):
             lo, hi = float(e[0]), float(e[-1])
@@ -517,8 +566,7 @@ class LogisticGP(PopulationPrior):
         basis = _KronBasis(factors)
         grids = np.meshgrid(*omegas, indexing="ij")
         omega = np.stack([g.ravel() for g in grids], axis=1)  # (J, D)
-        ls = self.length_scale
-        if ls is None:
+        if self._ls is None:
             ls_h = [
                 # between two bin widths and the range; half the range when two bin
                 # widths reach it (two bins, M-14)
@@ -528,12 +576,12 @@ class LogisticGP(PopulationPrior):
                 )
                 for e in bins.edges
             ]
-        elif isinstance(ls, Sequence) and not isinstance(ls, str):
-            if len(ls) != D:
+        elif isinstance(self._ls, list):
+            if len(self._ls) != D:
                 raise ValueError(f"Need one length scale per axis ({D}).")
-            ls_h = [as_hyperprior(v) for v in ls]
+            ls_h = self._ls
         else:
-            ls_h = [as_hyperprior(ls) for _ in range(D)]
+            ls_h = [self._ls] * D
         hypers = [("amplitude", self.amplitude)] + [
             (f"length_scale_{d}" if D > 1 else "length_scale", h) for d, h in enumerate(ls_h)
         ]

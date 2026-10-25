@@ -290,3 +290,8 @@ Append-only. One entry per working session (or per step within a long session).
 
 - #38 (C7, model; DECISIONS #70) merged after its reviews.
 - C8 (MAP, EM, mix-SQP; DECISIONS #71): one tolerance on the KKT gap, mix-SQP for `GammaRates`, one reported log posterior, no SVD. Timing showed the audit's uniform start for mix-SQP is wrong for this solver (105 s against 4.9 s after 10 EM steps at N = 2e5, K = 200), so the start keeps a few EM steps. Requiring the gap for EM convergence exposed two faults: SQUAREM accepted slightly worse extrapolations (a fake stall), and the C7 rates gap read a rate EM drives towards zero as a violation of order one; both fixed.
+
+## 2026-10-25: C8 merged; C9 split
+
+- #40 (C8, MAP; DECISIONS #71) merged. Its code review found that the C7 rates KKT gap and the prior gradient at zero both misread active constraints (−b dropped for a zero rate; α < 1 never converging on the simplex); both now evaluate the prior gradient at the boundary point the MAP objective uses.
+- C9 split in two: C9a (mechanical prior fixes, DECISIONS #72) and C9b (the GP defaults P-1–P-3, P-5, P-7, which need measurements and choices).

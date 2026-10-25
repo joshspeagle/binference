@@ -22,31 +22,24 @@ from scipy import special
 from .._simplex import helmert_basis, log_softmax
 from ..bins import Bins
 from ..density import Density
-from .base import BoundPrior, PopulationPrior
+from .base import _TINY, BoundPrior, PopulationPrior, _log_gamma_variates, _stick_break
 
 __all__ = ["Dirichlet", "DirichletTree", "GeneralizedDirichlet", "PolyaTree"]
 
-_TINY = 1e-300
-
 
 def _dirichlet_draw(alpha: np.ndarray, rng: np.random.Generator, size: int | None = None):
-    """Dirichlet draws without exact zeros, even for tiny concentrations.
-
-    For ``min(alpha) < 1`` the Gamma variates are drawn in log space using
-    ``Gamma(a) = Gamma(a + 1) * U**(1/a)``; ordinary draws underflow to exactly 0
-    (e.g. about 12% of ``Gamma(0.003)`` draws), which would make ``log(rho)``
-    infinite. Components are floored at 1e-300.
-    """
+    """Dirichlet draws without exact zeros, even for tiny concentrations (floored at 1e-300)."""
     alpha = np.asarray(alpha, dtype=float)
     shape = alpha.shape if size is None else (int(size), *alpha.shape)
-    if np.min(alpha) >= 1.0:
-        g = rng.standard_gamma(alpha, size=shape)
-        out = g / g.sum(axis=-1, keepdims=True)
-    else:
-        lg = np.log(rng.standard_gamma(alpha + 1.0, size=shape))
-        lg += np.log(rng.random(size=shape)) / alpha
-        out = np.exp(lg - special.logsumexp(lg, axis=-1, keepdims=True))
-    return np.maximum(out, _TINY)
+    lg = _log_gamma_variates(alpha, rng, shape)
+    return np.maximum(np.exp(lg - special.logsumexp(lg, axis=-1, keepdims=True)), _TINY)
+
+
+def _positive(value: Any, name: str) -> np.ndarray:
+    a = np.asarray(value, dtype=float)
+    if not np.all(np.isfinite(a)) or np.any(a <= 0):
+        raise ValueError(f"{name} must be finite and strictly positive.")
+    return a
 
 
 class _SimplexBound(BoundPrior):
@@ -108,9 +101,7 @@ class Dirichlet(PopulationPrior):
             if alpha != "reference":
                 raise ValueError("alpha must be positive numbers or 'reference'.")
         else:
-            a = np.asarray(alpha, dtype=float)
-            if not np.all(np.isfinite(a)) or np.any(a <= 0):
-                raise ValueError("Dirichlet alpha must be finite and strictly positive.")
+            _positive(alpha, "Dirichlet alpha")
         self.alpha = alpha
         self._base: tuple[float, Any] | None = None
 
@@ -149,9 +140,9 @@ class Dirichlet(PopulationPrior):
         read as masses per bin). The default is flat in the measure coordinate,
         proportional to bin volumes on linear bins.
         """
-        if concentration <= 0:
-            raise ValueError("concentration must be positive.")
+        _positive(concentration, "concentration")
         obj = cls(1.0)
+        obj.alpha = None  # set at binding, from the base measure
         obj._base = (float(concentration), Density.coerce(base, "mass", name="base"))
         return obj
 
@@ -200,17 +191,7 @@ class _BoundDirichlet(_SimplexBound):
         return np.where(pos, (self.alpha - 1.0) / np.where(pos, v, 1.0), 0.0)
 
     def prior_transform(self, u):
-        u = np.asarray(u, dtype=float)
-        a = self.alpha
-        tail = np.concatenate((np.cumsum(a[::-1])[::-1][1:], [0.0]))
-        out = np.empty((*u.shape[:-1], self.K))
-        remaining = np.ones(u.shape[:-1])
-        for k in range(self.K - 1):
-            v = special.betaincinv(a[k], tail[k], u[..., k])
-            out[..., k] = remaining * v
-            remaining = remaining * (1.0 - v)
-        out[..., -1] = remaining
-        return out
+        return _stick_break(self.alpha, np.asarray(u, dtype=float))
 
     def posterior_sample(self, counts, rng, exposure=None):
         return _dirichlet_draw(self.alpha + counts, rng)
@@ -247,9 +228,8 @@ class _TreeStructure:
     """
 
     def __init__(self, nodes: list[list[tuple[str, int]]], alphas: list[np.ndarray], K: int):
+        # the priors validate the concentrations; the leaves need K
         C = len(nodes)
-        if C == 0:
-            raise ValueError("A tree needs at least one internal node.")
         seen_leaves: list[int] = []
         parent_slot_of_node = np.full(C, -1, dtype=np.int64)
         leaf_slot = np.full(K, -1, dtype=np.int64)
@@ -258,13 +238,6 @@ class _TreeStructure:
         slot_alpha: list[float] = []
         ptr = [0]
         for c, (children, a) in enumerate(zip(nodes, alphas, strict=True)):
-            a = np.asarray(a, dtype=float).ravel()
-            if len(children) < 2:
-                raise ValueError("Every internal node of a Dirichlet-tree needs >= 2 children.")
-            if a.shape != (len(children),):
-                raise ValueError(f"Node {c}: need one alpha per child ({len(children)}).")
-            if not np.all(np.isfinite(a)) or np.any(a <= 0):
-                raise ValueError("Dirichlet-tree alphas must be finite and strictly positive.")
             for (kind, idx), aj in zip(children, a, strict=True):
                 s = len(slot_child)
                 slot_child.append((kind, idx))
@@ -393,16 +366,11 @@ class _BoundTree(_SimplexBound):
         u = np.asarray(u, dtype=float)
         theta = np.empty((*u.shape[:-1], t.slot_alpha.size))
         j = 0
-        for c in range(t.C):
-            a = t.slot_alpha[t.ptr[c] : t.ptr[c + 1]]
-            tail = np.concatenate((np.cumsum(a[::-1])[::-1][1:], [0.0]))
-            remaining = np.ones(u.shape[:-1])
-            for m in range(a.size - 1):
-                v = special.betaincinv(a[m], tail[m], u[..., j])
-                theta[..., t.ptr[c] + m] = remaining * v
-                remaining = remaining * (1.0 - v)
-                j += 1
-            theta[..., t.ptr[c + 1] - 1] = remaining
+        for c in range(t.C):  # one stick-breaking per internal node
+            sl = slice(t.ptr[c], t.ptr[c + 1])
+            m = sl.stop - sl.start
+            theta[..., sl] = _stick_break(t.slot_alpha[sl], u[..., j : j + m - 1])
+            j += m - 1
         return t.compose(theta)
 
     def posterior_sample(self, counts, rng, exposure=None):
@@ -435,7 +403,7 @@ class _BoundTree(_SimplexBound):
         return (special.digamma(state) - special.digamma(tot)) @ t.slot_mem
 
     def vb_sample(self, state, n, rng):
-        return self.tree.compose(self.tree.draw_theta(state, rng, size=n))
+        return np.maximum(self.tree.compose(self.tree.draw_theta(state, rng, size=n)), _TINY)
 
     def vb_mean(self, state):
         t = self.tree
@@ -445,27 +413,38 @@ class _BoundTree(_SimplexBound):
 
 def _parse_nested(tree: Any) -> list[list[tuple[str, int]]]:
     """Nested lists of leaf indices -> flattened node list (pre-order)."""
-    nodes: list[list[tuple[str, int]] | None] = []
+    nodes: list[list[tuple[str, int]]] = []
 
     def visit(sub: Any) -> int:
         if isinstance(sub, int | np.integer):
             raise ValueError("The tree root must be a list of children.")
         idx = len(nodes)
-        nodes.append(None)
         children: list[tuple[str, int]] = []
+        nodes.append(children)
         for ch in sub:
             if isinstance(ch, int | np.integer):
                 children.append(("leaf", int(ch)))
             else:
                 children.append(("node", visit(ch)))
-        nodes[idx] = children
+        if len(children) < 2:
+            raise ValueError("Every internal node of a Dirichlet-tree needs >= 2 children.")
         return idx
 
     visit(tree)
-    return [n for n in nodes if n is not None]
+    return nodes
 
 
-class DirichletTree(PopulationPrior):
+class _TreePrior(PopulationPrior):
+    """A prior built as a Dirichlet-tree over the bins (subclasses give its structure)."""
+
+    def _structure(self, bins: Bins) -> _TreeStructure:  # pragma: no cover - abstract
+        raise NotImplementedError
+
+    def bind(self, bins: Bins) -> _BoundTree:
+        return _BoundTree(self, bins, self._structure(bins))
+
+
+class DirichletTree(_TreePrior):
     """Dirichlet-tree prior: independent Dirichlet splits along a tree of bins.
 
     Generalises the Dirichlet (a single node) and the generalised Dirichlet (a
@@ -496,11 +475,16 @@ class DirichletTree(PopulationPrior):
         self._alphas = self._resolve_alphas(alpha)
 
     def _resolve_alphas(self, alpha) -> list[np.ndarray]:
-        if np.ndim(alpha) == 0 and not isinstance(alpha, list | tuple):
-            return [np.full(len(ch), float(alpha)) for ch in self._nodes]
-        alphas = [np.asarray(a, dtype=float) for a in alpha]
+        # per-node arrays may differ in length, so test the container before np.ndim
+        if not isinstance(alpha, list | tuple) and np.ndim(alpha) == 0:
+            a = float(_positive(alpha, "alpha"))
+            return [np.full(len(ch), a) for ch in self._nodes]
+        alphas = [_positive(a, "alpha").ravel() for a in alpha]
         if len(alphas) != len(self._nodes):
             raise ValueError(f"Need one alpha array per internal node ({len(self._nodes)}).")
+        for c, (a, ch) in enumerate(zip(alphas, self._nodes, strict=True)):
+            if a.size != len(ch):
+                raise ValueError(f"alpha for node {c} needs one value per child ({len(ch)}).")
         return alphas
 
     def _params(self):
@@ -509,17 +493,16 @@ class DirichletTree(PopulationPrior):
     def _structure(self, bins: Bins) -> _TreeStructure:
         return _TreeStructure(self._nodes, self._alphas, bins.K)
 
-    def bind(self, bins: Bins) -> _BoundTree:
-        return _BoundTree(self, bins, self._structure(bins))
 
-
-class GeneralizedDirichlet(DirichletTree):
+class GeneralizedDirichlet(_TreePrior):
     r"""Generalised Dirichlet (Connor & Mosimann 1969) via stick-breaking Betas.
 
     :math:`V_k \sim \mathrm{Beta}(a_k, b_k)` for ``k = 1..K-1`` and
     :math:`\rho_k = V_k \prod_{j<k} (1 - V_j)`, breaking sticks in bin order (or
-    ``order``). With ``b_k = sum_{j>k} a_j`` it reduces to a Dirichlet; other
-    choices give more flexible (including positive) correlations.
+    ``order``). It reduces to :math:`\mathrm{Dir}(\alpha_1, \dots, \alpha_K)`
+    with :math:`a_k = \alpha_k` and :math:`b_k = \sum_{j>k}\alpha_j`, the sum
+    including :math:`\alpha_K`; other choices give more flexible (including
+    positive) correlations.
 
     Parameters
     ----------
@@ -536,6 +519,16 @@ class GeneralizedDirichlet(DirichletTree):
         b: float | Sequence[float] | np.ndarray | None = None,
         order: Sequence[int] | None = None,
     ) -> None:
+        _positive(a, "a")
+        if b is None:
+            if np.ndim(a) != 0:
+                raise ValueError("Pass b explicitly when a is an array.")
+        else:
+            _positive(b, "b")
+        if order is not None:
+            o = np.asarray(order)
+            if o.ndim != 1 or sorted(o.tolist()) != list(range(o.size)):
+                raise ValueError("order must be a permutation of 0..K-1.")
         self.a = a
         self.b = b
         self.order = order
@@ -543,18 +536,22 @@ class GeneralizedDirichlet(DirichletTree):
     def _params(self):
         return {"a": self.a, "b": self.b, "order": self.order}
 
+    def _per_split(self, value: Any, name: str, K: int) -> np.ndarray:
+        v = np.asarray(value, dtype=float)
+        if v.ndim and v.shape != (K - 1,):
+            raise ValueError(f"{name} must be a scalar or have length K-1={K - 1}; got {v.shape}.")
+        return np.broadcast_to(v, (K - 1,)).copy()
+
     def _structure(self, bins: Bins) -> _TreeStructure:
         K = bins.K
         order = np.arange(K) if self.order is None else np.asarray(self.order, dtype=int)
-        if sorted(order.tolist()) != list(range(K)):
-            raise ValueError("order must be a permutation of 0..K-1.")
-        a = np.broadcast_to(np.asarray(self.a, dtype=float), (K - 1,)).copy()
+        if order.size != K:
+            raise ValueError(f"order must be a permutation of 0..K-1 with K={K}.")
+        a = self._per_split(self.a, "a", K)
         if self.b is None:
-            if np.ndim(self.a) != 0:
-                raise ValueError("Pass b explicitly when a is an array.")
             b = (K - 1 - np.arange(K - 1)) * float(self.a)
         else:
-            b = np.broadcast_to(np.asarray(self.b, dtype=float), (K - 1,)).copy()
+            b = self._per_split(self.b, "b", K)
         nodes: list[list[tuple[str, int]]] = []
         alphas: list[np.ndarray] = []
         for k in range(K - 1):
@@ -563,11 +560,8 @@ class GeneralizedDirichlet(DirichletTree):
             alphas.append(np.array([a[k], b[k]]))
         return _TreeStructure(nodes, alphas, K)
 
-    def bind(self, bins: Bins) -> _BoundTree:
-        return _BoundTree(self, bins, self._structure(bins))
 
-
-class PolyaTree(DirichletTree):
+class PolyaTree(_TreePrior):
     r"""Finite Polya-tree prior on an ordered 1-D grid (a balanced binary Dirichlet-tree).
 
     Bins are split recursively into halves; a split at level :math:`m`
@@ -595,48 +589,46 @@ class PolyaTree(DirichletTree):
         power: float = 2.0,
         base: Any = "flat",
     ) -> None:
-        if c <= 0:
-            raise ValueError("c must be positive.")
+        _positive(c, "c")
+        if not (np.isfinite(power) and power >= 0):
+            raise ValueError("power must be finite and non-negative.")
         self.c = float(c)
         self.power = float(power)
         self.base = Density.coerce(base, "mass", name="base")
 
     def _params(self):
-        return {"c": self.c, "power": self.power}
+        return {"c": self.c, "power": self.power, "base": self.base}
 
     def _structure(self, bins: Bins) -> _TreeStructure:
         if bins.is_categorical or bins.ndim != 1:
             raise ValueError("PolyaTree is defined on ordered one-dimensional bins.")
         K = bins.K
+        if K < 2:
+            raise ValueError("PolyaTree needs at least two bins.")
         g0 = self.base.masses(bins)
         if np.any(g0 <= 0):
             raise ValueError("base must give a positive mass for every bin.")
         cum = np.concatenate(([0.0], np.cumsum(g0)))
-        nodes: list[list[tuple[str, int]] | None] = []
-        alphas: list[np.ndarray | None] = []
+        nodes: list[list[tuple[str, int]]] = []
+        alphas: list[np.ndarray] = []
 
         def mass(lo: int, hi: int) -> float:
             return cum[hi] - cum[lo]
 
         def build(lo: int, hi: int, level: int) -> int:
             idx = len(nodes)
-            nodes.append(None)
-            alphas.append(None)
+            children: list[tuple[str, int]] = []
+            a = np.empty(2)
+            nodes.append(children)
+            alphas.append(a)
             mid = (lo + hi + 1) // 2
-            children = []
-            a = []
-            for clo, chi in ((lo, mid), (mid, hi)):
+            for j, (clo, chi) in enumerate(((lo, mid), (mid, hi))):
                 if chi - clo == 1:
                     children.append(("leaf", clo))
                 else:
                     children.append(("node", build(clo, chi, level + 1)))
-                a.append(self.c * level**self.power * 2.0 * mass(clo, chi) / mass(lo, hi))
-            nodes[idx] = children
-            alphas[idx] = np.array(a)
+                a[j] = self.c * level**self.power * 2.0 * mass(clo, chi) / mass(lo, hi)
             return idx
 
         build(0, K, 1)
-        return _TreeStructure(nodes, alphas, K)  # type: ignore[arg-type]
-
-    def bind(self, bins: Bins) -> _BoundTree:
-        return _BoundTree(self, bins, self._structure(bins))
+        return _TreeStructure(nodes, alphas, K)

@@ -314,8 +314,12 @@ instead.
   - The basis is the eigenvectors of the difference precision $D_r^\top D_r$,
     with $s_j=\tau/\sqrt{\lambda_j}$.
   - Polynomial null modes, such as the linear trend for $r=2$, get a broad
-    Gaussian of width `trend_scale`.
-  - N-D grids use the Kronecker sum (ICAR-type) of the per-axis precisions.
+    Gaussian whose root-mean-square size across the grid has standard deviation
+    `trend_scale`, whatever the number of bins ($s_j=$ `trend_scale` $\sqrt K$
+    for these unit-norm modes).
+  - N-D grids use the Kronecker sum (ICAR-type) of the per-axis precisions. Its
+    null modes are the products of the per-axis ones, so for $r=2$ in 2-D the
+    mixed surface $xy$ is not penalised either.
 - **`LogisticGP(kernel)`.** A Hilbert-space reduced-rank Gaussian process
   (Solin & Särkkä 2020).
   - The basis is sines on a box larger than the grid,
