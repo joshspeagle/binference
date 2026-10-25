@@ -1,5 +1,7 @@
 """Tests for the high-level API: infer(), PopulationEstimator, namespace (spec 8)."""
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -12,6 +14,14 @@ def test_namespace():
         assert hasattr(pastry, name), name
     assert isinstance(pastry.__version__, str)
     assert pastry.samplers.NUTS and pastry.priors.Dirichlet and pastry.Selection
+
+
+def test_citation_file_version_matches_package():
+    cff = Path(__file__).parents[1] / "CITATION.cff"
+    if not cff.exists():
+        pytest.skip("CITATION.cff is not next to the tests (installed package)")
+    line = next(ln for ln in cff.read_text().splitlines() if ln.startswith("version:"))
+    assert line.split(":", 1)[1].strip().strip("'\"") == pastry.__version__
 
 
 def test_infer_accepts_arrays_likelihoods_models(small_1d):

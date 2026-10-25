@@ -43,7 +43,7 @@ name `pastry` is taken), install it from GitHub:
 pip install "pastry-inference[plot] @ git+https://github.com/joshspeagle/pastry"
 ```
 
-It needs Python ≥ 3.11, NumPy, SciPy and threadpoolctl; the `plot` extra adds matplotlib and
+It needs Python ≥ 3.13, NumPy, SciPy and threadpoolctl; the `plot` extra adds matplotlib and
 `xarray` adds export to ArviZ-style `DataTree`s.
 
 ## Quick start
@@ -75,7 +75,7 @@ smooth = pastry.infer(mock.likelihoods, pastry.priors.LogisticGP(), rng=1)
 
 ## Your own data
 
-```python
+```python skip
 bins = pastry.Bins.linear(0.0, 3.0, 30)          # also Bins.log, Bins.grid (N-D), Bins.categories
 
 lk = pastry.Likelihoods.from_gaussian(z_obs, z_err, bins)              # Gaussian errors
@@ -95,7 +95,7 @@ that prior.
 
 ## What you get back
 
-```python
+```python skip
 result.mean, result.std, result.interval(0.68)     # per-bin summaries (also kind="hdi")
 result.functional(lambda rho: rho @ bins.centers)  # any function of rho, evaluated per draw
 result.rebin(mapping)                              # coarser bins with correlations propagated
@@ -162,7 +162,7 @@ existing tools, including an audit of the samplers in `frankenz`, is in
 
 ## Status
 
-pastry is alpha software (0.1.0.dev0), and the API may change before 1.0.
+pastry is alpha software, and the API may change before 1.0.
 Planned work:
 * a JAX backend;
 * normalising-flow and flow-matching populations for unbinned data;

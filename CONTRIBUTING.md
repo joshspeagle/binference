@@ -12,13 +12,14 @@ cd pastry
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pre-commit install          # ruff lint + format on every commit
+pre-commit run --all-files  # the same checks as CI's lint job
 ```
 
 ## Tests
 
 ```bash
-pytest                      # fast suite (~40 s); warnings are errors
-pytest -m slow              # statistical validation: SBC, coverage, Geweke (~10 min)
+pytest                      # fast suite (about 80 s); warnings are errors
+pytest -m slow              # statistical validation: SBC, coverage, Geweke (about 10 min)
 pytest --cov=pastry         # coverage report
 ```
 
@@ -32,7 +33,8 @@ pytest --cov=pastry         # coverage report
 
 ## Style
 
-* `ruff check` and `ruff format` (line length 99) are enforced in CI.
+* `ruff check` and `ruff format` (line length 99) run through the pre-commit hooks
+  (`pre-commit run --all-files`), locally and in CI.
 * Use the notation of the specification ([`docs/design/spec.md`](docs/design/spec.md) §3) in code,
   docstrings and docs:
   * $L_{ik}$ for bin-averaged likelihoods;
@@ -65,18 +67,21 @@ pytest --cov=pastry         # coverage report
 
 ```bash
 pip install -e ".[docs]"
-sphinx-build -b html docs docs/_build/html
+sphinx-build -W --keep-going -b html docs docs/_build/html
 ```
 
 The tutorials in `docs/tutorials/` are MyST notebooks executed at build time,
 so keep each under a minute or two.
 
-## Pull requests
+## Issues and pull requests
 
-* Keep each pull request focused. Add an entry to `CHANGELOG.md` under
+* Every change starts from an issue that states its scope and how we will know it is
+  done; bugs and changes have templates.
+* A pull request closes its issue and follows the template: scope, checks, review
+  outcome and records. Keep it focused and add an entry to `CHANGELOG.md` under
   *Unreleased*.
-* Describe how you validated a statistical change: exact comparisons, SBC,
-  coverage.
-* CI runs lint, the fast suite on Linux, macOS and Windows (Python 3.11–3.14),
-  a minimum-dependency job, the docs build and a packaging check. The slow
-  suite runs weekly and on demand.
+* Describe how you validated a statistical change: exact comparisons, SBC, coverage.
+* Pull requests merge with a merge commit once CI is green. History is never rewritten:
+  bring `main` into a branch with a merge, not a rebase.
+* CI is defined in `.github/workflows/ci.yml`; label a pull request `slow` to run the
+  slow statistical suite on it. Pushes to `main` publish the docs to GitHub Pages.

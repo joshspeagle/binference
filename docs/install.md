@@ -1,6 +1,6 @@
 # Installation
 
-pastry needs Python ≥ 3.11 with NumPy ≥ 1.25, SciPy ≥ 1.11 and the small
+pastry needs Python ≥ 3.13 with NumPy ≥ 2.1, SciPy ≥ 1.14.1 and the small
 pure-Python package threadpoolctl, which keeps parallel chains from
 oversubscribing the cores. Plotting needs matplotlib, and export to
 ArviZ-style `DataTree`s needs xarray. Both are optional extras.
@@ -24,7 +24,7 @@ pip install -e ".[dev]"
 |---|---|
 | `plot` | matplotlib, for `result.plot()` and friends |
 | `xarray` | xarray, for `result.to_datatree()` |
-| `test` | pytest and coverage |
+| `test` | pytest, coverage and matplotlib (for the plotting tests) |
 | `docs` | Sphinx and the notebook toolchain used to build these pages |
 | `dev` | all of the above plus ruff and pre-commit |
 | `all` | `plot` and `xarray` |
