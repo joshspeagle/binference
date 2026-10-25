@@ -344,7 +344,9 @@ def test_mixsqp_matches_em_and_is_certified(alpha, sparse):
     m = PopulationModel(lk, P.Dirichlet(alpha))
     sqp = MAP(m).run()
     assert sqp.info["algorithm"] == "mixsqp"
-    assert sqp.converged and sqp.kkt_gap < 1e-7 and sqp.n_iter < 50
+    # mix-SQP stops on round-off with the KKT gap below 1e3 times its tolerance of
+    # 100 * tol = 1e-8 (macOS BLAS stops there at 2.5e-7 where Linux reaches 1e-13)
+    assert sqp.converged and sqp.kkt_gap < 1e-5 and sqp.n_iter < 50
     em = MAP(m, algorithm="em", max_iter=200000).run()
     # EM crawls along flat directions of sparse maximum-likelihood solutions, so the
     # better-certified mix-SQP optimum is the reference
