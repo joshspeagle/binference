@@ -175,6 +175,18 @@ def test_nuts_validation():
         _ = NUTS(m).result
 
 
+def test_nuts_chains_start_at_a_given_init_jittered_only_when_it_is_one_point(k3_problem):
+    m = PopulationModel(k3_problem[0].likelihoods)  # its mode is near (1.3, -0.4)
+    starts = np.array([[2.0, -2.0], [-2.0, 2.0]])
+    eng = NUTS(m, n_chains=2, n_warmup=0, init=starts, rng=0)
+    eng.warmup()
+    np.testing.assert_array_equal([c.x for c in eng._chains], starts)
+    eng = NUTS(m, n_chains=2, n_warmup=0, init=starts[0], jitter=0.1, rng=0)
+    eng.warmup()
+    x = np.array([c.x for c in eng._chains])
+    assert np.all(np.abs(x - starts[0]) < 0.6) and not np.allclose(x[0], x[1])
+
+
 def test_nuts_logistic_prior_runs():
     mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 8), rng=4)
     res = binference.infer(
@@ -460,6 +472,26 @@ def test_laplace_uncorrected_is_flagged(k3_problem):
     assert res.approximate
 
 
+def test_laplace_clips_negative_curvature_to_a_wide_positive_variance(k3_problem, monkeypatch):
+    from binference.samplers import laplace
+
+    real = laplace.fd_hessian
+
+    def indefinite(fn, x, h):  # flip the curvature along the first eigenvector of -H
+        lam, U = np.linalg.eigh(-real(fn, x, h=h))
+        lam[0] = -lam[0]
+        return -(U * lam) @ U.T
+
+    monkeypatch.setattr(laplace, "fd_hessian", indefinite)
+    with pytest.warns(ApproximationWarning, match="not positive definite; clipping"):
+        _, cov, H = Laplace(PopulationModel(k3_problem[0].likelihoods)).mode_and_covariance()
+    lam, U = np.linalg.eigh(-H)
+    assert lam[0] < 0 < lam[1]
+    floor = 1e-8 * max(1.0, lam[1])
+    np.testing.assert_allclose(cov @ U[:, 0], U[:, 0] / floor, rtol=1e-6)
+    np.testing.assert_allclose(cov @ U[:, 1], U[:, 1] / lam[1], rtol=1e-6)
+
+
 # ----------------------------------------------------------------------- VB
 def test_vb_exact_for_onehot_and_overconfident_otherwise(onehot, k3_problem):
     lk, counts = onehot
@@ -477,6 +509,36 @@ def test_vb_exact_for_onehot_and_overconfident_otherwise(onehot, k3_problem):
         MeanFieldVB(PopulationModel(lk, P.LogisticNormal()))
 
 
+def test_vb_means_with_a_selection_are_close_to_the_exact_posterior(k3_selection_problem):
+    mock, exact = k3_selection_problem
+    with pytest.warns(ApproximationWarning):
+        vb = MeanFieldVB(PopulationModel(mock.likelihoods), rng=1).run(4000)
+    # VB's means carry a bias of a few 1e-3 here (the plug-in of the missed objects and
+    # the mean-field factorisation; measured 0.003); its Monte Carlo error is 0.025 /
+    # sqrt(4000) = 4e-4. Ignoring the selection moves the means by 0.2.
+    np.testing.assert_allclose(vb.mean, exact.mean, atol=0.01)
+
+
+def test_vb_rates_with_an_exposure_match_gibbs():
+    # likelihoods much narrower than the bins: the mean-field factorisation is nearly
+    # exact (exact for one-hot likelihoods), so only Monte Carlo error separates the two
+    bins = Bins([0.0, 1.0, 2.0, 3.0])
+    S = np.array([0.9, 0.5, 0.25])
+    mock = binference.simulate.mock_1d(
+        250, bins, density=np.array([0.4, 0.35, 0.25]), noise=(0.05, 0.2), selection=S, rng=777
+    )
+    m = PopulationModel(mock.likelihoods, P.GammaRates(1.0, 1e-3))
+    with pytest.warns(ApproximationWarning):
+        vb = MeanFieldVB(m, rng=1).run(4000)
+    g = Gibbs(m, n_warmup=200, rng=6).run(2000)
+    R = g.rates.reshape(g.n_chains, -1, 3)
+    se = np.hypot(
+        [binference.diagnostics.mcse(R[:, :, k]) for k in range(3)],
+        vb.rates.std(0) / np.sqrt(4000),
+    )
+    assert np.all(np.abs(vb.rates.mean(0) - g.rates.mean(0)) <= 4 * se)
+
+
 # ---------------------------------------------------------------- Bootstrap
 def test_bootstrap(k3_problem):
     mock, exact = k3_problem
@@ -489,3 +551,16 @@ def test_bootstrap(k3_problem):
     assert bb.info["scheme"] == "bayesian" and bb.info["n_not_converged"] == 0
     with pytest.raises(ValueError):
         Bootstrap(PopulationModel(mock.likelihoods), scheme="parametric")
+
+
+def test_bootstrap_of_a_logistic_prior_refits_each_reweighted_catalogue():
+    # a smooth prior has no EM update: each replicate is a weighted L-BFGS fit
+    mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 6), noise=(0.1, 0.3), rng=9)
+    m = PopulationModel(mock.likelihoods, P.LogisticRandomWalk())
+    with pytest.warns(ApproximationWarning):
+        res = Bootstrap(m, rng=1).run(20)
+    X = res.samples
+    assert X.shape == (20, 6) and np.all(np.isfinite(X)) and res.info["n_not_converged"] == 0
+    np.testing.assert_allclose(X.sum(1), 1.0)
+    assert np.unique(X.round(8), axis=0).shape[0] == 20  # every replicate is its own fit
+    assert not np.any(np.all(np.isclose(X, res.info["estimate"]), axis=1))

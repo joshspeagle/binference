@@ -48,6 +48,34 @@ def test_mock_1d_samples():
     assert np.corrcoef(a, b)[0, 1] > 0.85
 
 
+@pytest.mark.parametrize("kind", ["callable", "masses"])
+def test_mock_1d_posteriors_and_samples_follow_the_interim_prior_given(kind):
+    bins = Bins.linear(0, 3, 6)
+    e = bins.edges[0]
+    if kind == "callable":
+        interim, Pi = (lambda z: np.exp(-2 * z)), -np.diff(np.exp(-2 * e))
+    else:
+        interim = Pi = np.arange(1.0, 7.0)  # masses: flat within each bin
+    Pi = Pi / Pi.sum()
+    mock = mock_1d(200, bins, noise=(0.1, 0.4), interim=interim, n_samples=200, rng=8)
+    np.testing.assert_allclose(mock.interim, Pi, rtol=1e-6)
+    post = mock.likelihoods.toarray() * Pi
+    np.testing.assert_allclose(mock.posteriors, post / post.sum(1, keepdims=True), rtol=1e-6)
+    # each object's samples fall in the bins with its exact posterior masses, from the
+    # likelihood times the interim density on a fine grid in each bin
+    z = e[:-1, None] + np.diff(e)[:, None] * (np.arange(2000) + 0.5) / 2000
+    obs, sig = mock.measurements["mean"], mock.measurements["sigma"]
+    dens = np.exp(-2 * z) if kind == "callable" else np.broadcast_to(Pi[:, None], z.shape)
+    like = np.exp(-0.5 * ((z[None] - obs[:, None, None]) / sig[:, None, None]) ** 2)
+    p = (like * dens).sum(-1)
+    p /= p.sum(1, keepdims=True)
+    counts = np.stack([np.bincount(bins.index(s), minlength=6) for s in mock.samples])
+    S = mock.samples.shape[1]
+    # sum over objects of multinomial counts: mean S sum_i p_ik, variance S sum_i p(1 - p)
+    zscore = (counts.sum(0) - S * p.sum(0)) / np.sqrt(S * (p * (1 - p)).sum(0) + 1e-12)
+    assert np.all(np.abs(zscore) < 4)
+
+
 def test_mock_selection_and_outliers():
     S = np.linspace(1.0, 0.2, 30)
     mock = mock_1d(400, selection=S, outlier_fraction=0.1, rng=4)

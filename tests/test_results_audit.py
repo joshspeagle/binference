@@ -315,3 +315,39 @@ def test_densities_do_not_rebin():
     _, res = _fit_with_selection()
     with pytest.raises(ValueError, match="Densities"):
         res.rebin([0, 0, 1, 1], which="density")
+
+
+def _nuts_result(prior, **info):
+    # well-mixed synthetic NUTS draws with injected engine statistics
+    L = np.random.default_rng(1).random((30, 4)) + 0.1
+    model = binference.PopulationModel(Likelihoods(L, Bins.linear(0, 1, 4)), prior)
+    draws = np.random.default_rng(0).dirichlet(np.ones(4) * 50, size=(4, 400))
+    return PopulationResult(model, draws, method="nuts", info=info)
+
+
+def test_check_reports_divergences_with_their_share_and_a_target_accept_hint():
+    res = _nuts_result(None, n_divergent=16)
+    with pytest.warns(binference.ConvergenceWarning) as rec:
+        msgs = res.check()
+    assert msgs == ["16 divergent transitions (1% of draws)"]  # 16 of 4 x 400
+    assert "Hint: try a higher target_accept" in str(rec[0].message)
+    assert _nuts_result(None, n_divergent=0).check() == []
+
+
+def test_check_compares_pareto_k_hat_with_the_threshold_the_engine_reported():
+    with pytest.warns(binference.ConvergenceWarning, match=r"k-hat = 0\.60 >= 0\.55"):
+        _nuts_result(None, k_hat=0.6, k_hat_threshold=0.55).check()
+    assert _nuts_result(None, k_hat=0.6).check() == []  # the default threshold is 0.7
+    with pytest.warns(binference.ConvergenceWarning, match=r"k-hat = 0\.70 >= 0\.70"):
+        _nuts_result(None, k_hat=0.7).check()
+
+
+def test_saturated_trees_suggest_gibbs_only_for_priors_with_unbounded_density():
+    with pytest.warns(binference.ConvergenceWarning) as rec:
+        msgs = _nuts_result(binference.priors.Dirichlet(0.5), max_depth_fraction=0.2).check()
+    assert msgs == ["20% of NUTS iterations hit the maximum tree depth"]
+    assert "method='gibbs'" in str(rec[0].message)
+    with pytest.warns(binference.ConvergenceWarning) as rec:
+        _nuts_result(binference.priors.Dirichlet(1.0), max_depth_fraction=0.2).check()
+    assert "Hint" not in str(rec[0].message)
+    assert _nuts_result(None, max_depth_fraction=0.05).check() == []  # 5% is tolerated
