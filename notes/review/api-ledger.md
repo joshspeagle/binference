@@ -22,3 +22,7 @@ Status: `keep`, `change` (agreed), `proposed` (awaiting Josh), `open`.
 | `from_response` | response uncertainty | none | Dirichlet per column from the simulation/validation counts; sampled jointly as parameters (Gibbs) | coverage (2.3b §7) | proposed |
 | `from_classifier` | route | posteriors ÷ π_train | default route C (score bins + labelled validation set); route A via `from_posteriors` + `InterimPrior` | robustness to calibration and π_train (2.3b §5) | proposed |
 | every constructor | bins | some 1-D or grid only | arbitrary edges, N-D, masks, measure | #22 | change |
+
+Updates 2026-10-25: interim/kind rows → change (#26, #32); samples division,
+diagnostic, floor → change (#31); response object and joint inference →
+change (#27, #28); classifier route → change (#29); constructor names → #32.

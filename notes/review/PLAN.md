@@ -1,6 +1,6 @@
 # Walkthrough plan
 
-**Current position:** step 2.3 (inputs: every `from_*` conversion, selection inputs). Agreed order: 2.2 → 2.3 → back to Phase 1 (1.1, 1.2, 1.4) → rest of Phase 2. Step 1.3's architecture decisions remain deferred until the relevant code has been read.
+**Current position:** Phase 1 step 1.1 (problem, scope, design principles). Order: 1.1 → 1.2 → 1.4 → rest of Phase 2 (2.4 onwards). Step 1.3's architecture decisions remain deferred until the relevant code has been read.
 
 ## How each step works
 
