@@ -43,14 +43,32 @@ def test_bootstrap_rates_have_a_random_total():
     assert totals.std() == pytest.approx(np.sqrt(1000), rel=0.3)
 
 
-def test_bootstrap_replicates_start_inside_the_simplex():
-    """A sparse MLE must not trap replicates: each refit is certified optimal."""
+def test_bootstrap_replicates_are_optimal_for_their_own_weights(monkeypatch):
+    """A sparse MLE must not trap replicates: each refit is certified optimal (audit T-3)."""
     mock = binference.simulate.mock_1d(150, Bins.linear(0, 3, 20), noise=(0.05, 0.1), rng=3)
-    m = PopulationModel(mock.likelihoods)
-    res = _bootstrap(m, rng=2)
-    start = 0.5 * MAP(m).run().value + 0.5 / 20
-    assert np.all(start > 0)
-    assert res.samples.shape == (150, 20)
+    # selection with a non-flat Dirichlet routes MAP to EM, which cannot revive the zeros of
+    # the sparse full-data mode (mix-SQP, the default without selection, can)
+    alpha = np.ones(20)
+    alpha[5:9] = 2.0
+    S = np.linspace(1.0, 0.5, 20)
+    m = PopulationModel(
+        mock.likelihoods, P.Dirichlet(alpha), selection=S, selection_mode="on_truth"
+    )
+    assert MAP(m).run().info["algorithm"] == "squarem"
+    weights = []
+    draw = Bootstrap._replicate_weights
+
+    def record(self, w, integer, rates):
+        weights.append(draw(self, w, integer, rates))
+        return weights[-1]
+
+    monkeypatch.setattr(Bootstrap, "_replicate_weights", record)
+    with pytest.warns(ApproximationWarning):
+        res = Bootstrap(m, rng=2).run(60)
+    assert res.info["n_not_converged"] == 0
+    gaps = [m._with_weights(wb).kkt_gap(v) for wb, v in zip(weights, res.samples, strict=True)]
+    # converged means gap <= 1e3 * tol (DECISIONS #71); from the full-data MAP: up to 6e-2
+    assert max(gaps) < 1e-5
 
 
 # ------------------------------------------------------------- inputs (4, 5, 10)
