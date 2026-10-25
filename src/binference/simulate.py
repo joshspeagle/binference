@@ -9,7 +9,6 @@ every input convention can be exercised. ``Mock`` unpacks as
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any
@@ -22,7 +21,6 @@ from .bins import Bins
 from .density import Density
 from .likelihoods import Likelihoods
 from .priors import PopulationPrior
-from .warnings import InputWarning
 
 __all__ = [
     "Mock",
@@ -128,9 +126,12 @@ def _as_density(density: Any, bins: Bins) -> Density:
     return Density.coerce(density, "mass", name="density")
 
 
-def population(bins: Bins, density: Any = "bimodal", n_sub: int = 8) -> np.ndarray:
-    """Population fractions per bin from a density name, :class:`Density`, callable or masses."""
-    return _as_density(density, bins).masses(bins, n_sub)
+def population(bins: Bins, density: Any = "bimodal", tol: float = 1e-6) -> np.ndarray:
+    """Population fractions per bin from a density name, :class:`Density`, callable or masses.
+
+    Densities are integrated over each bin by adaptive quadrature to ``tol``.
+    """
+    return _as_density(density, bins).masses(bins, tol=tol)
 
 
 def _draw_values(bins: Bins, density: Any, n: int, rng: np.random.Generator):
@@ -158,20 +159,6 @@ def _draw_values(bins: Bins, density: Any, n: int, rng: np.random.Generator):
     values = fb.sample_within(cell, rng)
     labels = bins.index(values)
     return values, labels
-
-
-def _mock_gaussian(obs, sigma, bins, selection) -> Likelihoods:
-    # observations near the edges spill past them by construction, so the
-    # outside-mass warning says nothing about the user's bins here
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", ".*likelihood mass outside the bins", InputWarning)
-        return Likelihoods.from_gaussian(
-            obs,
-            sigma,
-            bins,
-            selection=selection,
-            selection_mode=None if selection is None else "true",
-        )
 
 
 def _noise(noise: Any, n: int, rng: np.random.Generator, shape=()) -> np.ndarray:
@@ -254,7 +241,14 @@ def mock_1d(
         lo, hi = bins.range[0]
         bad = gen.random(n_objects) < outlier_fraction
         obs[bad] = gen.uniform(lo, hi, size=int(bad.sum()))
-    lk = _mock_gaussian(obs, sigma, bins, selection)
+    lk = Likelihoods.from_gaussian(
+        obs,
+        sigma,
+        bins,
+        selection=selection,
+        selection_mode=None if selection is None else "true",
+        warn_outside=False,  # observations near the edges spill past them by construction
+    )
     counts = np.bincount(labels, minlength=bins.K).astype(float)
     truth = Truth(rho=rho, labels=labels, values=values, counts=counts, n_drawn=n_drawn)
     mock = Mock(bins, lk, truth, {"mean": obs, "sigma": sigma})
@@ -265,7 +259,7 @@ def mock_1d(
             interim = stats.norm(0.4 * lo + 0.6 * hi, 0.3 * (hi - lo))
         interim = _as_density(interim, bins)
         pi_dens = interim._pointwise()
-        Pi = interim.masses(bins, 8)
+        Pi = interim.masses(bins, tol=1e-6)
         P = lk.toarray() * Pi[None, :]  # row scales are irrelevant after normalising
         mock.posteriors = P / P.sum(axis=1, keepdims=True)
         mock.interim = Pi
@@ -349,7 +343,14 @@ def mock_2d(
     values, labels, n_drawn = _draw_selected(bins, density, n_objects, selection, gen)
     sigma = _noise(noise, n_objects, gen, shape=(2,))
     obs = values + sigma * gen.standard_normal(values.shape)
-    lk = _mock_gaussian(obs, sigma, bins, selection)
+    lk = Likelihoods.from_gaussian(
+        obs,
+        sigma,
+        bins,
+        selection=selection,
+        selection_mode=None if selection is None else "true",
+        warn_outside=False,  # observations near the edges spill past them by construction
+    )
     counts = np.bincount(labels, minlength=bins.K).astype(float)
     truth = Truth(rho=rho, labels=labels, values=values, counts=counts, n_drawn=n_drawn)
     return Mock(bins, lk, truth, {"mean": obs, "sigma": sigma})

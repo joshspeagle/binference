@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Callable, Sequence
+from functools import partial
 from typing import Any, Literal
 
 import numpy as np
@@ -19,7 +20,10 @@ from .density import (
     _dist_log_masses,
     _dist_logpdf,
     _equal_volumes,
+    _has_cdf,
     _is_distribution,
+    _log_nonneg,
+    log_interval_masses,
 )
 from .measure import Measure
 from .selection import Selection, as_selection
@@ -62,10 +66,11 @@ def _interim_masses(
     interim: InterimPrior,
     bins: Bins,
     representation: Representation | None = None,
-    n_sub: int = 5,
+    tol: float = 1e-3,
+    n_sub: int | None = None,
 ) -> np.ndarray:
     """Normalised interim-prior mass per bin."""
-    return Density.coerce(interim, representation).masses(bins, n_sub)
+    return Density.coerce(interim, representation).masses(bins, tol=tol, n_sub=n_sub)
 
 
 def _check_kind(kind: Any, interim: Any) -> bool:
@@ -82,12 +87,57 @@ def _check_kind(kind: Any, interim: Any) -> bool:
     return interim is not None
 
 
-def _log_nonneg(values: Any) -> np.ndarray:
-    v = np.asarray(values, dtype=float)
-    if not np.all(np.isfinite(v)) or np.any(v < 0):
-        raise ValueError("The density must return finite, non-negative values.")
-    with np.errstate(divide="ignore"):
-        return np.log(v)
+def _common(weights, selection, selection_mode, drop_empty) -> dict[str, Any]:
+    # the keyword arguments every constructor passes on to Likelihoods
+    return {
+        "weights": weights,
+        "selection": selection,
+        "selection_mode": selection_mode,
+        "drop_empty": drop_empty,
+    }
+
+
+def _rows_logpdf(dists: list[Any], ndim: int) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
+    """``f(z, r)``: log density of distribution ``r[p]`` at the points ``z[p]``."""
+    family = getattr(dists[0], "dist", None)
+    keys = sorted(getattr(dists[0], "kwds", {}))
+    same = (
+        ndim == 1
+        and family is not None
+        and all(
+            getattr(d, "dist", None) is family
+            and len(d.args) == len(dists[0].args)
+            and sorted(d.kwds) == keys
+            for d in dists
+        )
+    )
+    if same:  # frozen scipy distributions of one family: one call
+        args = [np.array(a, dtype=float) for a in zip(*(d.args for d in dists), strict=True)]
+        kwds = {k: np.array([d.kwds[k] for d in dists], dtype=float) for k in keys}
+        return lambda z, r: family.logpdf(
+            z, *(a[r, None] for a in args), **{k: v[r, None] for k, v in kwds.items()}
+        )
+
+    def logpdf(z, r):
+        out = np.empty(z.shape[:2])
+        for i in np.unique(r):
+            sel = r == i
+            out[sel] = _dist_logpdf(dists[i], z[sel])
+        return out
+
+    return logpdf
+
+
+def _log_gauss_rows(z: np.ndarray, r: np.ndarray, mu: np.ndarray, sig: np.ndarray) -> np.ndarray:
+    m, s = mu[r, None], sig[r, None]
+    return -0.5 * ((z - m) / s) ** 2 - np.log(s) - 0.5 * np.log(2 * np.pi)
+
+
+def _record_outside(lk: Likelihoods, log_inside: np.ndarray, warn: bool = True) -> None:
+    """Store each object's mass fraction outside the active bins, and warn if many lose most."""
+    _attach_per_object(lk, outside_fraction=-np.expm1(np.minimum(log_inside, 0.0)))
+    if warn:
+        _warn_outside(lk.meta["outside_fraction"])
 
 
 def _warn_outside(outside: np.ndarray, threshold: float = 0.9, share: float = 0.1) -> None:
@@ -101,25 +151,6 @@ def _warn_outside(outside: np.ndarray, threshold: float = 0.9, share: float = 0.
             InputWarning,
             stacklevel=3,
         )
-
-
-def _log_gauss_pdf(z: np.ndarray, mu: np.ndarray, sig: np.ndarray) -> np.ndarray:
-    return -0.5 * ((z - mu) / sig) ** 2 - np.log(sig) - 0.5 * np.log(2 * np.pi)
-
-
-def _log_gauss_bin_mass(lo: np.ndarray, hi: np.ndarray, mu: np.ndarray, sig: np.ndarray):
-    """``log(Phi((hi-mu)/sig) - Phi((lo-mu)/sig))`` computed stably in the tails."""
-    a = (lo - mu) / sig
-    b = (hi - mu) / sig
-    # use the upper tail when the interval lies above the mean (symmetry)
-    flip = a > 0
-    a2 = np.where(flip, -b, a)
-    b2 = np.where(flip, -a, b)
-    lb = special.log_ndtr(b2)
-    la = special.log_ndtr(a2)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        out = lb + np.log1p(-np.exp(la - lb))
-    return np.where(b2 > a2, out, -np.inf)
 
 
 # ----------------------------------------------------------------------------
@@ -490,27 +521,17 @@ class Likelihoods:
             raise ValueError(
                 f"representation must be 'mass' or 'density'; got {representation!r}."
             )
-        tail = {
-            "weights": weights,
-            "selection": selection,
-            "selection_mode": selection_mode,
-            "drop_empty": drop_empty,
-        }
+        tail = _common(weights, selection, selection_mode, drop_empty)
         if not posterior:
             lk = cls(values, bins, representation=representation, log=log, **tail)
             lk.meta["source"] = "table"
             return lk
-        P, scale = _normalise_log(values) if log else _normalise_linear(values)
+        P, _ = _normalise_log(values) if log else _normalise_linear(values)
         if P.shape[1] != bins.K:
             raise ValueError(f"values have {P.shape[1]} columns but bins have K={bins.K}.")
         vol = np.asarray(bins.volumes, dtype=float)
         if not log:  # the check reads row sums, so it needs the values at their own scale
-            with np.errstate(over="ignore"):
-                raw = (
-                    _scale_csr_rows(P, np.exp(scale))
-                    if sp.issparse(P)
-                    else P * np.exp(scale)[:, None]
-                )
+            raw = values if sp.issparse(values) else np.asarray(values, dtype=float)
             _check_posterior_representation(raw, vol, representation)
         if representation == "density":
             P = _scale_columns(P, vol)
@@ -624,6 +645,7 @@ class Likelihoods:
         selection_mode: str | None = None,
         drop_empty: bool = False,
         tol: float = 1e-3,
+        warn_outside: bool = True,
     ) -> Likelihoods:
         r"""Likelihoods for Gaussian measurements :math:`d_i \sim \mathcal N(z, \sigma_i^2)`.
 
@@ -633,7 +655,8 @@ class Likelihoods:
         (see :meth:`from_density`). For N-D grids, measurement errors are
         independent per axis (``mean`` and ``sigma`` of shape ``(N, ndim)``).
         Each object's fraction of mass outside the active bins is recorded in
-        ``meta["outside_fraction"]``.
+        ``meta["outside_fraction"]``; ``warn_outside`` warns when more than 10% of
+        the objects have more than 90% of their mass outside.
 
         Parameters
         ----------
@@ -670,28 +693,22 @@ class Likelihoods:
         # per axis: exact log masses, and bin averages (in u on non-linear measures),
         # summed over the axes of each active bin
         logL = log_mass = 0.0
-        for d, (e, m, j) in enumerate(
-            zip(bins.edges, bins.measures, bins.cell_index, strict=True)
+        for e, m, j, mu_d, sig_d in zip(
+            bins.edges, bins.measures, bins.cell_index, mu.T, sig.T, strict=True
         ):
-            mu_d, sig_d = mu[:, d : d + 1], sig[:, d : d + 1]
-            lm = _log_gauss_bin_mass(e[None, :-1], e[None, 1:], mu_d, sig_d)
+            x = (e[None, :] - mu_d[:, None]) / sig_d[:, None]
+            lm = log_interval_masses(special.log_ndtr(x), special.log_ndtr(-x))
             if m == Measure.linear():
                 avg = lm - np.log(np.diff(e))[None, :]
             else:
-                avg, unconverged = bin_log_average(
-                    lambda z, mu_d=mu_d, sig_d=sig_d: _log_gauss_pdf(z[None, :], mu_d, sig_d),
+                avg = bin_log_average(
+                    partial(_log_gauss_rows, mu=mu_d, sig=sig_d),
                     Bins(e, measure=m),
+                    rows=mu.shape[0],
                     tol=tol,
                 )
-                if unconverged.any():
-                    warnings.warn(
-                        f"Bin averages did not reach tol={tol:g} on axis {d}; raise tol.",
-                        InputWarning,
-                        stacklevel=2,
-                    )
             logL = logL + avg[:, j]
             log_mass = log_mass + lm[:, j]
-        outside = np.clip(-np.expm1(np.minimum(special.logsumexp(log_mass, axis=1), 0.0)), 0, 1)
         lk = cls(
             logL,
             bins,
@@ -703,10 +720,8 @@ class Likelihoods:
         )
         lk.meta.update(source="gaussian")
         # kept so that true values can be drawn from the likelihood within bins
-        _attach_per_object(
-            lk, gaussian_mean=mu, gaussian_sigma=np.array(sig), outside_fraction=outside
-        )
-        _warn_outside(outside)
+        _attach_per_object(lk, gaussian_mean=mu, gaussian_sigma=np.array(sig))
+        _record_outside(lk, special.logsumexp(log_mass, axis=1), warn_outside)
         return lk
 
     @classmethod
@@ -726,6 +741,7 @@ class Likelihoods:
         selection: Any = None,
         selection_mode: str | None = None,
         drop_empty: bool = False,
+        warn_outside: bool = True,
     ) -> Likelihoods:
         """Likelihoods from per-object densities over the bin coordinate.
 
@@ -748,77 +764,54 @@ class Likelihoods:
         average, splitting cells at most ``max_depth`` times; ``n_sub`` instead
         fixes ``n_sub`` Gauss-Legendre points per bin and axis. The fraction of
         each distribution's mass outside the active bins is recorded in
-        ``meta["outside_fraction"]`` on 1-D bins.
+        ``meta["outside_fraction"]`` on 1-D bins (see :meth:`from_gaussian` for
+        ``warn_outside``).
         """
         if bins.is_categorical:
             raise ValueError("from_density needs grid bins.")
         posterior = _check_kind(kind, interim)
         if tol <= 0 or max_depth < 0:
             raise ValueError("tol must be positive and max_depth non-negative.")
-        outside = None
+        quad = {
+            "coordinate": "z" if posterior else "measure",
+            "tol": tol,
+            "max_depth": max_depth,
+            "n_sub": n_sub,
+        }
+        log_inside = None
         if callable(density):
-            func = density
-            if log:
-                logf = lambda pts: np.asarray(func(pts), dtype=float)  # noqa: E731
-            else:
-                logf = lambda pts: _log_nonneg(func(pts))  # noqa: E731
-            exact = None
+            logf = density if log else (lambda z: _log_nonneg(density(z)))
+            log_avg = bin_log_average(logf, bins, **quad)
         else:
             dists = list(density)
             if not dists or not all(_is_distribution(d) for d in dists):
                 raise TypeError("density must be a function or a sequence of distributions.")
-            logf = lambda pts: np.stack([_dist_logpdf(d, pts) for d in dists])  # noqa: E731
-            exact = None
-            if bins.ndim == 1 and all(hasattr(d, "cdf") or hasattr(d, "logcdf") for d in dists):
-                exact = np.stack([_dist_log_masses(d, bins.edges[0]) for d in dists])
-                inside = special.logsumexp(exact[:, bins.cell_index[0]], axis=1)
-                outside = np.clip(-np.expm1(np.minimum(inside, 0.0)), 0.0, 1.0)
-                exact = exact[:, bins.cell_index[0]]
-                if not (posterior or bins.measures[0] == Measure.linear()):
-                    exact = None  # a likelihood average in a non-linear measure needs quadrature
-        if exact is not None:
-            log_mass = exact
-        else:
-            log_avg, unconverged = bin_log_average(
-                logf,
-                bins,
-                coordinate="z" if posterior else "measure",
-                tol=tol,
-                max_depth=max_depth,
-                n_sub=n_sub,
-            )
-            if unconverged.any():
-                warnings.warn(
-                    f"Bin averages did not reach tol={tol:g} in {int(unconverged.sum())} bin(s) "
-                    f"after {max_depth} refinements; raise max_depth or tol.",
-                    InputWarning,
-                    stacklevel=2,
+            if bins.ndim == 1 and all(_has_cdf(d) for d in dists):
+                log_mass = np.stack([_dist_log_masses(d, bins.edges[0]) for d in dists])
+                log_mass = log_mass[:, bins.cell_index[0]]
+                log_inside = special.logsumexp(log_mass, axis=1)
+            if log_inside is not None and (posterior or bins.measures[0] == Measure.linear()):
+                log_avg = log_mass - np.log(bins.volumes)  # exact
+            else:
+                log_avg = bin_log_average(
+                    _rows_logpdf(dists, bins.ndim), bins, rows=len(dists), **quad
                 )
-            log_mass = log_avg + np.log(bins.volumes) if posterior else None
-        tail = {
-            "weights": weights,
-            "selection": selection,
-            "selection_mode": selection_mode,
-            "drop_empty": drop_empty,
-        }
-        if posterior:
-            Pi = _interim_masses(interim, bins, interim_representation, n_sub or 5)
-            lk = cls.from_table(
-                log_mass,
-                bins,
-                interim=Density.from_masses(Pi),
-                representation="mass",
-                log=True,
-                **tail,
+        if posterior:  # the interim prior gets the same quadrature as the values
+            interim = Density.from_masses(
+                _interim_masses(interim, bins, interim_representation, tol, n_sub)
             )
-        elif exact is not None:
-            lk = cls(log_mass, bins, log=True, representation="mass", **tail)
-        else:
-            lk = cls(log_avg, bins, log=True, **tail)
+        lk = cls.from_table(
+            log_avg,
+            bins,
+            kind=kind,
+            interim=interim,
+            representation="density",
+            log=True,
+            **_common(weights, selection, selection_mode, drop_empty),
+        )
         lk.meta["source"] = "density"
-        if outside is not None:
-            _attach_per_object(lk, outside_fraction=outside)
-            _warn_outside(outside)
+        if log_inside is not None:
+            _record_outside(lk, log_inside, warn_outside)
         return lk
 
     @classmethod
