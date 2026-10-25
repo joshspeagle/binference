@@ -163,7 +163,7 @@ $$
 L_{ik}\propto\frac{P_{ik}}{\Pi_k}.
 $$
 
-`Likelihoods.from_posteriors` and `Likelihoods.from_samples` require the
+`Likelihoods.from_table`, `from_density` and `from_samples` require the
 interim prior and divide it out. Using posteriors directly replaces
 $L_i\cdot\rho$ by $L_i\cdot(\pi\odot\rho)$, up to a per-object constant:
 

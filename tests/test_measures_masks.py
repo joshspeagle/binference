@@ -192,18 +192,20 @@ def test_cdf_likelihoods_on_masked_1d_bins_keep_only_active_bins():
     from scipy import stats
 
     b = Bins.linear(0, 4, 4, mask=[True, False, True, True])
-    L = Likelihoods.from_distributions([stats.norm(1.5, 0.3)], b).toarray()
-    full = Likelihoods.from_distributions([stats.norm(1.5, 0.3)], Bins.linear(0, 4, 4)).toarray()
+    d = [stats.norm(1.5, 0.3)]
+    with pytest.warns(InputWarning, match="outside the bins"):  # the masked bin holds most mass
+        L = Likelihoods.from_density(d, b, kind="likelihood").toarray()
+    full = Likelihoods.from_density(d, Bins.linear(0, 4, 4), kind="likelihood").toarray()
     ratio = L / full[:, b.cells]  # likelihoods are defined up to a per-object scale
     np.testing.assert_allclose(ratio, ratio[0, 0], rtol=1e-6)
 
 
-@pytest.mark.parametrize("interim_prior", [None, "uniform"])
-def test_mock_posterior_samples_avoid_masked_bins(interim_prior):
+@pytest.mark.parametrize("interim", [None, "uniform"])
+def test_mock_posterior_samples_avoid_masked_bins(interim):
     mask = np.ones(30, dtype=bool)
     mask[10:15] = False
     b = Bins.linear(0, 3, 30, mask=mask)
-    mock = binference.simulate.mock_1d(300, b, interim_prior=interim_prior, n_samples=50, rng=3)
+    mock = binference.simulate.mock_1d(300, b, interim=interim, n_samples=50, rng=3)
     assert np.all(b.contains(mock.samples.ravel()))
 
 

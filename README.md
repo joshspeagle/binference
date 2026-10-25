@@ -79,15 +79,15 @@ smooth = binference.infer(mock.likelihoods, binference.priors.LogisticGP(), rng=
 bins = binference.Bins.linear(0.0, 3.0, 30)          # also Bins.log, Bins.grid (N-D), Bins.categories
 
 lk = binference.Likelihoods.from_gaussian(z_obs, z_err, bins)              # Gaussian errors
-lk = binference.Likelihoods.from_posteriors(P, bins, interim_prior)       # posteriors under a known prior
-lk = binference.Likelihoods.from_samples(samples, bins, interim_prior="flat")  # posterior samples
-lk = binference.Likelihoods(L, bins)                                       # any (N, K) likelihood matrix
+lk = binference.Likelihoods.from_table(P, bins, interim=interim)       # posteriors under a known prior
+lk = binference.Likelihoods.from_samples(samples, bins, interim="flat")  # posterior samples
+lk = binference.Likelihoods.from_table(L, bins, kind="likelihood")         # any (N, K) likelihood table
 
 result = binference.infer(lk)
 ```
 
 Other constructors cover arbitrary likelihood functions and SciPy
-distributions (`from_function`, `from_distributions`), unfolding with a
+distributions (`from_density`), unfolding with a
 response matrix (`from_response`) and classifier outputs (`from_classifier`).
 Per-object posteriors are only accepted with the prior they were computed
 under, because feeding them in as likelihoods biases the population toward

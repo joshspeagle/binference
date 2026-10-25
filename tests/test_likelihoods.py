@@ -89,45 +89,47 @@ def test_mass_vs_density_representation():
         Likelihoods(dens, bins, representation="per-bin")
 
 
-def test_from_posteriors_requires_interim_prior():
+def test_a_table_must_say_whether_it_holds_likelihoods_or_posteriors():
     bins = Bins.linear(0, 1, 3)
-    with pytest.raises(TypeError):
-        Likelihoods.from_posteriors(np.ones((2, 3)), bins)  # missing interim prior
+    with pytest.raises(ValueError, match="Say what the input is"):
+        Likelihoods.from_table(np.ones((2, 3)), bins)
+    with pytest.raises(ValueError, match="not both"):
+        Likelihoods.from_table(np.ones((2, 3)), bins, kind="likelihood", interim="flat")
 
 
-def test_from_posteriors_removes_interim_prior(rng):
+def test_from_table_removes_the_interim_prior(rng):
     bins = Bins([0.0, 0.5, 1.0, 2.0, 4.0])
     L = rng.uniform(0.1, 1.0, size=(20, 4))
     pi = np.array([0.1, 0.2, 0.3, 0.4])
     P = L * pi
     P /= P.sum(axis=1, keepdims=True)
-    lk = Likelihoods.from_posteriors(P, bins, pi, interim_representation="mass")
+    lk = Likelihoods.from_table(P, bins, interim=pi, interim_representation="mass")
     ratio = lk.toarray() / L
     np.testing.assert_allclose(ratio / ratio[:, :1], 1.0, rtol=1e-12)
     # density representations give the same result
-    lk2 = Likelihoods.from_posteriors(
+    lk2 = Likelihoods.from_table(
         P / bins.volumes,
         bins,
-        pi / bins.volumes,
+        interim=pi / bins.volumes,
         representation="density",
         interim_representation="density",
     )
     np.testing.assert_allclose(lk2.toarray(), lk.toarray(), rtol=1e-12)
     # a callable density that is constant within bins gives the same masses
     dens = pi / bins.volumes
-    lk3 = Likelihoods.from_posteriors(P, bins, lambda z: dens[bins.index(z)])
+    lk3 = Likelihoods.from_table(P, bins, interim=lambda z: dens[bins.index(z)])
     np.testing.assert_allclose(lk3.toarray(), lk.toarray(), rtol=1e-10)
     # "flat" means masses proportional to bin volumes
-    lk4 = Likelihoods.from_posteriors(P, bins, "flat")
+    lk4 = Likelihoods.from_table(P, bins, interim="flat")
     expected = P / bins.volumes
     np.testing.assert_allclose(lk4.toarray(), expected / expected.max(1, keepdims=True))
 
 
-def test_from_posteriors_zero_interim_prior():
+def test_from_table_with_a_zero_interim_prior():
     bins = Bins.linear(0, 1, 3)
     with pytest.raises(ValueError, match="interim prior is zero"):
-        Likelihoods.from_posteriors(np.array([[0.5, 0.5, 0.0]]), bins, [0.0, 0.5, 0.5])
-    lk = Likelihoods.from_posteriors(np.array([[0.0, 0.5, 0.5]]), bins, [0.0, 0.5, 0.5])
+        Likelihoods.from_table(np.array([[0.5, 0.5, 0.0]]), bins, interim=[0.0, 0.5, 0.5])
+    lk = Likelihoods.from_table(np.array([[0.0, 0.5, 0.5]]), bins, interim=[0.0, 0.5, 0.5])
     np.testing.assert_allclose(lk.toarray(), [[0.0, 1.0, 1.0]])
 
 
@@ -135,7 +137,7 @@ def test_representation_warning_on_unequal_bins():
     bins = Bins([0.0, 0.1, 1.0])
     dens = np.array([[5.0, 0.5555555555555556]])  # integrates to one as a density
     with pytest.warns(InputWarning, match="density"):
-        Likelihoods.from_posteriors(dens, bins, "flat", representation="mass")
+        Likelihoods.from_table(dens, bins, interim="flat", representation="mass")
 
 
 def test_unequal_bins_representation_matters():
@@ -203,7 +205,9 @@ def test_from_gaussian_exact_1d():
 
 def test_from_gaussian_far_tails_are_finite():
     bins = Bins.linear(0, 1, 5)
-    lk = Likelihoods.from_gaussian([40.0], [0.1], bins)
+    with pytest.warns(InputWarning, match="outside the bins"):
+        lk = Likelihoods.from_gaussian([40.0], [0.1], bins)
+    assert lk.meta["outside_fraction"][0] == 1.0
     assert np.all(np.isfinite(lk.log_scale))
     assert np.argmax(lk.toarray()[0]) == 4
 
@@ -224,12 +228,12 @@ def test_from_gaussian_2d_is_product():
         Likelihoods.from_gaussian(mu, [[0.0, 0.1]], bins)
 
 
-def test_from_distributions_matches_gaussian():
+def test_distributions_match_gaussian():
     bins = Bins([0.0, 0.3, 1.0, 1.2])
     mu, sig = np.array([0.5, 0.1]), np.array([0.2, 0.05])
     a = Likelihoods.from_gaussian(mu, sig, bins)
-    b = Likelihoods.from_distributions(
-        [stats.norm(m, s) for m, s in zip(mu, sig, strict=True)], bins
+    b = Likelihoods.from_density(
+        [stats.norm(m, s) for m, s in zip(mu, sig, strict=True)], bins, kind="likelihood"
     )
     np.testing.assert_allclose(b.toarray(), a.toarray(), rtol=1e-9, atol=1e-60)
 
@@ -240,15 +244,18 @@ def test_from_distributions_matches_gaussian():
         def logpdf(self, x):
             return self.d.logpdf(x)
 
-    c = Likelihoods.from_distributions(
-        [OnlyLogpdf(stats.norm(m, s)) for m, s in zip(mu, sig, strict=True)], bins, n_sub=12
+    c = Likelihoods.from_density(
+        [OnlyLogpdf(stats.norm(m, s)) for m, s in zip(mu, sig, strict=True)],
+        bins,
+        kind="likelihood",
+        tol=1e-6,
     )
-    np.testing.assert_allclose(c.toarray(), a.toarray(), rtol=2e-3, atol=1e-6)
+    np.testing.assert_allclose(c.toarray(), a.toarray(), rtol=1e-5, atol=1e-8)
     with pytest.raises(ValueError):
-        Likelihoods.from_distributions([stats.norm(0, 1)], bins, kind="posterior")
+        Likelihoods.from_density([stats.norm(0, 1)], bins, kind="posterior")
 
 
-def test_from_function_quadrature_converges():
+def test_function_quadrature_converges():
     bins = Bins([0.0, 0.3, 1.0, 1.2])
     mu, sig = np.array([0.5, 0.1]), np.array([0.2, 0.05])
     a = Likelihoods.from_gaussian(mu, sig, bins)
@@ -256,9 +263,9 @@ def test_from_function_quadrature_converges():
     def f(z):
         return stats.norm.logpdf(z[None, :], mu[:, None], sig[:, None])
 
-    b = Likelihoods.from_function(f, bins, n_sub=16, log=True)
+    b = Likelihoods.from_density(f, bins, kind="likelihood", n_sub=16, log=True)
     np.testing.assert_allclose(b.toarray(), a.toarray(), rtol=1e-4, atol=1e-8)
-    c = Likelihoods.from_function(lambda z: np.exp(f(z)), bins, n_sub=16)
+    c = Likelihoods.from_density(lambda z: np.exp(f(z)), bins, kind="likelihood", tol=1e-6)
     np.testing.assert_allclose(c.toarray(), a.toarray(), rtol=1e-4, atol=1e-8)
 
 

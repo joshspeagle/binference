@@ -103,8 +103,12 @@ print(lk)
 
 ## Gaussian measurements
 
-For a measurement $\hat z_i\pm\sigma_i$ the bin-averaged likelihood is exact,
-computed with stable log-CDF differences that work far into the tails:
+For a measurement $\hat z_i\pm\sigma_i$ the bin-averaged likelihood is exact on
+linear bins, computed with stable log-CDF differences that work far into the tails.
+On other measures it is averaged in the measure coordinate by adaptive quadrature
+(see below). Each object's fraction of likelihood mass outside the bins is kept in
+`lk.meta["outside_fraction"]`, and binference warns when more than 10% of the
+objects have more than 90% of their mass outside:
 
 ```python
 lk = binference.Likelihoods.from_gaussian(z_obs, sigma, bins)
@@ -122,7 +126,7 @@ interim = binference.simulate.population(bins, lambda z: np.exp(-0.5 * ((z - 1.2
 P = L * interim                      # posteriors under the interim prior (rows unnormalised)
 P /= P.sum(axis=1, keepdims=True)
 
-lk_post = binference.Likelihoods.from_posteriors(P, bins, interim_prior=interim)
+lk_post = binference.Likelihoods.from_table(P, bins, interim=interim)
 np.testing.assert_allclose(lk_post.toarray(), binference.Likelihoods(L, bins).toarray(), atol=1e-12)
 ```
 
@@ -143,8 +147,10 @@ D.from_function(lambda z: np.exp(-z))      # a callable density, integrated over
 accepted on its own only where masses and densities agree: on categories and on bins of
 equal volume. On unequal bins, pass `interim_representation="mass"` or `"density"`.
 
-Posteriors can be masses per bin (the default) or densities at bin centres
-(`representation="density"`). binference warns if the rows do not look like the
+`from_table` holds either kind of table, so it asks which: pass `kind="likelihood"`
+for likelihood values, or `interim=` for posteriors. A posterior table defaults to
+masses per bin (`representation="mass"`), a likelihood table to values at or averaged
+over each bin (`"density"`). binference warns if the rows do not look like the
 representation you declared.
 
 ## Posterior samples
@@ -156,7 +162,7 @@ supported:
 
 ```python
 samples = [z + s * rng.standard_normal(200) for z, s in zip(z_obs[:100], sigma[:100])]
-lk_samp = binference.Likelihoods.from_samples(samples, bins, interim_prior="flat")
+lk_samp = binference.Likelihoods.from_samples(samples, bins, interim="flat")
 print(lk_samp.is_sparse, np.median(lk_samp.meta["n_eff"]))
 ```
 
@@ -167,9 +173,9 @@ are then noisy.
 
 ## Likelihood functions and distributions
 
-For an arbitrary likelihood, give a function of the bin coordinate; it is
-averaged over each bin by Gauss–Legendre quadrature. SciPy frozen
-distributions work too:
+For an arbitrary likelihood or posterior, give a vectorised function of the bin
+coordinate, or a list of SciPy frozen distributions, to `from_density`. As with
+`from_table`, say what it is with `kind="likelihood"` or `interim=`:
 
 ```python
 from scipy import stats
@@ -178,12 +184,23 @@ def loglike(z):  # (n_points, ndim) or (n_points,) -> (N, n_points)
     z = np.asarray(z).reshape(-1)
     return stats.t.logpdf(z[None, :], df=3, loc=z_obs[:, None], scale=sigma[:, None])
 
-lk_t = binference.Likelihoods.from_function(loglike, bins, log=True)
-lk_d = binference.Likelihoods.from_distributions(
-    [stats.norm(m, s) for m, s in zip(z_obs[:10], sigma[:10])], bins
+lk_t = binference.Likelihoods.from_density(loglike, bins, kind="likelihood", log=True)
+lk_d = binference.Likelihoods.from_density(
+    [stats.norm(m, s) for m, s in zip(z_obs[:10], sigma[:10])], bins, kind="likelihood"
 )
 print(lk_t.N, lk_d.N)
 ```
+
+Likelihoods are averaged over each bin uniformly in the measure coordinate, which is
+the shape the model gives the population within a bin; posteriors are integrated in
+$z$ and divided by the interim prior's bin masses. On 1-D bins, distributions with a
+CDF are integrated exactly where that gives the answer (posteriors, and likelihoods
+on linear bins), in log space so far tails keep their precision. Everything else uses
+adaptive quadrature: each bin is split in half along every axis until the difference
+between 5- and 3-point Gauss–Legendre estimates is below `tol` (default $10^{-3}$)
+relative to the object's largest bin average, at most `max_depth=12` times. Bins that
+do not converge raise an `InputWarning`; `n_sub=` fixes the number of points per bin
+and axis instead.
 
 ## Response matrices and classifiers
 
@@ -209,7 +226,7 @@ lk_unfold = binference.Likelihoods.from_response(
     mu.measurements["reco_counts"], mu.truth.extra["response"], bins=mu.bins
 )
 mc = binference.simulate.mock_categorical(1000, 4, rng=3)
-lk_class = binference.Likelihoods.from_classifier(mc.posteriors, mc.interim_prior)
+lk_class = binference.Likelihoods.from_classifier(mc.posteriors, mc.interim)
 print(lk_unfold.selection.mode, lk_class.bins.labels)
 ```
 
@@ -225,7 +242,7 @@ print(sub.N, dense.shape, stack.sum().round(6))
 
 `lk.stack()` is the familiar "stacked PDF": the mean of the per-object posteriors
 under the interim prior the likelihoods were built with (flat if there was none),
-so for `from_posteriors` input it reproduces the mean of the input posteriors. It is
+so for posteriors given to `from_table` it reproduces the mean of the input posteriors. It is
 exactly one EM step from the interim prior, and it is biased whenever measurement
 errors are comparable to the features of the population. It is there for
 comparison, not for inference. The KKT gap measures how far it is from the

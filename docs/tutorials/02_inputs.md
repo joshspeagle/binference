@@ -26,13 +26,13 @@ bins = binference.Bins.linear(0.0, 3.0, 20)
 
 ## Posteriors under an interim prior
 
-`mock_1d(interim_prior="gaussian")` also returns what a photo-z code would
+`mock_1d(interim="gaussian")` also returns what a photo-z code would
 report: per-object posteriors computed under a broad Gaussian prior centred
 at $z=1.8$, which is quite different from the true population.
 
 ```{code-cell} python
-mock = binference.simulate.mock_1d(2000, bins, noise=(0.2, 0.4), interim_prior="gaussian", rng=3)
-P, interim = mock.posteriors, mock.interim_prior
+mock = binference.simulate.mock_1d(2000, bins, noise=(0.2, 0.4), interim="gaussian", rng=3)
+P, interim = mock.posteriors, mock.interim
 print(P.shape, "rows sum to", P.sum(axis=1)[:3].round(6))
 ```
 
@@ -41,7 +41,7 @@ posteriors in as if they were likelihoods:
 
 ```{code-cell} python
 kw = dict(rng=1, n_samples=500, n_warmup=500)   # shorter runs than the default, for speed
-right = binference.infer(binference.Likelihoods.from_posteriors(P, bins, interim), **kw)
+right = binference.infer(binference.Likelihoods.from_table(P, bins, interim=interim), **kw)
 wrong = binference.infer(binference.Likelihoods(P, bins), **kw)
 ```
 
@@ -73,9 +73,9 @@ PDFs. {meth}`~binference.Likelihoods.from_samples` histograms them onto the bins
 and divides out the prior they were drawn under:
 
 ```{code-cell} python
-mock_s = binference.simulate.mock_1d(2000, bins, noise=(0.2, 0.4), interim_prior="gaussian",
+mock_s = binference.simulate.mock_1d(2000, bins, noise=(0.2, 0.4), interim="gaussian",
                                  n_samples=100, rng=3)
-lk_s = binference.Likelihoods.from_samples(mock_s.samples, bins, mock_s.interim_prior)
+lk_s = binference.Likelihoods.from_samples(mock_s.samples, bins, mock_s.interim)
 print(lk_s, "median effective samples per object:", np.median(lk_s.meta["n_eff"]))
 ```
 
@@ -114,7 +114,7 @@ edges = ubins.edges[0]
 cdf = stats.norm.cdf((edges[None, :] - mu[:, None]) / sig[:, None])
 masses = np.diff(cdf, axis=1)
 
-as_masses = binference.infer(binference.Likelihoods.from_posteriors(masses, ubins, "flat"),
+as_masses = binference.infer(binference.Likelihoods.from_table(masses, ubins, interim="flat"),
                          method="map").rho
 as_densities = binference.infer(binference.Likelihoods(masses, ubins), method="map").rho
 print("truth          ", rho_true)
@@ -125,7 +125,7 @@ print("bin widths     ", ubins.volumes)
 
 Treating masses as densities distorts the population: here it moves mass
 from a narrow bin into its neighbours, by far more than the statistical
-error. `from_posteriors` takes
+error. `from_table` with an interim prior takes
 `representation="mass"` by default; pass `representation="density"` for PDFs
 evaluated at bin centres. binference warns when the rows do not look like the
 representation you declared.
@@ -137,11 +137,11 @@ converts them to likelihoods.
 
 | your data | constructor |
 |---|---|
-| likelihood values or log-likelihoods on bins | `Likelihoods(L, bins)`, `Likelihoods.from_log` |
+| likelihood values or log-likelihoods on bins | `from_table(L, bins, kind="likelihood")` |
 | Gaussian measurement and error | `Likelihoods.from_gaussian(mean, sigma, bins)` |
-| any likelihood function or SciPy distribution | `from_function`, `from_distributions` |
-| posteriors on bins plus the interim prior | `from_posteriors(P, bins, interim_prior)` |
-| posterior samples plus the interim prior | `from_samples(samples, bins, interim_prior)` |
+| any likelihood function or SciPy distribution | `from_density(f, bins, kind="likelihood")` |
+| posteriors on bins plus the interim prior | `from_table(P, bins, interim=interim)` |
+| posterior samples plus the interim prior | `from_samples(samples, bins, interim=interim)` |
 | counts and a response matrix (unfolding) | `from_response(counts, R, bins=bins)` |
 | classifier probabilities and training prevalence | `from_classifier(probs, train_prior)` |
 

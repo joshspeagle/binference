@@ -168,9 +168,9 @@ def test_recovery_with_interim_prior_posteriors():
     zs = []
     for s in range(40):
         mock = binference.simulate.mock_1d(
-            800, bins, density=rho_true, interim_prior="gaussian", rng=1000 + s
+            800, bins, density=rho_true, interim="gaussian", rng=1000 + s
         )
-        lk = Likelihoods.from_posteriors(mock.posteriors, bins, mock.interim_prior)
+        lk = Likelihoods.from_table(mock.posteriors, bins, interim=mock.interim)
         res = binference.infer(lk, method="gibbs", rng=s, n_samples=500, check=False)
         zs.append((res.mean - mock.truth.rho) / res.std)
     zs = np.concatenate(zs)
@@ -183,9 +183,9 @@ def test_interim_prior_regression():
     bins = Bins.linear(0, 3, 6)
     rho_true = binference.simulate.population(bins, "bimodal")
     mock = binference.simulate.mock_1d(
-        20000, bins, density=rho_true, interim_prior="gaussian", noise=(0.3, 0.6), rng=5
+        20000, bins, density=rho_true, interim="gaussian", noise=(0.3, 0.6), rng=5
     )
-    lk_right = Likelihoods.from_posteriors(mock.posteriors, bins, mock.interim_prior)
+    lk_right = Likelihoods.from_table(mock.posteriors, bins, interim=mock.interim)
     lk_wrong = Likelihoods(mock.posteriors, bins)
     right = binference.infer(lk_right, method="gibbs", rng=1, n_samples=500, check=False)
     wrong = binference.infer(lk_wrong, method="gibbs", rng=2, n_samples=500, check=False)
@@ -194,7 +194,7 @@ def test_interim_prior_regression():
     assert np.max(np.abs(wrong.mean - truth) / wrong.std) > 8
     # Using posteriors adds W log(pi . rho) to the log-likelihood, which drags the
     # population toward where the interim prior is large.
-    pi = mock.interim_prior
+    pi = mock.interim
     assert pi @ wrong.mean > pi @ right.mean + 0.01
 
 

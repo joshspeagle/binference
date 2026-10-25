@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 import numpy as np
 
-from ._quadrature import _subbin_points
+from ._quadrature import bin_log_average
 from .bins import Bins
 
 __all__ = ["Density"]
@@ -92,7 +92,7 @@ class Density:
 
     @classmethod
     def coerce(
-        cls, value: Any, representation: Representation | None = None, name: str = "interim_prior"
+        cls, value: Any, representation: Representation | None = None, name: str = "interim"
     ) -> Density:
         """A :class:`Density` from a density, ``"flat"``, a callable, a distribution or an array.
 
@@ -117,13 +117,18 @@ class Density:
         return cls(values=_nonneg(value, name), per_volume=per_volume)
 
     # ----------------------------------------------------------------- methods
-    def masses(self, bins: Bins, n_sub: int = 5) -> np.ndarray:
+    def masses(
+        self, bins: Bins, *, tol: float = 1e-3, max_depth: int = 12, n_sub: int | None = None
+    ) -> np.ndarray:
         """Normalised probability mass of each bin, shape ``(K,)``.
 
-        ``n_sub`` is the number of Gauss-Legendre points per bin and axis for
-        callables and distributions without a usable ``cdf``.
+        Callables and distributions without a usable ``cdf`` are integrated by
+        adaptive quadrature to ``tol`` (at most ``max_depth`` refinements), or with
+        ``n_sub`` fixed Gauss-Legendre
+        points per bin and axis (see :meth:`Likelihoods.from_density
+        <binference.Likelihoods.from_density>`).
         """
-        m = self._bin_masses(bins, n_sub)
+        m = self._bin_masses(bins, tol, max_depth, n_sub)
         total = m.sum()
         if not np.all(np.isfinite(m)) or np.any(m < 0):
             raise ValueError(f"{self!r} must give finite, non-negative masses.")
@@ -131,7 +136,7 @@ class Density:
             raise ValueError(f"{self!r} has no mass on the bins.")
         return m / total
 
-    def _bin_masses(self, bins: Bins, n_sub: int = 5) -> np.ndarray:
+    def _bin_masses(self, bins: Bins, tol: float, max_depth: int, n_sub: int | None) -> np.ndarray:
         # unnormalised bin masses
         if self._flat is not None:
             if bins.is_categorical or self._flat == "z":
@@ -156,9 +161,18 @@ class Density:
             if m.size != bins.K:
                 raise ValueError(f"{self!r} must return one value per category.")
             return m
+        if self._dist is not None and bins.ndim == 1 and _has_cdf(self._dist):
+            return np.exp(_dist_log_masses(self._dist, bins.edges[0]))[bins.cell_index[0]]
         if self._dist is not None:
-            return _dist_bin_masses(self._dist, bins, n_sub)
-        return _func_bin_masses(self._func, bins, n_sub)
+            logf = lambda z: _dist_logpdf(self._dist, z)[None]  # noqa: E731
+        else:
+            logf = lambda z: _log_nonneg(self._func(z))[None]  # noqa: E731
+        if self._dist is not None and not _has_pdf(self._dist):
+            raise TypeError(f"{self!r} needs a logpdf or pdf here (or a cdf on 1-D bins).")
+        log_avg = bin_log_average(
+            logf, bins, coordinate="z", tol=tol, max_depth=max_depth, n_sub=n_sub
+        )
+        return np.exp(log_avg[0]) * bins.volumes
 
     def _pointwise(self) -> Callable[[np.ndarray], np.ndarray] | None:
         # the density as a function of z, or None when only bin masses are known
@@ -183,7 +197,7 @@ def _equal_volumes(vol: np.ndarray) -> bool:
 
 
 def _is_distribution(x: Any) -> bool:
-    return any(hasattr(x, m) for m in ("cdf", "logpdf", "pdf"))
+    return any(hasattr(x, m) for m in ("cdf", "logcdf", "logpdf", "pdf"))
 
 
 def _dist_pdf(dist: Any) -> Callable[[np.ndarray], np.ndarray]:
@@ -192,20 +206,56 @@ def _dist_pdf(dist: Any) -> Callable[[np.ndarray], np.ndarray]:
     return dist.pdf
 
 
-def _func_bin_masses(func: Callable, bins: Bins, n_sub: int) -> np.ndarray:
-    pts, w = _subbin_points(bins, n_sub)
-    dens = np.asarray(func(pts.copy()), dtype=float).ravel()
-    if dens.size != pts.shape[0]:
-        raise ValueError("A density function must return one value per point.")
-    return (dens.reshape(bins.K, -1) @ w) * bins.volumes
+def _dist_logpdf(dist: Any, z: np.ndarray) -> np.ndarray:
+    if hasattr(dist, "logpdf"):
+        return np.asarray(dist.logpdf(z), dtype=float)
+    with np.errstate(divide="ignore"):
+        return np.log(np.asarray(dist.pdf(z), dtype=float))
 
 
-def _dist_bin_masses(dist: Any, bins: Bins, n_sub: int) -> np.ndarray:
-    """Unnormalised bin masses of a distribution: exact by ``cdf`` on 1-D grids."""
-    if bins.ndim == 1 and hasattr(dist, "cdf"):
-        c = np.asarray(dist.cdf(bins.edges[0]), dtype=float)
-        return np.clip(np.diff(c), 0.0, None)[bins.cell_index[0]]
-    return _func_bin_masses(_dist_pdf(dist), bins, n_sub)
+def _has_pdf(dist: Any) -> bool:
+    return hasattr(dist, "logpdf") or hasattr(dist, "pdf")
+
+
+def _has_cdf(dist: Any) -> bool:
+    return hasattr(dist, "cdf") or hasattr(dist, "logcdf")
+
+
+def _dist_log_masses(dist: Any, edges: np.ndarray) -> np.ndarray:
+    """Log mass between consecutive edges of a distribution with a CDF."""
+    with np.errstate(divide="ignore"):
+        if hasattr(dist, "logcdf"):
+            lc = np.asarray(dist.logcdf(edges), dtype=float)
+        else:
+            lc = np.log(np.asarray(dist.cdf(edges), dtype=float))
+        if hasattr(dist, "logsf"):
+            ls = np.asarray(dist.logsf(edges), dtype=float)
+        else:
+            ls = np.log1p(-np.exp(lc))
+    return log_interval_masses(lc, ls)
+
+
+def log_interval_masses(lc: np.ndarray, ls: np.ndarray) -> np.ndarray:
+    """Log mass between consecutive edges from the log-CDF ``lc`` and log-survival ``ls``.
+
+    Uses the side that keeps precision: the survival function for intervals
+    above the median. The edges run along the last axis.
+    """
+    a, b = (..., slice(None, -1)), (..., slice(1, None))
+    upper = lc[a] > np.log(0.5)  # the interval lies above the median: use survival functions
+    hi = np.where(upper, ls[a], lc[b])
+    lo = np.where(upper, ls[b], lc[a])
+    with np.errstate(divide="ignore", invalid="ignore"):
+        out = hi + np.log1p(-np.exp(lo - hi))
+    return np.where(hi > lo, out, -np.inf)
+
+
+def _log_nonneg(values: Any) -> np.ndarray:
+    v = np.asarray(values, dtype=float)
+    if not np.all(np.isfinite(v)) or np.any(v < 0):
+        raise ValueError("A density must take finite, non-negative values.")
+    with np.errstate(divide="ignore"):
+        return np.log(v)
 
 
 def _nonneg(a: Any, name: str) -> np.ndarray:

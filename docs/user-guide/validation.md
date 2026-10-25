@@ -101,7 +101,7 @@ a mock gives `(likelihoods, truth)`.
 | `prior_predictive` | a simulator drawing populations from a prior, for SBC and coverage |
 
 ```python
-mock = binference.simulate.mock_1d(500, interim_prior="gaussian", n_samples=100, rng=2)
+mock = binference.simulate.mock_1d(500, interim="gaussian", n_samples=100, rng=2)
 truth = mock.truth
 print(truth.rho.shape, truth.counts.sum(), mock.posteriors.shape, mock.samples.shape)
 ```

@@ -32,17 +32,17 @@ def test_mock_1d_truth_consistency():
 
 
 def test_mock_1d_posteriors_round_trip():
-    mock = mock_1d(200, interim_prior="gaussian", rng=2)
+    mock = mock_1d(200, interim="gaussian", rng=2)
     assert mock.posteriors.shape == (200, 30)
     np.testing.assert_allclose(mock.posteriors.sum(1), 1.0)
-    rec = Likelihoods.from_posteriors(mock.posteriors, mock.bins, mock.interim_prior)
+    rec = Likelihoods.from_table(mock.posteriors, mock.bins, interim=mock.interim)
     np.testing.assert_allclose(rec.toarray(), mock.likelihoods.toarray(), rtol=1e-8, atol=1e-12)
 
 
 def test_mock_1d_samples():
-    mock = mock_1d(50, interim_prior="gaussian", n_samples=300, rng=3)
+    mock = mock_1d(50, interim="gaussian", n_samples=300, rng=3)
     assert mock.samples.shape == (50, 300)
-    lk = Likelihoods.from_samples(mock.samples, mock.bins, mock.interim_prior)
+    lk = Likelihoods.from_samples(mock.samples, mock.bins, mock.interim)
     # histogrammed likelihoods correlate with the exact ones
     a, b = lk.toarray().ravel(), mock.likelihoods.toarray().ravel()
     assert np.corrcoef(a, b)[0, 1] > 0.85

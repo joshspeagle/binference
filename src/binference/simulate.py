@@ -69,7 +69,7 @@ class Mock:
     truth: Truth
     measurements: dict[str, np.ndarray] = field(default_factory=dict)
     posteriors: np.ndarray | None = None
-    interim_prior: np.ndarray | None = None
+    interim: np.ndarray | None = None
     samples: np.ndarray | None = None
 
     def __iter__(self) -> Iterator[Any]:
@@ -126,9 +126,12 @@ def _as_density(density: Any, bins: Bins) -> Density:
     return Density.coerce(density, "mass", name="density")
 
 
-def population(bins: Bins, density: Any = "bimodal", n_sub: int = 8) -> np.ndarray:
-    """Population fractions per bin from a density name, :class:`Density`, callable or masses."""
-    return _as_density(density, bins).masses(bins, n_sub)
+def population(bins: Bins, density: Any = "bimodal", tol: float = 1e-6) -> np.ndarray:
+    """Population fractions per bin from a density name, :class:`Density`, callable or masses.
+
+    Densities are integrated over each bin by adaptive quadrature to ``tol``.
+    """
+    return _as_density(density, bins).masses(bins, tol=tol)
 
 
 def _draw_values(bins: Bins, density: Any, n: int, rng: np.random.Generator):
@@ -181,7 +184,7 @@ def mock_1d(
     *,
     density: Any = "bimodal",
     noise: Any = (0.05, 0.2),
-    interim_prior: Any = None,
+    interim: Any = None,
     n_samples: int = 0,
     selection: Any = None,
     outlier_fraction: float = 0.0,
@@ -201,10 +204,10 @@ def mock_1d(
         within bins).
     noise : float or (lo, hi)
         Measurement standard deviation, fixed or drawn uniformly per object.
-    interim_prior : str, callable or array_like, optional
+    interim : str, callable or array_like, optional
         If given, also return per-object posteriors on the bins computed under
         this interim prior (``"gaussian"`` gives a broad Gaussian), as
-        ``mock.posteriors`` with masses ``mock.interim_prior``.
+        ``mock.posteriors`` with masses ``mock.interim``.
     n_samples : int
         If positive, also return ``n_samples`` posterior samples per object
         (under the interim prior, flat if not given) as ``mock.samples``.
@@ -239,28 +242,33 @@ def mock_1d(
         bad = gen.random(n_objects) < outlier_fraction
         obs[bad] = gen.uniform(lo, hi, size=int(bad.sum()))
     lk = Likelihoods.from_gaussian(
-        obs, sigma, bins, selection=selection, selection_mode=None if selection is None else "true"
+        obs,
+        sigma,
+        bins,
+        selection=selection,
+        selection_mode=None if selection is None else "true",
+        warn_outside=False,  # observations near the edges spill past them by construction
     )
     counts = np.bincount(labels, minlength=bins.K).astype(float)
     truth = Truth(rho=rho, labels=labels, values=values, counts=counts, n_drawn=n_drawn)
     mock = Mock(bins, lk, truth, {"mean": obs, "sigma": sigma})
     pi_dens = None
-    if interim_prior is not None:
-        if isinstance(interim_prior, str) and interim_prior == "gaussian":
+    if interim is not None:
+        if isinstance(interim, str) and interim == "gaussian":
             lo, hi = bins.range[0]
-            interim_prior = stats.norm(0.4 * lo + 0.6 * hi, 0.3 * (hi - lo))
-        interim = _as_density(interim_prior, bins)
+            interim = stats.norm(0.4 * lo + 0.6 * hi, 0.3 * (hi - lo))
+        interim = _as_density(interim, bins)
         pi_dens = interim._pointwise()
-        Pi = interim.masses(bins, 8)
+        Pi = interim.masses(bins, tol=1e-6)
         P = lk.toarray() * Pi[None, :]  # row scales are irrelevant after normalising
         mock.posteriors = P / P.sum(axis=1, keepdims=True)
-        mock.interim_prior = Pi
+        mock.interim = Pi
     if n_samples > 0:
         mock.samples = _posterior_samples_1d(
-            obs, sigma, bins, pi_dens, mock.interim_prior, n_samples, gen
+            obs, sigma, bins, pi_dens, mock.interim, n_samples, gen
         )
-        if mock.interim_prior is None:
-            mock.interim_prior = population(bins, "uniform")
+        if mock.interim is None:
+            mock.interim = population(bins, "uniform")
     return mock
 
 
@@ -336,7 +344,12 @@ def mock_2d(
     sigma = _noise(noise, n_objects, gen, shape=(2,))
     obs = values + sigma * gen.standard_normal(values.shape)
     lk = Likelihoods.from_gaussian(
-        obs, sigma, bins, selection=selection, selection_mode=None if selection is None else "true"
+        obs,
+        sigma,
+        bins,
+        selection=selection,
+        selection_mode=None if selection is None else "true",
+        warn_outside=False,  # observations near the edges spill past them by construction
     )
     counts = np.bincount(labels, minlength=bins.K).astype(float)
     truth = Truth(rho=rho, labels=labels, values=values, counts=counts, n_drawn=n_drawn)
@@ -382,7 +395,7 @@ def mock_categorical(
     lk = Likelihoods.from_classifier(post, pi, labels=bins.labels)
     counts = np.bincount(labels, minlength=C).astype(float)
     truth = Truth(rho=prev, labels=labels, values=None, counts=counts, n_drawn=n_objects)
-    return Mock(bins, lk, truth, {"feature": x}, posteriors=post, interim_prior=pi)
+    return Mock(bins, lk, truth, {"feature": x}, posteriors=post, interim=pi)
 
 
 def mock_unfolding(
