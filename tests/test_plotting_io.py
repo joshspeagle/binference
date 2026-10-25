@@ -38,8 +38,7 @@ def test_plot_1d_2d_categorical(res1d, small_1d):
     mc = binference.simulate.mock_categorical(200, 3, rng=1)
     rc = binference.infer(mc.likelihoods, method="gibbs", rng=1, n_samples=50, check=False)
     rc.plot(truth=mc.truth.rho)
-    with pytest.raises(ValueError):
-        res1d.plot(which="rate")
+    assert res1d.plot(which="rate").get_ylabel() == "rate"  # derived rates (DECISIONS #78)
     plt.close("all")
 
 
@@ -99,3 +98,5 @@ def test_to_datatree(res1d):
     dt = res1d.to_datatree()
     assert "posterior" in dt.children
     assert dt["posterior"]["rho"].shape == (4, 100, 12)
+    # rates of a fractions fit are the derived ones, not the fractions (DECISIONS #78)
+    np.testing.assert_allclose(dt["posterior"]["rate"].values.reshape(-1, 12), res1d.rates)

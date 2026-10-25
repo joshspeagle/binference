@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -346,6 +347,13 @@ class _IndividualMixin:
         return lp + lk.log_scale
 
 
+def _draws_rng(draws: np.ndarray) -> np.random.Generator:
+    # a stream seeded by a hash of the draws: reproducible, different for different draws,
+    # and independent of any generator a caller holds (DECISIONS #78)
+    digest = hashlib.sha256(np.ascontiguousarray(draws).tobytes()).digest()
+    return np.random.default_rng(np.frombuffer(digest, dtype=np.uint32))
+
+
 def _same_layout(a: Basis | None, b: Basis | None) -> bool:
     # equal bases up to the identity of their measures, which do not survive save and load
     if a is None or b is None:
@@ -447,6 +455,7 @@ class PopulationResult(_IndividualMixin):
         label_index: np.ndarray | None = None,
         prior_repr: str | None = None,
         basis: Basis | None = None,
+        total: np.ndarray | None = None,
     ) -> None:
         d = np.asarray(draws, dtype=float)
         if d.ndim == 2:
@@ -461,6 +470,12 @@ class PopulationResult(_IndividualMixin):
         self._params = d  # the model's columns: component weights with a basis
         self._draws = self._to_bins(d)  # per bin (the same array without a basis)
         self.kind = kind
+        if kind == "rates":
+            total = self._draws.sum(axis=-1)
+        # for fractions, drawn on first use (see total)
+        self._total = (
+            None if total is None else np.asarray(total, dtype=float).reshape(d.shape[:2])
+        )
         self.bins = (
             bins
             if bins is not None
@@ -516,6 +531,8 @@ class PopulationResult(_IndividualMixin):
         if m.K != K:
             raise ValueError("Likelihoods have a different number of bins.")
         self.model = m
+        if self.kind == "fractions":
+            self._total = None  # drawn again for this model (the same for the same data)
         for key in [k for k in self._cache if isinstance(k, tuple) and k[0] == "predictive_p"]:
             del self._cache[key]  # computed from the previous likelihoods
         return self
@@ -547,11 +564,35 @@ class PopulationResult(_IndividualMixin):
         return self.chains.reshape(-1, self.K)
 
     @property
+    def total(self) -> np.ndarray | None:
+        r"""Draws of the total rate :math:`\Lambda` ``(n_draws,)``, or ``None``.
+
+        For fractions, each draw is :math:`\Lambda \sim \mathrm{Gamma}(W, S\cdot\rho)`
+        given its :math:`\rho`: the exact posterior of the total under the prior
+        :math:`p(\Lambda) \propto 1/\Lambda`, with :math:`W` the number of objects
+        and :math:`S` the detection probabilities or exposures (one without a
+        selection). ``None`` when the selection is only relative (DECISIONS #9,
+        #46, #78) or the result was loaded without its total. For rate models,
+        the sum of the rates.
+
+        The Gamma variates come from a stream seeded by the fraction draws
+        themselves, so the totals are reproducible for any result (also wrapped
+        external draws, and loaded results after :meth:`attach`), independent
+        across different draws, and leave the caller's generator untouched.
+        """
+        if self._total is None and self.model is not None:
+            self._total = self.model.draw_total(self._params, _draws_rng(self._params))
+        return None if self._total is None else self._total.ravel()
+
+    @property
     def rates(self) -> np.ndarray | None:
-        """Rate draws ``(n_draws, K)`` for rate models, else ``None``."""
-        if self.kind != "rates":
-            return None
-        return self._draws.reshape(-1, self.K)
+        r"""Rate draws ``(n_draws, K)``: :math:`\lambda = \Lambda\rho` per draw for
+        fractions (see :attr:`total`), the sampled rates for rate models; ``None``
+        when the total is not available."""
+        if self.kind == "rates":
+            return self._draws.reshape(-1, self.K)
+        total = self.total
+        return None if total is None else total[:, None] * self.samples
 
     def _rho_draws(self) -> np.ndarray:
         return self.samples
@@ -570,9 +611,14 @@ class PopulationResult(_IndividualMixin):
         if which == "fractions":
             return self.samples
         if which == "rates":
-            if self.rates is None:
-                raise ValueError("This result has no rates (fit a GammaRates prior).")
-            return self.rates
+            rates = self.rates
+            if rates is None:
+                raise ValueError(
+                    "This result has no rates: its selection is only relative, so the total "
+                    "is not identified (DECISIONS #46), or it has no model (attach the "
+                    "likelihoods)."
+                )
+            return rates
         if which == "density":
             return self.density()
         raise ValueError("which must be 'fractions', 'rates' or 'density'.")
@@ -970,8 +1016,20 @@ class PointEstimate(_IndividualMixin):
 
     @property
     def rates(self) -> np.ndarray | None:
-        """Rates at the optimum (per bin) for rate models, else ``None``."""
-        return self._to_bins(self.value) if self.kind == "rates" else None
+        """Rates at the optimum (per bin): for fractions :math:`\\hat\\Lambda\\rho` with
+        :math:`\\hat\\Lambda = W / (S\\cdot\\rho)` (``None`` with a relative selection)."""
+        if self.kind == "rates":
+            return self._to_bins(self.value)
+        total = self.total
+        return None if total is None else total * self.rho
+
+    @property
+    def total(self) -> float | None:
+        """Total rate at the optimum (see :attr:`rates`)."""
+        if self.kind == "rates":
+            return float(self.value.sum())
+        S = None if self.model is None else self.model.total_exposure
+        return None if S is None else float(self.model.W / (S @ self.value))
 
     def _rho_draws(self) -> np.ndarray:
         return self.rho[None, :]

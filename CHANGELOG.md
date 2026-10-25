@@ -33,6 +33,9 @@ First development version.
   its inverse, or the cumulative integral of a positive density. `Bins.log` uses the log
   measure; bin centres are midpoints in `u`; `Bins.from_centers` takes midpoints in `u`
   (positive edges for log-spaced centres, I-16). Geometric hand-built edges warn.
+- **Totals and rates from fractions** (DECISIONS #9, #78): every fractions result has
+  `total` (draws of Λ ~ Gamma(W, S·ρ), exact under a scale-free prior) and `rates`
+  (Λρ), with an absolute or no selection; point estimates give W/(S·ρ̂).
 - **Mixture basis and internal resolution** (DECISIONS #4, #5, #47, #76):
   `binference.Basis(bins, order=0|1, resolution=r)` fits components on the bins refined
   `r` times, flat (`order=0`) or linear B-spline hats (`order=1`), and reports in the

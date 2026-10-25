@@ -43,10 +43,12 @@ coarse = result.rebin(mapping)          # (n_draws, 5): fractions in 5 coarse bi
 print(coarse.mean(axis=0).round(3), coarse.std(axis=0).round(3))
 ```
 
-For rate models, `result.rates` holds draws of the expected counts and
-`result.samples` the implied fractions. Pass `which="rates"` to `quantile`,
-`interval` and `summary`. Convergence diagnostics for rate models are
-computed on the rates, so they also cover the total.
+`result.rates` holds draws of the expected counts per bin and `result.total`
+their sum: sampled for rate models, and for fractions drawn exactly from each
+fraction draw given the number of objects and the selection (see
+{doc}`selection`). Pass `which="rates"` to `quantile`, `interval` and
+`summary`. Convergence diagnostics for rate models are computed on the rates,
+so they also cover the total.
 
 ## Individual objects
 

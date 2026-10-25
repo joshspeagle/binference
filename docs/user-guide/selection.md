@@ -109,11 +109,34 @@ print(smooth.rho.round(3))
 
 ## Rates and exposure
 
-With a `GammaRates` prior binference infers $\lambda_k$, the expected **number**
-of objects per bin, as an inhomogeneous Poisson process. The selection
-function then becomes an **exposure** and its absolute scale matters: the
-expected number of detections in bin $k$ is $S_k\lambda_k$. This is how
-occurrence rates per star, or counts per unit time or area, are estimated.
+Every fit of fractions also gives the total and the rates. With $W$ detected
+objects and an absolute selection $S$ (detection probabilities, or exposures
+with `scale="exposure"`), the number of detections is Poisson with mean
+$\Lambda\,S\cdot\rho$, so under the scale-free prior $p(\Lambda)\propto
+1/\Lambda$ the total given the fractions is exactly
+$\Lambda\mid\rho \sim \mathrm{Gamma}(W, S\cdot\rho)$. `result.total` holds
+one such draw per draw of $\rho$ and `result.rates` the rates
+$\lambda_k = \Lambda\rho_k$, the expected **number** of objects per bin
+(per unit exposure); a point estimate gives $\hat\Lambda = W / (S\cdot\rho)$.
+$S$ is taken at face value here: a selection normalised to a maximum of one
+must be declared `scale="relative"`, and then the total is not identified and
+both are `None`. With non-integer weights $W$ is their sum and the Gamma is a
+pseudo-posterior, like the fractions' (see {doc}`inputs`).
+
+```python
+fit = binference.infer(
+    lk, method="gibbs", n_samples=300, rng=1, check=False,
+    selection=binference.Selection(S, "on_truth", scale="exposure"),
+)
+print("total:", fit.total.mean().round(0), "+/-", fit.total.std().round(0),
+      " actually drawn:", mock.truth.n_drawn)
+```
+
+A `GammaRates` prior instead puts independent priors on the rates themselves
+(bin-specific shapes and rates, or an informative total), as an inhomogeneous
+Poisson process; the selection then acts as an exposure in the same way. This
+is how occurrence rates per star, or counts per unit time or area, are
+estimated with prior information on them.
 
 ```python
 est = binference.infer(

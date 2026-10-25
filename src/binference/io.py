@@ -120,6 +120,9 @@ def save_result(result: PopulationResult, path: str) -> None:
     if result.basis is not None:  # the draws per bin follow from the component draws
         meta["basis"] = _basis_meta(result.basis)
         payload["component_draws"] = result.component_draws
+    total = result.total if result.kind == "fractions" else None
+    if total is not None:  # kept so a result loaded without its likelihoods has rates
+        payload["total"] = total.reshape(result._draws.shape[:2])
     payload["meta"] = np.array(json.dumps(meta))
     payload.update(arrays)
     if result.log_density_unconstrained is not None:
@@ -174,6 +177,7 @@ def load_result(path: str) -> PopulationResult:
             label_index=np.array(data["label_index"]) if "label_index" in data.files else None,
             prior_repr=meta.get("prior"),
             basis=basis,
+            total=np.array(data["total"]) if "total" in data.files else None,
         )
 
 
@@ -197,8 +201,10 @@ def to_datatree(result: PopulationResult):
         "bin": np.asarray(_bin_labels(result.bins), dtype=str),
     }
     data_vars = {"rho": (("chain", "draw", "bin"), C)}
-    if result.rates is not None:
-        data_vars["rate"] = (("chain", "draw", "bin"), result._draws)
+    rates = result.rates
+    if rates is not None:
+        data_vars["rate"] = (("chain", "draw", "bin"), rates.reshape(C.shape))
+        data_vars["total"] = (("chain", "draw"), result.total.reshape(C.shape[:2]))
     post = xr.Dataset(
         data_vars,
         coords=coords,

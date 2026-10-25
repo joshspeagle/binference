@@ -33,7 +33,7 @@ def _plt():
 def _draws(result: Any, which: str) -> np.ndarray:
     from .results import PointEstimate
 
-    if isinstance(result, PointEstimate):
+    if isinstance(result, PointEstimate) and which != "rate":
         base = result.density() if which == "density" else result.rho
         return base[None, :]
     if which == "density":
@@ -41,9 +41,10 @@ def _draws(result: Any, which: str) -> np.ndarray:
     if which == "fraction":
         return result.samples
     if which == "rate":
-        if result.rates is None:
-            raise ValueError("No rates in this result.")
-        return result.rates
+        rates = result.rates
+        if rates is None:
+            raise ValueError("No rates in this result (a relative selection, or no model).")
+        return np.atleast_2d(rates)
     raise ValueError("which must be 'density', 'fraction' or 'rate'.")
 
 
@@ -51,7 +52,8 @@ def _to_which(values: np.ndarray, bins: Any, which: str, total: float = 1.0) -> 
     """Overlay values (fractions or rates) on the scale of the plotted posterior.
 
     Overlays are normalised and multiplied by ``total``, the posterior mean total
-    rate for rate models (1 otherwise), so only their shape is compared.
+    when rates are plotted or the model is a rate model (1 otherwise), so only
+    their shape is compared.
     """
     v = np.asarray(values, dtype=float)
     v = v / v.sum()
@@ -86,15 +88,16 @@ def plot_population(
         Central credible levels shown as nested bands.
     truth, stack : array_like (K,), optional
         True fractions and a naive stacked estimate to overlay. Only their
-        shape is used: for rate models they are scaled to the posterior mean
-        total rate.
+        shape is used: for rates (and rate models) they are scaled to the
+        posterior mean total.
     """
     plt = _plt()
     bins = result.bins
     X = _draws(result, which)
     med = np.median(X, axis=0)
-    rates = getattr(result, "rates", None)
-    total = 1.0 if rates is None else float(np.mean(np.sum(np.atleast_2d(rates), axis=-1)))
+    # overlays of rates (and of densities of rate models) are scaled to the mean total
+    scaled = which == "rate" or result.kind == "rates"
+    total = float(np.mean(result.total)) if scaled else 1.0
     if bins.ndim == 2 and not bins.is_categorical:
         return _plot_2d(result, X, plt, ax)
     if ax is None:
