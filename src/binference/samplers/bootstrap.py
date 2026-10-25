@@ -6,7 +6,7 @@ import warnings
 
 import numpy as np
 
-from .._utils import RNGLike, progress
+from .._utils import PACKAGE_DIR, RNGLike, progress
 from ..model import PopulationModel
 from ..results import PopulationResult
 from ..warnings import ApproximationWarning, ConvergenceWarning
@@ -91,7 +91,7 @@ class Bootstrap(Engine):
             "Bootstrap replicates describe the sampling distribution of the MAP estimator, not "
             "the posterior.",
             ApproximationWarning,
-            stacklevel=2,
+            skip_file_prefixes=PACKAGE_DIR,
         )
         return PopulationResult(
             m,

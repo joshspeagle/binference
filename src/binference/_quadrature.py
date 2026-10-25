@@ -10,7 +10,7 @@ from typing import Literal
 import numpy as np
 from scipy import special
 
-from ._utils import chunk_slices
+from ._utils import PACKAGE_DIR, chunk_slices
 from .bins import Bins
 from .measure import _identity
 from .warnings import InputWarning
@@ -177,7 +177,7 @@ def bin_log_average(
             f"Bin averages did not reach tol={tol:g} in {int(unconverged.sum())} bin(s) after "
             f"{max_depth} refinements; raise max_depth or tol.",
             InputWarning,
-            stacklevel=3,
+            skip_file_prefixes=PACKAGE_DIR,
         )
     return out
 

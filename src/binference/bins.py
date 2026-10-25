@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 
+from ._utils import PACKAGE_DIR
 from .measure import Measure
 from .warnings import InputWarning
 
@@ -109,7 +110,7 @@ class Bins:
                         "linear, so the population is taken as flat in z within each bin. "
                         "Pass measure='log' (or use Bins.log) if it should be flat in log z.",
                         InputWarning,
-                        stacklevel=3,
+                        skip_file_prefixes=PACKAGE_DIR,
                     )
             measure = "linear"
         if isinstance(measure, Measure | str):

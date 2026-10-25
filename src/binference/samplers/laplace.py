@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from .. import diagnostics as diag
-from .._utils import RNGLike
+from .._utils import PACKAGE_DIR, RNGLike
 from ..model import PopulationModel
 from ..results import PopulationResult
 from ..warnings import ApproximationWarning, ConvergenceWarning
@@ -111,7 +111,7 @@ class Laplace(Engine):
             warnings.warn(
                 "The Hessian at the mode is not positive definite; clipping eigenvalues.",
                 ApproximationWarning,
-                stacklevel=3,
+                skip_file_prefixes=PACKAGE_DIR,
             )
             lam = np.maximum(lam, 1e-8 * max(1.0, lam.max()))
         cov = (U / lam) @ U.T
@@ -151,14 +151,14 @@ class Laplace(Engine):
                     f"Pareto k-hat = {k_hat:.2f} >= 0.7: the Laplace approximation is not a good "
                     "importance proposal; results are approximate (consider NUTS).",
                     ApproximationWarning,
-                    stacklevel=2,
+                    skip_file_prefixes=PACKAGE_DIR,
                 )
         else:
             X = X[:n_samples]
             warnings.warn(
                 "Uncorrected Laplace approximation: results are approximate.",
                 ApproximationWarning,
-                stacklevel=2,
+                skip_file_prefixes=PACKAGE_DIR,
             )
         vals = m.transform(X)
         return PopulationResult(

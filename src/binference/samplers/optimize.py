@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 from scipy import optimize
 
-from .._utils import RNGLike
+from .._utils import PACKAGE_DIR, RNGLike
 from ..likelihoods import _scale_columns
 from ..model import PopulationModel
 from ..results import PointEstimate
@@ -200,7 +200,7 @@ class MAP(Engine):
                     "concentrations below one, or a Polya tree), so the EM solution can clip "
                     "components to exactly zero; space='unconstrained' gives an interior mode.",
                     InputWarning,
-                    stacklevel=3,
+                    skip_file_prefixes=PACKAGE_DIR,
                 )
             return "simplex"
         if self.space == "unconstrained":
@@ -260,7 +260,7 @@ class MAP(Engine):
             warnings.warn(
                 f"mix-SQP did not converge in {n_iter} iterations.",
                 ConvergenceWarning,
-                stacklevel=3,
+                skip_file_prefixes=PACKAGE_DIR,
             )
         return PointEstimate(
             m,
@@ -325,7 +325,7 @@ class MAP(Engine):
             warnings.warn(
                 msg + "; raise max_iter.",
                 ConvergenceWarning,
-                stacklevel=3,
+                skip_file_prefixes=PACKAGE_DIR,
             )
         gap = m.kkt_gap(v) if weights is None else np.nan
         return PointEstimate(
@@ -397,7 +397,7 @@ class MAP(Engine):
             warnings.warn(
                 f"L-BFGS did not converge ({res.message}); max |gradient| = {gnorm:.2e}.",
                 ConvergenceWarning,
-                stacklevel=3,
+                skip_file_prefixes=PACKAGE_DIR,
             )
         v = m.to_value(x)
         return PointEstimate(

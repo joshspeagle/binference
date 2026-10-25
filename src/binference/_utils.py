@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from collections.abc import Iterable, Iterator
 from typing import Any
@@ -11,6 +12,9 @@ import numpy as np
 __all__ = ["as_generator", "check_positive_weights", "chunk_slices", "progress", "spawn"]
 
 RNGLike = int | np.random.Generator | np.random.SeedSequence | None
+
+#: passed as ``skip_file_prefixes`` so that warnings point at the first line outside the package
+PACKAGE_DIR = (os.path.dirname(os.path.abspath(__file__)) + os.sep,)
 
 
 def as_generator(rng: RNGLike = None) -> np.random.Generator:

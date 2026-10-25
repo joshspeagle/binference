@@ -7,7 +7,7 @@ import warnings
 import numpy as np
 
 from .. import _kernels as kern
-from .._utils import RNGLike
+from .._utils import PACKAGE_DIR, RNGLike
 from ..model import PopulationModel
 from ..results import PopulationResult
 from ..warnings import ApproximationWarning, ConvergenceWarning
@@ -73,7 +73,11 @@ class MeanFieldVB(Engine):
                 break
             mean_old = mean
         if not converged:
-            warnings.warn("Mean-field VB did not converge.", ConvergenceWarning, stacklevel=3)
+            warnings.warn(
+                "Mean-field VB did not converge.",
+                ConvergenceWarning,
+                skip_file_prefixes=PACKAGE_DIR,
+            )
         return state, it, converged
 
     def run(self, n_samples: int = 4000) -> PopulationResult:
@@ -84,7 +88,7 @@ class MeanFieldVB(Engine):
             "Mean-field VB underestimates posterior uncertainty, especially for broad per-object "
             "PDFs; use NUTS (the default) for error bars.",
             ApproximationWarning,
-            stacklevel=2,
+            skip_file_prefixes=PACKAGE_DIR,
         )
         info = {"n_iter": it, "converged": converged, "state": state}
         return PopulationResult(

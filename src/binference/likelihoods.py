@@ -12,7 +12,7 @@ import scipy.sparse as sp
 from scipy import special
 
 from ._quadrature import bin_log_average
-from ._utils import check_positive_weights
+from ._utils import PACKAGE_DIR, check_positive_weights
 from .bins import Bins
 from .density import (
     Density,
@@ -155,7 +155,7 @@ def _record_outside(lk: Likelihoods, outside: np.ndarray, warn: bool = True) -> 
             "their likelihood mass outside the bins (see meta['outside_fraction']); "
             "consider wider bins.",
             InputWarning,
-            stacklevel=3,
+            skip_file_prefixes=PACKAGE_DIR,
         )
 
 
@@ -265,7 +265,7 @@ class Likelihoods:
             warnings.warn(
                 f"Dropping {bad.size} object(s) with zero likelihood in every bin.",
                 InputWarning,
-                stacklevel=3,
+                skip_file_prefixes=PACKAGE_DIR,
             )
             keep = ~empty
             norm = norm[keep] if not sp.issparse(norm) else sp.csr_array(norm)[keep]
@@ -632,7 +632,7 @@ class Likelihoods:
                 f"Median effective number of samples per object is {np.median(n_eff):.1f}; "
                 "histogrammed likelihoods will be noisy (consider more samples or wider bins).",
                 InputWarning,
-                stacklevel=2,
+                skip_file_prefixes=PACKAGE_DIR,
             )
         lk = cls(
             values,
@@ -905,7 +905,7 @@ class Likelihoods:
                     "whose columns sum to one; these columns do not, so the efficiency may "
                     "be counted twice.",
                     InputWarning,
-                    stacklevel=2,
+                    skip_file_prefixes=PACKAGE_DIR,
                 )
             R = R * eff[None, :]
         sel = None if eff is None else Selection(eff, "observed")
@@ -1040,7 +1040,7 @@ def _check_posterior_representation(P, vol: np.ndarray, representation: str) -> 
             f"did you mean representation='{other}'? "
             "(Bins have unequal volumes, so this matters.)",
             InputWarning,
-            stacklevel=3,
+            skip_file_prefixes=PACKAGE_DIR,
         )
 
 

@@ -11,7 +11,7 @@ from scipy import special
 
 from . import _kernels as kern
 from . import diagnostics as diag
-from ._utils import RNGLike, as_generator, chunk_slices
+from ._utils import PACKAGE_DIR, RNGLike, as_generator, chunk_slices
 from .bins import Bins
 from .warnings import ConvergenceWarning
 
@@ -628,7 +628,9 @@ class PopulationResult(_IndividualMixin):
                 text += ". Hint: " + "; ".join(hints)
             if strict:
                 raise RuntimeError(f"Diagnostics failed: {text}")
-            warnings.warn(f"Diagnostics: {text}.", ConvergenceWarning, stacklevel=2)
+            warnings.warn(
+                f"Diagnostics: {text}.", ConvergenceWarning, skip_file_prefixes=PACKAGE_DIR
+            )
         return msgs
 
     def summary(self, level: float = 0.68, which: str = "fractions") -> Summary:
