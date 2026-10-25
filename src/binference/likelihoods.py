@@ -1125,8 +1125,7 @@ class Likelihoods:
         if not keep.any():
             raise ValueError("counts are all zero: there are no observed objects.")
         eff = response.efficiency
-        # the response already averages each truth bin
-        sel = None if np.allclose(eff, 1.0) else Selection(eff, "on_measurement", averaged=True)
+        sel = None if np.allclose(eff, 1.0) else Selection(eff, "on_measurement")
         lk = cls(
             response.matrix[keep],
             response.truth_bins,

@@ -140,7 +140,7 @@ def test_log_predictive_rates_with_selection():
     mock = binference.simulate.mock_1d(400, Bins.linear(0, 3, 4), rng=5)
     S = np.array([1.0, 0.6, 0.3, 0.1])
     model = PopulationModel(mock.likelihoods, P.GammaRates(1.0, 1e-3),
-                            selection=Selection(S, "on_truth", averaged=True))  # fmt: skip
+                            selection=Selection(S, "on_truth"))  # fmt: skip
     lam = np.random.default_rng(0).gamma(5.0, 20.0, size=(50, 4))
     res = PopulationResult(model, lam, method="test", kind="rates")
     new = mock.likelihoods[:5]

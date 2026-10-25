@@ -16,13 +16,13 @@ from typing import Any
 import numpy as np
 from scipy import special, stats
 
-from ._utils import RNGLike, as_generator, chunk_slices
+from ._utils import RNGLike, as_generator
 from .bins import Bins
 from .density import Density
 from .likelihoods import Likelihoods
 from .priors import PopulationPrior
 from .response import Response
-from .selection import Selection
+from .selection import Selection, _bin_average
 
 __all__ = [
     "Mock",
@@ -171,15 +171,8 @@ def _noise(noise: Any, n: int, rng: np.random.Generator, shape=()) -> np.ndarray
     return rng.uniform(lo, hi, size=(n, *shape))
 
 
-def _limits(measured_range):
-    # (lo, hi) with None for an open end
-    lo, hi = measured_range
-    return (-np.inf if lo is None else float(lo)), (np.inf if hi is None else float(hi))
-
-
-def _measured_pass(z, noise, measured_range):
+def _measured_pass(z, noise, lo, hi):
     # P(lo <= z + sigma * e <= hi), averaged over the noise distribution
-    lo, hi = _limits(measured_range)
     if np.ndim(noise) == 0:
         sig, wts = np.array([float(noise)]), np.array([1.0])
     else:
@@ -187,20 +180,7 @@ def _measured_pass(z, noise, measured_range):
         sig = noise[0] + (noise[1] - noise[0]) * 0.5 * (x + 1.0)
         wts = 0.5 * w
     zz = np.asarray(z, dtype=float)[..., None]
-    p = stats.norm.cdf((hi - zz) / sig) - stats.norm.cdf((lo - zz) / sig)
-    return p @ wts
-
-
-def _within_bin_average(bins, density, g, steps=50):
-    # the population-weighted average of g(z) over each 1-D bin (the S_k a model needs)
-    m, u = bins.measures[0], bins.u_edges[0][:, None]
-    j = bins.cell_index[0]
-    du = np.diff(u, axis=0)[j]
-    ze = m.inverse(u[:-1][j] + du * np.linspace(0.0, 1.0, steps + 1))
-    zc = m.inverse(u[:-1][j] + du * (np.arange(steps) + 0.5) / steps)
-    f = _as_density(density, bins)._log_pointwise()
-    w = np.ones_like(zc) if f is None else np.exp(f(zc.ravel())).reshape(zc.shape) * np.diff(ze)
-    return (w * g(zc)).sum(axis=1) / w.sum(axis=1)
+    return (special.ndtr((hi - zz) / sig) - special.ndtr((lo - zz) / sig)) @ wts
 
 
 # ----------------------------------------------------------------------------
@@ -270,29 +250,9 @@ def mock_1d(
     bins = Bins.linear(0.0, 3.0, 30) if bins is None else bins
     if bins.ndim != 1:
         raise ValueError("mock_1d needs one-dimensional bins.")
-    if measured_range is not None and len(measured_range) != 2:
-        raise ValueError("measured_range must be (lo, hi); either may be None.")
-    sel = None
-    if measured_range is not None:
-        passes = _within_bin_average(
-            bins, density, lambda z: _measured_pass(z, noise, measured_range)
-        )
-        sel = (
-            Selection(passes, "on_measurement", averaged=True)
-            if selection is None
-            else Selection.combined(selection, passes, averaged=True)
-        )
-    elif selection is not None:
-        sel = Selection(selection, "on_truth", averaged=True)  # constant within bins
-    mock = _gaussian_mock(bins, density, n_objects, noise, selection, measured_range, sel, gen)
-    if outlier_fraction > 0:
-        lo, hi = bins.range[0]
-        obs = mock.measurements["mean"]
-        bad = gen.random(n_objects) < outlier_fraction
-        obs[bad] = gen.uniform(lo, hi, size=int(bad.sum()))
-        mock.likelihoods = Likelihoods.from_gaussian(
-            obs, mock.measurements["sigma"], bins, selection=sel, warn_outside=False
-        )
+    mock = _gaussian_mock(
+        bins, density, n_objects, noise, selection, measured_range, outlier_fraction, gen
+    )
     lk, obs, sigma = mock.likelihoods, mock.measurements["mean"], mock.measurements["sigma"]
     log_pi = None
     if interim is not None:
@@ -314,10 +274,27 @@ def mock_1d(
     return mock
 
 
-def _gaussian_mock(bins, density, n_objects, noise, selection, measured_range, sel, gen):
+def _gaussian_mock(bins, density, n_objects, noise, on_truth, measured_range, outliers, gen):
     # draw objects until n_objects pass the selection, measure them, and build the mock
+    # with the Selection that describes how they were selected (DECISIONS #48)
+    sel = None if on_truth is None else Selection(on_truth, "on_truth")
+    if measured_range is not None:
+        if len(measured_range) != 2:
+            raise ValueError("measured_range must be (lo, hi); either may be None.")
+        lo = -np.inf if measured_range[0] is None else float(measured_range[0])
+        hi = np.inf if measured_range[1] is None else float(measured_range[1])
+        # S_k: the population-weighted bin average of the probability of passing the cut
+        log_pop = _as_density(density, bins)._log_pointwise()
+        if log_pop is None:  # flat in the measure coordinate within bins
+            log_pop = lambda z: bins.measures[0].log_jacobian(z)  # noqa: E731
+        passes = _bin_average(lambda z: _measured_pass(z, noise, lo, hi), bins, log_weight=log_pop)
+        sel = (
+            Selection(passes[0], "on_measurement")
+            if on_truth is None
+            else Selection.combined(on_truth, passes[0])
+        )
+    S = None if sel is None else sel.row  # thinning on the true bin
     shape = () if bins.ndim == 1 else (bins.ndim,)
-    S = None if selection is None else np.asarray(selection, dtype=float)
     parts: list[tuple[np.ndarray, ...]] = []
     n_drawn, need = 0, n_objects
     while need > 0:
@@ -325,11 +302,13 @@ def _gaussian_mock(bins, density, n_objects, noise, selection, measured_range, s
         v, lab = _draw_values(bins, density, batch, gen)
         sigma = _noise(noise, batch, gen, shape)
         obs = v + sigma * gen.standard_normal(v.shape)
+        if outliers > 0:  # misspecification the likelihoods and the selection ignore
+            bad = gen.random(batch) < outliers
+            obs[bad] = gen.uniform(*bins.range[0], size=int(bad.sum()))
         keep = lab >= 0
         if S is not None:
-            keep &= gen.random(batch) < S[lab]
+            keep &= gen.random(batch) < S[np.maximum(lab, 0)]
         if measured_range is not None:
-            lo, hi = _limits(measured_range)
             keep &= (obs >= lo) & (obs <= hi)
         idx = np.flatnonzero(keep)[:need]
         # count only the draws needed to reach n_objects observed objects
@@ -366,20 +345,12 @@ def _posterior_samples_1d(obs, sigma, bins, log_pi, pi_masses, n_samples, gen):
             log_prior = np.zeros_like(mid)
     log_prior = np.where(k >= 0, log_prior, -np.inf)  # no mass in masked bins
     out = np.empty((obs.size, n_samples))
-    G = grid.size
-    for sl in chunk_slices(obs.size, max(1, 2_000_000 // G)):
-        logp = -0.5 * ((mid - obs[sl, None]) / sigma[sl, None]) ** 2 + log_prior
-        p = np.exp(logp - logp.max(axis=1, keepdims=True))
-        cdf = np.concatenate([np.zeros((p.shape[0], 1)), np.cumsum(p, axis=1)], axis=1)
-        cdf /= cdf[:, -1:]
-        u = gen.random((p.shape[0], n_samples))
-        # one searchsorted for all rows: offset row r by 2r so the rows do not overlap
-        off = 2.0 * np.arange(p.shape[0])[:, None]
-        pos = np.searchsorted((cdf + off).ravel(), (u + off).ravel(), side="right") - 1
-        j = np.clip(pos.reshape(u.shape) - G * np.arange(p.shape[0])[:, None], 0, G - 2)
-        c0, c1 = np.take_along_axis(cdf, j, 1), np.take_along_axis(cdf, j + 1, 1)
-        t = np.divide(u - c0, c1 - c0, out=np.zeros_like(u), where=c1 > c0)
-        out[sl] = grid[j] + t * (grid[j + 1] - grid[j])
+    for i in range(obs.size):
+        logp = -0.5 * ((mid - obs[i]) / sigma[i]) ** 2 + log_prior
+        p = np.exp(logp - logp.max())
+        cdf = np.concatenate(([0.0], np.cumsum(p)))
+        cdf /= cdf[-1]
+        out[i] = np.interp(gen.random(n_samples), cdf, grid)
     return out
 
 
@@ -403,8 +374,7 @@ def mock_2d(
         bins = Bins.grid(np.linspace(0, 1, 21), np.linspace(0, 1, 21))
     if bins.ndim != 2:
         raise ValueError("mock_2d needs a two-dimensional grid.")
-    sel = None if selection is None else Selection(selection, "on_truth", averaged=True)
-    return _gaussian_mock(bins, density, n_objects, noise, selection, None, sel, gen)
+    return _gaussian_mock(bins, density, n_objects, noise, selection, None, 0.0, gen)
 
 
 def mock_categorical(

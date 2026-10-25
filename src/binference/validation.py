@@ -168,11 +168,6 @@ def _thin_draws(res: PopulationResult, n_draws: int) -> np.ndarray:
     return X[idx]
 
 
-def _symbol(result) -> str:
-    # the quantity ranked: fractions rho or rates lambda (audit G-10)
-    return "lambda" if result.kind == "rates" else "rho"
-
-
 def sbc(
     simulate: Simulator,
     fit: Fitter,
@@ -213,7 +208,9 @@ def sbc(
         D = _thin_draws(res, n_draws)
         row = list((D < truth[None, :]).sum(axis=0))
         if not names:
-            names = [f"{_symbol(res)}[{k}]" for k in range(D.shape[1])]
+            names = [
+                f"{'lambda' if res.kind == 'rates' else 'rho'}[{k}]" for k in range(D.shape[1])
+            ]
             if log_likelihood:
                 names.append("loglike")
         if log_likelihood:
@@ -284,7 +281,9 @@ def coverage(
             Q.append(np.array([f(r) for r in X]))
             tq.append(f(truth))
         if not names:
-            names = [f"{_symbol(res)}[{k}]" for k in range(X.shape[1])] + list(functionals)
+            names = [
+                f"{'lambda' if res.kind == 'rates' else 'rho'}[{k}]" for k in range(X.shape[1])
+            ] + list(functionals)
         Q = np.stack(Q, axis=1)
         tq = np.asarray(tq)
         cov = np.empty((levels_arr.size, Q.shape[1]), dtype=bool)

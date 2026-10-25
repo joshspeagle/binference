@@ -105,6 +105,8 @@ class PopulationModel:
         #: per-bin selection values (or ``None``)
         self.selection = None if sel is None else sel.values
         self.selection_mode = None if sel is None else sel.mode
+        #: factor on the likelihood columns (selection on the truth), or ``None``
+        self.selection_row = None if sel is None else sel.row
         # For fractions only ratios of S matter. Data-augmentation steps (Gibbs, EM,
         # VB) impute missed objects with probability 1 - S, so they use S rescaled
         # to a maximum of one, which leaves the posterior unchanged.
@@ -141,8 +143,7 @@ class PopulationModel:
     def effective_likelihoods(self, likelihoods: Likelihoods):
         """Likelihood matrix of (new) objects with this model's selection applied."""
         L = likelihoods.values
-        row = None if self.selection_spec is None else self.selection_spec.row
-        return L if row is None else _scale_columns(L, row)
+        return L if self.selection_row is None else _scale_columns(L, self.selection_row)
 
     def __repr__(self) -> str:
         sel = "" if self.selection is None else f", selection={self.selection_mode!r}"

@@ -41,6 +41,7 @@ import numpy as np
 from ._quadrature import bin_log_average
 from ._utils import frozen, warn
 from .bins import Bins
+from .density import _log_nonneg
 from .warnings import InputWarning
 
 __all__ = ["SELECTION_MODES", "SELECTION_SCALES", "Selection", "as_selection"]
@@ -76,11 +77,6 @@ class Selection:
         (0, 1]. ``"exposure"``: absolute positive values, such as the exposure
         of a rate model. ``"relative"``: only ratios between bins are known,
         which suffices for fractions but not for rates or totals.
-    averaged : bool
-        Whether the values are already the population-weighted averages over
-        each bin (from a function, a simulation, or because selection is
-        constant within bins). Otherwise a warning is raised where the values
-        change steeply between neighbouring bins (DECISIONS #47).
 
     Attributes
     ----------
@@ -91,11 +87,9 @@ class Selection:
         truth, :math:`C_k` combined, ``None`` on the measurement).
     """
 
-    __slots__ = ("averaged", "mode", "row", "scale", "values")
+    __slots__ = ("row", "scale", "values")
 
-    def __init__(
-        self, values: Any, mode: str, *, scale: str = "probability", averaged: bool = False
-    ) -> None:
+    def __init__(self, values: Any, mode: str, *, scale: str = "probability") -> None:
         if mode in _RENAMED:
             raise ValueError(f"selection mode {mode!r} is now {_RENAMED[mode]!r} (DECISIONS #7).")
         if mode not in ("on_truth", "on_measurement"):
@@ -104,14 +98,9 @@ class Selection:
                 f"Selection.combined); got {mode!r}. {_HELP}"
             )
         v = _check_values(values, scale, "selection")
-        self._set(v, mode, v if mode == "on_truth" else None, scale, averaged)
-
-    def _set(self, values, mode, row, scale, averaged) -> None:
-        self.values = frozen(values)
-        self.mode = mode
-        self.row = None if row is None else frozen(np.array(row, dtype=float))
+        self.values = frozen(v)
+        self.row = self.values if mode == "on_truth" else None
         self.scale = scale
-        self.averaged = bool(averaged)
 
     def __setattr__(self, name: str, value: Any) -> None:
         if name in Selection.__slots__ and not hasattr(self, name):
@@ -120,7 +109,15 @@ class Selection:
             raise AttributeError("Selection objects are immutable.")
 
     def __reduce__(self) -> tuple:
-        return _rebuild, (self.values, self.mode, self.row, self.scale, self.averaged)
+        row = "values" if self.row is self.values else self.row
+        return _rebuild, (self.values, row, self.scale)
+
+    @property
+    def mode(self) -> str:
+        """``"on_measurement"``, ``"on_truth"`` or ``"combined"``, from :attr:`row`."""
+        if self.row is None:
+            return "on_measurement"
+        return "on_truth" if self.row is self.values else "combined"
 
     @classmethod
     def from_function(
@@ -138,7 +135,7 @@ class Selection:
         categories). Each bin takes its average in the measure coordinate, the
         within-bin shape of the population (DECISIONS #10, #47).
         """
-        return cls(_bin_average(function, bins), mode, scale=scale, averaged=True)
+        return cls(_bin_average(function, bins)[0], mode, scale=scale)
 
     @classmethod
     def combined(
@@ -148,7 +145,6 @@ class Selection:
         bins: Bins | None = None,
         *,
         scale: str = "probability",
-        averaged: bool = False,
     ) -> Selection:
         """Selection on the truth and on the measurement at once (DECISIONS #8).
 
@@ -160,29 +156,25 @@ class Selection:
             :math:`P(d \\in A \\mid z)`, the probability that the measured data
             pass the cut given the true value.
         bins : Bins, optional
-            Needed when either part is a callable; both are then averaged over
-            each bin in the measure coordinate, the product as a whole.
-        scale, averaged : str, bool
-            As for :class:`Selection`, applied to both parts (callables are
-            always averaged).
+            Needed when either part is a callable, which is then averaged over
+            each bin in the measure coordinate (when both are, the product is
+            averaged as a whole).
+        scale : str
+            As for :class:`Selection`, applied to both parts.
         """
-        if callable(on_truth) or callable(on_measurement):
+        if callable(on_truth) and callable(on_measurement):
             if bins is None:
                 raise ValueError("Selection.combined needs bins when a part is a callable.")
-            C = on_truth if callable(on_truth) else _piecewise(on_truth, bins)
-            T = on_measurement if callable(on_measurement) else _piecewise(on_measurement, bins)
-            row = _check_values(_bin_average(C, bins), scale, "on_truth")
-            values = _check_values(_bin_average(lambda z: C(z) * T(z), bins), scale, "selection")
-            averaged = True
-        else:
-            row = _check_values(on_truth, scale, "on_truth")
-            T = _check_values(on_measurement, scale, "on_measurement")
-            if T.shape != row.shape:
-                raise ValueError("on_truth and on_measurement must have one value per bin.")
-            values = row * T
-        out = cls.__new__(cls)
-        out._set(values, "combined", row, scale, averaged)
-        return out
+            C, CT = _bin_average(on_truth, bins, lambda z: on_measurement(z))
+            return _combined(C, CT / C, scale)
+        parts = []
+        for part in (on_truth, on_measurement):
+            if callable(part):
+                if bins is None:
+                    raise ValueError("Selection.combined needs bins when a part is a callable.")
+                part = _bin_average(part, bins)[0]  # the other part is constant within bins
+            parts.append(part)
+        return _combined(*parts, scale)
 
     @property
     def K(self) -> int:
@@ -197,7 +189,6 @@ class Selection:
         return (
             (self.mode, self.scale) == (other.mode, other.scale)
             and np.array_equal(self.values, other.values)
-            and (self.row is None) == (other.row is None)
             and (self.row is None or np.array_equal(self.row, other.row))
         )
 
@@ -205,9 +196,27 @@ class Selection:
         return hash((self.mode, self.scale, self.values.tobytes()))
 
 
-def _rebuild(values, mode, row, scale, averaged) -> Selection:
+def _combined(on_truth: Any, on_measurement: Any, scale: str) -> Selection:
+    # rows scaled by the truth part, the normaliser by the product
+    C = _check_values(on_truth, scale, "on_truth")
+    T = _check_values(on_measurement, scale, "on_measurement")
+    if T.shape != C.shape:
+        raise ValueError("on_truth and on_measurement must have one value per bin.")
+    return _rebuild(C * T, C, scale)
+
+
+def _rebuild(values: np.ndarray, row: Any, scale: str) -> Selection:
+    # a Selection from its arrays; row is None, "values" (on the truth) or an array
     out = Selection.__new__(Selection)
-    out._set(np.array(values, dtype=float), mode, row, scale, averaged)
+    out.values = frozen(np.array(values, dtype=float))
+    out.row = (
+        out.values
+        if isinstance(row, str)
+        else None
+        if row is None
+        else frozen(np.array(row, dtype=float))
+    )
+    out.scale = scale
     return out
 
 
@@ -231,46 +240,62 @@ def _check_values(values: Any, scale: str, name: str) -> np.ndarray:
     return v
 
 
-def _bin_average(function: Callable, bins: Bins) -> np.ndarray:
-    # each bin's average of a non-negative function, uniform in the measure coordinate
+def _bin_average(
+    function: Callable,
+    bins: Bins,
+    factor: Callable | None = None,
+    log_weight: Callable | None = None,
+) -> np.ndarray:
+    """Weighted bin averages of a non-negative ``function`` (and of ``function * factor``).
+
+    Returns an array with one row: the average of ``function`` over each bin,
+    and a second row with the average of ``function * factor`` when ``factor``
+    is given, both from one adaptive quadrature. The weight is uniform in the
+    measure coordinate (the within-bin population shape), or ``exp(log_weight(z))``
+    per unit ``z`` when given (a population density).
+    """
     if bins.is_categorical:
-        return np.asarray(function(np.asarray(bins.labels, dtype=object)), dtype=float).ravel()
+        labels = np.asarray(bins.labels, dtype=object)
+        f = np.asarray(function(labels), dtype=float).ravel()
+        return f[None] if factor is None else np.stack([f, f * np.ravel(factor(labels))])
 
     def logf(z):
-        v = np.asarray(function(z), dtype=float).ravel()
-        if not np.all(np.isfinite(v)) or np.any(v < 0):
-            raise ValueError("A selection function must return finite, non-negative values.")
-        with np.errstate(divide="ignore"):
-            return np.log(v)[None, :]
+        lf = _log_nonneg(function(z)).ravel()
+        rows = [lf] if factor is None else [lf, lf + _log_nonneg(factor(z)).ravel()]
+        if log_weight is not None:
+            lw = np.asarray(log_weight(z), dtype=float).ravel()
+            rows = [r + lw for r in rows] + [lw]
+        return np.stack(rows)
 
-    return np.exp(bin_log_average(logf, bins, coordinate="measure")[0])
-
-
-def _piecewise(values: Any, bins: Bins) -> Callable[[np.ndarray], np.ndarray]:
-    # an array of per-bin values as a function of z, constant within each bin
-    v = np.asarray(values, dtype=float).ravel()
-    return lambda z: v[bins.index(z)]
+    coordinate = "measure" if log_weight is None else "z"
+    out = bin_log_average(logf, bins, coordinate=coordinate)
+    if log_weight is not None:
+        out = out[:-1] - out[-1]  # divide by the bin's weight
+    return np.exp(out)
 
 
 def _warn_if_steep(values: np.ndarray, bins: Bins) -> None:
     # within-bin variation of S biases the fractions when S changes steeply (DECISIONS #47)
-    if bins.is_categorical:
+    if bins.is_categorical or bins.K < 2:
         return
-    grid = np.full(bins.mask.shape, np.nan)
-    grid[bins.cell_index] = np.log(values)
-    jumps = [np.abs(np.diff(grid, axis=d)) for d in range(grid.ndim)]
-    worst = max(float(np.nanmax(j, initial=0.0)) for j in jumps)
+    pairs = bins.neighbors()
+    worst = float(np.abs(np.diff(np.log(values)[pairs], axis=1)).max(initial=0.0))
     if worst > np.log(STEEP_RATIO):
         warn(
             f"The selection changes by a factor of {np.exp(worst):.3g} between neighbouring "
             "bins; its variation within a bin then biases the fractions there. Pass S as a "
-            "function of the true value (averaged within bins), or use narrower bins.",
+            "function of the true value (averaged within bins), use narrower bins, or pass a "
+            "Selection built from bin averages.",
             InputWarning,
         )
 
 
 def as_selection(selection: Any, mode: str | None, bins: Bins) -> Selection | None:
-    """Normalise user input: ``None``, a :class:`Selection`, a callable or an array plus mode."""
+    """Normalise user input: ``None``, a :class:`Selection`, a callable or an array plus mode.
+
+    A raw array is checked for steep changes between neighbouring bins; a
+    :class:`Selection` or a callable is taken as already averaged within bins.
+    """
     if selection is None:
         if mode is not None:
             raise ValueError("selection_mode was given without a selection function.")
@@ -285,8 +310,8 @@ def as_selection(selection: Any, mode: str | None, bins: Bins) -> Selection | No
         sel = Selection.from_function(selection, bins, mode)
     else:
         sel = Selection(selection, mode)
+        if sel.K == bins.K:
+            _warn_if_steep(sel.values, bins)
     if sel.K != bins.K:
         raise ValueError(f"selection must have length K={bins.K}; got {sel.K}.")
-    if not sel.averaged:
-        _warn_if_steep(sel.values, bins)
     return sel

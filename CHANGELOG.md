@@ -77,7 +77,8 @@ First development version.
   or a callable `selection=`); values are detection probabilities in (0, 1] unless
   declared `scale="exposure"` or `"relative"`, and rates refuse a relative selection
   (audit G-4); an array that changes by more than a factor of two between neighbouring
-  bins raises an `InputWarning` unless declared `averaged=True`.
+  bins raises an `InputWarning` (a `Selection` object or a callable is taken as averaged
+  within bins).
   `simulate.mock_1d(measured_range=...)` simulates selection on the measurement, alone
   or with `selection=` (combined). `sbc`/`coverage` name rates `lambda[k]` (G-10).
 - **Correlated Gaussians** (DECISIONS #2, #25, #66): `from_gaussian(..., cov=)` takes full

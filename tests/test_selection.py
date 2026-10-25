@@ -29,7 +29,7 @@ def test_probabilities_above_one_need_a_declared_scale():
 
 def test_rates_refuse_a_relative_selection():
     mock = mock_1d(200, Bins.linear(0, 3, 3), rng=1)
-    sel = Selection([1.0, 2.0, 3.0], "on_truth", scale="relative", averaged=True)
+    sel = Selection([1.0, 2.0, 3.0], "on_truth", scale="relative")
     with pytest.raises(ValueError, match="absolute"):
         PopulationModel(mock.likelihoods, P.GammaRates(1.0, 1e-3), selection=sel)
     PopulationModel(mock.likelihoods, selection=sel)  # fractions need only ratios
@@ -40,7 +40,6 @@ def test_a_function_is_averaged_over_each_bin_in_the_measure_coordinate():
     np.testing.assert_allclose(lin.values, [0.25, 0.75], rtol=1e-8)
     log = Selection.from_function(np.log, Bins.log(1.0, np.e**2, 2), "on_truth", scale="exposure")
     np.testing.assert_allclose(log.values, [0.5, 1.5], rtol=1e-6)  # the mean of u = log z
-    assert lin.averaged
 
 
 def test_combined_selection_scales_rows_by_the_truth_part_only():
@@ -57,14 +56,14 @@ def test_combined_selection_scales_rows_by_the_truth_part_only():
     )
 
 
-def test_a_steep_array_warns_unless_it_is_already_averaged():
+def test_a_steep_array_warns_but_a_selection_object_or_function_does_not():
     bins = Bins.linear(0, 3, 3)
     mock = mock_1d(200, bins, rng=2)
     with pytest.warns(InputWarning, match="factor of 10"):
         mock.likelihoods.with_selection([0.05, 0.5, 1.0], "on_truth")
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        mock.likelihoods.with_selection(Selection([0.05, 0.5, 1.0], "on_truth", averaged=True))
+        mock.likelihoods.with_selection(Selection([0.05, 0.5, 1.0], "on_truth"))
         mock.likelihoods.with_selection(lambda z: 0.05 + 0.3 * z, "on_truth")
 
 
@@ -76,14 +75,16 @@ def test_a_selection_is_immutable_and_survives_pickling():
         sel.values[0] = 1.0
     back = pickle.loads(pickle.dumps(sel))
     assert back == sel and back.scale == "relative" and not back.row.flags.writeable
+    truth = pickle.loads(pickle.dumps(Selection([0.5, 1.0], "on_truth", scale="exposure")))
+    assert truth.mode == "on_truth" and truth.scale == "exposure"
 
 
-def test_an_open_end_of_the_measured_range_lets_everything_through():
+def test_the_pass_probabilities_of_complementary_cuts_add_to_one():
     from binference.simulate import _measured_pass
 
     z = np.array([0.1, 1.0, 2.0])
-    below = _measured_pass(z, (0.05, 0.5), (None, 1.0))
-    above = _measured_pass(z, (0.05, 0.5), (1.0, None))
+    below = _measured_pass(z, (0.05, 0.5), -np.inf, 1.0)
+    above = _measured_pass(z, (0.05, 0.5), 1.0, np.inf)
     np.testing.assert_allclose(below + above, 1.0, rtol=1e-12)
     assert np.all((below > 0) & (above > 0))
 

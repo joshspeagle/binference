@@ -102,7 +102,7 @@ def test_selection_through_infer():
     a = binference.infer(mock.likelihoods, method="map")
     b = binference.infer(
         mock.likelihoods.with_selection(None),
-        selection=Selection([0.9, 0.5, 0.2], "on_truth", averaged=True),
+        selection=Selection([0.9, 0.5, 0.2], "on_truth"),
         method="map",
     )
     np.testing.assert_allclose(a.rho, b.rho, atol=1e-8)

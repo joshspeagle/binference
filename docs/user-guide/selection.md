@@ -97,8 +97,9 @@ binference warns when an array changes by more than a factor of two between
 neighbouring bins (DECISIONS #47). Pass the selection as a function of the true
 value instead, and it is averaged over each bin in the measure coordinate
 (`Selection.from_function(f, bins, mode)`, or a callable `selection=` with
-`selection_mode`). Values that are already bin averages, for example from a
-simulation, can say so with `averaged=True`.
+`selection_mode`). Only a raw array is checked; values that are already bin
+averages, for example from a simulation, can be passed as a `Selection(S, mode)`
+object.
 
 ```python
 completeness = lambda z: 1.0 / (1.0 + np.exp((np.asarray(z) - 2.0) / 0.1))  # a sharp edge
