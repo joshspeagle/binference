@@ -34,7 +34,7 @@ totals or rates (DECISIONS #46).
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 from scipy import special
@@ -43,6 +43,7 @@ from ._quadrature import bin_log_average
 from ._utils import as_generator, check_positive, frozen, warn
 from .basis import Basis
 from .bins import Bins
+from .priors.logistic import _rw_precision
 from .warnings import InputWarning
 
 __all__ = ["SELECTION_MODES", "SELECTION_SCALES", "Selection", "as_selection"]
@@ -90,8 +91,8 @@ class Selection:
         Set when the values are per component of a :class:`~binference.Basis`
         (:math:`\\phi_k`-weighted averages) rather than per bin.
     injections : tuple or None
-        For a selection measured by injections (:meth:`from_injections`):
-        ``(injected, recovered, (a, b), smooth)``: counts per bin, the Beta prior
+        For a selection measured by injections (:meth:`from_injections`), a named
+        tuple ``(injected, recovered, prior, smooth)``: counts per bin, the Beta prior
         and the step scale of the smooth model (or ``None``). The selection is
         then uncertain, and inferred jointly with the population (DECISIONS #30,
         #80); ``values`` are its posterior means given the injections alone
@@ -189,8 +190,11 @@ class Selection:
         if not (a > 0 and b > 0 and np.isfinite(a) and np.isfinite(b)):
             raise ValueError(f"prior must be two positive numbers (a, b); got {prior!r}.")
         if smooth is not None:
-            if bins.ndim != 1:
-                raise ValueError("smooth needs 1-D bins: the random walk runs along the bins.")
+            if bins.ndim != 1 or bins.K < 3:
+                raise ValueError(
+                    "smooth needs 1-D bins, at least three: the random walk of second "
+                    "differences runs along them."
+                )
             smooth = float(check_positive(smooth, "smooth"))
         inside = k >= 0
         if not inside.all():
@@ -200,7 +204,7 @@ class Selection:
             )
         n = np.bincount(k[inside], minlength=bins.K).astype(float)
         r = np.bincount(k[inside], weights=d[inside].astype(float), minlength=bins.K)
-        injections = (frozen(n), frozen(r), (a, b), smooth)
+        injections = _Injections(frozen(n), frozen(r), (a, b), smooth)
         S = (a + r) / (a + b + n) if smooth is None else special.expit(_logit_mode(injections))
         sel = cls(S, mode)
         object.__setattr__(sel, "injections", injections)
@@ -341,27 +345,34 @@ def _same_injections(a: Any, b: Any) -> bool:
     return np.array_equal(a[0], b[0]) and np.array_equal(a[1], b[1]) and a[2:] == b[2:]
 
 
-def _logit_density(y: np.ndarray, injections: tuple) -> tuple[float, np.ndarray]:
+class _Injections(NamedTuple):
+    """Injection counts per bin and the model of :math:`S` given them."""
+
+    injected: np.ndarray
+    recovered: np.ndarray
+    prior: tuple[float, float]
+    smooth: float | None
+
+
+def _logit_density(y: np.ndarray, injections: _Injections) -> tuple[float, np.ndarray]:
     r"""Log density of :math:`y = \mathrm{logit}\,S` given the injections alone, with
     the Jacobian, and its gradient: :math:`\sum_k s_k\log S_k + f_k\log(1 - S_k)` with
     :math:`s = a + d`, :math:`f = b + n - d`, plus the random walk of the smooth model."""
     n, r, (a, b), tau = injections
     s, f = a + r, b + n - r
-    lp = float(s @ -np.logaddexp(0.0, -y) + f @ -np.logaddexp(0.0, y))
+    lp = float(s @ special.log_expit(y) + f @ special.log_expit(-y))
     g = s - (s + f) * special.expit(y)
     if tau is not None:
         d2 = np.diff(y, 2)
         lp -= 0.5 * float(d2 @ d2) / tau**2
-        g -= np.diff(np.pad(d2, 2), 2) / tau**2  # D2^T d2
+        g -= np.convolve(d2, [1.0, -2.0, 1.0]) / tau**2  # D2^T d2: the stencil is symmetric
     return lp, g
 
 
-def _logit_mode(injections: tuple) -> np.ndarray:
+def _logit_mode(injections: _Injections) -> np.ndarray:
     """The mode of :func:`_logit_density` (strictly concave), by damped Newton steps."""
     n, r, (a, b), tau = injections
-    K = n.size
-    D2 = np.diff(np.eye(K), 2, axis=0)
-    Q = D2.T @ D2 / tau**2
+    Q = _rw_precision(n.size, 2) / tau**2
     y = special.logit((a + r) / (a + b + n))
     lp, g = _logit_density(y, injections)
     for _ in range(100):
@@ -417,7 +428,7 @@ def _rebuild(
     out.injections = (
         None
         if injections is None
-        else (
+        else _Injections(
             frozen(np.array(injections[0])),
             frozen(np.array(injections[1])),
             tuple(injections[2]),

@@ -89,16 +89,21 @@ def _orthonormal_polys(n: int, degree: int) -> np.ndarray:
     return q
 
 
+def _rw_precision(n: int, order: int) -> np.ndarray:
+    """The 1-D random-walk precision ``D_r^T D_r`` of the ``order``-th differences."""
+    if n <= order:
+        raise ValueError(f"A random walk of order {order} needs more than {order} bins per axis.")
+    D = np.diff(np.eye(n), n=order, axis=0)
+    return D.T @ D
+
+
 def _rw_eigen(n: int, order: int) -> tuple[np.ndarray, np.ndarray]:
     """Eigen-decomposition of the 1-D random-walk precision ``D_r^T D_r``.
 
     The first ``order`` eigenvectors are replaced by an explicit orthonormal
     polynomial basis of the null space (constant first), with eigenvalue 0.
     """
-    if n <= order:
-        raise ValueError(f"A random walk of order {order} needs more than {order} bins per axis.")
-    D = np.diff(np.eye(n), n=order, axis=0)
-    Q = D.T @ D
+    Q = _rw_precision(n, order)
     _, U = np.linalg.eigh(Q)
     null = _orthonormal_polys(n, order)
     # project the non-null eigenvectors off the polynomial null space for safety

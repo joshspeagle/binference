@@ -223,14 +223,19 @@ class PopulationModel:
             return -float(S @ value)
         return 0.0 if self.selection is None else -self.W * np.log(float(S @ value))
 
+    def _rows(self, value: np.ndarray, S: np.ndarray | None = None):
+        """The likelihood rows and the column weights for ``value``: the model's rows
+        (selection on the truth applied) and ``value``, or, given a value ``S`` of an
+        inferred selection, the bare rows and :math:`\\rho\\circ S` (DECISIONS #79, #80)."""
+        if S is None:
+            return self._L, value
+        return self.likelihoods.values, value * S
+
     def _ll_and_deta(
         self, value: np.ndarray, S: np.ndarray | None = None
     ) -> tuple[float, np.ndarray]:
-        # S: a draw of an inferred selection (on the truth), scaling the bare rows
-        if S is None:
-            ll, nhat, _ = kern.loglike_and_counts(self._L, self._w, value)
-        else:
-            ll, nhat, _ = kern.loglike_and_counts(self.likelihoods.values, self._w, value * S)
+        L, v = self._rows(value, S)
+        ll, nhat, _ = kern.loglike_and_counts(L, self._w, v)
         if not np.isfinite(ll):
             return -np.inf, np.zeros_like(value)
         ll += self._selection_term(value, S)
@@ -269,13 +274,11 @@ class PopulationModel:
         ll, d_eta = self._ll_and_deta(value, S)
         if not np.isfinite(ll):
             return -np.inf, np.zeros_like(x)
+        lp, g = self.prior.log_prior_and_grad(x[:d], cache, value, d_eta)
         if S is not None:  # the selection's block (DECISIONS #80)
             ls, g_y = _logit_density(x[d:], self.selection_spec.injections)
-            ll += ls
-            g_y = g_y + d_eta * (1.0 - S)
-        lp, g = self.prior.log_prior_and_grad(x[:d], cache, value, d_eta)
-        if S is not None:
-            g = np.concatenate([g, g_y])
+            lp += ls
+            g = np.concatenate([g, g_y + d_eta * (1.0 - S)])
         return ll + lp + self._ll_const, g
 
     def log_density_unconstrained(self, x: np.ndarray) -> float:
@@ -377,11 +380,9 @@ class PopulationModel:
         value of an inferred selection (by default its :attr:`~Selection.values`).
         """
         v = np.asarray(value, dtype=float)
-        if S is None:
-            ll = kern.loglike(self._L, self._w, v)
-        else:
-            S = np.asarray(S, dtype=float)
-            ll = kern.loglike(self.likelihoods.values, self._w, v * S)
+        S = None if S is None else np.asarray(S, dtype=float)
+        L, u = self._rows(v, S)
+        ll = kern.loglike(L, self._w, u)
         if not np.isfinite(ll):
             return -np.inf
         return ll + self._selection_term(v, S) + (self._ll_const if absolute else 0.0)

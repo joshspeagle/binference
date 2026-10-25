@@ -1,12 +1,17 @@
 """Selections measured by injections and inferred with the population (DECISIONS #10, #30,
 #79, #80)."""
 
+import pickle
+import warnings
+
 import numpy as np
 import pytest
+from scipy import special
 
 import binference
 from binference import Bins, Likelihoods, Selection
 from binference.samplers import MAP, NUTS, Gibbs, Laplace, MeanFieldVB
+from binference.selection import _logit_density
 from binference.validation import SBCResult
 
 
@@ -167,8 +172,6 @@ def test_equal_means_from_different_injections_are_different_selections():
     a = Selection.from_injections([0.2, 0.2, 0.7, 0.7], [1, 0, 1, 0], bins, "on_truth")
     b = Selection.from_injections([0.2] * 4 + [0.7] * 4, [1, 0] * 4, bins, "on_truth")
     assert np.allclose(a.values, b.values) and a != b  # Beta(2, 2) against Beta(3, 3)
-    import pickle
-
     back = pickle.loads(pickle.dumps(a))
     assert back == a and not back.injections[0].flags.writeable
 
@@ -219,29 +222,45 @@ def test_joint_inference_with_a_logistic_prior_and_nuts_is_calibrated():
 
 def test_a_smooth_selection_is_the_mode_of_its_injection_posterior():
     bins = Bins.linear(0, 1, 6)
-    rng = np.random.default_rng(4)
-    z, detected = _injections(np.linspace(0.9, 0.2, 6), bins, 3, rng)
+    z, detected = _injections(np.linspace(0.9, 0.2, 6), bins, 3, np.random.default_rng(4))
     sel = Selection.from_injections(z, detected, bins, "on_truth", smooth=0.3)
-    from binference.selection import _logit_density
-
-    _, g = _logit_density(np.log(sel.values / (1 - sel.values)), sel.injections)
+    _, g = _logit_density(special.logit(sel.values), sel.injections)
     np.testing.assert_allclose(g, 0.0, atol=1e-8)
     indep = Selection.from_injections(z, detected, bins, "on_truth")
     assert sel != indep and np.ptp(np.diff(sel.values)) < np.ptp(np.diff(indep.values))
-    import pickle
-
     assert pickle.loads(pickle.dumps(sel)) == sel
+
+
+def test_a_smooth_selection_is_refused_where_it_does_not_apply():
+    bins = Bins.linear(0, 1, 6)
+    z, detected = np.linspace(0.05, 0.95, 12), np.tile([True, False], 6)
+    sel = Selection.from_injections(z, detected, bins, "on_truth", smooth=0.3)
     with pytest.raises(ValueError, match="independent Betas"):
         sel.draw(3)
-    with pytest.raises(TypeError, match="smooth"):
-        Gibbs(binference.PopulationModel(Likelihoods(np.ones((5, 6)), bins), selection=sel))
     m = binference.PopulationModel(Likelihoods(np.ones((5, 6)), bins), selection=sel)
+    with pytest.raises(TypeError, match="smooth"):
+        Gibbs(m)
     assert binference.inference._auto_method(m) == "nuts"
     with pytest.raises(ValueError, match="smooth"):
         Selection.from_injections(z, detected, bins, "on_truth", smooth=0.0)
-    grid = Bins.grid([0, 1, 2], [0, 1, 2])
-    with pytest.raises(ValueError, match="1-D"):
-        Selection.from_injections([[0.5, 0.5]], [1], grid, "on_truth", smooth=1.0)
+    for few in (Bins.grid([0, 1, 2], [0, 1, 2]), Bins.linear(0, 1, 2)):
+        with pytest.raises(ValueError, match="at least three"):
+            Selection.from_injections(few.centers[:1], [1], few, "on_truth", smooth=1.0)
+
+
+def test_nuts_centres_a_logistic_prior_beside_an_inferred_selection():
+    # partial centring acts on the prior's block; draws come back non-centred with logit S
+    lk, sel = _problem()
+    m = binference.PopulationModel(lk, binference.priors.LogisticRandomWalk(), selection=sel)
+    eng = NUTS(m, n_chains=2, n_warmup=60, rng=0, reparametrize=True)
+    eng._geometry_iter = 5
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", binference.ConvergenceWarning)
+        res = eng.run(20)
+    assert "centring" in res.info and res.x.shape == (2, 20, m.dim)
+    x, lp = res.x.reshape(-1, m.dim), res.log_density_unconstrained.ravel()
+    np.testing.assert_allclose([m.log_density_unconstrained(v) for v in x], lp, rtol=1e-8)
+    np.testing.assert_allclose(res.info["selection_draws"].reshape(-1, 4), m.selection_at(x))
 
 
 def test_auto_and_exact_choose_what_they_can_infer():

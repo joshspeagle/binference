@@ -154,10 +154,9 @@ class _IndividualMixin:
         model = self._require_model()
         R = self._select_draws(n_draws, components=True)
         S = getattr(self, "info", {}).get("selection_draws")
-        if S is None:
-            return model._L, R, None
-        S = np.asarray(S).reshape(-1, model.K)[_draw_index(S.size // model.K, n_draws)]
-        return model.likelihoods.values, R * S, S
+        if S is not None:
+            S = np.asarray(S).reshape(-1, model.K)[_draw_index(S.size // model.K, n_draws)]
+        return *model._rows(R, S), S
 
     def _to_bins(self, P: np.ndarray) -> np.ndarray:
         """Per-component values ``(..., C)`` summed into the bins ``(..., K)``."""

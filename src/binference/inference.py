@@ -34,7 +34,7 @@ def _auto_method(model: PopulationModel) -> str:
     if (
         model.selection_uncertain  # Gibbs where it applies: exact and fast (DECISIONS #80)
         and model.prior.conjugate
-        and model.selection_spec.injections[3] is None
+        and model.selection_spec.injections.smooth is None
         and is_integer_array(model.likelihoods.weights)
     ):
         return "gibbs"

@@ -82,7 +82,7 @@ class Gibbs(Engine):
                 f"Gibbs sampling needs a conjugate prior; {model.prior_spec!r} is not. "
                 "Use NUTS instead."
             )
-        if model.selection_uncertain and model.selection_spec.injections[3] is not None:
+        if model.selection_uncertain and model.selection_spec.injections.smooth is not None:
             raise TypeError(
                 "Gibbs sampling infers independent Betas only; a smooth injection model is not "
                 "conjugate. Use NUTS instead."
