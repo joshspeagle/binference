@@ -11,3 +11,4 @@ Republish from the same file path to keep the URL.
 | 1.1 Scope | `briefings/1.1-scope.html` | https://claude.ai/artifact/LVZJm38GXCZdfRTaSqha31 |
 | 1.2 Landscape | `briefings/1.2-landscape.html` | https://claude.ai/artifact/S47UmQCApw7KPEAvKJSQMc |
 | 1.4 Decision log | `briefings/1.4-decision-log.html` | https://claude.ai/artifact/KJHmLwg2Ca79fdFJ8qMEPm |
+| 2.4 Selection | `briefings/2.4-selection.html` | https://claude.ai/artifact/EK1AosKms4YjNF13fCgM4a |

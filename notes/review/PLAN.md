@@ -98,3 +98,4 @@ Seven auditor reports land in `audit/` (see `audit/README.md`). Per DECISIONS #1
 | 1.1 Problem, scope, principles | L1–L2 | done (decisions #33–#37; `vision.md`) | `briefings/1.1-scope.html` (+ .md) | |
 | 1.2 Landscape | L1–L2 | done (decisions #38–#42; `post-v1.md`) | `briefings/1.2-landscape.html` (+ .md) | |
 | 1.4 Decision log D1–D16 | L1 | done (decisions #43–#45; name → binference) | `briefings/1.4-decision-log.html` (+ .md) | |
+| 2.4 Selection (code) | L2–L3 | briefing ready | `briefings/2.4-selection.html` (+ .md) | |
