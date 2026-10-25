@@ -41,8 +41,8 @@ First development version.
   weight. Results report per bin and keep `component_draws`; save and load keep the
   basis. `Bins.refine` is the counterpart of `coarsen`. `sample_values` on non-linear
   measures now draws flat in `u` within a bin (it ignored `T'(z)`).
-- `from_samples` stores likelihoods sparsely below 10% non-zero entries (was 30%), the
-  measured crossover with BLAS threads (DECISIONS #77).
+- `from_samples` stores likelihoods sparsely below 10% non-zero entries (was 30%), and
+  projections onto a `Basis` follow the same rule (DECISIONS #77).
 - **Masked grids** (DECISIONS #19): `mask=` on `Bins`, `Bins.grid`, `Bins.linear` and
   `Bins.log`; masked cells leave the support and the model. Saved and loaded with
   results.

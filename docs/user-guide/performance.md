@@ -45,9 +45,9 @@ The engines spend these differently:
 2. **Use sparse likelihoods.** Narrow PDFs on many bins are mostly zeros.
    `lk.to_sparse(rtol=1e-8)` drops entries below `rtol` times each row's
    maximum. Sparse storage is faster when fewer than about 15–25% of the
-   entries are non-zero with four BLAS threads (30–40% on one thread), and
-   about 4× faster at 5%; `from_samples` returns sparse matrices
-   automatically below 10%.
+   entries are non-zero with four BLAS threads (30–50% on one thread), and
+   about 4× faster at 5% with four threads (10× on one); `from_samples` and
+   projections onto a `Basis` store sparsely below 10%.
 3. **Compress duplicates.** `lk.compress()` merges identical rows into one
    weighted row. Binned photometry, discrete measurements and unfolding data
    often shrink by orders of magnitude, and inference is unchanged.
@@ -76,8 +76,9 @@ chunks, so their memory use does not grow with $N$.
 
 A fused kernel compiled with numba, which reads each row once, ran no faster than
 the NumPy/BLAS path with BLAS threads on four cores (40 ms against 42 ms for
-$N=10^6$, $K=50$), and float32 storage was no faster either while its
-log-likelihood drifted by up to $5\times10^{-4}$ (relative) at $N=10^6$
+$N=10^6$, $K=50$). float32 storage was about 20% faster for $N\le 2\times10^5$
+but slower at $N=10^6$, and its log-likelihood drifted by up to
+$5\times10^{-4}$ (relative) at $N=10^6$
 (`notes/review/experiments/c7c_fused_kernel.out` in the repository), so neither is
 offered yet. The NumPy implementation keeps installation trivial. An optional JAX backend
 (vectorised chains, GPUs) is on the roadmap for problems with $10^8$

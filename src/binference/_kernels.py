@@ -30,9 +30,8 @@ __all__ = [
 
 DEFAULT_CHUNK = 65536
 
-#: below this fraction of non-zero entries, sparse storage is faster than dense for the
-#: likelihood passes (measured crossover 15-25% with 4 BLAS threads, 30-40% with one;
-#: notes/review/experiments/c7c_sparse_threshold.out, DECISIONS #77)
+#: below this fraction of non-zero entries, sparse storage is used: faster than dense for
+#: the likelihood passes (measurements in DECISIONS #77)
 SPARSE_FILL = 0.1
 
 
