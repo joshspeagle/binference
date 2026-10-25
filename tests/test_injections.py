@@ -44,6 +44,14 @@ def test_injection_inputs_are_checked_by_name():
         Selection.from_injections(z, np.ones(8, bool), binference.Basis(bins), "on_truth")
 
 
+def _has_xarray():
+    try:
+        import xarray  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
 def _problem(mode="on_truth", seed=0):
     rng = np.random.default_rng(seed)
     bins = Bins.linear(0, 1, 4)
@@ -63,6 +71,8 @@ def test_only_gibbs_infers_a_selection_from_injections():
     res = binference.infer(lk, selection=sel, method="auto", n_samples=50, rng=0, check=False)
     assert res.method == "gibbs" and res.info["selection_draws"].shape == (4, 50, 4)
     assert res.total.shape == (200,)
+    if _has_xarray():  # exported with the population
+        assert res.to_datatree()["posterior"]["selection"].shape == (4, 50, 4)
 
 
 def test_a_selection_on_the_measurement_is_only_a_plug_in():

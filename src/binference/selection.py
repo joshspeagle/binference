@@ -112,9 +112,13 @@ class Selection:
         else:
             raise AttributeError("Selection objects are immutable.")
 
-    def __reduce__(self) -> tuple:
+    def _parts(self) -> tuple:
+        # the arguments of _rebuild; row as "values" when it is the values (on the truth)
         row = "values" if self.row is self.values else self.row
-        return _rebuild, (self.values, row, self.scale, self.basis, self.injections)
+        return self.values, row, self.scale, self.basis, self.injections
+
+    def __reduce__(self) -> tuple:
+        return _rebuild, self._parts()
 
     @classmethod
     def from_injections(
@@ -186,8 +190,7 @@ class Selection:
     def at_mean(self) -> Selection:
         """This selection fixed at its values (the posterior means for injections),
         ignoring their uncertainty."""
-        row = "values" if self.row is self.values else self.row
-        return _rebuild(self.values, row, self.scale, self.basis)
+        return _rebuild(*self._parts()[:4])
 
     @property
     def mode(self) -> str:

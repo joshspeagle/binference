@@ -98,18 +98,20 @@ class PopulationModel:
             sel = likelihoods.selection
         else:
             sel = as_selection(selection, selection_mode, likelihoods.basis or likelihoods.bins)
-        if sel is not None and sel.injections is not None and sel.mode != "on_truth":
-            raise ValueError(
-                "Only a selection on the truth is inferred from injections: on the measurement "
-                "the likelihoods' cut already fixes S, and with S free the catalogue would add "
-                "only missed objects, driving S to zero. Pass selection.at_mean() as a fixed "
-                "selection, or mode='on_truth' for a completeness."
-            )
-        if sel is not None and sel.injections is not None and self.prior.kind == "rates":
-            raise ValueError(
-                "A selection from injections is inferred jointly for fractions only; for "
-                "rates pass selection.at_mean() or a fixed exposure."
-            )
+        if sel is not None and sel.injections is not None:
+            if sel.mode != "on_truth":
+                raise ValueError(
+                    "Only a selection on the truth is inferred from injections: on the "
+                    "measurement the likelihoods' cut already fixes S, and with S free the "
+                    "catalogue would add only missed objects, driving S to zero. Pass "
+                    "selection.at_mean() as a fixed selection, or mode='on_truth' for a "
+                    "completeness."
+                )
+            if self.prior.kind == "rates":
+                raise ValueError(
+                    "A selection from injections is inferred jointly for fractions only; for "
+                    "rates pass selection.at_mean() or a fixed exposure."
+                )
         if sel is not None and sel.scale == "relative" and self.prior.kind == "rates":
             raise ValueError(
                 "Rates need an absolute selection (exposures); this one is relative "
@@ -282,18 +284,23 @@ class PopulationModel:
         return nhat + self.W * rho * (1.0 - S) / float(S @ rho)
 
     def _draw_missed(
-        self, value: np.ndarray, counts: np.ndarray, rng: np.random.Generator
+        self,
+        value: np.ndarray,
+        counts: np.ndarray,
+        rng: np.random.Generator,
+        S: np.ndarray | None = None,
     ) -> np.ndarray:
         r"""Counts with the missed objects drawn given the fractions (fractions with selection).
 
         Their number is :math:`\mathrm{NegBin}(W, S\cdot\rho)` (failures before
         :math:`W` successes) and their bins :math:`\mathrm{Mult}(\rho\circ(1-S))`, with
-        :math:`S` rescaled to a maximum of one; Gibbs's counterpart of
+        :math:`S` rescaled to a maximum of one (or ``S`` itself, absolute, when an
+        uncertain selection is being drawn); Gibbs's counterpart of
         :meth:`_complete_counts` (audit G-7).
         """
         if self.selection is None or self.kind == "rates":
             return counts
-        S = self._detect
+        S = self._detect if S is None else S
         rho = value / value.sum()
         n_missed = rng.negative_binomial(self.W, float(np.clip(S @ rho, 1e-300, 1.0)))
         if n_missed == 0:

@@ -158,10 +158,7 @@ class Gibbs(Engine):
             chunk=self.chunk,
             unit_weights=self._unit,
         )
-        rho = value / value.sum()
-        n_missed = rng.negative_binomial(m.W, float(np.clip(S @ rho, 1e-300, 1.0)))
-        q = rho * (1.0 - S)
-        missed = rng.multinomial(n_missed, q / q.sum()) if n_missed else np.zeros(m.K)
+        missed = m._draw_missed(value, counts, rng, S=S) - counts  # with the absolute S
         injected, recovered, (a, b) = m.selection_spec.injections
         self._sel[c] = rng.beta(a + recovered + counts, b + injected - recovered + missed)
         self._state[c] = m.prior.posterior_sample(counts + missed, rng)

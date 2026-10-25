@@ -205,6 +205,8 @@ def to_datatree(result: PopulationResult):
     if rates is not None:
         data_vars["rate"] = (("chain", "draw", "bin"), rates.reshape(C.shape))
         data_vars["total"] = (("chain", "draw"), result.total.reshape(C.shape[:2]))
+    if "selection_draws" in result.info:  # an uncertain selection, per draw
+        data_vars["selection"] = (("chain", "draw", "bin"), result.info["selection_draws"])
     post = xr.Dataset(
         data_vars,
         coords=coords,
