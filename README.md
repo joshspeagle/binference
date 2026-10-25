@@ -114,8 +114,8 @@ result.save("fit.npz"); result.to_datatree()       # round-trip to disk; ArviZ-c
   `GeneralizedDirichlet`, `DirichletTree` and `PolyaTree` are conjugate too, so Gibbs sampling works.
 * **Smoothness** on ordered bins and N-D grids: `LogisticRandomWalk`, `LogisticGP`
   and `LogisticNormal`, with hyperparameters inferred.
-* **Selection effects.** Pass `selection=S` with `selection_mode="observed"` (detection
-  efficiency) or `"true"` (completeness in the true bin).
+* **Selection effects.** Pass `selection=S` with `selection_mode="on_measurement"` (detection
+  efficiency) or `"on_truth"` (completeness in the true bin).
 * **Rates.** `GammaRates` gives a Poisson process with exposure, for counts as well as fractions.
 
 ## Engines

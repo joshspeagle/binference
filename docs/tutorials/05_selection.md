@@ -13,9 +13,9 @@ Catalogues are rarely complete. This tutorial treats the two common cases,
 using the vocabulary of the [user guide](../user-guide/selection):
 
 1. **Occurrence rates with a completeness that depends on the true value.**
-   This is `selection_mode="true"` with Poisson rates and an exposure.
+   This is `selection_mode="on_truth"` with Poisson rates and an exposure.
 2. **A cut on the measured value**, as in a flux-limited survey. This is
-   `selection_mode="observed"`.
+   `selection_mode="on_measurement"`.
 
 ```{code-cell} python
 import matplotlib.pyplot as plt
@@ -54,15 +54,17 @@ print(f"{n_planets.sum()} planets, {detected.sum()} detected")
 ```
 
 Detection depends on the true radius, not on the measurement, so this is
-`selection_mode="true"`. To infer rates per star, the exposure is the number
+`selection_mode="on_truth"`. To infer rates per star, the exposure is the number
 of stars times the completeness: the expected number of detections in bin
-$k$ is $N_\star S_k\lambda_k$.
+$k$ is $N_\star S_k\lambda_k$. These values exceed one, so the selection is
+declared an exposure.
 
 ```{code-cell} python
 lk = binference.Likelihoods.from_gaussian(obs_x, sigma, bins)
 fit = binference.infer(
     lk, binference.priors.GammaRates(shape=1.0, rate=1e-3),
-    selection=n_stars * completeness, selection_mode="true", rng=1, n_samples=500, n_warmup=500,
+    selection=binference.Selection(n_stars * completeness, "on_truth", scale="exposure"),
+    rng=1, n_samples=500, n_warmup=500,
 )
 idx = bins.index(obs_x)                                               # -1 outside the bins
 naive = np.bincount(idx[idx >= 0], minlength=bins.K) / n_stars        # detected / stars
@@ -112,7 +114,7 @@ lk_z = binference.Likelihoods.from_gaussian(z_obs[keep], sig_z, zbins)
 print(f"kept {keep.sum()} of {keep.size}")
 ```
 
-Here the selection acts on the measurement, so `selection_mode="observed"`.
+Here the selection acts on the measurement, so `selection_mode="on_measurement"`.
 $S_k$ is the probability that an object in bin $k$ passes the cut, averaged
 over the bin:
 
@@ -124,7 +126,7 @@ S = np.array([pass_prob[(fine >= a) & (fine < b)].mean() for a, b in zip(ze[:-1]
 gp = binference.priors.LogisticGP()
 kw = dict(rng=1, n_samples=500, n_warmup=500)
 fits = {
-    "selection_mode='observed'": binference.infer(lk_z, gp, selection=S, selection_mode="observed",
+    "selection_mode='on_measurement'": binference.infer(lk_z, gp, selection=S, selection_mode="on_measurement",
                                               **kw),
     "no selection": binference.infer(lk_z, gp, **kw),
 }
@@ -151,7 +153,7 @@ from the objects that scattered across the cut, and the smoothness prior
 carries it further. The widening bands show where the data run out.
 
 ```{note}
-Passing `selection_mode="true"` here would be wrong. It would multiply each
+Passing `selection_mode="on_truth"` here would be wrong. It would multiply each
 object's likelihood by $S_k$, as if objects were selected on their true
 redshift, and count the selection twice. Always ask what the selection acts
 on.

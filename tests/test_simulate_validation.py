@@ -51,7 +51,7 @@ def test_mock_1d_samples():
 def test_mock_selection_and_outliers():
     S = np.linspace(1.0, 0.2, 30)
     mock = mock_1d(400, selection=S, outlier_fraction=0.1, rng=4)
-    assert mock.likelihoods.selection.mode == "true"
+    assert mock.likelihoods.selection.mode == "on_truth"
     assert mock.truth.n_drawn > 400
 
 
@@ -62,7 +62,7 @@ def test_mock_2d_categorical_unfolding():
     assert mc.likelihoods.bins.is_categorical
     np.testing.assert_allclose(mc.posteriors.sum(1), 1.0)
     mu = mock_unfolding(2000, rng=7)
-    assert mu.likelihoods.selection.mode == "observed"
+    assert mu.likelihoods.selection.mode == "on_measurement"
     assert mu.response.matrix.shape == (25, 20)
     np.testing.assert_allclose(mu.likelihoods.W, mu.measurements["reco_counts"].sum())
 

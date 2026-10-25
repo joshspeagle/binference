@@ -133,7 +133,7 @@ axes[1].spines[["top", "right"]].set_visible(False)
 
 {meth}`~binference.Likelihoods.from_binned` turns counts and the response into
 weighted likelihood rows, one per reconstructed bin. It attaches the
-efficiency as a selection function with `selection_mode="observed"`, since
+efficiency as a selection function with `selection_mode="on_measurement"`, since
 the response already includes it. Inverting $R$ directly would amplify the
 noise wildly. A smoothness prior regularises the unfolding the Bayesian way:
 it infers how smooth the spectrum is, rather than fixing an iteration count

@@ -16,12 +16,13 @@ from typing import Any
 import numpy as np
 from scipy import special, stats
 
-from ._utils import RNGLike, as_generator
+from ._utils import RNGLike, as_generator, chunk_slices
 from .bins import Bins
 from .density import Density
 from .likelihoods import Likelihoods
 from .priors import PopulationPrior
 from .response import Response
+from .selection import Selection
 
 __all__ = [
     "Mock",
@@ -170,11 +171,30 @@ def _noise(noise: Any, n: int, rng: np.random.Generator, shape=()) -> np.ndarray
     return rng.uniform(lo, hi, size=(n, *shape))
 
 
-def _select(labels, selection, rng):
-    if selection is None:
-        return np.ones(labels.size, dtype=bool)
-    S = np.asarray(selection, dtype=float)
-    return rng.random(labels.size) < S[labels]
+def _measured_pass(z, noise, measured_range):
+    # P(lo <= z + sigma * e <= hi), averaged over the noise distribution
+    lo, hi = (-np.inf if b is None else float(b) for b in measured_range)
+    if np.ndim(noise) == 0:
+        sig, wts = np.array([float(noise)]), np.array([1.0])
+    else:
+        x, w = np.polynomial.legendre.leggauss(16)
+        sig = noise[0] + (noise[1] - noise[0]) * 0.5 * (x + 1.0)
+        wts = 0.5 * w
+    zz = np.asarray(z, dtype=float)[..., None]
+    p = stats.norm.cdf((hi - zz) / sig) - stats.norm.cdf((lo - zz) / sig)
+    return p @ wts
+
+
+def _within_bin_average(bins, density, g, steps=50):
+    # the population-weighted average of g(z) over each 1-D bin (the S_k a model needs)
+    m, u = bins.measures[0], bins.u_edges[0][:, None]
+    j = bins.cell_index[0]
+    du = np.diff(u, axis=0)[j]
+    ze = m.inverse(u[:-1][j] + du * np.linspace(0.0, 1.0, steps + 1))
+    zc = m.inverse(u[:-1][j] + du * (np.arange(steps) + 0.5) / steps)
+    f = _as_density(density, bins)._log_pointwise()
+    w = np.ones_like(zc) if f is None else np.exp(f(zc.ravel())).reshape(zc.shape) * np.diff(ze)
+    return (w * g(zc)).sum(axis=1) / w.sum(axis=1)
 
 
 # ----------------------------------------------------------------------------
@@ -189,6 +209,7 @@ def mock_1d(
     interim: Any = None,
     n_samples: int = 0,
     selection: Any = None,
+    measured_range: tuple[float | None, float | None] | None = None,
     outlier_fraction: float = 0.0,
     rng: RNGLike = None,
 ) -> Mock:
@@ -214,9 +235,11 @@ def mock_1d(
         If positive, also return ``n_samples`` posterior samples per object
         (under the interim prior, flat if not given) as ``mock.samples``.
     selection : array_like (K,), optional
-        Per-bin detection probability depending on the *true* bin; objects are
-        thinned accordingly and the selection is attached to
-        ``mock.likelihoods`` with ``mode="true"``.
+        Per-bin detection probability depending on the *true* bin (selection on
+        the truth): objects are thinned accordingly.
+    measured_range : (lo, hi), optional
+        Selection on the measurement: only objects whose measured value lies in
+        ``[lo, hi]`` are observed (either end may be ``None``).
     outlier_fraction : float
         Fraction of measurements replaced by uniform draws over the range
         (the likelihoods ignore this: a misspecification test).
@@ -224,6 +247,12 @@ def mock_1d(
 
     Notes
     -----
+    The matching :class:`Selection` is attached to ``mock.likelihoods``:
+    ``"on_truth"`` with ``selection``, ``"on_measurement"`` with
+    ``measured_range`` (the population-weighted bin average of the probability
+    that the measured value passes, over the noise distribution), and
+    :meth:`Selection.combined` with both (DECISIONS #48).
+
     With a named or callable density the true values follow that continuous
     density, whereas the histogram model assumes the population is flat within
     each bin. For coarse bins, measurement errors comparable to the bin width
@@ -235,25 +264,30 @@ def mock_1d(
     bins = Bins.linear(0.0, 3.0, 30) if bins is None else bins
     if bins.ndim != 1:
         raise ValueError("mock_1d needs one-dimensional bins.")
-    rho = population(bins, density)
-    values, labels, n_drawn = _draw_selected(bins, density, n_objects, selection, gen)
-    sigma = _noise(noise, n_objects, gen)
-    obs = values + sigma * gen.standard_normal(n_objects)
+    if measured_range is not None and len(measured_range) != 2:
+        raise ValueError("measured_range must be (lo, hi); either may be None.")
+    sel = None
+    if measured_range is not None:
+        passes = _within_bin_average(
+            bins, density, lambda z: _measured_pass(z, noise, measured_range)
+        )
+        sel = (
+            Selection(passes, "on_measurement", averaged=True)
+            if selection is None
+            else Selection.combined(selection, passes, averaged=True)
+        )
+    elif selection is not None:
+        sel = Selection(selection, "on_truth", averaged=True)  # constant within bins
+    mock = _gaussian_mock(bins, density, n_objects, noise, selection, measured_range, sel, gen)
     if outlier_fraction > 0:
         lo, hi = bins.range[0]
+        obs = mock.measurements["mean"]
         bad = gen.random(n_objects) < outlier_fraction
         obs[bad] = gen.uniform(lo, hi, size=int(bad.sum()))
-    lk = Likelihoods.from_gaussian(
-        obs,
-        sigma,
-        bins,
-        selection=selection,
-        selection_mode=None if selection is None else "true",
-        warn_outside=False,  # observations near the edges spill past them by construction
-    )
-    counts = np.bincount(labels, minlength=bins.K).astype(float)
-    truth = Truth(rho=rho, labels=labels, values=values, counts=counts, n_drawn=n_drawn)
-    mock = Mock(bins, lk, truth, {"mean": obs, "sigma": sigma})
+        mock.likelihoods = Likelihoods.from_gaussian(
+            obs, mock.measurements["sigma"], bins, selection=sel, warn_outside=False
+        )
+    lk, obs, sigma = mock.likelihoods, mock.measurements["mean"], mock.measurements["sigma"]
     log_pi = None
     if interim is not None:
         if isinstance(interim, str) and interim == "gaussian":
@@ -274,26 +308,40 @@ def mock_1d(
     return mock
 
 
-def _draw_selected(bins, density, n_objects, selection, gen):
-    vals, labs = [], []
-    n_drawn = 0
-    need = n_objects
+def _gaussian_mock(bins, density, n_objects, noise, selection, measured_range, sel, gen):
+    # draw objects until n_objects pass the selection, measure them, and build the mock
+    shape = () if bins.ndim == 1 else (bins.ndim,)
+    S = None if selection is None else np.asarray(selection, dtype=float)
+    parts: list[tuple[np.ndarray, ...]] = []
+    n_drawn, need = 0, n_objects
     while need > 0:
         batch = max(2 * need, 1000)
         v, lab = _draw_values(bins, density, batch, gen)
-        n_drawn_batch = batch
-        keep = _select(lab, selection, gen) & (lab >= 0)
-        v, lab = v[keep], lab[keep]
-        if v.shape[0] > need:
-            # count only the draws needed to reach n_objects observed objects
-            last = np.flatnonzero(keep)[need - 1]
-            n_drawn_batch = last + 1
-            v, lab = v[:need], lab[:need]
-        vals.append(v)
-        labs.append(lab)
-        n_drawn += n_drawn_batch
-        need -= v.shape[0]
-    return np.concatenate(vals), np.concatenate(labs), n_drawn
+        sigma = _noise(noise, batch, gen, shape)
+        obs = v + sigma * gen.standard_normal(v.shape)
+        keep = lab >= 0
+        if S is not None:
+            keep &= gen.random(batch) < S[lab]
+        if measured_range is not None:
+            lo, hi = (-np.inf if b is None else b for b in measured_range)
+            keep &= (obs >= lo) & (obs <= hi)
+        idx = np.flatnonzero(keep)[:need]
+        # count only the draws needed to reach n_objects observed objects
+        n_drawn += batch if idx.size < need else int(idx[-1]) + 1
+        parts.append((v[idx], lab[idx], sigma[idx], obs[idx]))
+        need -= idx.size
+    values, labels, sigma, obs = (np.concatenate(a) for a in zip(*parts, strict=True))
+    lk = Likelihoods.from_gaussian(
+        obs,
+        sigma,
+        bins,
+        selection=sel,
+        warn_outside=False,  # observations near the edges spill past them by construction
+    )
+    counts = np.bincount(labels, minlength=bins.K).astype(float)
+    rho = population(bins, density)
+    truth = Truth(rho=rho, labels=labels, values=values, counts=counts, n_drawn=n_drawn)
+    return Mock(bins, lk, truth, {"mean": obs, "sigma": sigma})
 
 
 def _posterior_samples_1d(obs, sigma, bins, log_pi, pi_masses, n_samples, gen):
@@ -312,12 +360,20 @@ def _posterior_samples_1d(obs, sigma, bins, log_pi, pi_masses, n_samples, gen):
             log_prior = np.zeros_like(mid)
     log_prior = np.where(k >= 0, log_prior, -np.inf)  # no mass in masked bins
     out = np.empty((obs.size, n_samples))
-    for i in range(obs.size):
-        logp = -0.5 * ((mid - obs[i]) / sigma[i]) ** 2 + log_prior
-        p = np.exp(logp - logp.max())
-        cdf = np.concatenate(([0.0], np.cumsum(p)))
-        cdf /= cdf[-1]
-        out[i] = np.interp(gen.random(n_samples), cdf, grid)
+    G = grid.size
+    for sl in chunk_slices(obs.size, max(1, 2_000_000 // G)):
+        logp = -0.5 * ((mid - obs[sl, None]) / sigma[sl, None]) ** 2 + log_prior
+        p = np.exp(logp - logp.max(axis=1, keepdims=True))
+        cdf = np.concatenate([np.zeros((p.shape[0], 1)), np.cumsum(p, axis=1)], axis=1)
+        cdf /= cdf[:, -1:]
+        u = gen.random((p.shape[0], n_samples))
+        # one searchsorted for all rows: offset row r by 2r so the rows do not overlap
+        off = 2.0 * np.arange(p.shape[0])[:, None]
+        pos = np.searchsorted((cdf + off).ravel(), (u + off).ravel(), side="right") - 1
+        j = np.clip(pos.reshape(u.shape) - G * np.arange(p.shape[0])[:, None], 0, G - 2)
+        c0, c1 = np.take_along_axis(cdf, j, 1), np.take_along_axis(cdf, j + 1, 1)
+        t = np.divide(u - c0, c1 - c0, out=np.zeros_like(u), where=c1 > c0)
+        out[sl] = grid[j] + t * (grid[j + 1] - grid[j])
     return out
 
 
@@ -341,21 +397,8 @@ def mock_2d(
         bins = Bins.grid(np.linspace(0, 1, 21), np.linspace(0, 1, 21))
     if bins.ndim != 2:
         raise ValueError("mock_2d needs a two-dimensional grid.")
-    rho = population(bins, density)
-    values, labels, n_drawn = _draw_selected(bins, density, n_objects, selection, gen)
-    sigma = _noise(noise, n_objects, gen, shape=(2,))
-    obs = values + sigma * gen.standard_normal(values.shape)
-    lk = Likelihoods.from_gaussian(
-        obs,
-        sigma,
-        bins,
-        selection=selection,
-        selection_mode=None if selection is None else "true",
-        warn_outside=False,  # observations near the edges spill past them by construction
-    )
-    counts = np.bincount(labels, minlength=bins.K).astype(float)
-    truth = Truth(rho=rho, labels=labels, values=values, counts=counts, n_drawn=n_drawn)
-    return Mock(bins, lk, truth, {"mean": obs, "sigma": sigma})
+    sel = None if selection is None else Selection(selection, "on_truth", averaged=True)
+    return _gaussian_mock(bins, density, n_objects, noise, selection, None, sel, gen)
 
 
 def mock_categorical(
@@ -433,7 +476,9 @@ def mock_unfolding(
 ) -> Mock:
     """An unfolding problem: an exponential spectrum smeared by a detector.
 
-    True values on [0, 1] follow ``exp(-slope * z)``; events are detected with
+    ``n_events`` counts the events *before* detection, so the number observed
+    is random (``mock.truth.counts.sum()``), unlike the ``n_objects`` of the
+    other mocks. True values on [0, 1] follow ``exp(-slope * z)``; events are detected with
     an efficiency rising linearly across the range, smeared with Gaussian
     ``resolution`` and histogrammed in ``n_reco`` bins on [-0.1, 1.1]. The
     response matrix is computed for a population uniform within each true bin,

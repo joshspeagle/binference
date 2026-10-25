@@ -52,8 +52,8 @@ convergence.
 **Symptom.** Well-detected bins are over-represented, or the correction
 overshoots.
 
-**Fix.** State how selection acts: `selection_mode="observed"` when it acts
-on the measured data, `"true"` when it depends on the true value. Never
+**Fix.** State how selection acts: `selection_mode="on_measurement"` when it acts
+on the measured data, `"on_truth"` when it depends on the true value. Never
 renormalise each object's likelihood over the detectable region *and* pass a
 selection function. See {doc}`selection`.
 

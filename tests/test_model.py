@@ -63,7 +63,7 @@ GRAD_PRIORS = [
 
 
 @pytest.mark.parametrize("prior", GRAD_PRIORS, ids=repr)
-@pytest.mark.parametrize("mode", [None, "observed", "true"])
+@pytest.mark.parametrize("mode", [None, "on_measurement", "on_truth"])
 def test_gradients_match_finite_differences(prior, mode, lk6, rng):
     S = None if mode is None else np.array([0.9, 0.7, 0.5, 0.4, 0.3, 0.2])
     m = PopulationModel(lk6, prior, selection=S, selection_mode=mode)
@@ -104,8 +104,8 @@ def test_selection_modes(lk6, rng):
     S = np.array([0.9, 0.7, 0.5, 0.4, 0.3, 0.2])
     rho = rng.dirichlet(np.ones(6))
     L = lk6.toarray()
-    obs = PopulationModel(lk6, selection=S, selection_mode="observed")
-    tru = PopulationModel(lk6, selection=S, selection_mode="true")
+    obs = PopulationModel(lk6, selection=S, selection_mode="on_measurement")
+    tru = PopulationModel(lk6, selection=S, selection_mode="on_truth")
     W = lk6.N
     assert obs.log_likelihood(rho, absolute=False) == pytest.approx(
         np.log(L @ rho).sum() - W * np.log(S @ rho), rel=1e-12
@@ -116,7 +116,7 @@ def test_selection_modes(lk6, rng):
     with pytest.raises(ValueError, match="selection_mode"):
         PopulationModel(lk6, selection=S)
     # rates: Poisson normalisation e^{-S.lambda}
-    rate = PopulationModel(lk6, P.GammaRates(), selection=S, selection_mode="observed")
+    rate = PopulationModel(lk6, P.GammaRates(), selection=S, selection_mode="on_measurement")
     lam = 50 * rho
     assert rate.log_likelihood(lam, absolute=False) == pytest.approx(
         np.log(L @ lam).sum() - S @ lam, rel=1e-12
@@ -125,14 +125,14 @@ def test_selection_modes(lk6, rng):
 
 def test_selection_attached_to_likelihoods_is_used(lk6):
     S = np.linspace(0.3, 1.0, 6)
-    m = PopulationModel(lk6.with_selection(S, "true"))
-    assert m.selection_mode == "true"
+    m = PopulationModel(lk6.with_selection(S, "on_truth"))
+    assert m.selection_mode == "on_truth"
     np.testing.assert_allclose(m.selection, S)
     # explicit selection overrides
     m2 = PopulationModel(
-        lk6.with_selection(S, "true"), selection=np.ones(6), selection_mode="observed"
+        lk6.with_selection(S, "on_truth"), selection=np.ones(6), selection_mode="on_measurement"
     )
-    assert m2.selection_mode == "observed"
+    assert m2.selection_mode == "on_measurement"
 
 
 def test_kkt_gap_and_missing_information(rng):

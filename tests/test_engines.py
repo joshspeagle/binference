@@ -7,7 +7,7 @@ import pytest
 from scipy import optimize
 
 import binference
-from binference import Bins, Likelihoods, PopulationModel
+from binference import Bins, Likelihoods, PopulationModel, Selection
 from binference import _kernels as kern
 from binference import priors as P
 from binference.samplers import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
@@ -213,7 +213,7 @@ def test_gibbs_selection_matches_exact(k3_selection_problem):
     assert_matches_reference(nuts, exact.mean, exact.std)
 
 
-@pytest.mark.parametrize("mode", ["true", "observed"])
+@pytest.mark.parametrize("mode", ["on_truth", "on_measurement"])
 def test_fraction_selection_only_depends_on_ratios(k3_selection_problem, mode):
     """S and 3 S (values above one) give the same posterior for fractions."""
     mock, _ = k3_selection_problem
@@ -221,7 +221,7 @@ def test_fraction_selection_only_depends_on_ratios(k3_selection_problem, mode):
     S = np.array([0.9, 0.5, 0.25])
     fits = {}
     for scale in (1.0, 3.0):
-        m = PopulationModel(lk, selection=scale * S, selection_mode=mode)
+        m = PopulationModel(lk, selection=Selection(scale * S, mode, scale="relative"))
         est = MAP(m).run()
         gibbs = Gibbs(m, n_chains=2, n_warmup=200, rng=3).run(1500)
         fits[scale] = (est.rho, gibbs.mean, gibbs.std)
@@ -331,7 +331,8 @@ def test_map_squarem_faster_than_em():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", binference.ConvergenceWarning)
         slow = MAP(m, algorithm="em", accelerate=False, max_iter=100000).run()
-    np.testing.assert_allclose(fast.rho, slow.rho, atol=2e-4)
+    # plain EM stops early along flat directions, so the mix-SQP optimum is the reference
+    np.testing.assert_allclose(fast.rho, MAP(m).run().rho, atol=2e-4)
     assert fast.n_iter * 5 < slow.n_iter
 
 
@@ -368,7 +369,7 @@ def test_mixsqp_low_rank_path_and_fallbacks():
         mock.likelihoods,
         P.Dirichlet(2.0),
         selection=np.linspace(1, 0.5, 30),
-        selection_mode="true",
+        selection_mode="on_truth",
     )
     assert MAP(sel).run().info["algorithm"] == "squarem"
     with pytest.raises(ValueError, match="mix-SQP"):
@@ -384,11 +385,11 @@ def test_mixsqp_stops_at_the_round_off_floor():
     assert est.converged and est.n_iter < 50 and est.kkt_gap < 1e-6
 
 
-@pytest.mark.parametrize("mode", ["true", "observed"])
+@pytest.mark.parametrize("mode", ["on_truth", "on_measurement"])
 def test_mixsqp_with_selection_solves_for_observed_fractions(mode):
     mock = binference.simulate.mock_1d(3000, Bins.linear(0, 3, 20), noise=(0.1, 0.3), rng=2)
     S = np.linspace(0.2, 1.0, 20) ** 2
-    m = PopulationModel(mock.likelihoods, selection=3.0 * S, selection_mode=mode)
+    m = PopulationModel(mock.likelihoods, selection=Selection(3.0 * S, mode, scale="relative"))
     sqp = MAP(m).run()
     assert sqp.info["algorithm"] == "mixsqp"
     assert sqp.converged and sqp.n_iter < 50 and sqp.kkt_gap < 1e-7

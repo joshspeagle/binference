@@ -291,14 +291,14 @@ class Likelihoods:
         Allow non-integer weights. They define a weighted pseudo-likelihood,
         not the likelihood of any data set, so posteriors from it are not
         proper posteriors; a warning says so (DECISIONS #1).
-    selection : array_like (K,) or Selection, optional
+    selection : array_like (K,), callable or Selection, optional
         Detection probability (or exposure) per bin, used by models unless
         overridden; see :doc:`/user-guide/selection`.
-    selection_mode : {"observed", "true"}, optional
-        Required with an array-valued ``selection``: whether objects are
-        selected on their observed data (or the likelihoods already include the
+    selection_mode : {"on_measurement", "on_truth"}, optional
+        Required with an array or callable ``selection``: whether objects are
+        selected on their measured data (or the likelihoods already include the
         detection probability), or detected with a probability that depends on
-        their true bin. See :class:`~binference.selection.Selection`.
+        their true value. See :class:`~binference.selection.Selection`.
     drop_empty : bool
         Drop all-zero rows with a warning instead of raising.
     log : bool
@@ -347,7 +347,7 @@ class Likelihoods:
             norm, extra = _normalise_linear(norm)
             log_scale = log_scale + extra
         weights = _check_weights(weights, N, fractional_weights)
-        sel = as_selection(selection, selection_mode, K)
+        sel = as_selection(selection, selection_mode, bins)
         self._init_from_parts(norm, log_scale, bins, weights, sel, meta, drop_empty)
 
     # ------------------------------------------------------------- internals
@@ -511,7 +511,7 @@ class Likelihoods:
 
     def with_selection(self, selection: Any, selection_mode: str | None = None) -> Likelihoods:
         """Copy with a (new) selection function attached (``None`` removes it)."""
-        sel = as_selection(selection, selection_mode, self.K)
+        sel = as_selection(selection, selection_mode, self._bins)
         return Likelihoods._from_parts(
             self._values, self._log_scale, self._bins, self._weights, sel, self.meta
         )
@@ -1075,7 +1075,7 @@ class Likelihoods:
         Every object measured in bin :math:`j` has likelihood row
         :math:`R_{j\cdot}` (:class:`Response`), and rows are weighted by the
         counts. The truth bins are the response's. The efficiency (the column
-        sums of :math:`R`) becomes the selection function in ``"observed"`` mode,
+        sums of :math:`R`) becomes the selection function in ``"on_measurement"`` mode,
         because the rows already include it. This covers unfolding (a detector
         response) and classifier outputs binned by score
         (:meth:`Response.from_labelled`, DECISIONS #29).
@@ -1125,7 +1125,8 @@ class Likelihoods:
         if not keep.any():
             raise ValueError("counts are all zero: there are no observed objects.")
         eff = response.efficiency
-        sel = None if np.allclose(eff, 1.0) else Selection(eff, "observed")
+        # the response already averages each truth bin
+        sel = None if np.allclose(eff, 1.0) else Selection(eff, "on_measurement", averaged=True)
         lk = cls(
             response.matrix[keep],
             response.truth_bins,

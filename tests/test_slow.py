@@ -117,7 +117,7 @@ def _geweke_z_scores(selection, augment_missed=True):
     z = rng.choice(K, size=N, p=rho * S / (S @ rho))
     d = draw_data(z, rng)
     for t in range(T):
-        L = E[:, d].T * S  # effective likelihoods (selection mode "true")
+        L = E[:, d].T * S  # effective likelihoods (selection mode "on_truth")
         counts, z = kern.sample_counts(L, np.ones(N), rho, rng, unit_weights=True)
         if selection is not None and augment_missed:
             n_missed = rng.negative_binomial(N, S @ rho)

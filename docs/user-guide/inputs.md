@@ -233,7 +233,7 @@ $R_{jk}=p(\text{measured in }j,\text{ observed}\mid\text{true bin }k)$, whose co
 sums are the efficiencies $\epsilon_k\le1$. `Likelihoods.from_binned(response,
 counts=...)` (or `values=...`, the measured value of each object) gives every object
 measured in bin $j$ the likelihood row $R_{j\cdot}$, on the response's truth bins, and
-attaches the efficiency as a selection function with mode `"observed"`.
+attaches the efficiency as a selection function with mode `"on_measurement"`.
 
 A response comes from one of three places:
 

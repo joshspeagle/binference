@@ -9,7 +9,7 @@ import scipy.sparse as sp
 from scipy import stats
 
 import binference
-from binference import Bins, Likelihoods, PopulationModel, PopulationResult, Response
+from binference import Bins, Likelihoods, PopulationModel, PopulationResult, Response, Selection
 from binference import priors as P
 from binference.samplers import MAP, NUTS, Bootstrap
 from binference.warnings import ApproximationWarning, InputWarning
@@ -78,7 +78,7 @@ def test_a_migration_matrix_with_an_efficiency_gives_the_joint_response():
     b = Likelihoods.from_binned(Response(migration, mu.bins, efficiency=eps), counts=counts)
     np.testing.assert_allclose(b.toarray(), a.toarray(), rtol=1e-12)
     np.testing.assert_array_equal(b.weights, a.weights)
-    assert a.selection.mode == b.selection.mode == "observed"
+    assert a.selection.mode == b.selection.mode == "on_measurement"
     np.testing.assert_allclose(b.selection.values, a.selection.values, rtol=1e-12)
     with pytest.warns(InputWarning, match="counted twice"):
         Response(R, mu.bins, efficiency=eps)
@@ -139,8 +139,8 @@ def test_sample_values_follow_the_likelihood_within_bins():
 def test_log_predictive_rates_with_selection():
     mock = binference.simulate.mock_1d(400, Bins.linear(0, 3, 4), rng=5)
     S = np.array([1.0, 0.6, 0.3, 0.1])
-    model = PopulationModel(mock.likelihoods, P.GammaRates(1.0, 1e-3), selection=S,
-                            selection_mode="true")  # fmt: skip
+    model = PopulationModel(mock.likelihoods, P.GammaRates(1.0, 1e-3),
+                            selection=Selection(S, "on_truth", averaged=True))  # fmt: skip
     lam = np.random.default_rng(0).gamma(5.0, 20.0, size=(50, 4))
     res = PopulationResult(model, lam, method="test", kind="rates")
     new = mock.likelihoods[:5]
@@ -263,7 +263,7 @@ def test_check_reports_missing_information_when_gibbs_mixes_slowly():
 def test_em_convergence_warning_reports_missing_information():
     mock = binference.simulate.mock_1d(500, Bins.linear(0, 3, 15), noise=(0.4, 0.6), rng=1)
     S = np.linspace(1.0, 0.5, 15)
-    m = PopulationModel(mock.likelihoods, P.Dirichlet(2.0), selection=S, selection_mode="true")
+    m = PopulationModel(mock.likelihoods, P.Dirichlet(2.0), selection=S, selection_mode="on_truth")
     with pytest.warns(binference.ConvergenceWarning, match="missing information"):
         MAP(m, max_iter=5).run()
 
