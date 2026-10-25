@@ -1067,6 +1067,7 @@ class Likelihoods:
                 lk = cls(logL, bins, log=True, **tail)
                 lk.meta.update(source="gaussian")
                 _attach_per_object(lk, gaussian_mean=mu, gaussian_cov=np.array(C))
+                lk.meta["gaussian_options"] = {"tol": tol, "max_depth": max_depth}
                 _record_outside(lk, _outside(special.logsumexp(log_mass, axis=1)), warn_outside)
                 return lk
             sigma = np.sqrt(var)  # independent axes (correlations below 1e-12): exact
@@ -1128,6 +1129,7 @@ class Likelihoods:
         lk.meta.update(source="gaussian")
         # kept so that true values can be drawn from the likelihood within bins
         _attach_per_object(lk, gaussian_mean=mu, gaussian_sigma=np.array(sig))
+        lk.meta["gaussian_options"] = {"tol": tol, "max_depth": max_depth}  # for a rebuild
         _record_outside(lk, _outside(special.logsumexp(log_mass, axis=1)), warn_outside)
         return lk
 

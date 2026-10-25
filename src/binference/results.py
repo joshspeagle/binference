@@ -78,7 +78,7 @@ class Summary:
             for n in names:
                 v = self.columns[n][i]
                 if isinstance(v, float | np.floating):
-                    row.append(f"{v:.4g}" if np.isfinite(v) else "nan")
+                    row.append(f"{v:.4g}")  # inf and nan as themselves
                 else:
                     row.append(str(v))
             rows.append(row)
@@ -622,6 +622,7 @@ def _rebuild_gaussian(lk: Likelihoods, basis: Basis) -> Likelihoods:
         weights=w,
         fractional_weights=not is_integer_array(w),
         warn_outside=False,
+        **meta.get("gaussian_options", {}),
         **spread,
     )
 
@@ -1585,11 +1586,18 @@ class PopulationResult(_IndividualMixin):
         given, e.g. ``lambda b: Likelihoods.from_gaussian(mean, sigma, b)``; likelihoods
         from :meth:`Likelihoods.from_gaussian` rebuild themselves without it. The
         reference is fitted on ``Basis(self.bins, order, resolution)`` with this fit's
-        prior (or ``prior``), selection, engine (or ``method``), chains, warm-up (Gibbs)
-        and draws (or ``n_samples``); ``engine_kwargs`` go to the engine.
+        prior (or ``prior``), selection, engine (or ``method``), chains and draws (or
+        ``n_samples``), and a Gibbs fit's warm-up and thinning when the engine is the
+        same; ``engine_kwargs`` go to the engine.
+
+        The fit's selection keeps only its bin averages, so the reference sees it flat
+        within bins; to test a selection's shape within bins as well, attach it to the
+        likelihoods ``build`` returns, which then take precedence (a selection from
+        injections must be attached that way, fixed).
 
         Returns a table per bin: ``shift``, the reference's mean fraction minus this
-        fit's; ``sd``, this fit's posterior s.d.; ``z = shift / sd``; and, where
+        fit's; ``sd``, this fit's posterior s.d.; ``z = shift / sd`` (NaN where the
+        fit has no spread); and, where
         :math:`|z|` exceeds ``threshold``, ``n_crit`` :math:`= W/z^2`, the number of
         objects at which the shift equals the statistical error (which falls as
         :math:`1/\sqrt{W}`): from a pilot fit, the size above which these bins bias
@@ -1603,20 +1611,45 @@ class PopulationResult(_IndividualMixin):
         model = self._fit_model_only("binning_bias")
         if self.basis is not None or self.bins.is_categorical:
             raise ValueError("binning_bias compares a fit on grid bins with a basis over them.")
+        key = str(self.method if method is None else method).lower()
+        if key not in ("nuts", "gibbs", "laplace", "vb", "bootstrap"):
+            raise ValueError(
+                f"method must be an engine that draws ('nuts', 'gibbs', 'laplace', 'vb' or "
+                f"'bootstrap'); got {key!r}."
+            )
         basis = Basis(self.bins, order=order, resolution=resolution)
-        lk = _rebuild_gaussian(model.likelihoods, basis) if build is None else build(basis)
-        key = self.method if method is None else method
+        if basis.is_identity:
+            raise ValueError(
+                "order=0 with resolution=1 is the bins themselves: nothing to compare."
+            )
+        if build is None:
+            lk = _rebuild_gaussian(model.likelihoods, basis)
+        else:
+            lk = build(basis)
+            if lk.basis != basis or lk.N != model.N or not np.array_equal(lk.weights, model._w):
+                raise ValueError(
+                    "build(basis) must return the fit's objects (same rows and weights) on "
+                    "the basis it is given."
+                )
+        selection = self.selection if lk.selection is None else None  # build's own wins
+        if selection is not None and selection.injections is not None:
+            raise ValueError(
+                "A selection from injections does not move onto a basis: attach a fixed one "
+                "(selection.at_mean()) to the likelihoods build returns."
+            )
+        same = key == self.method
         if key in ("nuts", "gibbs"):  # draws per chain, as the fit had them
             engine_kwargs.setdefault("n_chains", self.n_chains)
-            if "n_warmup" in self.info:
-                engine_kwargs.setdefault("n_warmup", self.info["n_warmup"])
+            for name in ("n_warmup", "thin") if same and key == "gibbs" else ():
+                if name in self.info:
+                    engine_kwargs.setdefault(name, self.info[name])
             n = self.n_draws // self.n_chains
         else:
             n = self.n_draws
         ref = infer(
             lk,
             model.prior_spec if prior is None else prior,
-            selection=self.selection,
+            selection=selection,
             method=key,
             n_samples=n if n_samples is None else n_samples,
             rng=rng,
@@ -1625,7 +1658,7 @@ class PopulationResult(_IndividualMixin):
         )
         sd, shift = self.std, ref.mean - self.mean
         with np.errstate(divide="ignore", invalid="ignore"):
-            z = shift / sd
+            z = np.where(sd > 0, shift / sd, np.nan)  # no spread: nothing to compare with
         big = np.abs(z) > threshold
         n_crit = np.where(big, model.W / np.where(big, z, 1.0) ** 2, np.inf)
         if big.any():
