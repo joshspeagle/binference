@@ -236,3 +236,7 @@ Append-only. One entry per working session (or per step within a long session).
 
 - Published `2.4-selection.html`: Selection object, model and per-engine handling (all correct; M-2 and VB caveats), proof that only ratios of S matter for ρ under the 1/N total prior but totals/rates need absolute S, new within-bin selection bias explorer (11% bias = 1 s.d. at N ≈ 6,600 for a sharp edge), gaps vs #7–#10, #30, #41.
 - Josh agreed all four: absolute/relative S (#46), within-bin selection bias handling (#47), mocks for truth, measurement and combined selection (#48), selected population returned by default (#49). Step 2.4 done; next 2.5.
+
+## 2026-10-25: step 2.5 page
+
+- Published `2.5-individuals.html`: realised counts, assignment probabilities, value draws, predictive methods; explorer of one object's value posterior (histogram vs B-spline, numbers verified in Node; corrected a claim that broad errors remove the effect).

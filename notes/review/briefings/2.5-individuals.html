@@ -1,0 +1,284 @@
+<title>Pastry Individuals</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Literata:opsz,wght@7..72,500;7..72,600&display=swap">
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [["$", "$"], ["\\(", "\\)"]], displayMath: [["$$", "$$"]] },
+    svg: { fontCache: "global" },
+    options: { skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"] }
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
+<style>
+/* Layout: sticky section index on the left, a single reading column on the right; explorers break out to full column width. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #18202b;
+  --muted: #5a6573;
+  --rule: #d9dee5;
+  --accent: #1f5fa8;      /* ink blue: the model, exact quantities */
+  --warm: #b4691f;        /* amber: approximations, the flat-within-bin assumption */
+  --good: #2e7d4f;
+  --alt: #8a3b8f;         /* purple: ignoring selection */
+  --code-bg: #eef1f5;
+  --font-display: "Literata", Georgia, serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
+    --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
+  --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body);
+  font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+.page { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 40px; }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-top: 40px; font-size: 13.5px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+nav.toc a { color: var(--muted); text-decoration: none; display: flex; gap: 8px; padding: 4px 8px; border-radius: 4px; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink); background: var(--code-bg); outline: none; }
+nav.toc .n { font-family: var(--font-mono); width: 1.6em; color: var(--muted); }
+nav.toc .now { color: var(--accent); font-weight: 600; }
+nav.toc .done::after { content: "discussed"; margin-left: auto; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--good); }
+main { min-width: 0; padding-top: 40px; }
+header.top { border-bottom: 1px solid var(--rule); padding-bottom: 24px; margin-bottom: 8px; }
+.eyebrow { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 2.3rem; line-height: 1.15; margin: 6px 0 12px; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.55rem; margin: 0 0 8px; text-wrap: balance; }
+h3 { font-size: 1rem; font-weight: 600; margin: 22px 0 6px; }
+.lede { max-width: 66ch; color: var(--muted); margin: 0; }
+section { padding: 36px 0 8px; border-bottom: 1px solid var(--rule); }
+section > p, section > ul, section > ol { max-width: 68ch; }
+.sec-head { display: flex; align-items: baseline; gap: 12px; }
+.sec-head .n { font-family: var(--font-mono); color: var(--muted); font-size: 14px; }
+.files { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+.eq { overflow-x: auto; padding: 4px 0; }
+.callout { border: 1px solid var(--rule); background: var(--surface); padding: 14px 18px; border-radius: 6px; max-width: 68ch; }
+.callout.approx { border-color: var(--warm); }
+.callout.approx strong { color: var(--warm); }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+details.code { margin: 14px 0; max-width: 820px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+details.code summary { cursor: pointer; padding: 8px 14px; font-size: 13.5px; color: var(--muted); }
+details.code summary b { font-family: var(--font-mono); font-weight: 500; color: var(--ink); }
+details.code pre { margin: 0; padding: 12px 14px; overflow-x: auto; background: var(--code-bg); border-top: 1px solid var(--rule); font-family: var(--font-mono); font-size: 12.8px; line-height: 1.5; border-radius: 0 0 6px 6px; }
+.cm { color: var(--muted); }
+.explorer { margin: 22px 0 10px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 18px; }
+.explorer h3 { margin-top: 0; font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px 20px; margin: 10px 0 14px; }
+.controls label { display: grid; gap: 2px; font-size: 13px; color: var(--muted); }
+.controls .val { font-family: var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+canvas { width: 100%; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+.legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+.stats { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 12px; font-size: 13.5px; }
+.stats b { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+.note { font-size: 13.5px; color: var(--muted); max-width: 70ch; }
+table.tbl { border-collapse: collapse; font-size: 13.5px; margin: 10px 0; }
+.tblwrap { overflow-x: auto; }
+table.tbl th, table.tbl td { padding: 6px 12px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+table.tbl th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+pre.mermaid { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 12px; overflow-x: auto; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 10px; }
+.pair figure { margin: 0; min-width: 0; } .pair figcaption { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 4px; }
+.qs { list-style: none; padding: 0; display: grid; gap: 10px; max-width: 72ch; }
+.qs li { display: grid; grid-template-columns: auto 1fr; gap: 12px; border: 1px solid var(--rule); background: var(--surface); padding: 10px 14px; border-radius: 6px; }
+.qs .tag { font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding-top: 2px; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; max-width: 100%; padding: 2px 0; }
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 12px 0; max-width: 820px; }
+.mode { border: 1px solid var(--rule); background: var(--surface); border-radius: 6px; padding: 12px 14px; min-width: 0; }
+.mode h4 { margin: 0 0 6px; font-size: 14px; } .mode h4 code { font-size: 13px; }
+.mode dl { margin: 0; display: grid; gap: 6px; font-size: 14px; } .mode dt { color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; } .mode dd { margin: 0; min-width: 0; }
+input[type=range] { height: 28px; }
+@media (max-width: 860px) {
+  .page { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--rule); margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  nav.toc .eyebrow { display: none; }
+  nav.toc ol { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  nav.toc ol::-webkit-scrollbar { display: none; }
+  nav.toc a { white-space: nowrap; border: 1px solid var(--rule); border-radius: 999px; padding: 6px 12px; }
+  nav.toc .done::after { content: "✓"; letter-spacing: 0; margin-left: 2px; font-size: 12px; }
+  main { padding-top: 20px; }
+  h1 { font-size: 1.7rem; } h2 { font-size: 1.3rem; }
+  section { padding-top: 28px; scroll-margin-top: 64px; }
+  .explorer { padding: 14px 12px; margin-left: -4px; margin-right: -4px; }
+  .sec-head { flex-wrap: wrap; gap: 4px 10px; }
+}
+section { scroll-margin-top: 16px; }
+.sel { font: inherit; width: 100%; padding: 6px; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); color: var(--ink); }
+</style>
+<style>.qs li > span { min-width: 0; overflow-wrap: anywhere; }</style>
+
+<div class="page">
+<nav class="toc" aria-label="Sections">
+  <div class="eyebrow" style="padding:0 8px 8px">Step 2.5</div>
+  <ol>
+    <li><a href="#b1"><span class="n">1</span>Three answers</a></li>
+    <li><a href="#b2"><span class="n">2</span>This sample</a></li>
+    <li><a href="#b3"><span class="n">3</span>Each object's bin</a></li>
+    <li><a href="#b4"><span class="n">4</span>Each object's value</a></li>
+    <li><a href="#b5"><span class="n">5</span>Findings</a></li>
+    <li><a href="#b6"><span class="n">6</span>To decide</a></li>
+  </ol>
+</nav>
+<main>
+<header class="top">
+  <div class="eyebrow">pastry walkthrough · Phase 2 · level L2</div>
+  <h1>The population, this sample, and each object</h1>
+  <p class="lede">What pastry returns beyond ρ, how each piece is computed in <code>results.py</code> (<code>_IndividualMixin</code>, l. 112–315), and what is exact. Step 2.1 §8 has the explorer for population vs realised-sample intervals; this page adds one for individual objects' values.</p>
+</header>
+
+<section id="b1">
+  <div class="sec-head"><span class="n">§1</span><h2>Three levels of answer</h2></div>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>Question</th><th>Method</th><th>Computed as</th><th>Exact?</th></tr>
+    <tr><td>What population did these objects come from?</td><td><code>samples</code>, <code>summary()</code></td><td>posterior draws of ρ</td><td>yes (NUTS, Gibbs)</td></tr>
+    <tr><td>What is the histogram of <em>these</em> objects' true bins?</td><td><code>realized_counts()</code></td><td>per ρ draw, draw every label $z_i\sim\mathrm{Cat}(r_i(\rho))$ and count</td><td>yes: joint draws of $(\rho, z)$</td></tr>
+    <tr><td>Which bin is object <em>i</em> in?</td><td><code>assignment_probabilities()</code>, <code>sample_assignments()</code></td><td>average of $r_{ik}(\rho)$ over draws; or label draws</td><td>yes</td></tr>
+    <tr><td>What is object <em>i</em>'s true value?</td><td><code>sample_values()</code></td><td>label draw, then a value inside the bin</td><td>exact only under flat-within-bin (§4)</td></tr>
+    <tr><td>Same, for new objects</td><td><code>predict_proba()</code>, <code>log_predictive()</code></td><td>as above, with the fitted population as their prior</td><td>yes</td></tr>
+  </table></div>
+  <p>Here $r_{ik}(\rho) = L_{ik}\rho_k / (L_i\cdot\rho)$ is object <em>i</em>'s posterior over bins given the population, with $\tilde L$ (selection-weighted on the truth) in place of $L$ when there is selection.</p>
+</section>
+
+<section id="b2">
+  <div class="sec-head"><span class="n">§2</span><h2>This sample: <code>realized_counts</code></h2></div>
+  <p>Given ρ, the labels are independent: $z_i\mid\rho, D \sim \mathrm{Cat}(r_i(\rho))$. Drawing ρ from its posterior and then all labels gives exact joint draws, and $n_k = \sum_i w_i\,\mathbf 1[z_i = k]$ is the realised histogram. Integer weights (compressed rows) draw $\mathrm{Mult}(w_i, r_i)$ per row; non-integer weights draw one label per row and weight it.</p>
+  <ul>
+    <li><strong>Why it's narrower than ρ:</strong> ρ carries the multinomial shot noise of having drawn N objects; $n$ doesn't. With precise data, $n$ is nearly known while ρ still has width $\sqrt{\rho_k(1-\rho_k)/N}$ (2.1 §8).</li>
+    <li><strong>With selection</strong> it counts the <em>detected</em> objects only. Gibbs already imputes the missed ones, so a "full sample" version (detected + missed) is available once $S$ is absolute (#46).</li>
+  </ul>
+</section>
+
+<section id="b3">
+  <div class="sec-head"><span class="n">§3</span><h2>Each object's bin: <code>assignment_probabilities</code></h2></div>
+  <p>$P(z_i = k\mid D) = \mathbb E_{\rho\mid D}[r_{ik}(\rho)]$: the average of the conditional posteriors over (up to 500, evenly spaced) population draws. This is the Rao–Blackwellised estimate, smoother than counting label draws.</p>
+  <ul>
+    <li><strong>Shrinkage:</strong> the population acts as each object's prior, so a broad likelihood is pulled towards where the population is.</li>
+    <li><strong>Not leave-one-out:</strong> the population was fitted including object <em>i</em>. That is the correct full posterior; for checking calibration of individual objects, a leave-one-out version would be the honest one (negligible difference at large N).</li>
+    <li><strong>From a point estimate:</strong> a <code>PointEstimate</code> has one "draw", so it returns the plug-in $r_i(\hat\rho)$, which ignores the uncertainty in ρ. Under #35 (draws and a best fit together) both will exist, and they should be labelled differently.</li>
+    <li><strong>Selection:</strong> uses $\tilde L$, so it is the posterior of a <em>detected</em> object: right for the catalogue in hand.</li>
+  </ul>
+</section>
+
+<section id="b4">
+  <div class="sec-head"><span class="n">§4</span><h2>Each object's value: <code>sample_values</code></h2></div>
+  <p>After drawing a bin, a value inside it follows the object's own likelihood times the population <em>inside</em> the bin, which the model takes to be flat. Three paths in the code:</p>
+  <ul>
+    <li><strong>Gaussian inputs:</strong> exact truncated normals per axis (stored means and σ).</li>
+    <li><strong>With <code>loglike(z, i)</code>:</strong> inverse-CDF on 64 sub-points per bin (1-D only; a Python loop over objects).</li>
+    <li><strong>Otherwise:</strong> uniform within the bin (top-hat), accurate only if the likelihood is nearly flat across the bin.</li>
+  </ul>
+  <p>Even the "exact" path inherits the flat-within-bin population: the value draws follow a staircase version of the true population. The explorer shows one object's true-value posterior under a known population.</p>
+  <div class="explorer">
+    <h3>One object's value posterior</h3>
+    <div class="controls">
+      <label>number of bins on [0, 1] <span class="val" id="v-K-v"></span><input type="range" id="v-K" min="4" max="40" step="1" value="10"></label>
+      <label>measurement error σ <span class="val" id="v-sig-v"></span><input type="range" id="v-sig" min="-2" max="-0.7" step="0.05" value="-1.3"></label>
+      <label>measured value d <span class="val" id="v-d-v"></span><input type="range" id="v-d" min="0.05" max="0.95" step="0.01" value="0.38"></label>
+      <label>population <select class="sel" id="v-pop"><option value="peak">narrow peak at 0.3</option><option value="exp">falling, e<sup>−z/0.15</sup></option><option value="two">two peaks</option></select></label>
+    </div>
+    <canvas id="v-main" height="220" aria-label="Value posterior of one object"></canvas>
+    <div class="legend"><span><i style="background:var(--ink)"></i>true posterior</span><span><i style="background:var(--warm)"></i>histogram bins (today)</span><span><i style="background:var(--accent)"></i>linear B-spline basis (#5)</span><span><i style="background:var(--muted)"></i>population</span></div>
+    <div class="stats" id="v-stats"></div>
+    <p class="note">The population is taken as known exactly (infinite N) to isolate the representation. Histogram: bin masses of the true population, flat inside bins. B-spline: hat functions on the bin edges with weights from the population density at the edges (an interpolation, close to but not exactly the fitted weights). Distances are total variation to the true posterior.</p>
+  </div>
+  <p>At the defaults (10 bins, σ = half a bin, an object measured just above a narrow population peak) the histogram version is 0.28 away from the true posterior in total variation and its mean is shifted by 0.018, a third of σ; the B-spline version is 0.08 away. With 40 bins both are close (0.06 and 0.015). Broad errors don't fix it: at σ = 2 bins the posterior takes on the population's own shape, so the histogram's staircase stays (0.24) even though its mean is nearly right. The error matters for objects measured near sharp population features, which is where shrinkage matters most.</p>
+</section>
+
+<section id="b5">
+  <div class="sec-head"><span class="n">§5</span><h2>Findings and proposals</h2></div>
+  <ol>
+    <li><strong>Use each input's own within-bin information.</strong> After the input redesign (#31, #32) most inputs carry it: density inputs can evaluate their density inside the bin; sample inputs can resample the object's own samples that fall in the drawn bin, weighted by $1/\pi(z_s)$ (exact under the model, no extra storage beyond the samples); only tables and binned measurements have none, and they should warn when values are requested.</li>
+    <li><strong>B-spline bases (#5)</strong> change the within-bin population from flat to linear, so value draws become $\propto \phi_k(z)\,p(d_i\mid z)$, and the staircase disappears (explorer).</li>
+    <li><strong>Correlated Gaussians (#25)</strong> need joint truncated draws inside the cell, not per-axis ones.</li>
+    <li><strong>Plug-in vs full (#35):</strong> results that hold a best fit and draws expose both per-object answers, clearly named.</li>
+    <li><strong>Selection (#46, #49):</strong> offer realised counts for the full sample (detected + imputed missed) when S is absolute.</li>
+    <li><strong>Speed:</strong> the <code>loglike</code> path loops over objects in Python; vectorise it when it becomes the density path.</li>
+  </ol>
+</section>
+
+<section id="b6">
+  <div class="sec-head"><span class="n">§6</span><h2>To decide</h2></div>
+  <ul class="qs">
+    <li><span class="tag">§5.1</span><span>Value draws use each input's own within-bin information (density, samples), with a warning for tables and binned inputs?</span></li>
+    <li><span class="tag">§5.4</span><span>Name the plug-in per-object posteriors differently from the full ones (e.g. a <code>plugin=True</code> option on <code>assignment_probabilities</code>, or separate methods)?</span></li>
+    <li><span class="tag">§3</span><span>Offer leave-one-out per-object posteriors for calibration checks (cheap: one rank-one update per object for conjugate fits, PSIS otherwise)?</span></li>
+    <li><span class="tag">§5.5</span><span>Full-sample realised counts under selection?</span></li>
+  </ul>
+</section>
+</main>
+</div>
+<script>
+(function () {
+  const root = document.documentElement, tok = (n) => getComputedStyle(root).getPropertyValue(n).trim();
+  function erf(x) { const s = Math.sign(x); x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x); return s * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x)); }
+  const Phi = (x) => 0.5 * (1 + erf(x / Math.SQRT2)), npdf = (x, m, s) => Math.exp(-0.5 * ((x - m) / s) ** 2) / (s * Math.sqrt(2 * Math.PI));
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const gaussOf = (rnd) => () => { let u = 0; while (u === 0) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); };
+  function setup(cv) { const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.getAttribute("height") * 1; cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.height = h + "px"; const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h); ctx.font = "11px " + tok("--font-mono"); return { ctx, w, h }; }
+  function axes(ctx, x0, y0, x1, y1, xt) { ctx.strokeStyle = tok("--rule"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, y1); ctx.lineTo(x1, y1); ctx.stroke(); ctx.fillStyle = tok("--muted"); ctx.textAlign = "center"; ctx.textBaseline = "top"; for (const [v, px] of xt) ctx.fillText(v, px, y1 + 4); }
+  const P = { K: 10, sig: -1.3, d: 0.38, pop: "peak" };
+  const POPS = {
+    peak: (z) => Math.exp(-0.5 * ((z - 0.3) / 0.04) ** 2) + 0.05,
+    exp: (z) => Math.exp(-z / 0.15),
+    two: (z) => Math.exp(-0.5 * ((z - 0.3) / 0.05) ** 2) + 0.7 * Math.exp(-0.5 * ((z - 0.62) / 0.03) ** 2) + 0.02,
+  };
+  const G = 1200, Z = Array.from({ length: G }, (_, i) => (i + 0.5) / G);
+  function norm(a) { const s = a.reduce((p, q) => p + q, 0); return a.map((v) => v / s * G); }
+  function draw() {
+    const K = P.K, s = Math.pow(10, P.sig), pop = POPS[P.pop], h = 1 / K;
+    const pz = Z.map(pop);
+    // histogram: bin-mean density
+    const bm = new Array(K).fill(0), bc = new Array(K).fill(0);
+    Z.forEach((z, i) => { const k = Math.min(K - 1, Math.floor(z * K)); bm[k] += pz[i]; bc[k]++; });
+    const hist = Z.map((z) => { const k = Math.min(K - 1, Math.floor(z * K)); return bm[k] / bc[k]; });
+    // hat basis: linear interpolation of the density at the K+1 edges
+    const ev = Array.from({ length: K + 1 }, (_, j) => pop(j * h));
+    const hat = Z.map((z) => { const t = z * K, j = Math.min(K - 1, Math.floor(t)), f = t - j; return ev[j] * (1 - f) + ev[j + 1] * f; });
+    const lik = Z.map((z) => Math.exp(-0.5 * ((z - P.d) / s) ** 2));
+    const tru = norm(Z.map((_, i) => pz[i] * lik[i])), ph = norm(Z.map((_, i) => hist[i] * lik[i])), pb = norm(Z.map((_, i) => hat[i] * lik[i]));
+    const tv = (a) => 0.5 * a.reduce((acc, v, i) => acc + Math.abs(v - tru[i]), 0) / G;
+    const mean = (a) => a.reduce((acc, v, i) => acc + v * Z[i], 0) / G;
+    const { ctx, w, h: H } = setup(document.getElementById("v-main"));
+    const L0 = 10, R0 = w - 10, T0 = 10, B0 = H - 22;
+    const ymax = Math.max(...tru, ...ph, ...pb) * 1.08, pmax = Math.max(...pz);
+    const X = (z) => L0 + (R0 - L0) * z, Y = (v) => B0 - (B0 - T0) * v / ymax;
+    axes(ctx, L0, T0, R0, B0, [["0", X(0)], ["0.5", X(0.5)], ["1", X(1)]]);
+    ctx.strokeStyle = tok("--rule"); ctx.lineWidth = 1; for (let k = 1; k < K; k++) { ctx.beginPath(); ctx.moveTo(X(k * h), B0); ctx.lineTo(X(k * h), B0 - 6); ctx.stroke(); }
+    ctx.globalAlpha = 0.18; ctx.fillStyle = tok("--muted"); ctx.beginPath(); ctx.moveTo(X(0), B0); Z.forEach((z, i) => ctx.lineTo(X(z), B0 - (B0 - T0) * 0.9 * pz[i] / pmax)); ctx.lineTo(X(1), B0); ctx.fill(); ctx.globalAlpha = 1;
+    const line = (a, col, lw, dash) => { ctx.strokeStyle = tok(col); ctx.lineWidth = lw; ctx.setLineDash(dash || []); ctx.beginPath(); a.forEach((v, i) => i ? ctx.lineTo(X(Z[i]), Y(v)) : ctx.moveTo(X(Z[i]), Y(v))); ctx.stroke(); ctx.setLineDash([]); };
+    line(ph, "--warm", 2); line(pb, "--accent", 2, [5, 3]); line(tru, "--ink", 1.5);
+    ctx.fillStyle = tok("--ink"); ctx.beginPath(); ctx.moveTo(X(P.d), B0 + 1); ctx.lineTo(X(P.d) - 5, B0 + 9); ctx.lineTo(X(P.d) + 5, B0 + 9); ctx.fill();
+    const f = (v) => v.toFixed(3);
+    document.getElementById("v-stats").innerHTML = `<span>distance, histogram: <b>${f(tv(ph))}</b></span><span>B-spline: <b>${f(tv(pb))}</b></span><span>mean: true <b>${f(mean(tru))}</b>, histogram <b>${f(mean(ph))}</b>, B-spline <b>${f(mean(pb))}</b></span>`;
+    document.getElementById("v-K-v").textContent = K;
+    document.getElementById("v-sig-v").textContent = s.toFixed(3) + " (" + (s / h).toFixed(2) + " bins)";
+    document.getElementById("v-d-v").textContent = P.d.toFixed(2);
+  }
+  ["K", "sig", "d"].forEach((k) => { const el = document.getElementById("v-" + k); el.addEventListener("input", () => { P[k] = +el.value; draw(); }); });
+  document.getElementById("v-pop").addEventListener("change", (e) => { P.pop = e.target.value; draw(); });
+  let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(draw, 120); });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+  new MutationObserver(draw).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+  draw();
+})();
+</script>
