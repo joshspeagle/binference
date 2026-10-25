@@ -108,8 +108,40 @@ def test_only_inputs_without_within_bin_information_warn():
     _values(Likelihoods.from_samples(samples, BINS, interim="flat")[1:])  # rows follow subsets
 
 
-def test_within_bin_data_stay_out_of_pickles():
+def test_workers_get_no_within_bin_data_and_unpicklable_data_pickle_as_empty():
+    from binference.samplers.nuts import _worker_model
+
     # NUTS sends the model to its workers: a lambda density must not stop that
     lk = Likelihoods.from_density(lambda z: np.ones((2, z.size)), BINS, kind="likelihood")
-    copy = pickle.loads(pickle.dumps(binference.PopulationModel(lk)))
-    assert lk.meta["within"].data is not None and copy.likelihoods.meta["within"].data is None
+    model = binference.PopulationModel(lk)
+    assert "within" not in _worker_model(model).likelihoods.meta
+    assert "within" in model.likelihoods.meta  # the caller's model keeps them
+    assert pickle.loads(pickle.dumps(model)).likelihoods.meta["within"].data is None
+    samples = np.random.default_rng(0).normal(0.5, 0.1, (2, 50))
+    kept = Likelihoods.from_samples(samples, BINS, interim="flat").meta["within"]
+    assert pickle.loads(pickle.dumps(kept)).data is not None
+
+
+def test_a_bin_no_sample_reached_draws_flat_within_it():
+    # with a floor, bins without samples keep a likelihood; there the values are flat
+    rng = np.random.default_rng(0)  # object i's samples all lie in bin i % 5
+    samples = 0.2 * (np.arange(20)[:, None] % 5 + rng.uniform(0.0, 1.0, (20, 200)))
+    lk = Likelihoods.from_samples(samples, BINS, interim="flat", floor=50.0)
+    vals = _values(lk)
+    far = vals[vals >= 0.2]
+    k = BINS.index(far)
+    assert far.size > 200
+    mid = BINS.centers[k]
+    assert abs(np.mean(far - mid)) < 4 * 0.2 / np.sqrt(12 * far.size)
+
+
+def test_truncated_normal_draws_keep_their_precision_in_far_tails():
+    from binference.results import _truncnorm
+
+    a, b = np.array([-1.0, 8.0, -12.0]), np.array([0.5, 9.0, -11.0])
+    x = _truncnorm(np.repeat(a, 20_000), np.repeat(b, 20_000), np.random.default_rng(0))
+    for i, (lo, hi) in enumerate(zip(a, b, strict=True)):
+        xi = x[i * 20_000 : (i + 1) * 20_000]
+        ref = stats.truncnorm(lo, hi)
+        assert np.all((xi >= lo) & (xi <= hi))
+        assert abs(xi.mean() - ref.mean()) < 4 * ref.std() / np.sqrt(xi.size)

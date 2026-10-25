@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable, Sequence
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -427,8 +428,8 @@ class _IndividualMixin:
         if loglike is not None and bins.ndim != 1:
             raise ValueError("loglike-based sampling supports 1-D bins only.")
         gen = as_generator(rng)
-        source = _value_source(model.likelihoods.meta, loglike)
-        if source is None:
+        draw, informed = _value_drawer(model, loglike, n_sub, n_sweeps)
+        if not informed:
             what = model.likelihoods.meta.get("source", "a table")
             warn(
                 f"sample_values draws values from the population alone within each bin: these "
@@ -451,10 +452,7 @@ class _IndividualMixin:
                 cells = list(zip(bins.u_edges, bins.grid_index(lab), strict=True))
                 lo = np.stack([u[j] for u, j in cells], axis=-1)
                 hi = np.stack([u[j + 1] for u, j in cells], axis=-1)
-            height = basis.height if hat else None
-            z, ok = _propose_values(
-                model, objects[todo], lab, lo, hi, gen, source, n_sub, height, n_sweeps
-            )
+            z, ok = draw(objects[todo], lab, lo, hi, gen, basis.height if hat else None)
             at = np.flatnonzero(todo)[ok]
             out.reshape(-1, bins.ndim)[at] = z[ok]
             todo.ravel()[at] = False
@@ -628,37 +626,38 @@ def _same_layout(a: Basis | None, b: Basis | None) -> bool:
     ) and all(np.allclose(x, y) for x, y in zip(a.bins.edges, b.bins.edges, strict=True))
 
 
-def _value_source(meta: dict[str, Any], loglike: Any) -> tuple | None:
-    """How :meth:`sample_values` reads an input's likelihood within bins, or ``None``."""
+def _value_drawer(model, loglike, n_sub: int, n_sweeps: int) -> tuple[Callable, bool]:
+    """``draw(objects, labels, lo, hi, gen, height) -> (z, keep)``: values in the boxes
+    ``[lo, hi]`` (in ``u``, ``(n, ndim)``) from the input's own likelihood times the
+    population, flat in ``u`` times the hat's ``height(labels, d, u)`` per axis (``None``
+    when flat); and whether the input has within-bin information (DECISIONS #50)."""
+    meta = model.likelihoods.meta
+    measures = model.bins.measures
+    flat = partial(_draw_subpoints, measures, n_sub, None)
     if loglike is not None:
-        return ("evaluate", _per_object(loglike))
-    if "gaussian_sigma" in meta:
-        return ("gauss",)
-    if "gaussian_cov" in meta:
-        return ("cov",)
+        return partial(_draw_subpoints, measures, n_sub, _per_object(loglike)), True
+    if "gaussian_mean" in meta:
+        return partial(_draw_gauss, measures, n_sub, n_sweeps, meta), True
     within = meta.get("within")
     if within is None or within.data is None or "value_row" not in meta:
-        return None  # e.g. merged by compress, which drops value_row
+        return flat, False  # e.g. rows merged by compress, which drops value_row
     kind, *data = within.data
     row = np.asarray(meta["value_row"])
     if kind == "samples":
-        return ("samples", row, *data)
-    fn, log_pi = data
-    corr = (lambda z: 0.0) if log_pi is None else log_pi
+        direct = model.likelihoods.basis is None  # labels are the bins the samples are in
+        return partial(_draw_samples, measures, flat, direct, row, *data), True
+    (logl,) = data
     if kind == "objects":
-        from .density import _dist_logpdf
+        evaluate = _per_object(lambda z, i: logl(z, row[i]))
+    else:
 
-        return ("evaluate", _per_object(lambda z, i: _dist_logpdf(fn[row[i]], z) - corr(z)))
+        def evaluate(objects, labels, zz):  # one call at the sub-points of every bin in use
+            _, first, inverse = np.unique(labels, return_index=True, return_inverse=True)
+            pts = zz[first]
+            vals = np.asarray(logl(pts.ravel())).reshape(-1, *pts.shape)
+            return vals[row[objects], inverse.ravel()]
 
-    def rows(objects, labels, zz):  # one call per bin, for every object in it
-        out = np.empty(zz.shape)
-        for k in np.unique(labels):
-            at = np.flatnonzero(labels == k)
-            pts = zz[at[0]]
-            out[at] = np.asarray(fn(pts))[row[objects[at]]] - corr(pts)
-        return out
-
-    return ("evaluate", rows)
+    return partial(_draw_subpoints, measures, n_sub, evaluate), True
 
 
 def _per_object(loglike: Callable[[np.ndarray, int], np.ndarray]) -> Callable:
@@ -678,9 +677,14 @@ def _per_object(loglike: Callable[[np.ndarray, int], np.ndarray]) -> Callable:
     return evaluate
 
 
-def _subpoint_draw(zlo, zhi, logw, gen, objects) -> np.ndarray:
-    """One value per row in ``[zlo, zhi]`` by inverse-CDF sampling on the sub-points
-    (midpoints of equal cells in ``z``) with log-weights ``logw`` ``(n, n_sub)``."""
+def _subpoints(zlo, zhi, n_sub):
+    # midpoints of n_sub equal cells in z of each box, (n, n_sub)
+    return zlo[:, None] + (zhi - zlo)[:, None] * ((np.arange(n_sub) + 0.5) / n_sub)
+
+
+def _subpoint_draw(zz, width, logw, gen, objects) -> np.ndarray:
+    """One value per row by inverse-CDF sampling on the sub-points ``zz`` (cells of
+    ``width / n_sub``) with log-weights ``logw``."""
     n, n_sub = logw.shape
     empty = ~np.isfinite(logw).any(axis=1)
     if empty.any():  # it drew from the box's first sub-point before (audit O-11)
@@ -688,15 +692,8 @@ def _subpoint_draw(zlo, zhi, logw, gen, objects) -> np.ndarray:
             f"The likelihood is zero at all {n_sub} sub-points of a bin with posterior "
             f"mass (object {int(objects[empty][0])}); raise n_sub or check loglike."
         )
-    w = np.exp(logw - np.max(logw, axis=1, keepdims=True))
-    c = np.cumsum(w, axis=1)
-    cell = np.sum(c < gen.random(n)[:, None] * c[:, -1:], axis=1)
-    zz0 = zlo + (zhi - zlo) * (cell + 0.5) / n_sub
-    return zz0 + (zhi - zlo) / n_sub * (gen.random(n) - 0.5)
-
-
-def _subpoints(zlo, zhi, n_sub):
-    return zlo[:, None] + (zhi - zlo)[:, None] * ((np.arange(n_sub) + 0.5) / n_sub)
+    cell = kern._sample_labels_dense(np.exp(logw - logw.max(axis=1, keepdims=True)), 1.0, gen)
+    return zz[np.arange(n), cell] + width / n_sub * (gen.random(n) - 0.5)
 
 
 def _base_logw(m, zz, labels, d, height):
@@ -707,123 +704,114 @@ def _base_logw(m, zz, labels, d, height):
         )
 
 
-def _propose_values(model, objects, labels, lo, hi, gen, source, n_sub, height, n_sweeps):
-    """Values in the boxes ``[lo, hi]`` (in ``u``, ``(n, ndim)``), and whether to keep them.
+def _draw_subpoints(measures, n_sub, evaluate, objects, labels, lo, hi, gen, height):
+    # each axis on n_sub sub-points: the population, times evaluate(objects, labels, zz)
+    z = np.empty(lo.shape)
+    for d, m in enumerate(measures):
+        zlo, zhi = m.inverse(lo[:, d]), m.inverse(hi[:, d])
+        zz = _subpoints(zlo, zhi, n_sub)
+        logw = _base_logw(m, zz, labels, d, height)
+        if evaluate is not None:
+            logw = logw + evaluate(objects, labels, zz)
+        z[:, d] = _subpoint_draw(zz, zhi - zlo, logw, gen, objects)
+    return z, np.ones(len(z), dtype=bool)
 
-    Inside a box the population is flat in ``u`` times ``height(labels, d, u)``
-    per axis (a hat; ``None`` for flat), so its density in ``z`` carries
-    :math:`T'(z)`; values follow the object's likelihood (``source``, see
-    :func:`_value_source`) times that density.
-    """
-    kind = None if source is None else source[0]
-    if kind == "samples":
-        return _resample_values(model, objects, labels, lo, hi, gen, source[1:], height)
-    meta = model.likelihoods.meta
+
+def _truncnorm(a, b, gen) -> np.ndarray:
+    """Standard normal draws truncated to ``[a, b]``, by the inverse CDF in log space
+    (intervals above zero are reflected, so tails keep their precision)."""
+    flip = a > 0
+    lo, hi = np.where(flip, -b, a), np.where(flip, -a, b)
+    la, lb = special.log_ndtr(lo), special.log_ndtr(hi)
+    u = gen.random(np.shape(lo))
+    with np.errstate(divide="ignore"):  # u = 0 at a lower bound of -inf
+        x = special.ndtri_exp(lb + np.log(u + (1 - u) * np.exp(la - lb)))
+    x = np.clip(x, lo, hi)
+    return np.where(flip, -x, x)
+
+
+def _draw_gauss(measures, n_sub, n_sweeps, meta, objects, labels, lo, hi, gen, height):
+    """Gaussian likelihoods: exact truncated draws per axis on linear axes (the hat's
+    height as an acceptance test), sub-points elsewhere; with a covariance, ``n_sweeps``
+    Gibbs sweeps over the axes' conditionals from that start (sub-points inside hats)."""
     n, nd = lo.shape
-    z, ok = np.empty((n, nd)), np.ones(n, dtype=bool)
-    if kind in ("gauss", "cov"):
-        mu = np.asarray(meta["gaussian_mean"])[objects]
-        sig = (
-            np.asarray(meta["gaussian_sigma"])[objects]
-            if kind == "gauss"
-            else np.sqrt(np.diagonal(np.asarray(meta["gaussian_cov"])[objects], axis1=1, axis2=2))
-        )
-    measures = model.bins.measures
+    mu = np.asarray(meta["gaussian_mean"])[objects]
+    P = None
+    if "gaussian_cov" in meta:
+        ids, inverse = np.unique(objects, return_inverse=True)  # one inverse per object
+        C = np.asarray(meta["gaussian_cov"])[ids]
+        P = np.linalg.inv(C)[inverse]
+        sig = np.sqrt(np.diagonal(C, axis1=1, axis2=2))[inverse]
+    else:
+        sig = np.asarray(meta["gaussian_sigma"])[objects]
     zlo = np.stack([m.inverse(lo[:, d]) for d, m in enumerate(measures)], axis=1)
     zhi = np.stack([m.inverse(hi[:, d]) for d, m in enumerate(measures)], axis=1)
-    for d, m in enumerate(measures):
-        if kind in ("gauss", "cov"):
-            z[:, d], keep = _gauss_axis(
-                m,
-                zlo[:, d],
-                zhi[:, d],
-                mu[:, d],
-                sig[:, d],
-                labels,
-                d,
-                height,
-                gen,
-                n_sub,
-                objects,
+    keep = np.ones(n, dtype=bool)
+
+    def axis(d, m, mu_d, sig_d, reject):
+        if m == Measure.linear() and (height is None or reject):
+            x = mu_d + sig_d * _truncnorm(
+                (zlo[:, d] - mu_d) / sig_d, (zhi[:, d] - mu_d) / sig_d, gen
             )
-            ok &= keep
-            continue
-        zz = _subpoints(zlo[:, d], zhi[:, d], n_sub)
-        logw = _base_logw(m, zz, labels, d, height)
-        if kind == "evaluate":
-            logw = logw + source[1](objects, labels, zz)
-        z[:, d] = _subpoint_draw(zlo[:, d], zhi[:, d], logw, gen, objects)
-    if kind == "cov":  # from the independent start, sweep the axes' conditionals
-        P = np.linalg.inv(np.asarray(meta["gaussian_cov"])[objects])
-        for _ in range(n_sweeps):
-            for d, m in enumerate(measures):
-                s2 = 1.0 / P[:, d, d]
-                rest = np.einsum("nj,nj->n", P[:, d], z - mu) - P[:, d, d] * (z[:, d] - mu[:, d])
-                z[:, d], _ = _gauss_axis(
-                    m,
-                    zlo[:, d],
-                    zhi[:, d],
-                    mu[:, d] - s2 * rest,
-                    np.sqrt(s2),
-                    labels,
-                    d,
-                    height,
-                    gen,
-                    n_sub,
-                    objects,
-                    reject=False,
-                )
-        ok[:] = True  # the sweeps weigh the hat's height in on every axis
-    return z, ok
-
-
-def _gauss_axis(m, zlo, zhi, mu, sig, labels, d, height, gen, n_sub, objects, reject=True):
-    """A Gaussian times the population along one axis of the boxes: exact truncated
-    draws on linear axes (with the hat's height as an acceptance test, or by
-    sub-points when ``reject`` is off), else by sub-points. Returns the values and
-    whether to keep them."""
-    keep = np.ones(len(mu), dtype=bool)
-    if m == Measure.linear() and (height is None or reject):
-        from scipy import stats
-
-        a, b = (zlo - mu) / sig, (zhi - mu) / sig
-        z = stats.truncnorm.rvs(a, b, loc=mu, scale=sig, random_state=gen)
-        if height is not None:
-            keep = gen.random(len(mu)) < height(labels, d, m.forward(z))
-        return z, keep
-    zz = _subpoints(zlo, zhi, n_sub)
-    logw = _base_logw(m, zz, labels, d, height) - 0.5 * ((zz - mu[:, None]) / sig[:, None]) ** 2
-    return _subpoint_draw(zlo, zhi, logw, gen, objects), keep
-
-
-def _resample_values(model, objects, labels, lo, hi, gen, data, height):
-    """Each object's kept samples inside its box, drawn with their weights (times the
-    hat's height); flat in ``u`` (kept with the height) in a box no sample reached."""
-    row, zs_all, ws_all, offsets = data
-    measures = model.bins.measures
-    n, nd = lo.shape
-    z, ok = np.empty((n, nd)), np.ones(n, dtype=bool)
-    key = objects.astype(np.int64) * (int(labels.max()) + 1) + labels
-    order = np.argsort(key, kind="stable")
-    cut = np.flatnonzero(np.diff(key[order])) + 1
-    for at in np.split(order, cut):  # the draws of one object in one box
-        o, i = objects[at[0]], at[0]
-        a, b = offsets[row[o]], offsets[row[o] + 1]
-        zs = zs_all[a:b]
-        us = np.stack([m.forward(zs[:, d]) for d, m in enumerate(measures)], axis=1)
-        w = ws_all[a:b] * np.all((us >= lo[i]) & (us <= hi[i]), axis=1)
-        for d in range(nd if height is not None else 0):
-            w = w * height(labels[i], d, us[:, d])
-        c = np.cumsum(w)
-        if c.size and c[-1] > 0:
-            z[at] = zs[np.searchsorted(c, gen.random(at.size) * c[-1])]
-            continue
-        u = lo[at] + (hi[at] - lo[at]) * gen.random((at.size, nd))
-        for d, m in enumerate(measures):
-            z[at, d] = m.inverse(u[:, d])
             if height is not None:
-                ok[at] &= gen.random(at.size) < height(labels[at], d, u[:, d])
-    return z, ok
+                keep[:] &= gen.random(n) < height(labels, d, m.forward(x))
+            return x
+        zz = _subpoints(zlo[:, d], zhi[:, d], n_sub)
+        logw = (
+            _base_logw(m, zz, labels, d, height)
+            - 0.5 * ((zz - mu_d[:, None]) / sig_d[:, None]) ** 2
+        )
+        return _subpoint_draw(zz, zhi[:, d] - zlo[:, d], logw, gen, objects)
+
+    z = np.empty((n, nd))
+    for d, m in enumerate(measures):
+        z[:, d] = axis(d, m, mu[:, d], sig[:, d], reject=P is None)
+    for _ in range(n_sweeps if P is not None else 0):
+        for d, m in enumerate(measures):
+            s2 = 1.0 / P[:, d, d]
+            rest = np.einsum("nj,nj->n", P[:, d], z - mu) - P[:, d, d] * (z[:, d] - mu[:, d])
+            z[:, d] = axis(d, m, mu[:, d] - s2 * rest, np.sqrt(s2), reject=False)
+    return z, keep
+
+
+def _draw_samples(
+    measures, flat, direct, row, K, key, zs, G, objects, labels, lo, hi, gen, height
+):
+    """An object's kept samples inside the box, drawn with their weights (``G`` their
+    cumulative sum, each row's summing to one; ``key`` = row * K + bin, sorted); in
+    a box no sample reached, flat in ``u`` as the ``floor`` is."""
+    n, nd = lo.shape
+    z, keep = np.empty((n, nd)), np.ones(n, dtype=bool)
+    r = row[objects]
+    G0 = np.concatenate(([0.0], G))
+    if direct:  # the label is the bin each sample was counted in: one segment each
+        s0 = np.searchsorted(key, r * K + labels, side="left")
+        s1 = np.searchsorted(key, r * K + labels, side="right")
+        hit = s1 > s0
+        a, b = G0[s0[hit]], G0[s1[hit]]
+        pos = np.searchsorted(G, a + (1.0 - gen.random(a.size)) * (b - a), side="left")
+        z[hit] = zs[np.clip(pos, s0[hit], s1[hit] - 1)]
+    else:  # components: the samples of the row inside the box, times the hat's height
+        hit = np.zeros(n, dtype=bool)
+        s0 = np.searchsorted(key, r * K, side="left")
+        s1 = np.searchsorted(key, (r + 1) * K, side="left")
+        order = np.lexsort((labels, objects))
+        cut = np.flatnonzero(np.diff(objects[order]) | np.diff(labels[order])) + 1
+        for at in np.split(order, cut):  # the draws of one object in one box
+            i = at[0]
+            seg = slice(s0[i], s1[i])
+            us = np.stack([m.forward(zs[seg, d]) for d, m in enumerate(measures)], axis=1)
+            w = np.diff(G0[s0[i] : s1[i] + 1]) * np.all((us >= lo[i]) & (us <= hi[i]), axis=1)
+            for d in range(nd if height is not None else 0):
+                w = w * height(labels[i], d, us[:, d])
+            c = np.cumsum(w)
+            if c.size and c[-1] > 0:
+                z[at] = zs[seg][np.searchsorted(c, (1.0 - gen.random(at.size)) * c[-1])]
+                hit[at] = True
+    miss = ~hit
+    if miss.any():
+        z[miss], keep[miss] = flat(objects[miss], labels[miss], lo[miss], hi[miss], gen, height)
+    return z, keep
 
 
 # ----------------------------------------------------------------------------

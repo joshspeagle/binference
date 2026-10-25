@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import inspect
+import pickle
 from collections.abc import Callable, Sequence
 from functools import partial
 from typing import Any, Literal
@@ -940,9 +941,13 @@ class Likelihoods:
             sample_count=np.bincount(obj_ids, minlength=n_obj),
         )
         lk.meta["sample_floor"] = float(floor)
-        if keep_samples:
-            offsets = np.searchsorted(rows, np.arange(n_obj + 1))  # rows are sorted
-            _keep_within(lk, n_obj, "samples", flat[inside].reshape(-1, bins.ndim), w, offsets)
+        if keep_samples:  # sorted by object and bin, each object's weights summing to one
+            key = rows.astype(np.int64) * bins.K + cols
+            order = np.argsort(key, kind="stable")
+            tot = np.bincount(rows, weights=w, minlength=n_obj)
+            G = np.cumsum((w / tot[rows])[order])
+            zs = flat[inside].reshape(-1, bins.ndim)[order]
+            _keep_within(lk, n_obj, "samples", bins.K, key[order], zs, G)
         _record_outside(lk, outside, warn_outside)
         return lk
 
@@ -1173,7 +1178,8 @@ class Likelihoods:
         if bins.is_categorical:
             raise ValueError("from_density needs grid bins.")
         posterior = _check_kind(kind, interim)
-        interim_density = Density.coerce(interim, interim_representation) if posterior else None
+        if posterior and bins.ndim == 1:  # read before it is reduced to bin masses below
+            log_pi = _log_interim_z(Density.coerce(interim, interim_representation), bins)
         quad = {
             "coordinate": "z" if posterior else "measure",
             "tol": tol,
@@ -1217,12 +1223,14 @@ class Likelihoods:
             **_common(weights, selection, selection_mode, drop_empty, fractional_weights),
         )
         lk.meta["source"] = "density"
-        if bins.ndim == 1:  # for value draws inside bins (DECISIONS #50)
-            log_pi = None if interim_density is None else _log_interim_z(interim_density, bins)
+        if bins.ndim == 1:  # the likelihood at points, for value draws (DECISIONS #50)
+            if not posterior:
+                log_pi = lambda z: 0.0  # noqa: E731
             if callable(density):
-                _keep_within(lk, log_avg.shape[0], "rows", logf, log_pi)
+                _keep_within(lk, log_avg.shape[0], "rows", lambda z: logf(z) - log_pi(z))
             else:
-                _keep_within(lk, len(dists), "objects", dists, log_pi)
+                logl = lambda z, i: _dist_logpdf(dists[i], z) - log_pi(z)  # noqa: E731
+                _keep_within(lk, len(dists), "objects", logl)
         if log_inside is not None:
             _record_outside(lk, _outside(log_inside), warn_outside)
         return lk
@@ -1337,9 +1345,10 @@ def _slice_per_object(meta: dict[str, Any], rows: Any) -> dict[str, Any]:
     return out
 
 
-class _Local:
-    """Within-bin data for :meth:`PopulationResult.sample_values`, kept in this process:
-    it pickles as empty, so NUTS workers (which never draw values) are not sent it."""
+class _WithinBin:
+    """Within-bin data for :meth:`PopulationResult.sample_values` (DECISIONS #50). They
+    pickle when they can; a function that cannot (a lambda density) pickles as empty,
+    so that a model can still be sent elsewhere, and its value draws fall back to flat."""
 
     __slots__ = ("data",)
 
@@ -1347,13 +1356,17 @@ class _Local:
         self.data = data
 
     def __reduce__(self):
-        return _Local, ()
+        try:
+            pickle.dumps(self.data)
+        except (pickle.PicklingError, AttributeError, TypeError):
+            return _WithinBin, ()
+        return _WithinBin, (self.data,)
 
 
 def _keep_within(lk: Likelihoods, n: int, kind: str, *data: Any) -> None:
     """Keep the within-bin information of ``n`` input rows, indexed by the input row
     (``meta["value_row"]`` maps the surviving rows to it; DECISIONS #50)."""
-    lk.meta["within"] = _Local((kind, *data))
+    lk.meta["within"] = _WithinBin((kind, *data))
     _attach_per_object(lk, value_row=np.arange(n))
 
 
