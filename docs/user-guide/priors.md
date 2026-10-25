@@ -82,7 +82,7 @@ print(binference.infer(lk, gp, method="map").rho[:3].round(4))
 | prior | smoothness | hyperparameters (inferred by default) |
 |---|---|---|
 | `LogisticRandomWalk(order=1)` | penalises jumps between neighbours | `scale` of the differences |
-| `LogisticRandomWalk(order=2)` | penalises curvature; linear trends are free | `scale` |
+| `LogisticRandomWalk(order=2)` | penalises curvature; linear trends (and, on 2-D grids, the surface $xy$) are free | `scale` |
 | `LogisticGP(kernel=...)` | stationary GP: `"matern12"`, `"matern32"`, `"matern52"`, `"rbf"` | `amplitude`, `length_scale` (one per axis) |
 | `LogisticNormal(mean, cov)` | any fixed covariance, or independent bins | `scale` |
 

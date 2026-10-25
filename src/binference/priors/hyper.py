@@ -7,6 +7,8 @@ its derivative. :class:`Fixed` marks a hyperparameter that is not inferred.
 
 from __future__ import annotations
 
+from numbers import Real
+
 import numpy as np
 from scipy import optimize, special
 
@@ -187,6 +189,9 @@ def as_hyperprior(value: Hyperprior | float | int) -> Hyperprior:
     """Interpret a number as :class:`Fixed` and pass hyperpriors through."""
     if isinstance(value, Hyperprior):
         return value
-    if isinstance(value, int | float | np.floating | np.integer):
+    number = isinstance(value, Real) or (
+        isinstance(value, np.ndarray) and value.ndim == 0 and value.dtype.kind in "iuf"
+    )
+    if number and not isinstance(value, bool | np.bool_):
         return Fixed(float(value))
     raise TypeError(f"Expected a Hyperprior or a positive number; got {type(value).__name__}.")
