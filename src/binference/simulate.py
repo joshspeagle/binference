@@ -9,6 +9,7 @@ every input convention can be exercised. ``Mock`` unpacks as
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any
@@ -21,6 +22,7 @@ from .bins import Bins
 from .density import Density
 from .likelihoods import Likelihoods
 from .priors import PopulationPrior
+from .warnings import InputWarning
 
 __all__ = [
     "Mock",
@@ -158,6 +160,20 @@ def _draw_values(bins: Bins, density: Any, n: int, rng: np.random.Generator):
     return values, labels
 
 
+def _mock_gaussian(obs, sigma, bins, selection) -> Likelihoods:
+    # observations near the edges spill past them by construction, so the
+    # outside-mass warning says nothing about the user's bins here
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", ".*likelihood mass outside the bins", InputWarning)
+        return Likelihoods.from_gaussian(
+            obs,
+            sigma,
+            bins,
+            selection=selection,
+            selection_mode=None if selection is None else "true",
+        )
+
+
 def _noise(noise: Any, n: int, rng: np.random.Generator, shape=()) -> np.ndarray:
     if np.ndim(noise) == 0:
         return np.full((n, *shape), float(noise))
@@ -238,9 +254,7 @@ def mock_1d(
         lo, hi = bins.range[0]
         bad = gen.random(n_objects) < outlier_fraction
         obs[bad] = gen.uniform(lo, hi, size=int(bad.sum()))
-    lk = Likelihoods.from_gaussian(
-        obs, sigma, bins, selection=selection, selection_mode=None if selection is None else "true"
-    )
+    lk = _mock_gaussian(obs, sigma, bins, selection)
     counts = np.bincount(labels, minlength=bins.K).astype(float)
     truth = Truth(rho=rho, labels=labels, values=values, counts=counts, n_drawn=n_drawn)
     mock = Mock(bins, lk, truth, {"mean": obs, "sigma": sigma})
@@ -335,9 +349,7 @@ def mock_2d(
     values, labels, n_drawn = _draw_selected(bins, density, n_objects, selection, gen)
     sigma = _noise(noise, n_objects, gen, shape=(2,))
     obs = values + sigma * gen.standard_normal(values.shape)
-    lk = Likelihoods.from_gaussian(
-        obs, sigma, bins, selection=selection, selection_mode=None if selection is None else "true"
-    )
+    lk = _mock_gaussian(obs, sigma, bins, selection)
     counts = np.bincount(labels, minlength=bins.K).astype(float)
     truth = Truth(rho=rho, labels=labels, values=values, counts=counts, n_drawn=n_drawn)
     return Mock(bins, lk, truth, {"mean": obs, "sigma": sigma})

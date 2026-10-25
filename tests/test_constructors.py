@@ -1,6 +1,8 @@
 """Tests for the constructors by input form (DECISIONS #32), adaptive quadrature (#23),
 measure-aware averages (#21) and mass outside the support (#18)."""
 
+from itertools import pairwise
+
 import numpy as np
 import pytest
 from scipy import integrate, stats
@@ -32,7 +34,7 @@ def test_likelihoods_on_log_bins_are_averaged_in_log_z():
     want = [
         integrate.quad(lambda z: stats.norm.pdf(z, mu, sig) / z, a, b, epsabs=0, epsrel=1e-12)[0]
         / np.log(b / a)
-        for a, b in zip(e[:-1], e[1:], strict=True)
+        for a, b in pairwise(e)
     ]
     for lk in (
         Likelihoods.from_gaussian([mu], [sig], bins, tol=1e-8),
@@ -46,6 +48,7 @@ def test_distributions_far_below_the_bins_keep_finite_rows():
     dists = [stats.norm(-0.35, 0.05), stats.norm(-0.6, 0.05)]  # 7 and 12 sigma below
     with pytest.warns(InputWarning, match="outside the bins"):
         via_dist = Likelihoods.from_density(dists, bins, kind="likelihood")
+    with pytest.warns(InputWarning, match="outside the bins"):
         exact = Likelihoods.from_gaussian([-0.35, -0.6], 0.05, bins)
     np.testing.assert_allclose(via_dist.toarray(), exact.toarray(), rtol=1e-9, atol=1e-300)
     assert np.all(via_dist.toarray()[:, 1] > 0)
