@@ -23,7 +23,7 @@ class Engine:
 
     name: str = "engine"
     approximate: bool = False
-    #: whether the engine infers a selection from injections jointly (DECISIONS #30)
+    #: whether the engine infers a selection from injections jointly (DECISIONS #30, #80)
     joint_selection: bool = False
 
     def __init__(self, model: PopulationModel, *, rng: RNGLike = None, progress: bool = False):
@@ -31,9 +31,9 @@ class Engine:
             raise TypeError("Engines operate on a binference.PopulationModel.")
         if model.selection_uncertain and not self.joint_selection:
             raise ValueError(
-                f"{type(self).__name__} cannot infer a selection from injections jointly yet; "
-                "use method='gibbs' (a conjugate prior), or pass selection.at_mean() for a "
-                "fixed selection that ignores its uncertainty."
+                f"{type(self).__name__} cannot infer a selection from injections; use "
+                "method='nuts', 'laplace', 'map' (space='unconstrained') or 'gibbs', or pass "
+                "selection.at_mean() for a fixed selection that ignores its uncertainty."
             )
         self.model = model
         self.rng = as_generator(rng)

@@ -31,13 +31,12 @@ AUTO_NNZ_LIMIT = 2e7
 
 
 def _auto_method(model: PopulationModel) -> str:
-    if model.selection_uncertain:  # inferred jointly by Gibbs only (DECISIONS #79)
-        if not model.prior.conjugate or not is_integer_array(model.likelihoods.weights):
-            raise ValueError(
-                "A selection from injections is inferred jointly by Gibbs only, which needs a "
-                "conjugate prior and integer weights; pass selection.at_mean() for a fixed "
-                "selection (ignoring its uncertainty)."
-            )
+    if (
+        model.selection_uncertain  # Gibbs where it applies: exact and fast (DECISIONS #80)
+        and model.prior.conjugate
+        and model.selection_spec.injections.smooth is None
+        and is_integer_array(model.likelihoods.weights)
+    ):
         return "gibbs"
     nnz = model.likelihoods.nnz
     return "nuts" if nnz <= AUTO_NNZ_LIMIT else "laplace"
@@ -80,7 +79,7 @@ def infer(
         Inference engine. ``"nuts"`` (default) samples the exact posterior.
         ``"auto"`` uses NUTS unless the problem is very large, in which case it
         uses the importance-corrected Laplace approximation, and Gibbs for a
-        selection from injections (inferred jointly).
+        selection from injections with a conjugate prior (inferred jointly).
     n_samples : int, optional
         Draws per chain (NUTS, Gibbs) or in total (Laplace, VB, bootstrap).
     rng : int, numpy.random.Generator, or None

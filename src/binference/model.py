@@ -20,6 +20,11 @@ logits (or log-rates) is
           \quad\text{or}\quad \hat n_k - S_k\lambda_k,
 
 with expected counts :math:`\hat n_k = \rho_k \sum_i w_i L_{ik}/(L_i\cdot\rho)`.
+
+A selection on the truth measured by injections is inferred with the population: the
+unconstrained coordinates gain :math:`y = \mathrm{logit}\,S` after the prior's, the
+likelihood uses that :math:`S`, and :math:`\partial\ell/\partial y_k =
+(1 - S_k)\,\partial\ell/\partial\eta_k` (DECISIONS #80).
 """
 
 from __future__ import annotations
@@ -28,7 +33,7 @@ import copy
 from typing import Any
 
 import numpy as np
-from scipy import linalg
+from scipy import linalg, special
 
 from . import _kernels as kern
 from ._simplex import helmert_basis, softmax
@@ -39,7 +44,7 @@ from .priors import Dirichlet, PopulationPrior
 from .priors.base import BoundPrior
 from .priors.dirichlet import _BoundDirichlet
 from .priors.rates import _gamma_draw
-from .selection import Selection, as_selection
+from .selection import Selection, _logit_density, as_selection
 
 __all__ = ["PopulationModel"]
 
@@ -154,7 +159,7 @@ class PopulationModel:
         """Whether the selection comes from injections and is inferred with the population.
 
         Methods that take a population value (``log_likelihood``, ``kkt_gap``, ...)
-        then use the selection's posterior means.
+        then use its :attr:`~Selection.values`.
         """
         return self.selection_spec is not None and self.selection_spec.injections is not None
 
@@ -190,8 +195,16 @@ class PopulationModel:
 
     @property
     def dim(self) -> int:
-        """Dimension of the unconstrained parameter vector."""
-        return self.prior.dim
+        """Dimension of the unconstrained parameter vector: the prior's, plus ``K`` for
+        :math:`\\mathrm{logit}\\,S` when the selection is inferred."""
+        return self.prior.dim + (self.K if self.selection_uncertain else 0)
+
+    def selection_at(self, X: np.ndarray) -> np.ndarray | None:
+        """The selection :math:`S` at unconstrained points ``X`` ``(..., dim)``, or ``None``
+        when it is fixed."""
+        if not self.selection_uncertain:
+            return None
+        return special.expit(np.asarray(X, dtype=float)[..., self.prior.dim :])
 
     def effective_likelihoods(self, likelihoods: Likelihoods):
         """Likelihood matrix of (new) objects with this model's selection applied."""
@@ -203,23 +216,36 @@ class PopulationModel:
         return f"PopulationModel(N={self.N}, K={self.K}, prior={self.prior_spec!r}{sel})"
 
     # ------------------------------------------------- likelihood internals
-    def _selection_term(self, value: np.ndarray) -> float:
+    def _selection_term(self, value: np.ndarray, S: np.ndarray | None = None) -> float:
         # -S.lambda for rates, -W log(S.rho) for fractions with selection
+        S = self._S if S is None else S
         if self.kind == "rates":
-            return -float(self._S @ value)
-        return 0.0 if self.selection is None else -self.W * np.log(float(self._S @ value))
+            return -float(S @ value)
+        return 0.0 if self.selection is None else -self.W * np.log(float(S @ value))
 
-    def _ll_and_deta(self, value: np.ndarray) -> tuple[float, np.ndarray]:
-        ll, nhat, _ = kern.loglike_and_counts(self._L, self._w, value)
+    def _rows(self, value: np.ndarray, S: np.ndarray | None = None):
+        """The likelihood rows and the column weights for ``value``: the model's rows
+        (selection on the truth applied) and ``value``, or, given a value ``S`` of an
+        inferred selection, the bare rows and :math:`\\rho\\circ S` (DECISIONS #79, #80)."""
+        if S is None:
+            return self._L, value
+        return self.likelihoods.values, value * S
+
+    def _ll_and_deta(
+        self, value: np.ndarray, S: np.ndarray | None = None
+    ) -> tuple[float, np.ndarray]:
+        L, v = self._rows(value, S)
+        ll, nhat, _ = kern.loglike_and_counts(L, self._w, v)
         if not np.isfinite(ll):
             return -np.inf, np.zeros_like(value)
-        ll += self._selection_term(value)
+        ll += self._selection_term(value, S)
+        S = self._S if S is None else S
         # gradient in the logits (or log-rates) of ll, selection term included
         if self.kind == "rates":
-            return ll, nhat - self._S * value
+            return ll, nhat - S * value
         if self.selection is None:
             return ll, nhat - self.W * value
-        return ll, nhat - self.W * value * self._S / float(self._S @ value)
+        return ll, nhat - self.W * value * S / float(S @ value)
 
     def _value(self, eta: np.ndarray) -> np.ndarray:
         if self.kind == "rates":
@@ -234,17 +260,25 @@ class PopulationModel:
         This is the density of ``x`` (the prior's isometric log-ratios, whitened
         fields or log-rates), so it includes the Jacobian of the map from ``x``
         to the fractions or rates (DECISIONS #15); its mode differs from that of
-        :meth:`log_posterior`. NUTS, Laplace and L-BFGS use it. Up to a constant.
+        :meth:`log_posterior`. With an inferred selection ``x`` ends with
+        :math:`\\mathrm{logit}\\,S`, whose density given the injections is included.
+        NUTS, Laplace and L-BFGS use it. Up to a constant.
         """
         x = np.asarray(x, dtype=float)
-        eta, cache = self.prior.forward(x)
+        d = self.prior.dim
+        eta, cache = self.prior.forward(x[:d])
         value = self._value(eta)
         if not np.isfinite(value.sum()):
             return -np.inf, np.zeros_like(x)
-        ll, d_eta = self._ll_and_deta(value)
+        S = self.selection_at(x)
+        ll, d_eta = self._ll_and_deta(value, S)
         if not np.isfinite(ll):
             return -np.inf, np.zeros_like(x)
-        lp, g = self.prior.log_prior_and_grad(x, cache, value, d_eta)
+        lp, g = self.prior.log_prior_and_grad(x[:d], cache, value, d_eta)
+        if S is not None:  # the selection's block (DECISIONS #80)
+            ls, g_y = _logit_density(x[d:], self.selection_spec.injections)
+            lp += ls
+            g = np.concatenate([g, g_y + d_eta * (1.0 - S)])
         return ll + lp + self._ll_const, g
 
     def log_density_unconstrained(self, x: np.ndarray) -> float:
@@ -314,7 +348,7 @@ class PopulationModel:
 
     def to_value(self, x: np.ndarray) -> np.ndarray:
         """Fractions (or rates, for rate priors) at unconstrained ``x``."""
-        eta, _ = self.prior.forward(np.asarray(x, dtype=float))
+        eta, _ = self.prior.forward(np.asarray(x, dtype=float)[: self.prior.dim])
         return self._value(eta)
 
     def to_rho(self, x: np.ndarray) -> np.ndarray:
@@ -328,21 +362,35 @@ class PopulationModel:
         return np.array([self.to_value(x) for x in X])
 
     def from_value(self, value: np.ndarray) -> np.ndarray:
-        """An unconstrained point corresponding to fractions (or rates) ``value``."""
-        return self.prior.init_from_value(np.asarray(value, dtype=float))
+        """An unconstrained point corresponding to fractions (or rates) ``value`` (and to
+        the selection's :attr:`~Selection.values` when it is inferred)."""
+        x = self.prior.init_from_value(np.asarray(value, dtype=float))
+        if not self.selection_uncertain:
+            return x
+        return np.concatenate([x, special.logit(self.selection)])
 
     # ----------------------------------------------- fraction/rate space
-    def log_likelihood(self, value: np.ndarray, absolute: bool = True) -> float:
+    def log_likelihood(
+        self, value: np.ndarray, absolute: bool = True, S: np.ndarray | None = None
+    ) -> float:
         """Marginal log-likelihood of the population (including the selection term).
 
         With ``absolute=True`` the per-object log-scales of the likelihoods are
-        included, so values are comparable across binnings and models.
+        included, so values are comparable across binnings and models. ``S`` is a
+        value of an inferred selection (by default its :attr:`~Selection.values`).
         """
         v = np.asarray(value, dtype=float)
-        ll = kern.loglike(self._L, self._w, v)
+        if S is not None:
+            if not self.selection_uncertain:
+                raise ValueError("S applies only to a selection inferred from injections.")
+            S = np.asarray(S, dtype=float)
+            if S.shape != (self.K,) or not np.all((S > 0) & (S <= 1)):
+                raise ValueError(f"S must have shape ({self.K},) with values in (0, 1].")
+        L, u = self._rows(v, S)
+        ll = kern.loglike(L, self._w, u)
         if not np.isfinite(ll):
             return -np.inf
-        return ll + self._selection_term(v) + (self._ll_const if absolute else 0.0)
+        return ll + self._selection_term(v, S) + (self._ll_const if absolute else 0.0)
 
     def log_prior(self, value: np.ndarray) -> float:
         """Prior log-density of fractions (on the simplex) or rates, where defined.

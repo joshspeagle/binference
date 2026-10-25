@@ -132,8 +132,9 @@ def _merge(t1: _Tree, t2: _Tree, v: int, rng, biased: bool) -> bool:
 
 def _leaf(x, p, g, v, eps, H0, metric, fn, max_dE):
     x1, p1, g1, lp1 = leapfrog(x, p, g, v * eps, metric, fn)
-    vel = metric.mv(p1)
-    H1 = float(lp1) - 0.5 * float(p1 @ vel)  # NaN in g1 propagates into p1 and H1
+    with np.errstate(over="ignore", invalid="ignore"):  # a blown-up step diverges below
+        vel = metric.mv(p1)
+        H1 = float(lp1) - 0.5 * float(p1 @ vel)  # NaN in g1 propagates into p1 and H1
     finite = math.isfinite(H1)
     t = _Tree()
     t.x_m = t.x_p = t.x_prop = x1

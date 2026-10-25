@@ -69,6 +69,7 @@ class Laplace(Engine):
     """
 
     name = "laplace"
+    joint_selection = True
 
     def __init__(
         self,
@@ -158,6 +159,8 @@ class Laplace(Engine):
                 "Uncorrected Laplace approximation: results are approximate.", ApproximationWarning
             )
         vals = m.transform(X)
+        if m.selection_uncertain:
+            info["selection_draws"] = m.selection_at(X)[None]
         return PopulationResult(
             m,
             vals[None],

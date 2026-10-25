@@ -36,6 +36,13 @@ def _centred(model: PopulationModel, lam: np.ndarray) -> PopulationModel:
     return model._with_bound_prior(model.prior.with_centering(lam))
 
 
+def _recentre(prior, x: np.ndarray, lam: np.ndarray) -> np.ndarray:
+    """``prior.recentre`` on the prior's block of ``x``; an inferred selection's
+    logit S after it is unchanged (DECISIONS #80)."""
+    d = prior.dim
+    return np.concatenate([prior.recentre(x[:d], lam), x[d:]])
+
+
 def _conditional_log_scale_sd(model, prior, pts: list[np.ndarray]) -> np.ndarray:
     """Spread of each mode's log-scale given the field, from the hyperparameter curvature.
 
@@ -49,12 +56,14 @@ def _conditional_log_scale_sd(model, prior, pts: list[np.ndarray]) -> np.ndarray
         return np.zeros(n_act)
     zeros = np.zeros(n_act)
     fn = _centred(model, zeros).log_density_unconstrained_and_grad
-    cols = range(n_act, model.dim)
-    H = np.mean([fd_hessian(fn, prior.recentre(x, zeros), cols=cols)[n_act:] for x in pts], axis=0)
+    hyper = range(n_act, prior.dim)  # the hyperparameters, before any logit S
+    H = np.mean(
+        [fd_hessian(fn, _recentre(prior, x, zeros), cols=hyper)[hyper] for x in pts], axis=0
+    )
     cov = covariance_from_hessian(H)
     if cov is None:
         return np.full(n_act, np.inf)
-    _, dlogs = prior.log_scales(prior.theta_from_x(np.mean(pts, axis=0)))
+    _, dlogs = prior.log_scales(prior.theta_from_x(np.mean(pts, axis=0)[: prior.dim]))
     G = dlogs[prior.free]  # (n_free, n_active): d log s_j / d log theta
     return np.sqrt(np.maximum(np.einsum("aj,ab,bj->j", G, cov, G), 0.0))
 
@@ -289,6 +298,7 @@ class NUTS(Engine):
     """
 
     name = "nuts"
+    joint_selection = True
 
     def __init__(
         self,
@@ -423,7 +433,7 @@ class NUTS(Engine):
             if np.any(scaled) and np.median(sd_c[scaled]) > _CENTRING_MAX_SD:
                 lam[scaled] = 1.0
             model = _centred(base, lam)
-            pts = [prior0.recentre(x, lam) for x in pts]
+            pts = [_recentre(prior0, x, lam) for x in pts]
             self._lam = lam
         self.model = model
         fn = model.log_density_unconstrained_and_grad
@@ -543,9 +553,10 @@ class NUTS(Engine):
         """Draws and log densities from the sampling coordinates to the model's (audit N-1)."""
         if self._lam is None:
             return X, LP
-        d = X.shape[-1]
-        x, lp = self.model.prior.to_noncentred(X.reshape(-1, d), LP.reshape(-1))
-        return x.reshape(X.shape), lp.reshape(LP.shape)
+        d = self.model.prior.dim  # an inferred selection's logit S follows unchanged
+        x, lp = self.model.prior.to_noncentred(X[..., :d].reshape(-1, d), LP.reshape(-1))
+        x = np.concatenate([x.reshape(*X.shape[:-1], d), X[..., d:]], axis=-1)
+        return x, lp.reshape(LP.shape)
 
     def sample(self, n_samples: int) -> Iterator[np.ndarray]:
         """Generator over post-warm-up iterations, yielding ``(n_chains, dim)`` positions.
@@ -618,9 +629,11 @@ class NUTS(Engine):
                 (E - E.mean(axis=1, keepdims=True)) ** 2, axis=1
             )
         info["ebfmi"] = ebfmi
+        if base.selection_uncertain:
+            info["selection_draws"] = base.selection_at(X)
         hyper = getattr(base.prior, "hyper_names", [])
         if hyper:
-            u = X[..., base.prior.n_active :]
+            u = X[..., base.prior.n_active : base.prior.dim]
             info["hyperparameters"] = {name: np.exp(u[..., j]) for j, name in enumerate(hyper)}
         return PopulationResult(
             base,

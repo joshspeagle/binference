@@ -154,10 +154,9 @@ class _IndividualMixin:
         model = self._require_model()
         R = self._select_draws(n_draws, components=True)
         S = getattr(self, "info", {}).get("selection_draws")
-        if S is None:
-            return model._L, R, None
-        S = np.asarray(S).reshape(-1, model.K)[_draw_index(S.size // model.K, n_draws)]
-        return model.likelihoods.values, R * S, S
+        if S is not None:
+            S = np.asarray(S).reshape(-1, model.K)[_draw_index(S.size // model.K, n_draws)]
+        return *model._rows(R, S), S
 
     def _to_bins(self, P: np.ndarray) -> np.ndarray:
         """Per-component values ``(..., C)`` summed into the bins ``(..., K)``."""
@@ -831,10 +830,7 @@ class PopulationResult(_IndividualMixin):
                 tau = (1.0 + f) / max(1.0 - f, 1e-12)
                 tau_text = f"~{tau:.0f}" if tau < 1000 else "over 1000"
                 hint += f" (missing information {f:.2f}: autocorrelation time {tau_text})"
-            if self.model is not None and self.model.selection_uncertain:
-                hints.append(hint + "; run longer (only Gibbs infers this selection)")
-            else:
-                hints.append(hint + "; run longer or use method='nuts'")
+            hints.append(hint + "; run longer or use method='nuts'")
         if d.get("n_divergent", 0):
             n_div = int(d["n_divergent"])
             share = 100.0 * n_div / max(self.n_draws, 1)
@@ -1064,7 +1060,10 @@ class PointEstimate(_IndividualMixin):
         """Total rate at the optimum (see :attr:`rates`)."""
         if self.kind == "rates":
             return float(self.value.sum())
-        S = None if self.model is None else self.model.total_exposure
+        if self.model is None:
+            return None
+        S = self.info.get("selection_draws")  # an inferred selection, at the mode
+        S = self.model.total_exposure if S is None else np.ravel(S)
         return None if S is None else float(self.model.W / (S @ self.value))
 
     def _rho_draws(self) -> np.ndarray:

@@ -113,13 +113,13 @@ Completeness is often measured by injecting objects of known true value and
 counting how many are recovered. `Selection.from_injections(z, detected, bins,
 "on_truth")` counts the injections $n_k$ and recoveries $d_k$ per bin and gives
 each $S_k$ a $\mathrm{Beta}(a + d_k, b + n_k - d_k)$ posterior (prior
-`(a, b) = (1, 1)`). The selection is then uncertain, and Gibbs sampling infers it
-with the population: the catalogue's objects count as detections in their
-bins and the objects it missed (imputed at each step) as non-detections. The
-catalogue informs only the ratios between the $S_k$ (its likelihood does not
-change when all of them are scaled together), so their level, and with it
-the total, comes from the injections. The draws of $S$ are in
-`result.info["selection_draws"]`, and the total uses them draw by draw.
+`(a, b) = (1, 1)`). The selection is then uncertain and is inferred with the
+population: the catalogue's objects count as detections in their bins, and the
+objects it missed as non-detections. The catalogue informs only the ratios
+between the $S_k$ (its likelihood does not change when all of them are scaled
+together), so their level, and with it the total, comes from the injections.
+The draws of $S$ are in `result.info["selection_draws"]`, and the total and the
+per-object methods use them draw by draw.
 
 ```python
 rng = np.random.default_rng(3)
@@ -130,11 +130,33 @@ joint = binference.infer(lk, selection=measured, method="gibbs", n_samples=300, 
 print(joint.mean.round(3), joint.info["selection_draws"].mean(axis=(0, 1)).round(2))
 ```
 
-Only Gibbs (conjugate priors) infers the selection jointly so far; other
-engines refuse an uncertain selection, and `measured.at_mean()` gives a fixed
-selection at the posterior means, which ignores its uncertainty. A selection
-on the measurement is fixed by the likelihoods' own cut, so injections give
-it only as such a plug-in.
+Gibbs samples $S$ from its conjugate conditional (independent Betas and a
+conjugate prior; `method="auto"` chooses it then). NUTS, Laplace and
+`MAP(space="unconstrained")` add $y_k = \mathrm{logit}\,S_k$ to the sampled
+coordinates, so they work with every prior; NUTS and Gibbs agree within Monte
+Carlo error. VB and the bootstrap refuse an uncertain selection, and
+`measured.at_mean()` gives a fixed selection at its values, ignoring its
+uncertainty. A selection on the measurement is fixed by the likelihoods' own
+cut, so injections give it only as such a plug-in.
+
+With few injections per bin, `smooth=τ` ties neighbouring bins together: a
+second-order random walk on $\mathrm{logit}\,S$, with step scale τ per bin, lends
+sparsely injected bins strength from their neighbours (1-D bins; not with
+Gibbs). Its `values` are the mode of $\mathrm{logit}\,S$ given the injections. With
+20 bins and 5 injections per bin, τ = 0.3 lowered the error of $S$ from
+0.17 to 0.13 for a smooth logistic edge and from 0.16 to 0.09 for a linear
+completeness; for a step from 0.9 to 0.1 it did not help (0.171 against 0.169),
+and τ = 0.1 raised the error to 0.196 (RMSE over bins and 200 simulations, Monte
+Carlo error 0.002). τ is the typical change from one bin to the next in the slope
+of $\mathrm{logit}\,S$ per bin; a sharp edge needs independent bins or a larger τ.
+
+```python
+smooth = binference.Selection.from_injections(
+    z_inj, recovered, mock.likelihoods.bins, "on_truth", smooth=1.0
+)
+fit = binference.infer(lk, selection=smooth, n_samples=300, rng=1, check=False)  # NUTS
+print(fit.mean.round(3), fit.info["selection_draws"].mean(axis=(0, 1)).round(2))
+```
 
 ## Rates and exposure
 

@@ -9,7 +9,7 @@ import binference
 from binference import Bins, PopulationModel
 from binference import priors as P
 from binference.samplers import NUTS, Laplace
-from binference.samplers._nuts_core import Metric
+from binference.samplers._nuts_core import Metric, _leaf
 
 
 def _gp_model(n=3000, K=12, seed=2):
@@ -97,3 +97,15 @@ def test_the_psis_threshold_needs_five_weights():
     with pytest.raises(ValueError, match="at least 5"):
         binference.diagnostics.psis_threshold(1)
     assert binference.diagnostics.psis_threshold(10_000) == 0.7
+
+
+def test_a_step_that_overflows_the_energy_is_a_silent_divergence():
+    # a momentum of 1e200 overflows p @ M^-1 p; the tree marks the leaf divergent, and the
+    # overflow warning is not raised (it failed the joint-selection SBC as an error)
+
+    def fn(x):
+        return -0.5 * float(x @ x), -x
+
+    x, p = np.zeros(2), np.full(2, 1e200)
+    t = _leaf(x, p, -x, 1, 1e-300, 0.0, Metric(np.ones(2)), fn, 1000.0)
+    assert t.diverging
