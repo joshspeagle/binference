@@ -38,7 +38,9 @@ def test_inputs_without_their_measurements_need_build():
     res = Gibbs(binference.PopulationModel(lk), n_warmup=5, rng=0).run(10)
     with pytest.raises(ValueError, match="pass build"):
         res.binning_bias()
-    check = res.binning_bias(lambda b: Likelihoods.from_gaussian(np.full(5, 0.5), 0.1, b))
+    with warnings.catch_warnings():  # other data than the fit's: the shift may be flagged
+        warnings.simplefilter("ignore", binference.InputWarning)
+        check = res.binning_bias(lambda b: Likelihoods.from_gaussian(np.full(5, 0.5), 0.1, b))
     assert check.z.shape == (8,)
     cat = Gibbs(binference.PopulationModel(Likelihoods(np.ones((5, 3)))), n_warmup=5, rng=0)
     with pytest.raises(ValueError, match="grid bins"):
