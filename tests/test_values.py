@@ -145,3 +145,61 @@ def test_truncated_normal_draws_keep_their_precision_in_far_tails():
         ref = stats.truncnorm(lo, hi)
         assert np.all((xi >= lo) & (xi <= hi))
         assert abs(xi.mean() - ref.mean()) < 4 * ref.std() / np.sqrt(xi.size)
+
+
+def test_samples_with_zero_weights_leave_the_other_objects_and_bins_intact():
+    # object 0 has only zero-weight samples (kept by the floor); object 1's samples in
+    # [0.4, 0.6) weigh nothing, so its draws there are flat rather than one sample
+    rng = np.random.default_rng(0)
+    samples = rng.uniform(0.0, 1.0, (3, 2000))
+    sw = np.ones_like(samples)
+    sw[0] = 0.0
+    sw[1][(samples[1] >= 0.4) & (samples[1] < 0.6)] = 0.0
+    lk = Likelihoods.from_samples(
+        samples,
+        BINS,
+        interim="flat",
+        sample_weights=sw,
+        floor=2000,
+        min_samples=0,
+        warn_outside=False,
+    )  # object 0 has neither effective samples nor mass inside the bins
+    assert np.all(np.isfinite(lk.meta["within"].data[-1]))
+    prior = binference.priors.Dirichlet(5.0)  # keeps every bin in the population
+    est = binference.samplers.MAP(binference.PopulationModel(lk, prior=prior)).run()
+    vals = est.sample_values(idx=np.ones(N_COPY, int), rng=1)[0]
+    mid = vals[(vals >= 0.4) & (vals < 0.6)]
+    assert mid.size > 20 and np.unique(mid).size == mid.size
+    assert np.unique(est.sample_values(idx=np.full(200, 2), rng=1)).size > 100
+
+
+def test_an_interim_prior_that_vanishes_inside_a_bin_does_not_collapse_the_draws():
+    post = [stats.uniform(0.0, 0.95)] * 3  # posteriors under the same interim prior
+    lk = Likelihoods.from_density(post, BINS, interim=stats.uniform(0.0, 0.95))
+    vals = _values(lk)
+    last = vals[vals >= 0.8]
+    assert last.size > 200 and last.max() - last.min() > 0.1
+
+
+def test_distributions_without_a_density_fall_back_with_a_warning():
+    class CdfOnly:
+        def __init__(self, m):
+            self.m = m
+
+        def cdf(self, z):
+            return stats.norm.cdf(z, self.m, SD)
+
+    lk = Likelihoods.from_density([CdfOnly(m) for m in MU], BINS, kind="likelihood")
+    with pytest.warns(binference.InputWarning, match="keep no information"):
+        _values(lk)
+
+
+def test_density_functions_are_evaluated_a_few_bins_at_a_time(monkeypatch):
+    lk = Likelihoods.from_density(
+        lambda z: stats.norm.logpdf(z[None, :], MU[:, None], SD), BINS, kind="likelihood", log=True
+    )
+    whole = _values(lk)
+    monkeypatch.setattr(binference.results, "EVAL_BUDGET", 3 * 64)  # one bin per call
+    np.testing.assert_array_equal(_values(lk), whole)
+    dists = Likelihoods.from_density([stats.norm(m, SD) for m in MU], BINS, kind="likelihood")
+    assert pickle.loads(pickle.dumps(dists)).meta["within"].data is not None

@@ -95,8 +95,10 @@ bin. It uses what each input knows within bins:
   the interim prior divided out (`keep_samples=False` saves their copy and drops this);
 - `loglike(z, i)` (the log-likelihood of object `i` at points `z`), when passed, for
   any 1-D input;
-- otherwise (tables, binned inputs, compressed rows) uniformly within the bin, with an
-  `InputWarning`: accurate only when the likelihoods are nearly flat across a bin.
+- otherwise (tables, binned inputs, compressed rows, densities on grids or without a
+  pdf, samples not kept, or a density function lost when the likelihoods were pickled)
+  uniformly within the bin, with an `InputWarning`: accurate only when the likelihoods
+  are nearly flat across a bin.
 
 Both methods treat each row of the likelihoods as one object, so use unit
 weights (uncompressed rows) when you need draws for individual objects.

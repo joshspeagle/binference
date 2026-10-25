@@ -646,18 +646,40 @@ def _value_drawer(model, loglike, n_sub: int, n_sweeps: int) -> tuple[Callable, 
     if kind == "samples":
         direct = model.likelihoods.basis is None  # labels are the bins the samples are in
         return partial(_draw_samples, measures, flat, direct, row, *data), True
-    (logl,) = data
-    if kind == "objects":
-        evaluate = _per_object(lambda z, i: logl(z, row[i]))
-    else:
-
-        def evaluate(objects, labels, zz):  # one call at the sub-points of every bin in use
-            _, first, inverse = np.unique(labels, return_index=True, return_inverse=True)
-            pts = zz[first]
-            vals = np.asarray(logl(pts.ravel())).reshape(-1, *pts.shape)
-            return vals[row[objects], inverse.ravel()]
-
+    evaluate = partial(_dists_logl if kind == "dists" else _rows_logl, row, *data)
     return partial(_draw_subpoints, measures, n_sub, evaluate), True
+
+
+#: values a density function may return per call in value draws (2**24 = 128 MB)
+EVAL_BUDGET = 2**24
+
+
+def _dists_logl(row, dists, interim, objects, labels, zz):
+    # distributions of from_density: one vectorised call for the rows' own points
+    from .likelihoods import _rows_logpdf, log_interim
+
+    with np.errstate(invalid="ignore"):  # -inf - -inf where the interim vanishes: NaN
+        return _rows_logpdf(dists, 1)(zz, row[objects]) - log_interim(interim, zz)
+
+
+def _rows_logl(row, n_in, fn, log, interim, objects, labels, zz):
+    # a density function of from_density returns every input row at common points: it
+    # is called on the sub-points of a few bins at a time, at most EVAL_BUDGET values
+    from .density import _log_nonneg
+    from .likelihoods import log_interim
+
+    out = np.empty(zz.shape)
+    _, first, inverse = np.unique(labels, return_index=True, return_inverse=True)
+    inverse = inverse.ravel()
+    per = max(1, EVAL_BUDGET // (n_in * zz.shape[1]))
+    for c in range(0, len(first), per):
+        at = np.flatnonzero((inverse >= c) & (inverse < c + per))
+        pts = zz[first[c : c + per]]
+        v = fn(pts.ravel())
+        v = np.asarray(v if log else _log_nonneg(v), dtype=float).reshape(n_in, *pts.shape)
+        out[at] = v[row[objects[at]], inverse[at] - c]
+    with np.errstate(invalid="ignore"):  # -inf - -inf where the interim vanishes: NaN
+        return out - log_interim(interim, zz)
 
 
 def _per_object(loglike: Callable[[np.ndarray, int], np.ndarray]) -> Callable:
@@ -686,6 +708,7 @@ def _subpoint_draw(zz, width, logw, gen, objects) -> np.ndarray:
     """One value per row by inverse-CDF sampling on the sub-points ``zz`` (cells of
     ``width / n_sub``) with log-weights ``logw``."""
     n, n_sub = logw.shape
+    logw = np.where(np.isnan(logw), -np.inf, logw)  # e.g. a posterior over a zero prior
     empty = ~np.isfinite(logw).any(axis=1)
     if empty.any():  # it drew from the box's first sub-point before (audit O-11)
         raise ValueError(
@@ -787,20 +810,23 @@ def _draw_samples(
     if direct:  # the label is the bin each sample was counted in: one segment each
         s0 = np.searchsorted(key, r * K + labels, side="left")
         s1 = np.searchsorted(key, r * K + labels, side="right")
-        hit = s1 > s0
-        a, b = G0[s0[hit]], G0[s1[hit]]
-        pos = np.searchsorted(G, a + (1.0 - gen.random(a.size)) * (b - a), side="left")
-        z[hit] = zs[np.clip(pos, s0[hit], s1[hit] - 1)]
+        a, b = G0[s0], G0[s1]
+        hit = b > a  # samples with weight in the bin
+        u = a[hit] + (1.0 - gen.random(hit.sum())) * (b - a)[hit]
+        z[hit] = zs[np.clip(np.searchsorted(G, u, side="left"), s0[hit], s1[hit] - 1)]
     else:  # components: the samples of the row inside the box, times the hat's height
         hit = np.zeros(n, dtype=bool)
         s0 = np.searchsorted(key, r * K, side="left")
         s1 = np.searchsorted(key, (r + 1) * K, side="left")
         order = np.lexsort((labels, objects))
         cut = np.flatnonzero(np.diff(objects[order]) | np.diff(labels[order])) + 1
+        last = -1
         for at in np.split(order, cut):  # the draws of one object in one box
             i = at[0]
             seg = slice(s0[i], s1[i])
-            us = np.stack([m.forward(zs[seg, d]) for d, m in enumerate(measures)], axis=1)
+            if objects[i] != last:  # the object's samples in u, once for all its boxes
+                us = np.stack([m.forward(zs[seg, d]) for d, m in enumerate(measures)], axis=1)
+                last = objects[i]
             w = np.diff(G0[s0[i] : s1[i] + 1]) * np.all((us >= lo[i]) & (us <= hi[i]), axis=1)
             for d in range(nd if height is not None else 0):
                 w = w * height(labels[i], d, us[:, d])

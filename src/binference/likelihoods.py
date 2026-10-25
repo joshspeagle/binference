@@ -945,7 +945,8 @@ class Likelihoods:
             key = rows.astype(np.int64) * bins.K + cols
             order = np.argsort(key, kind="stable")
             tot = np.bincount(rows, weights=w, minlength=n_obj)
-            G = np.cumsum((w / tot[rows])[order])
+            share = np.divide(w, tot[rows], out=np.zeros_like(w), where=tot[rows] > 0)
+            G = np.cumsum(share[order])
             zs = flat[inside].reshape(-1, bins.ndim)[order]
             _keep_within(lk, n_obj, "samples", bins.K, key[order], zs, G)
         _record_outside(lk, outside, warn_outside)
@@ -1178,8 +1179,9 @@ class Likelihoods:
         if bins.is_categorical:
             raise ValueError("from_density needs grid bins.")
         posterior = _check_kind(kind, interim)
-        if posterior and bins.ndim == 1:  # read before it is reduced to bin masses below
-            log_pi = _log_interim_z(Density.coerce(interim, interim_representation), bins)
+        interim_z = None  # read before it is reduced to bin masses below
+        if posterior and bins.ndim == 1:
+            interim_z = _interim_at_points(Density.coerce(interim, interim_representation), bins)
         quad = {
             "coordinate": "z" if posterior else "measure",
             "tol": tol,
@@ -1224,13 +1226,11 @@ class Likelihoods:
         )
         lk.meta["source"] = "density"
         if bins.ndim == 1:  # the likelihood at points, for value draws (DECISIONS #50)
-            if not posterior:
-                log_pi = lambda z: 0.0  # noqa: E731
             if callable(density):
-                _keep_within(lk, log_avg.shape[0], "rows", lambda z: logf(z) - log_pi(z))
-            else:
-                logl = lambda z, i: _dist_logpdf(dists[i], z) - log_pi(z)  # noqa: E731
-                _keep_within(lk, len(dists), "objects", logl)
+                n_in = log_avg.shape[0]
+                _keep_within(lk, n_in, "rows", n_in, density, log, interim_z)
+            elif all(_has_pdf(d) for d in dists):
+                _keep_within(lk, len(dists), "dists", dists, interim_z)
         if log_inside is not None:
             _record_outside(lk, _outside(log_inside), warn_outside)
         return lk
@@ -1356,10 +1356,11 @@ class _WithinBin:
         self.data = data
 
     def __reduce__(self):
-        try:
-            pickle.dumps(self.data)
-        except (pickle.PicklingError, AttributeError, TypeError):
-            return _WithinBin, ()
+        if self.data is not None and self.data[0] != "samples":  # arrays always pickle
+            try:
+                pickle.dumps(self.data)
+            except (pickle.PicklingError, AttributeError, TypeError):
+                return _WithinBin, ()
         return _WithinBin, (self.data,)
 
 
@@ -1370,16 +1371,27 @@ def _keep_within(lk: Likelihoods, n: int, kind: str, *data: Any) -> None:
     _attach_per_object(lk, value_row=np.arange(n))
 
 
-def _log_interim_z(density: Density, bins: Bins) -> Callable[[np.ndarray], np.ndarray]:
-    """The log interim density in ``z`` at points of 1-D bins; a prior known per bin is
-    flat in ``u`` within each (up to a constant per bin)."""
-    pointwise = density._log_pointwise()
-    if pointwise is not None:
-        return pointwise
+def _interim_at_points(density: Density, bins: Bins) -> tuple:
+    """What :func:`log_interim` reads: the density, and its log in ``u`` per bin of the
+    1-D ``bins`` when it is known only per bin (flat in ``u`` within each)."""
+    if density._log_pointwise() is not None:
+        return density, None, bins
     with np.errstate(divide="ignore"):
-        log_u = np.log(density.masses(bins) / bins.u_volumes)
-    m = bins.measures[0]
-    return lambda z: log_u[np.maximum(bins.index(z), 0)] + m.log_jacobian(z)
+        return density, np.log(density.masses(bins) / bins.u_volumes), bins
+
+
+def log_interim(interim: tuple | None, z: np.ndarray) -> Any:
+    """The log interim density in ``z`` at the points ``z`` (any shape), up to a constant
+    per bin; 0 without one (likelihoods)."""
+    if interim is None:
+        return 0.0
+    density, log_u, bins = interim
+    x = np.ravel(z)
+    if log_u is None:
+        out = density._log_pointwise()(x)
+    else:
+        out = log_u[np.maximum(bins.index(x), 0)] + bins.measures[0].log_jacobian(x)
+    return np.reshape(out, np.shape(z))
 
 
 def _attach_per_object(lk: Likelihoods, **arrays: Any) -> None:

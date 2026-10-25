@@ -48,8 +48,9 @@ First development version.
   resamples the samples of `from_samples` inside the drawn bin (`keep_samples=`),
   evaluates `from_density` densities inside 1-D bins (interim divided out for
   posteriors), and draws correlated Gaussians jointly by Gibbs sweeps (`n_sweeps=`);
-  only tables, binned inputs and compressed rows fall back to flat within the bin, with
-  a warning naming the source.
+  tables, binned inputs, compressed rows, densities on grids or without a pdf, samples
+  not kept and density functions that could not be pickled fall back to flat within
+  the bin, with a warning naming the source.
 
 - **Measures** (DECISIONS #21): each grid axis has a `Measure`, the coordinate
   `u = T(z)` in which the population is flat within a bin: linear, log, a transform with
