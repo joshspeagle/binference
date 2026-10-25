@@ -54,7 +54,8 @@ First development version.
   (DECISIONS #21); `from_gaussian` averages in u on non-linear axes. Far tails no longer
   underflow to empty rows (I-2, I-3).
 - **Samples** (DECISIONS #31, #67): one estimator for every interim prior (per-sample
-  weights T'(z)/π(z) when π can be evaluated at points), an opt-in Dirichlet `floor`,
+  weights T'(z)/π(z); a per-bin prior is flat in u within bins), an opt-in Dirichlet
+  `floor` in pseudo-samples,
   `n_eff` inside the bins with a warning on the share of noisy objects (I-23),
   `Likelihoods.sample_variance` and a Monte Carlo variance check in `result.check()`;
   `Measure.log_jacobian`.
