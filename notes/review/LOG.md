@@ -213,3 +213,7 @@ Append-only. One entry per working session (or per step within a long session).
 - Josh accepted: shared density class + PopulationPrior (#26), Response + from_binned (#27), response inferred jointly by default with a fixed option (#28), classifier route set by the inputs and reported, label-shift check (#29), selection treated the same way, revising #10 (#30).
 - Pending: samples (Josh asked whether the Monte Carlo integral and the multinomial view are the same; answered: identical for histogram bins with an interim flat inside bins, MC form generalises), constructor naming proposal (from_table / from_density / from_samples / from_gaussian / from_binned).
 - Josh confirmed the samples estimator (#31) and the constructor names (#32). Step 2.3 done. Next: Phase 1 step 1.1.
+
+## 2026-10-25: step 1.1 page
+
+- Published `1.1-scope.html`: pitch, the six principles checked against code and decisions (filterable cards), four proposed new principles, use cases today vs after the redesign, scope moves, docs-drift list, questions. Found: principle 6 drift (MAP returns `PointEstimate` without summaries/intervals/functionals). Checked at 375 px.

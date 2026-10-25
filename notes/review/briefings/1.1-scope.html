@@ -1,0 +1,277 @@
+<title>Pastry Scope</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Literata:opsz,wght@7..72,500;7..72,600&display=swap">
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [["$", "$"], ["\\(", "\\)"]], displayMath: [["$$", "$$"]] },
+    svg: { fontCache: "global" },
+    options: { skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"] }
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
+<style>
+/* Layout: sticky section index on the left, a single reading column on the right; explorers break out to full column width. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #18202b;
+  --muted: #5a6573;
+  --rule: #d9dee5;
+  --accent: #1f5fa8;      /* ink blue: the model, exact quantities */
+  --warm: #b4691f;        /* amber: approximations, the flat-within-bin assumption */
+  --good: #2e7d4f;
+  --alt: #8a3b8f;         /* purple: ignoring selection */
+  --code-bg: #eef1f5;
+  --font-display: "Literata", Georgia, serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
+    --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
+  --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body);
+  font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+.page { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 40px; }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-top: 40px; font-size: 13.5px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+nav.toc a { color: var(--muted); text-decoration: none; display: flex; gap: 8px; padding: 4px 8px; border-radius: 4px; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink); background: var(--code-bg); outline: none; }
+nav.toc .n { font-family: var(--font-mono); width: 1.6em; color: var(--muted); }
+nav.toc .now { color: var(--accent); font-weight: 600; }
+nav.toc .done::after { content: "discussed"; margin-left: auto; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--good); }
+main { min-width: 0; padding-top: 40px; }
+header.top { border-bottom: 1px solid var(--rule); padding-bottom: 24px; margin-bottom: 8px; }
+.eyebrow { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 2.3rem; line-height: 1.15; margin: 6px 0 12px; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.55rem; margin: 0 0 8px; text-wrap: balance; }
+h3 { font-size: 1rem; font-weight: 600; margin: 22px 0 6px; }
+.lede { max-width: 66ch; color: var(--muted); margin: 0; }
+section { padding: 36px 0 8px; border-bottom: 1px solid var(--rule); }
+section > p, section > ul, section > ol { max-width: 68ch; }
+.sec-head { display: flex; align-items: baseline; gap: 12px; }
+.sec-head .n { font-family: var(--font-mono); color: var(--muted); font-size: 14px; }
+.files { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+.eq { overflow-x: auto; padding: 4px 0; }
+.callout { border: 1px solid var(--rule); background: var(--surface); padding: 14px 18px; border-radius: 6px; max-width: 68ch; }
+.callout.approx { border-color: var(--warm); }
+.callout.approx strong { color: var(--warm); }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+details.code { margin: 14px 0; max-width: 820px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+details.code summary { cursor: pointer; padding: 8px 14px; font-size: 13.5px; color: var(--muted); }
+details.code summary b { font-family: var(--font-mono); font-weight: 500; color: var(--ink); }
+details.code pre { margin: 0; padding: 12px 14px; overflow-x: auto; background: var(--code-bg); border-top: 1px solid var(--rule); font-family: var(--font-mono); font-size: 12.8px; line-height: 1.5; border-radius: 0 0 6px 6px; }
+.cm { color: var(--muted); }
+.explorer { margin: 22px 0 10px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 18px; }
+.explorer h3 { margin-top: 0; font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px 20px; margin: 10px 0 14px; }
+.controls label { display: grid; gap: 2px; font-size: 13px; color: var(--muted); }
+.controls .val { font-family: var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+canvas { width: 100%; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+.legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+.stats { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 12px; font-size: 13.5px; }
+.stats b { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+.note { font-size: 13.5px; color: var(--muted); max-width: 70ch; }
+table.tbl { border-collapse: collapse; font-size: 13.5px; margin: 10px 0; }
+.tblwrap { overflow-x: auto; }
+table.tbl th, table.tbl td { padding: 6px 12px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+table.tbl th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+pre.mermaid { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 12px; overflow-x: auto; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 10px; }
+.pair figure { margin: 0; min-width: 0; } .pair figcaption { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 4px; }
+.qs { list-style: none; padding: 0; display: grid; gap: 10px; max-width: 72ch; }
+.qs li { display: grid; grid-template-columns: auto 1fr; gap: 12px; border: 1px solid var(--rule); background: var(--surface); padding: 10px 14px; border-radius: 6px; }
+.qs .tag { font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding-top: 2px; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; max-width: 100%; padding: 2px 0; }
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 12px 0; max-width: 820px; }
+.mode { border: 1px solid var(--rule); background: var(--surface); border-radius: 6px; padding: 12px 14px; min-width: 0; }
+.mode h4 { margin: 0 0 6px; font-size: 14px; } .mode h4 code { font-size: 13px; }
+.mode dl { margin: 0; display: grid; gap: 6px; font-size: 14px; } .mode dt { color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; } .mode dd { margin: 0; min-width: 0; }
+input[type=range] { height: 28px; }
+@media (max-width: 860px) {
+  .page { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--rule); margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  nav.toc .eyebrow { display: none; }
+  nav.toc ol { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  nav.toc ol::-webkit-scrollbar { display: none; }
+  nav.toc a { white-space: nowrap; border: 1px solid var(--rule); border-radius: 999px; padding: 6px 12px; }
+  nav.toc .done::after { content: "✓"; letter-spacing: 0; margin-left: 2px; font-size: 12px; }
+  main { padding-top: 20px; }
+  h1 { font-size: 1.7rem; } h2 { font-size: 1.3rem; }
+  section { padding-top: 28px; scroll-margin-top: 64px; }
+  .explorer { padding: 14px 12px; margin-left: -4px; margin-right: -4px; }
+  .sec-head { flex-wrap: wrap; gap: 4px 10px; }
+}
+section { scroll-margin-top: 16px; }
+.sel { font: inherit; width: 100%; padding: 6px; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); color: var(--ink); }
+</style>
+<style>
+.chip { display: inline-block; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; margin-left: 6px; vertical-align: 2px; white-space: nowrap; }
+.chip.holds { color: var(--good); } .chip.revise { color: var(--warm); } .chip.new { color: var(--accent); } .chip.drift { color: var(--alt); }
+details.pr { border: 1px solid var(--rule); background: var(--surface); border-radius: 6px; margin: 10px 0; max-width: 72ch; }
+details.pr summary { cursor: pointer; padding: 10px 14px; font-weight: 600; list-style: none; }
+details.pr summary::-webkit-details-marker { display: none; }
+details.pr summary::before { content: "▸"; color: var(--muted); margin-right: 8px; display: inline-block; transition: transform .15s; }
+details.pr[open] summary::before { transform: rotate(90deg); }
+details.pr .body { padding: 0 14px 12px; font-size: 15px; }
+details.pr .body p { margin: 6px 0; }
+.filt { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.filt button { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); cursor: pointer; }
+.filt button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+</style>
+
+<div class="page">
+<nav class="toc" aria-label="Sections">
+  <div class="eyebrow" style="padding:0 8px 8px">Step 1.1</div>
+  <ol>
+    <li><a href="#s1"><span class="n">1</span>The pitch</a></li>
+    <li><a href="#s2"><span class="n">2</span>Principles</a></li>
+    <li><a href="#s3"><span class="n">3</span>Use cases</a></li>
+    <li><a href="#s4"><span class="n">4</span>Scope</a></li>
+    <li><a href="#s5"><span class="n">5</span>Docs drift</a></li>
+    <li><a href="#s6"><span class="n">6</span>To decide</a></li>
+  </ol>
+</nav>
+<main>
+<header class="top">
+  <div class="eyebrow">pastry walkthrough · Phase 1 · level L1–L2</div>
+  <h1>What pastry is for</h1>
+  <p class="lede">The problem, the scope and the design principles as written in the spec (§1–2), the README and the docs landing page, checked against what the code does and against the 32 decisions we've taken so far. Goal: agree on the vision and principles we'll hold the rest of the walkthrough (and the rewrite) to.</p>
+</header>
+
+<section id="s1">
+  <div class="sec-head"><span class="n">§1</span><h2>The pitch, as written</h2></div>
+  <div class="callout"><p style="margin-top:0"><strong>Spec §1:</strong> pastry turns <em>a catalogue of noisy, heteroscedastic, arbitrarily shaped per-object PDFs over a set of bins or categories</em> into <em>a posterior over the population distribution</em> (fractions or rates), plus consistent posteriors for each object under that population.</p>
+  <p style="margin-bottom:0">"The baseline model has been implemented at least four times in astronomy alone … pastry's value is therefore <strong>usability, correct input conventions, calibrated uncertainty, validation and speed, not a new model</strong>."</p></div>
+  <p>The model itself is one line, $p(\rho\mid D) \propto p(\rho)\prod_i (L_i\cdot\rho)^{w_i}$ (step 2.1), and the census found it under five names: hierarchical n(z) / CMD inference in astronomy, iterative Bayesian unfolding in physics, NPMLE / g-modelling in statistics, EM quantification in machine learning, mixed-stock analysis in genetics.</p>
+  <h3>Does the pitch still fit?</h3>
+  <p>Mostly, but our decisions have moved pastry beyond "not a new model". Several are modelling contributions, not just usability:</p>
+  <ul>
+    <li><strong>Beyond flat-within-bin:</strong> B-spline mixture bases and internal resolution (#4, #5), with binning-bias diagnostics and a planner (#6, #20).</li>
+    <li><strong>Auxiliary inputs inferred jointly:</strong> uncertain responses and selection functions as parameters (#28, #30), selection on truth and measurement at once (#8).</li>
+    <li><strong>Inputs as estimators with error control:</strong> adaptive quadrature, the samples Monte Carlo check (#23, #31), the classifier routes and label-shift test (#29).</li>
+    <li><strong>Adaptive defaults</strong> chosen from evidence, dynesty-style (#14).</li>
+  </ul>
+  <p>Suggested rewrite of the last sentence: <em>"pastry's value is correct input conventions, calibrated uncertainty, validation and speed, plus the pieces the existing implementations leave out: inputs whose own uncertainty is propagated, bases that remove the flat-within-bin approximation, and defaults chosen automatically."</em></p>
+</section>
+
+<section id="s2">
+  <div class="sec-head"><span class="n">§2</span><h2>The design principles, checked</h2></div>
+  <p>The spec lists six. Tap each for what the code does today and what our decisions changed. Filter:</p>
+  <div class="filt" role="group" aria-label="Filter principles">
+    <button data-f="all" aria-pressed="true">all</button><button data-f="holds" aria-pressed="false">holds</button><button data-f="revise" aria-pressed="false">needs revision</button><button data-f="new" aria-pressed="false">new</button>
+  </div>
+  <div id="plist">
+  <details class="pr" data-s="revise"><summary>1. Correct by construction <span class="chip revise">strengthen</span></summary><div class="body">
+    <p><strong>Says:</strong> the API makes users state likelihood or posterior, which interim prior, mass or density.</p>
+    <p><strong>Today:</strong> mostly honoured (posteriors need an interim prior; array selections need a mode), but with holes: an interim array means mass in one constructor and density in another (I-1), <code>from_function</code> silently defaults to "likelihood", and "flat" doesn't say in which coordinate.</p>
+    <p><strong>Decisions:</strong> #24, #26, #32 (one of <code>kind</code>/<code>interim</code> required; one density class; constructors named by input form), #15 (simplex vs unconstrained densities named explicitly), #21 (measure explicit).</p></div></details>
+  <details class="pr" data-s="holds"><summary>2. Easy things one line, hard things possible <span class="chip holds">holds</span></summary><div class="body">
+    <p><strong>Says:</strong> <code>pastry.infer</code> on top; model and sampler objects below; raw log-densities for external samplers (as emcee, dynesty, nautilus, sbi).</p>
+    <p><strong>Today:</strong> honoured: <code>infer</code> → <code>PopulationModel</code> + engine classes → <code>log_prob_and_grad</code> / <code>prior_transform</code>.</p>
+    <p><strong>Decisions:</strong> #16 ("expose everything, with sensible defaults") is the same idea taken further: every tunable reachable. Open: the 1.3 architecture items (kwargs passthrough, closed method registry) bear on how "possible" the hard things are.</p></div></details>
+  <details class="pr" data-s="holds"><summary>3. Exact by default; approximations labelled <span class="chip holds">holds</span></summary><div class="body">
+    <p><strong>Today:</strong> honoured: NUTS default; Laplace/VB/bootstrap carry <code>approximate</code> flags and an <code>ApproximationWarning</code>.</p>
+    <p><strong>Nuance:</strong> "exact" is exact <em>given the binned model</em>. The flat-within-bin assumption (#5) and Monte Carlo inputs (#31) are approximations of the model itself and are not labelled today; the bias diagnostics (#6, #20) and the samples check (#31) extend the principle to them.</p></div></details>
+  <details class="pr" data-s="revise"><summary>4. Self-validating <span class="chip revise">extend</span></summary><div class="body">
+    <p><strong>Today:</strong> R-hat/ESS/divergences computed automatically and <code>check()</code> called by <code>infer</code> for NUTS and Gibbs; SBC, coverage and exact quadrature posteriors ship in <code>validation</code>.</p>
+    <p><strong>Decisions add checks of the <em>inputs and model</em>, not just the sampler:</strong> KKT gap (#12), binning bias (#6), mass outside the support (#18), samples Monte Carlo error (#31), label-shift test (#29), effective draws for selection (#30). Worth stating as part of the principle: pastry checks its sampler, its inputs and its approximations.</p></div></details>
+  <details class="pr" data-s="holds"><summary>5. Lightweight core <span class="chip holds">holds</span></summary><div class="body">
+    <p><strong>Today:</strong> NumPy, SciPy and threadpoolctl (the spec says NumPy and SciPy only; threadpoolctl was added for the parallel-chains fix, a small text drift). Plotting and xarray are extras.</p>
+    <p><strong>Decisions:</strong> #3 keeps NumPy gradients; JAX/PyTorch on the roadmap as an optional backend.</p></div></details>
+  <details class="pr" data-s="revise"><summary>6. One result object <span class="chip drift">drift</span></summary><div class="body">
+    <p><strong>Says:</strong> every engine returns the same result type.</p>
+    <p><strong>Today:</strong> not quite: MAP/EM returns a <code>PointEstimate</code>, the samplers a <code>PopulationResult</code>. They share the per-object methods (a mixin) but not summaries, intervals or functionals.</p>
+    <p><strong>Options:</strong> fix the text ("one result type per kind of answer: draws or a point"), or make a point estimate a one-draw <code>PopulationResult</code> with a flag. To settle in Phase 5 (outputs).</p></div></details>
+  <details class="pr" data-s="new"><summary>7. Expose everything, sensible defaults <span class="chip new">new (#16)</span></summary><div class="body">
+    <p>Every tunable is reachable; nothing needs touching for a good result. Recorded per argument in the arguments ledger.</p></div></details>
+  <details class="pr" data-s="new"><summary>8. Adaptive, evidence-based defaults <span class="chip new">new (#14)</span></summary><div class="body">
+    <p>When the user doesn't choose, pastry chooses (engine, metric, basis, resolution) with every useful heuristic, as dynesty does, and says what it chose. Rules come from the benchmark matrix (4.6), not intuition.</p></div></details>
+  <details class="pr" data-s="new"><summary>9. The user's bins define the problem; internals adapt <span class="chip new">new (#17, #20, #21)</span></summary><div class="body">
+    <p>Arbitrary edges, N-D, masks and a measure; internal resolution and basis follow from the bins and the data. No data-driven re-binning by default.</p></div></details>
+  <details class="pr" data-s="new"><summary>10. Every uncertain input is modelled <span class="chip new">new (#10, #28, #30)</span></summary><div class="body">
+    <p>Selection functions, responses and calibration sets come with their uncertainty and are inferred jointly by default; fixing them is an explicit choice.</p></div></details>
+  </div>
+</section>
+
+<section id="s3">
+  <div class="sec-head"><span class="n">§3</span><h2>The motivating use cases, then and after the redesign</h2></div>
+  <div class="modes">
+    <div class="mode"><h4>Photo-z n(z)</h4><dl><dt>Input</dt><dd>posteriors under an interim prior; likelihoods; samples</dd><dt>Today</dt><dd><code>from_posteriors</code>, <code>from_samples</code>, <code>from_gaussian</code></dd><dt>After #26–#32</dt><dd><code>from_table(…, interim=)</code>, <code>from_samples(…, interim=)</code>; log measure (#21); B-spline basis (#5)</dd></dl></div>
+    <div class="mode"><h4>CMD / HR diagram</h4><dl><dt>Input</dt><dd>per-star likelihoods on a 2-D grid, often sparse</dd><dt>Today</dt><dd><code>Likelihoods(L, Bins.grid)</code>; diagonal <code>from_gaussian</code></dd><dt>After #26–#32</dt><dd>+ correlated Gaussians (#25), masked grids (#19)</dd></dl></div>
+    <div class="mode"><h4>Quantification</h4><dl><dt>Input</dt><dd>classifier outputs</dd><dt>Today</dt><dd><code>from_classifier</code> (route A only)</dd><dt>After #26–#32</dt><dd>route C via <code>Response.from_labelled</code> + <code>from_binned</code>; route A via <code>from_table</code>; label-shift test (#29)</dd></dl></div>
+    <div class="mode"><h4>HEP unfolding</h4><dl><dt>Input</dt><dd>counts + response + efficiency</dd><dt>Today</dt><dd><code>from_response</code> (response fixed)</dd><dt>After #26–#32</dt><dd><code>Response.from_simulation</code> + <code>from_binned</code>; response inferred jointly (#28)</dd></dl></div>
+    <div class="mode"><h4>Genetic stock ID</h4><dl><dt>Input</dt><dd>genotype likelihoods per source population</dd><dt>Today</dt><dd><code>Likelihoods(L, Bins.categories)</code></dd><dt>After #26–#32</dt><dd>unchanged; baseline-sample uncertainty = the "uncertain reference" item (§4)</dd></dl></div>
+    <div class="mode"><h4>Occurrence rates</h4><dl><dt>Input</dt><dd>posterior samples + completeness</dd><dt>Today</dt><dd><code>from_samples</code> + <code>selection</code>, <code>GammaRates</code></dd><dt>After #26–#32</dt><dd>completeness from injections (#10, #30); rates derived per draw (#9)</dd></dl></div>
+  </div>
+  <p class="note">Genetic stock ID shows a pattern worth naming: its "likelihoods" are themselves estimated from a finite baseline sample, just like a response from a simulation. The planned hierarchical reference-sample model (spec "should") is the same idea as #28.</p>
+</section>
+
+<section id="s4">
+  <div class="sec-head"><span class="n">§4</span><h2>Scope: what moves</h2></div>
+  <div class="tblwrap"><table class="tbl">
+    <tr><th>Item</th><th>Spec says</th><th>Now</th></tr>
+    <tr><td>Learning the selection function</td><td>out of scope</td><td><strong>in</strong>, as helpers: <code>Selection.from_injections</code>, inferred jointly (#10, #30)</td></tr>
+    <tr><td>Estimating a response / calibration set</td><td>implicitly out (pastry "starts where each object already has a PDF")</td><td><strong>in</strong>, from simulations or labelled data (#27–#29); computing per-object likelihoods from raw data stays out</td></tr>
+    <tr><td>Continuous populations</td><td>roadmap (flows, smooth maps)</td><td>a first step comes earlier: B-spline mixture bases and internal resolution (#4, #5)</td></tr>
+    <tr><td>Rates</td><td>separate "kind" (must)</td><td>derived per draw by default, explicit total opt-in (#9)</td></tr>
+    <tr><td>Hierarchical reference sample</td><td>should</td><td>same machinery as uncertain responses (#28); could share an implementation</td></tr>
+    <tr><td>Cross-validation helper for binnings</td><td>should</td><td>partly superseded by the binning-bias planner and diagnostic (#6, #20)</td></tr>
+    <tr><td>JAX / GPU backend</td><td>roadmap</td><td>unchanged (#3)</td></tr>
+  </table></div>
+</section>
+
+<section id="s5">
+  <div class="sec-head"><span class="n">§5</span><h2>Where README and docs will drift</h2></div>
+  <p>Nothing to change yet (implementation comes after the walkthrough), but these front-page statements will become wrong, so they go on the Phase 8 list:</p>
+  <ul>
+    <li><code>selection_mode="observed"/"true"</code> → <code>on_measurement</code>/<code>on_truth</code> (#7), and combined selection (#8).</li>
+    <li>Constructor list (<code>from_posteriors</code>, <code>from_function</code>, <code>from_distributions</code>, <code>from_response</code>, <code>from_classifier</code>) → #32.</li>
+    <li><code>GammaRates</code> as the way to get rates → #9.</li>
+    <li>"<code>Dirichlet(alpha)</code> is the default with alpha=1" → whatever the adaptive defaults decide (#14).</li>
+    <li>The model formula's weights $w_i$ → integer multiplicities in the public meaning (#1).</li>
+    <li>Spec §1 "NumPy and SciPy only" (threadpoolctl) and "one result object" (principle 6).</li>
+  </ul>
+</section>
+
+<section id="s6">
+  <div class="sec-head"><span class="n">§6</span><h2>To decide</h2></div>
+  <ul class="qs">
+    <li><span class="tag">§1</span><span>Rewrite the value statement to include the modelling contributions (suggested wording above), or keep "not a new model" as a deliberate modesty?</span></li>
+    <li><span class="tag">§2</span><span>Adopt the ten principles (six revised + four new) as the reference list for the rest of the walkthrough and the rewrite?</span></li>
+    <li><span class="tag">§2.6</span><span>One result object: fix the text, or unify point estimates into <code>PopulationResult</code>? (Can wait for Phase 5.)</span></li>
+    <li><span class="tag">§4</span><span>Accept the scope moves: selection learning and response estimation in; first step towards continuous populations earlier.</span></li>
+    <li><span class="tag">audience</span><span>The README leads with astronomy (n(z), Gaia CMDs); the census says the users are in five fields. Astronomy-first with the other fields as tutorials, or field-neutral front page?</span></li>
+  </ul>
+</section>
+</main>
+</div>
+<script>
+(function () {
+  const btns = document.querySelectorAll(".filt button"), items = document.querySelectorAll("#plist details");
+  btns.forEach((b) => b.addEventListener("click", () => {
+    btns.forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+    const f = b.dataset.f;
+    items.forEach((d) => { d.style.display = (f === "all" || d.dataset.s === f) ? "" : "none"; });
+  }));
+})();
+</script>
