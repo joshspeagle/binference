@@ -16,6 +16,7 @@ future session (after a context reset) can pick up exactly where we left off.
 | `QUESTIONS.md` | Parking lot: open questions, ideas, proposed changes not yet decided | Items move to `DECISIONS.md` when settled |
 | `briefings/` | One briefing per step: `<step>.html` is the interactive page Josh reads (equations, diagrams, live explorers, code excerpts; also published as a private artifact), `<step>.md` the plain-text record for future sessions | Written per step; amended with what we learned |
 | `ARTIFACTS.md` | Links to the published briefing pages | Append when a page is published |
+| `vision.md` | Agreed vision and design principles (step 1.1): the reference for every later decision | Edit when principles change |
 | `api-ledger.md` | Every public argument: default today, proposed default, why, status (input to Phase 7) | Add rows as each module is walked through |
 
 ## Rules for a new session

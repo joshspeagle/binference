@@ -217,3 +217,4 @@ Append-only. One entry per working session (or per step within a long session).
 ## 2026-10-25: step 1.1 page
 
 - Published `1.1-scope.html`: pitch, the six principles checked against code and decisions (filterable cards), four proposed new principles, use cases today vs after the redesign, scope moves, docs-drift list, questions. Found: principle 6 drift (MAP returns `PointEstimate` without summaries/intervals/functionals). Checked at 375 px.
+- Josh: vision = sklearn-easy for novices, all knobs for experts, blazing fast, the right thing so easy that not doing it feels criminal. Decisions #33–#37 (rewrite value statement, adopt principles + 'fast', one result object with draws + best fit by default, scope moves, field-neutral). `vision.md` written. Step 1.1 done; next 1.2.
