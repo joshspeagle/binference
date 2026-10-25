@@ -242,28 +242,46 @@ class _IndividualMixin:
         or above :func:`~binference.diagnostics.psis_threshold` are flagged with a
         warning: their estimate is unreliable, and refitting without them is the remedy.
 
+        The draws must come from the posterior or an approximation of it (bootstrap
+        draws are refused). In a rate model an object's factor is
+        :math:`\Lambda\,L_i\cdot\rho`; with a selection in a fractions model,
+        :math:`L_i\cdot\rho / S\cdot\rho`. An object impossible under some draw gets
+        :math:`\hat k = \infty` and a zero row.
+
         Returns ``(probabilities, k_hat)``: ``(n, K)`` and ``(n,)`` for the objects
         ``idx`` (all by default), ``chunk`` objects at a time.
         """
+        if n_draws is not None and n_draws < 5:
+            raise ValueError(f"n_draws must be at least 5 for leave-one-out; got {n_draws}.")
+        if getattr(self, "method", None) == "bootstrap":
+            raise ValueError("Leave-one-out reweights posterior draws; bootstrap draws are not.")
         model = self._require_model()
-        L, R, norm, _ = self._new_object_draws(model.likelihoods, n_draws)
+        L, R, S = self._object_draws(n_draws)
         m = R.shape[0]
         if m < 5:
             raise ValueError(f"Leave-one-out needs posterior draws (at least 5); this has {m}.")
+        if self.kind == "rates":  # Poisson: the object's factor is Lambda (L_i . rho)
+            lam = self._params.reshape(-1, self._params.shape[-1])
+            log_norm = -np.log(lam[_draw_index(len(lam), n_draws)].sum(axis=1))
+        else:
+            norm = self._norms(R, S, n_draws)
+            log_norm = 0.0 if norm is None else np.log(norm)
         rows = np.atleast_1d(np.arange(model.N)[slice(None) if idx is None else idx])
-        L = _objects(L, model.N, idx)
-        log_norm = 0.0 if norm is None else np.log(norm)
-        out, k_hat = np.empty((rows.size, R.shape[1])), np.empty(rows.size)
-        for sl in chunk_slices(rows.size, chunk):
-            block = L[:, sl] if L.ndim == 3 else L[sl]
-            T = np.einsum("snk,sk->ns", block, R) if L.ndim == 3 else np.asarray(block @ R.T)
+        w, k_hat = model._w[rows], np.empty(rows.size)
+
+        def weigh(sl, T):  # PSIS weights of the objects sl from p(d_i | rho_s) ~ T
             with np.errstate(divide="ignore"):
-                logp = np.log(T) - log_norm  # (objects, draws): log p(d_i | rho_s)
-            W = np.empty_like(T)
-            for j, i in enumerate(rows[sl]):
-                lw, k_hat[sl.start + j] = diag.psis(-model._w[i] * logp[j])
+                logp = np.log(T) - log_norm
+            W = np.zeros_like(T)
+            for j, i in enumerate(range(sl.start, sl.stop)):
+                if not np.all(np.isfinite(logp[j])):  # impossible under some draw
+                    k_hat[i] = np.inf
+                    continue
+                lw, k_hat[i] = diag.psis(-w[i] * logp[j])
                 W[j] = np.exp(lw)
-            out[sl] = _mean_responsibilities(block, R, chunk, W)
+            return W
+
+        out = _mean_responsibilities(_objects(L, model.N, idx), R, chunk, weigh)
         bad = k_hat >= diag.psis_threshold(m)
         if bad.any():
             warn(
@@ -564,31 +582,42 @@ class _IndividualMixin:
             R = self._select_draws(n_draws, components=True)
             Rd = _flat_draws(info["response_draws"], 2, n_draws)
             rows = Rd[:, lk.meta["measured_bin"]]  # the response's own rows: scale one
-            return rows, R, np.sum(Rd.sum(axis=1) * R, axis=1), np.zeros(lk.N)
+            return rows, R, self._norms(R, None, n_draws), np.zeros(lk.N)
         _, R, S = self._object_draws(n_draws)
         L = model.effective_likelihoods(lk) if S is None else lk.values
+        return L, R, self._norms(R, S, n_draws), lk.log_scale
+
+    def _norms(self, R: np.ndarray, S: np.ndarray | None, n_draws: int | None):
+        """Each draw's normaliser of a detected object's likelihood, :math:`S\\cdot\\rho`
+        (the response's efficiencies with an inferred response), for the draws ``R`` and
+        inferred selection ``S`` of :meth:`_object_draws`; ``None`` without a selection."""
+        model = self._require_model()
+        info = getattr(self, "info", {})
+        if "response_draws" in info:
+            return np.sum(_flat_draws(info["response_draws"], 2, n_draws).sum(axis=1) * R, axis=1)
         if model.selection is None:
-            return L, R, None, lk.log_scale
-        return L, R, (R.sum(axis=1) if S is not None else R @ model.selection), lk.log_scale
+            return None
+        return R.sum(axis=1) if S is not None else R @ model.selection
 
 
 def _mean_responsibilities(
-    L: Any, R: np.ndarray, chunk: int, W: np.ndarray | None = None
+    L: Any, R: np.ndarray, chunk: int, weigh: Callable | None = None
 ) -> np.ndarray:
-    """Per-object posteriors over the columns, averaged over the draws of column weights
-    ``R`` (equally, or with weights ``W`` ``(n, draws)`` per object summing to one),
-    ``chunk`` objects at a time (``L`` may hold rows per draw, ``(n, N, K)``)."""
+    r"""Per-object posteriors over the columns, averaged over the draws of column weights
+    ``R``, ``chunk`` objects at a time (``L`` may hold rows per draw, ``(n, N, K)``):
+    equally, or with the weights ``weigh(sl, T)`` returns for the objects ``sl`` from
+    their :math:`T_{is} = L_i\cdot R_s` (``(n_sl, draws)``, rows summing to one)."""
     n, m = L.shape[-2], R.shape[0]
-    W = np.full((n, m), 1.0 / m) if W is None else W
     out = np.zeros((n, L.shape[-1]))
     for sl in chunk_slices(n, chunk):
         block = L[:, sl] if L.ndim == 3 else L[sl]
         block = block.toarray() if hasattr(block, "toarray") else np.asarray(block)
         rows = np.arange(sl.start, sl.stop)
+        T = block @ R.T if block.ndim == 2 else np.einsum("snk,sk->ns", block, R)
+        W = np.full(T.shape, 1.0 / m) if weigh is None else weigh(sl, T)
         if block.ndim == 2:  # rows shared by the draws: sum_s w_s L R_s / (L.R_s), 2 products
-            T = block @ R.T
             tiny = np.finfo(float).tiny  # 1/T overflows below: those rows go draw by draw
-            inv = np.divide(W[sl], T, out=np.zeros_like(T), where=T > tiny)  # no support: 0
+            inv = np.divide(W, T, out=np.zeros_like(T), where=T > tiny)  # no support: zero
             out[sl] = block * (inv @ R)
             slow = np.any((T > 0) & (T <= tiny), axis=1)
             if not slow.any():
@@ -601,7 +630,7 @@ def _mean_responsibilities(
         for s, rho in enumerate(R):  # draw by draw
             P = block[s] * rho
             tot = P.sum(axis=1, keepdims=True)
-            out[rows] += W[rows, s, None] * P / np.where(tot > 0, tot, 1.0)
+            out[rows] += W[rows - sl.start, s, None] * P / np.where(tot > 0, tot, 1.0)
     return out
 
 
@@ -1041,12 +1070,22 @@ class PopulationResult(_IndividualMixin):
         """The selection function of the fit, kept through :meth:`save` and :func:`load`."""
         return self._selection
 
+    _fit_model = True  # whether the model is the fit's own (not bare likelihoods attached)
+
     @property
     def best(self) -> PointEstimate:
         """The best fit: :class:`~binference.samplers.MAP` with its defaults, which is the
-        mode of :math:`\rho` on the simplex for conjugate priors and the mode in the
-        unconstrained coordinates otherwise (DECISIONS #15, #35). Computed on first use
-        and kept; per-object outputs at it carry a ``_best`` suffix (DECISIONS #51)."""
+        mode of :math:`\\rho` on the simplex for conjugate priors whose density is bounded
+        there (e.g. Dirichlet concentrations of at least one), and the mode in the
+        unconstrained coordinates otherwise, and always with a jointly inferred selection
+        or response (DECISIONS #15, #35). Computed on first use
+        and kept; per-object outputs at it carry a ``_best`` suffix (DECISIONS #51).
+        After :func:`load`, it needs the fit's prior: attach a model, not bare likelihoods."""
+        if not self._fit_model:
+            raise ValueError(
+                "The best fit needs the fit's prior: attach a PopulationModel built with it "
+                "(bare likelihoods get the default prior)."
+            )
         if "best" not in self._cache:
             from .samplers import MAP
 
@@ -1063,6 +1102,7 @@ class PopulationResult(_IndividualMixin):
         from .model import PopulationModel
 
         m, saved = likelihoods_or_model, self.selection
+        self._fit_model = isinstance(m, PopulationModel)  # bare likelihoods: default prior
         if not isinstance(m, PopulationModel):
             lk = m if isinstance(m, Likelihoods) else Likelihoods(m, self.basis or self.bins)
             m = PopulationModel(lk, selection=None if lk.selection is not None else saved)

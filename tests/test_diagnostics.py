@@ -68,3 +68,9 @@ def test_autocorr_function():
     f = d.autocorr_function(x)
     assert f[0] == pytest.approx(1.0)
     assert f.shape == (1000,)
+
+
+def test_psis_of_equal_weights_has_no_tail():
+    lw, k = d.psis(np.full(100, 3.0) + 1e-14 * np.arange(100))  # equal up to round-off
+    np.testing.assert_allclose(np.exp(lw), 0.01)
+    assert k == -np.inf

@@ -113,7 +113,10 @@ print(result.log_predictive(new).round(3))     # log p(d_new | D), for model com
 
 Every result also carries its **best fit**, `result.best`: the estimate of
 `binference.samplers.MAP` with its defaults (the mode of $\rho$ on the simplex for
-conjugate priors, in the unconstrained coordinates otherwise), computed on first use.
+conjugate priors whose density is bounded there, such as Dirichlet concentrations of at
+least one; in the unconstrained coordinates otherwise and with a jointly inferred
+selection or response), computed on first use. After `load`, attach a model built with
+the fit's prior to get it.
 Per-object answers at it carry a `_best` suffix: `assignment_probabilities_best`,
 `sample_assignments_best`, `sample_values_best`, `realized_counts_best`,
 `predict_proba_best` and `log_predictive_best`. They ignore the uncertainty of the
