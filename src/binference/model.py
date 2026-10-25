@@ -150,12 +150,7 @@ class PopulationModel:
 
     def _check_response(self, likelihoods: Likelihoods, no_override: bool) -> None:
         # an inferred response needs the rows from_binned built, with its own selection
-        eff = np.minimum(self.response._mean_columns()[:-1].sum(axis=0), 1.0)
-        own = likelihoods.selection
-        own_ok = (own is None and np.allclose(eff, 1.0)) or (
-            own is not None and own.mode == "on_measurement" and np.allclose(own.values, eff)
-        )
-        if not (no_override and own_ok):
+        if not (no_override and likelihoods.selection == self.response._selection()):
             raise ValueError(
                 "The efficiency of a response inferred from its tallies is the selection; "
                 "to set another, build the likelihoods from response.fixed()."
@@ -238,10 +233,12 @@ class PopulationModel:
     @property
     def dim(self) -> int:
         """Dimension of the unconstrained parameter vector: the prior's, plus ``K`` for
-        :math:`\\mathrm{logit}\\,S` when the selection is inferred."""
+        :math:`\\mathrm{logit}\\,S` when the selection is inferred, or the log-ratios of the
+        response's columns (``J - 1`` or ``J`` each, ``J`` with a lost share) when the
+        response is inferred."""
         extra = self.K if self.selection_uncertain else 0
         if self.response is not None:
-            extra = self.K * self.response.measured_bins.K
+            extra = self.K * (self._alpha.shape[0] - 1)
         return self.prior.dim + extra
 
     def selection_at(self, X: np.ndarray) -> np.ndarray | None:
@@ -253,16 +250,17 @@ class PopulationModel:
 
     def _response_logits(self, X: np.ndarray) -> np.ndarray:
         # log compositions (..., K, J + 1) of the response's columns from their log-ratios
-        J = self.response.measured_bins.K
-        Y = np.asarray(X, dtype=float)[..., self.prior.dim :].reshape(*np.shape(X)[:-1], -1, J)
-        return log_softmax(Y @ helmert_basis(J + 1).T)
+        C = self._alpha.shape[0]  # J measured bins, and the lost share if it is modelled
+        Y = np.asarray(X, dtype=float)[..., self.prior.dim :].reshape(*np.shape(X)[:-1], -1, C - 1)
+        return log_softmax(Y @ helmert_basis(C).T)
 
     def response_at(self, X: np.ndarray) -> np.ndarray | None:
         """The response :math:`R` ``(..., J, K)`` at unconstrained points ``X``
         ``(..., dim)``, or ``None`` when it is fixed."""
         if self.response is None:
             return None
-        return np.swapaxes(np.exp(self._response_logits(X))[..., :-1], -1, -2)
+        J = self.response.measured_bins.K
+        return np.swapaxes(np.exp(self._response_logits(X))[..., :J], -1, -2)
 
     def _joint_info(self, X: np.ndarray) -> dict[str, np.ndarray]:
         """Draws of what is inferred with the population at points ``X`` (..., dim)."""
@@ -307,7 +305,7 @@ class PopulationModel:
         P = np.exp(logP)
         a = self._alpha.T
         Gf = np.zeros_like(P)
-        Gf[:, :-1] = G.T
+        Gf[:, : G.shape[0]] = G.T
         d = P * (Gf - np.sum(P * Gf, axis=1, keepdims=True)) + a - a.sum(axis=1)[:, None] * P
         return float(np.sum(a * logP)), (d @ helmert_basis(P.shape[1])).ravel()
 
@@ -366,7 +364,8 @@ class PopulationModel:
         fields or log-rates), so it includes the Jacobian of the map from ``x``
         to the fractions or rates (DECISIONS #15); its mode differs from that of
         :meth:`log_posterior`. With an inferred selection ``x`` ends with
-        :math:`\\mathrm{logit}\\,S`, whose density given the injections is included.
+        :math:`\\mathrm{logit}\\,S`, and with an inferred response with the log-ratios of
+        its columns; their densities given the injections or tallies are included.
         NUTS, Laplace and L-BFGS use it. Up to a constant.
         """
         x = np.asarray(x, dtype=float)
@@ -377,7 +376,7 @@ class PopulationModel:
             return -np.inf, np.zeros_like(x)
         S = self.selection_at(x)
         logP = None if self.response is None else self._response_logits(x)
-        R = None if logP is None else np.exp(logP[:, :-1]).T
+        R = None if logP is None else np.exp(logP[:, : self.response.measured_bins.K]).T
         if R is None:
             ll, d_eta = self._ll_and_deta(value, S)
             ll += self._ll_const
@@ -478,7 +477,8 @@ class PopulationModel:
 
     def from_value(self, value: np.ndarray) -> np.ndarray:
         """An unconstrained point corresponding to fractions (or rates) ``value`` (and to
-        the selection's :attr:`~Selection.values` when it is inferred)."""
+        the selection's :attr:`~Selection.values`, or the response's posterior means, when
+        they are inferred)."""
         x = self.prior.init_from_value(np.asarray(value, dtype=float))
         if self.selection_uncertain:
             return np.concatenate([x, special.logit(self.selection)])
@@ -500,17 +500,22 @@ class PopulationModel:
         With ``absolute=True`` the per-object log-scales of the likelihoods are
         included, so values are comparable across binnings and models. ``S`` is a
         value of an inferred selection (by default its :attr:`~Selection.values`), and
-        ``response`` ``(J, K)`` one of an inferred response (by default its tallied
-        matrix).
+        ``response`` ``(J, K)`` one of an inferred response (by default the rows of the
+        likelihoods: its posterior means).
         """
         v = np.asarray(value, dtype=float)
         if response is not None:
             if self.response is None:
                 raise ValueError("response applies only to a response inferred from tallies.")
             R = np.asarray(response, dtype=float)
-            if R.shape != self.response.matrix.shape or np.any(R < 0):
+            if (
+                R.shape != self.response.matrix.shape
+                or np.any(R < 0)
+                or np.any(R.sum(axis=0) > 1.0 + 1e-6)
+            ):
                 raise ValueError(
-                    f"response must be non-negative with shape {self.response.matrix.shape}."
+                    f"response must have shape {self.response.matrix.shape}, non-negative "
+                    "columns that sum to at most one."
                 )
             ll = self._response_terms(v, R)[0]
             return ll if absolute else ll - self._ll_const

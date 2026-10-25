@@ -110,6 +110,11 @@ class Gibbs(Engine):
                 0 <= self.label_index[0] and self.label_index[-1] < model.N
             ):
                 raise ValueError(f"store_labels must be object indices in 0..{model.N - 1}.")
+        if self.label_index is not None and model.response is not None:
+            raise ValueError(
+                "store_labels is not available with an inferred response (objects are counts "
+                "per measured bin); use result.sample_assignments()."
+            )
         if init is not None:
             init = check_positive(init, "init")
             if init.shape != (model.K,):
@@ -189,11 +194,14 @@ class Gibbs(Engine):
         P = R[m._mb] * value  # one row per measured bin
         split = rng.multinomial(self._w_int.astype(np.int64), P / P.sum(axis=1)[:, None])
         counts = split.sum(axis=0)
-        missed = m._draw_missed(value, counts, rng, S=R.sum(axis=0)) - counts
-        A = m._alpha.copy()  # (J + 1, K), the lost share last
+        J = R.shape[0]
+        A = m._alpha.copy()  # (J + 1, K) with the lost share last, or (J, K) without one
         np.add.at(A, m._mb, split)
-        A[-1] += missed
-        self._extra[c] = _dirichlet_draw(A.T, rng).T[:-1]
+        missed = np.zeros_like(counts)
+        if A.shape[0] > J:
+            missed = m._draw_missed(value, counts, rng, S=R.sum(axis=0)) - counts
+            A[-1] += missed
+        self._extra[c] = _dirichlet_draw(A.T, rng).T[:J]
         self._state[c] = m.prior.posterior_sample(counts + missed, rng)
         return self._state[c], None
 

@@ -346,14 +346,11 @@ class _IndividualMixin:
 
     def predict_proba(self, likelihoods: Likelihoods | Any, n_draws: int | None = 500):
         """Posterior over bins for *new* objects under the inferred population."""
-        model = self._require_model()
-        lk = self._new_likelihoods(likelihoods)
-        _, R, S = self._object_draws(n_draws)
-        L = model.effective_likelihoods(lk) if S is None else lk.values
+        L, R, _, _ = self._new_object_draws(self._new_likelihoods(likelihoods), n_draws)
         L = L.toarray() if hasattr(L, "toarray") else np.asarray(L)
-        acc = np.zeros_like(L)
-        for rho in R:
-            P = L * rho
+        acc = np.zeros(L.shape[-2:])
+        for s, rho in enumerate(R):
+            P = _draw_rows(L, s) * rho
             tot = P.sum(axis=1, keepdims=True)
             acc += P / np.where(tot > 0, tot, 1.0)
         return self._to_bins(acc / R.shape[0])
@@ -364,16 +361,32 @@ class _IndividualMixin:
         Includes the per-object log-scales of the likelihoods, so values can be
         compared across priors and binnings (e.g. for cross-validation).
         """
-        model = self._require_model()
-        lk = self._new_likelihoods(likelihoods)
-        _, R, Sd = self._object_draws(n_draws)  # rates rescale out of the ratio
-        L = model.effective_likelihoods(lk) if Sd is None else lk.values
-        S = np.asarray(L @ R.T)  # (N_new, n_draws)
-        if model.selection is not None:  # a new *detected* object: divide by S . rho
-            S = S / (R.sum(axis=1) if Sd is not None else R @ model.selection)[None, :]
+        # rates rescale out of the ratio
+        L, R, norm, log_scale = self._new_object_draws(self._new_likelihoods(likelihoods), n_draws)
+        S = np.einsum("snk,sk->ns", L, R) if L.ndim == 3 else np.asarray(L @ R.T)  # (N, n)
+        if norm is not None:  # a new *detected* object: divide by S . rho
+            S = S / norm[None, :]
         with np.errstate(divide="ignore"):
             lp = special.logsumexp(np.log(S), axis=1) - np.log(R.shape[0])
-        return lp + lk.log_scale
+        return lp + log_scale
+
+    def _new_object_draws(self, lk: Likelihoods, n_draws: int | None):
+        """For new objects ``lk``: rows and column weights per draw as in
+        :meth:`_object_draws`, each draw's :math:`S\\cdot\\rho` (``None`` without a
+        selection) and the rows' log-scales. New binned objects with the response
+        inferred in this fit take its draws (DECISIONS #81)."""
+        model = self._require_model()
+        info = getattr(self, "info", {})
+        if "response_draws" in info and lk.meta.get("response") is model.response:
+            R = self._select_draws(n_draws, components=True)
+            Rd = _flat_draws(info["response_draws"], 2, n_draws)
+            rows = Rd[:, lk.meta["measured_bin"]]  # the response's own rows: scale one
+            return rows, R, np.sum(Rd.sum(axis=1) * R, axis=1), np.zeros(lk.N)
+        _, R, S = self._object_draws(n_draws)
+        L = model.effective_likelihoods(lk) if S is None else lk.values
+        if model.selection is None:
+            return L, R, None, lk.log_scale
+        return L, R, (R.sum(axis=1) if S is not None else R @ model.selection), lk.log_scale
 
 
 def _objects(L: Any, N: int, idx: Any) -> Any:

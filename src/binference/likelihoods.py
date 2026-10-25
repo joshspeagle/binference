@@ -1272,16 +1272,11 @@ class Likelihoods:
         keep = c > 0
         if not keep.any():
             raise ValueError("counts are all zero: there are no observed objects.")
-        # an inferred response's posterior means are positive wherever events may land
-        R = response._mean_columns()[:-1] if response.uncertain else response.matrix
-        eff = R.sum(axis=0)
-        # column sums may exceed one by rounding (Response allows 1e-6)
-        sel = None if np.allclose(eff, 1.0) else Selection(np.minimum(eff, 1.0), "on_measurement")
         lk = cls(
-            R[keep],
+            response._rows()[keep],
             response.truth_bins,
             weights=c[keep],
-            selection=sel,
+            selection=response._selection(),
             fractional_weights=fractional_weights,
         )
         lk.meta.update(source=f"binned, response from {response.origin}", response=response)

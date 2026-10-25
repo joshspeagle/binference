@@ -25,6 +25,7 @@ from scipy import stats
 from ._utils import as_generator, check_positive, frozen, warn
 from .bins import Bins
 from .priors.dirichlet import _dirichlet_draw
+from .selection import Selection
 from .warnings import InputWarning
 
 __all__ = ["Response"]
@@ -357,34 +358,52 @@ class Response:
     @property
     def uncertain(self) -> bool:
         """Whether the response is tallied from events and inferred with the population."""
-        return self.generated is not None
+        return self.prior is not None
 
     def fixed(self) -> Response:
-        """This response taken as known: its matrix without the tallies (a plug-in that
-        ignores their uncertainty)."""
+        """This response taken as known at its tallied matrix, a plug-in that ignores the
+        tallies' uncertainty in the fit (the predictive check still uses them)."""
         return _rebuild(
-            self._matrix, self.truth_bins, self.measured_bins, self.open_ended, None, self.origin
+            self._matrix,
+            self.truth_bins,
+            self.measured_bins,
+            self.open_ended,
+            self.generated,
+            self.origin,
         )
 
     def _dirichlet(self) -> np.ndarray:
-        """Dirichlet parameters ``(J + 1, K)`` of the columns given the tallies, the lost
-        share last."""
+        """Dirichlet parameters of the columns given the tallies: ``(J + 1, K)`` with the
+        lost share last, or ``(J, K)`` when the tallies record no lost event, so that every
+        event is observed by construction (DECISIONS #81)."""
         counts = self.counts
         lost = np.maximum(self.generated - counts.sum(axis=0), 0.0)
+        if np.all(lost <= 1e-9 * self.generated):
+            return counts + self.prior
         return np.vstack([counts, lost]) + self.prior
 
     def _mean_columns(self) -> np.ndarray:
-        """Posterior means ``(J + 1, K)`` of the columns given the tallies, the lost share
-        last."""
+        """Posterior means of the columns given the tallies (see :meth:`_dirichlet`)."""
         a = self._dirichlet()
         return a / a.sum(axis=0)
+
+    def _rows(self) -> np.ndarray:
+        """The matrix whose rows :meth:`Likelihoods.from_binned` uses: the tallied one, or
+        for an inferred response its posterior means, positive wherever events may land."""
+        return self._mean_columns()[: self._matrix.shape[0]] if self.uncertain else self._matrix
+
+    def _selection(self):
+        """The on-measurement selection of :meth:`_rows`: its efficiency, unless it is one."""
+        eff = self._rows().sum(axis=0)
+        # column sums may exceed one by rounding (Response allows 1e-6)
+        return None if np.allclose(eff, 1.0) else Selection(np.minimum(eff, 1.0), "on_measurement")
 
     def draw(self, n: int, rng: Any = None) -> np.ndarray:
         """``(n, J, K)`` posterior draws of the matrix given the tallies alone."""
         if not self.uncertain:
             raise ValueError("Only a response tallied from events has draws.")
         draws = _dirichlet_draw(self._dirichlet().T, as_generator(rng), size=n)
-        return np.swapaxes(draws, -1, -2)[:, :-1]
+        return np.swapaxes(draws, -1, -2)[:, : self._matrix.shape[0]]
 
     def index(self, values: Any) -> np.ndarray:
         """Measured bin of each value (``-1`` outside the measured bins, or for NaN)."""
@@ -413,7 +432,14 @@ class Response:
         """
         n = np.asarray(counts, dtype=float).ravel()
         draws = np.atleast_2d(np.asarray(rho_draws, dtype=float))
-        tallied = self.uncertain and response_draws is None  # add the tallies' covariance
+        tallied = self.generated is not None and response_draws is None  # their covariance
+        if response_draws is not None:
+            response_draws = np.asarray(response_draws, dtype=float)
+            if response_draws.shape != (len(draws), *self._matrix.shape):
+                raise ValueError(
+                    f"response_draws must have shape ({len(draws)}, *{self._matrix.shape}), "
+                    "one response per draw of the fractions."
+                )
         if response_draws is None:  # drawn responses give every measured bin some probability
             live = self._matrix.sum(axis=1) > 0
             if np.any(n[~live] > 0):
@@ -422,7 +448,7 @@ class Response:
         N, J = n.sum(), n.size
         D = np.empty(len(draws))
         for s, rho in enumerate(draws):
-            R = np.asarray(response_draws[s % len(response_draws)])
+            R = response_draws[s if len(response_draws) > 1 else 0]
             eff = R.sum(axis=0)
             scale = eff @ rho
             q = R @ rho / scale

@@ -78,6 +78,8 @@ def test_engines_refuse_or_infer_the_response_and_report_its_draws():
     assert est.log_posterior == pytest.approx(expect)
     with pytest.raises(ValueError, match="shape"):
         m.log_likelihood(est.rho, response=R[:-1])
+    with pytest.raises(ValueError, match="at most one"):
+        m.log_likelihood(est.rho, response=2 * R)
     fixed = Likelihoods.from_binned(resp.fixed(), values=np.full(3, 0.5))
     assert not binference.PopulationModel(fixed).joint
     # the rows and the selection must be those from_binned built
@@ -114,8 +116,13 @@ def test_the_predictive_check_with_response_draws_leaves_out_the_tallies_covaria
     rho = np.full((3, 4), 0.25)
     same = np.broadcast_to(resp.matrix, (3, 7, 4))
     p_draws = resp.predictive_pvalue(n, rho, same)
-    assert p_draws == pytest.approx(resp.fixed().predictive_pvalue(n, rho))
+    known = Response(resp.matrix, resp.truth_bins, resp.measured_bins)  # no tallies
+    assert p_draws == pytest.approx(known.predictive_pvalue(n, rho))
     assert p_draws != pytest.approx(resp.predictive_pvalue(n, rho))
+    # the plug-in keeps the tallies' covariance (DECISIONS #68)
+    assert resp.fixed().predictive_pvalue(n, rho) == pytest.approx(resp.predictive_pvalue(n, rho))
+    with pytest.raises(ValueError, match="response_draws"):
+        resp.predictive_pvalue(n, rho, same[:2])
 
 
 @pytest.mark.slow
@@ -173,3 +180,37 @@ def test_objects_in_a_measured_bin_without_tallied_events_are_kept():
     assert lk.N == 3 and np.all(lk.toarray()[2] > 0)
     with pytest.raises(ValueError, match="zero likelihood"):
         Likelihoods.from_binned(resp.fixed(), counts=[4, 5, 2])
+
+
+def test_a_response_tallied_without_losses_has_no_lost_share():
+    # a classifier's open-ended score bins observe every object: efficiency one
+    mc = binference.simulate.mock_categorical(300, 3, rng=3)
+    resp = mc.response
+    J, K = resp.matrix.shape
+    assert resp._dirichlet().shape == (J, K)
+    lk = Likelihoods.from_binned(resp, values=mc.measurements["feature"])
+    m = binference.PopulationModel(lk)
+    assert lk.selection is None and m.dim == m.prior.dim + K * (J - 1)
+    res = Gibbs(m, n_warmup=20, rng=0).run(20)
+    np.testing.assert_allclose(res.info["response_draws"].sum(axis=-2), 1.0)
+    ones = Likelihoods.from_binned(resp, counts=np.ones(J))  # unit weights: labels allowed
+    with pytest.raises(ValueError, match="store_labels"):
+        Gibbs(binference.PopulationModel(ones), store_labels=True)
+
+
+def test_new_binned_objects_take_each_draws_response():
+    lk, resp = _unfolding()
+    res = Gibbs(binference.PopulationModel(lk), n_warmup=30, rng=0).run(40)
+    new = Likelihoods.from_binned(resp, values=[0.1, 0.5, 0.5, 0.9])
+    Rd = res.info["response_draws"].reshape(-1, 7, 4)
+    rows = new.meta["measured_bin"]
+    like = np.array(
+        [R[rows] @ r / (R.sum(axis=0) @ r) for r, R in zip(res.samples, Rd, strict=True)]
+    )
+    expect = np.log(like.mean(axis=0))
+    np.testing.assert_allclose(res.log_predictive(new, n_draws=None), expect)
+    probs = np.mean(
+        [R[rows] * r / (R[rows] @ r)[:, None] for r, R in zip(res.samples, Rd, strict=True)],
+        axis=0,
+    )
+    np.testing.assert_allclose(res.predict_proba(new, n_draws=None), probs)

@@ -302,13 +302,16 @@ them; `from_labelled` sets it for its score bins.
 A response tallied from events is known only as well as its events allow, so by default
 it is **inferred with the population** (DECISIONS #28, #81). Each column, with its lost
 share $1-\epsilon_k$, has a $\mathrm{Dir}(\beta + \text{counts}_{\cdot k},\
-\beta + \text{lost}_k)$ posterior given the tallies (`prior=β`, default 1 per cell), and
-the engines sample it with $\rho$: Gibbs from its conjugate conditional (`method="auto"`
+\beta + \text{lost}_k)$ posterior given the tallies (`prior=β`, default 1 per cell); when
+the tallies record no lost event at all, as for a classifier's open-ended score bins,
+every event is observed by construction and the columns have no lost share. The engines
+sample the response with $\rho$: Gibbs from its conjugate conditional (`method="auto"`
 chooses Gibbs for conjugate priors), NUTS, Laplace and `MAP(space="unconstrained")` in
 the log-ratios of each column. The draws are in `result.info["response_draws"]`
 `(chain, draw, J, K)`; the total and the per-object methods use them draw by draw.
 `response.fixed()` takes the tallied matrix as known instead (VB and the bootstrap need
-it), and a `Response(matrix)` is always fixed. With few events this matters: with 30 or
+it; its predictive check still counts the tallies' noise), and a `Response(matrix)` is
+always fixed. With few events this matters: with 30 or
 100 validation objects per class, three classes, 10 score bins and 1000 target objects,
 68% intervals of the fractions from the fixed response contained the truth 23% and 34%
 of the time, and from the inferred one 58% and 62% (100 simulations, Gibbs).
