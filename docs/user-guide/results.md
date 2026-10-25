@@ -133,6 +133,24 @@ p_loo, k_hat = result.assignment_probabilities_loo(idx=[0, 1, 2])
 print(p_loo.round(2)[0], k_hat.round(2))
 ```
 
+## Is the binning fine enough?
+
+Every fit assumes the population flat (in the measure coordinate) within each bin. With
+many objects that assumption, not the data, can set the bin masses.
+`result.binning_bias(build)` refits the same data on linear B-spline components over the
+same bins (`binference.Basis(bins, order=1)`), where `build(bins_or_basis)` rebuilds the
+likelihoods, and reports per bin the shift of the mean fraction, the fit's posterior
+s.d., their ratio `z`, and `n_crit`, the number of objects at which the shift would equal
+the statistical error. It warns when $|z| > 2$ anywhere. On a pilot sample, `n_crit` says
+how many objects these bins can take.
+
+```python
+obs, sigma = mock.measurements["mean"], mock.measurements["sigma"]
+build = lambda b: binference.Likelihoods.from_gaussian(obs, sigma, b, warn_outside=False)
+check = result.binning_bias(build, rng=1)
+print(np.round(check.z, 1), np.round(check.n_crit[:3]))
+```
+
 ## Population versus realised sample
 
 $\rho$ describes the population the objects came from, including the "shot

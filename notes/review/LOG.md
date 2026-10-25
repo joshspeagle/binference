@@ -353,3 +353,8 @@ Append-only. One entry per working session (or per step within a long session).
 ## 2026-10-25: C12d (best fit, `_best` outputs, leave-one-out)
 
 - C12d (#68, DECISIONS #85): `result.best`, the `_best` outputs and PSIS leave-one-out posteriors. Leave-one-out matches an exact refit within Monte Carlo error where the in-sample posterior is off by more than 8σ. Two choices are parked in QUESTIONS (one result type; the count downdate).
+- #69 (C12d) merged. /simplify moved leave-one-out onto the two-product average (2000 draws: 0.56 s, from 5.4 s); /code-review caught the total missing from rate-model weights (0.530 against a refit's 0.504 with unequal exposures; fixed: 0.5035), `best` after `load` using the default prior, bootstrap draws accepted, and `psis` giving k̂ = ∞ for equal weights; all fixed with tests before the merge.
+
+## 2026-10-25: C12e (binning-bias check)
+
+- C12e (#70, DECISIONS #86): `result.binning_bias(build)` with `n_crit` as the planning number. The default threshold is 2 s.d., not 1: two models of the same flat population differed by up to 1.0 s.d. One question parked (exact large-N calculation, suggested spacing).

@@ -1535,6 +1535,69 @@ class PopulationResult(_IndividualMixin):
         title = f"binference {which} posterior ({self.method}{flag}, {self.n_draws} draws{inputs})"
         return Summary(cols, title)
 
+    def binning_bias(
+        self,
+        build: Callable[[Any], Likelihoods],
+        *,
+        order: int = 1,
+        resolution: int = 1,
+        threshold: float = 2.0,
+        prior: Any = None,
+        method: str | None = None,
+        n_samples: int | None = None,
+        rng: RNGLike = None,
+        **engine_kwargs: Any,
+    ) -> Summary:
+        r"""Check the flat-within-bin assumption: refit the same data on a B-spline basis
+        over these bins and compare the bin masses (DECISIONS #6, #20).
+
+        ``build(bins_or_basis)`` returns the likelihoods of the fit's data on what it is
+        given, e.g. ``lambda b: Likelihoods.from_gaussian(mean, sigma, b)``. The
+        reference is fitted on ``Basis(self.bins, order, resolution)`` with this fit's
+        prior (or ``prior``), selection, engine (or ``method``), chains and draws per
+        chain (or ``n_samples``); ``engine_kwargs`` go to the engine.
+
+        Returns a table per bin: ``shift``, the reference's mean fraction minus this
+        fit's; ``sd``, this fit's posterior s.d.; ``z = shift / sd``; and
+        ``n_crit`` :math:`= W\,(\mathrm{sd}/\mathrm{shift})^2`, the number of objects at
+        which the shift equals the statistical error (which falls as
+        :math:`1/\sqrt{W}`): the planning number, from a pilot fit, above which these
+        bins bias the result. Warns when :math:`|z|` exceeds ``threshold`` in any bin:
+        two models of the same data differ by up to about one s.d. even when the
+        population is flat within bins (DECISIONS #86), so the default is 2.
+        """
+        from .basis import Basis
+        from .inference import infer
+        from .model import PopulationModel
+
+        model = self._require_model()
+        if self.basis is not None or self.bins.is_categorical:
+            raise ValueError("binning_bias compares a fit on grid bins with a basis over them.")
+        lk = build(Basis(self.bins, order=order, resolution=resolution))
+        ref_model = PopulationModel(
+            lk, model.prior_spec if prior is None else prior, selection=self.selection
+        )
+        key = self.method if method is None else method
+        if key in ("nuts", "gibbs"):
+            engine_kwargs.setdefault("n_chains", self.n_chains)
+        n = self._draws.shape[1] if n_samples is None else n_samples
+        ref = infer(ref_model, method=key, n_samples=n, rng=rng, check=False, **engine_kwargs)
+        sd = self._which("fractions").std(axis=0, ddof=1)
+        shift = ref.mean - self.mean
+        with np.errstate(divide="ignore", invalid="ignore"):
+            z = shift / sd
+            n_crit = model.W * (sd / shift) ** 2
+        big = np.flatnonzero(np.abs(z) > threshold)
+        if big.size:
+            warn(
+                f"Binning bias: {big.size} bins move by more than {threshold:g} posterior s.d. "
+                f"on a basis of order {order} (first: {big[:5].tolist()}); fit with "
+                f"binference.Basis(bins, order={order}) or narrower bins.",
+                InputWarning,
+            )
+        cols = {"bin": _bin_labels(self.bins), "shift": shift, "sd": sd, "z": z, "n_crit": n_crit}
+        return Summary(cols, f"binference binning bias (basis of order {order}, {key})")
+
     def __repr__(self) -> str:
         flag = ", approximate" if self.approximate else ""
         return (
