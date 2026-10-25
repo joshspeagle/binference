@@ -1221,7 +1221,10 @@ class Likelihoods:
         :math:`R_{j\cdot}` (:class:`Response`), and rows are weighted by the
         counts. The truth bins are the response's. The efficiency (the column
         sums of :math:`R`) becomes the selection function in ``"on_measurement"`` mode,
-        because the rows already include it. This covers unfolding (a detector
+        because the rows already include it. For a response tallied from events,
+        which is inferred with the population, the rows and the efficiency are its
+        posterior means, so a measured bin without tallied events still has a row
+        (DECISIONS #81). This covers unfolding (a detector
         response) and classifier outputs binned by score
         (:meth:`Response.from_labelled`, DECISIONS #29).
 
@@ -1269,14 +1272,11 @@ class Likelihoods:
         keep = c > 0
         if not keep.any():
             raise ValueError("counts are all zero: there are no observed objects.")
-        eff = response.efficiency
-        # column sums may exceed one by rounding (Response allows 1e-6)
-        sel = None if np.allclose(eff, 1.0) else Selection(np.minimum(eff, 1.0), "on_measurement")
         lk = cls(
-            response.matrix[keep],
+            response._rows()[keep],
             response.truth_bins,
             weights=c[keep],
-            selection=sel,
+            selection=response._selection(),
             fractional_weights=fractional_weights,
         )
         lk.meta.update(source=f"binned, response from {response.origin}", response=response)

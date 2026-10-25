@@ -298,7 +298,7 @@ class NUTS(Engine):
     """
 
     name = "nuts"
-    joint_selection = True
+    joint = True
 
     def __init__(
         self,
@@ -629,8 +629,7 @@ class NUTS(Engine):
                 (E - E.mean(axis=1, keepdims=True)) ** 2, axis=1
             )
         info["ebfmi"] = ebfmi
-        if base.selection_uncertain:
-            info["selection_draws"] = base.selection_at(X)
+        info.update(base._joint_info(X))
         hyper = getattr(base.prior, "hyper_names", [])
         if hyper:
             u = X[..., base.prior.n_active : base.prior.dim]

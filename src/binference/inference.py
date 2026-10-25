@@ -32,9 +32,9 @@ AUTO_NNZ_LIMIT = 2e7
 
 def _auto_method(model: PopulationModel) -> str:
     if (
-        model.selection_uncertain  # Gibbs where it applies: exact and fast (DECISIONS #80)
+        model.joint  # Gibbs where it applies: exact and fast (DECISIONS #80, #81)
         and model.prior.conjugate
-        and model.selection_spec.injections.smooth is None
+        and not (model.selection_uncertain and model.selection_spec.injections.smooth is not None)
         and is_integer_array(model.likelihoods.weights)
     ):
         return "gibbs"

@@ -328,3 +328,10 @@ Append-only. One entry per working session (or per step within a long session).
 - C11b-2b (#57, DECISIONS #80): logit S joins the unconstrained coordinates, so NUTS, Laplace and unconstrained MAP infer a selection from injections; NUTS and joint Gibbs agree within Monte Carlo error. The smooth injection model (random walk on logit S) lowers the error of S by 20–45% for smooth completeness from 5 injections per bin, and does not help at a sharp step; no default τ.
 - The smooth model keeps the Beta(a, b) prior instead of the issue's flat level: with a flat level a bin whose injections were all recovered leaves the posterior improper, as the catalogue fixes only ratios of S.
 - The first logistic SBC failed on an overflow warning in the NUTS energy, which the tree already handles as a divergence; it is now silent there. A few fits take 20–40 s with tree depth 6–7, about as often with S fixed (2 of 25) as inferred (3 of 25), so they come from the logistic prior on small problems; the SBC was cut from 100 to 60 simulations (452 s → 170 s).
+
+## 2026-10-25: C11b-2b merged; C11b-3 (response inferred jointly)
+
+- #58 (C11b-2b) merged after both reviews; /simplify kept partial centring on with an inferred selection (acting on the prior's block), /code-review added input checks and the density of S in MAP's log posterior.
+- C11b-3 (#59, DECISIONS #81): a tallied response is inferred with the population by every engine but VB and the bootstrap. The plug-in response's 68% intervals covered the truth 23% and 34% of the time with 30 and 100 validation objects per class; the joint fit's 58–62%.
+- The prior per cell was first a total of one per column (β = 1/(J+1)), which had the lowest error, but cells without events then have α < 1 and NUTS took 251 s at tree depth 7.3 on tutorial 6's route C; β = 1 took 40 s, so it is the default.
+- The SBC found a measured bin with no tallied events but observed objects: `from_binned` rejected them (zero row). For an uncertain response the rows are now the posterior means.

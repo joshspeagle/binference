@@ -207,6 +207,9 @@ def to_datatree(result: PopulationResult):
         data_vars["total"] = (("chain", "draw"), result.total.reshape(C.shape[:2]))
     if "selection_draws" in result.info:  # an uncertain selection, per draw
         data_vars["selection"] = (("chain", "draw", "bin"), result.info["selection_draws"])
+    if "response_draws" in result.info:  # an inferred response, per draw
+        dims = ("chain", "draw", "measured_bin", "bin")
+        data_vars["response"] = (dims, result.info["response_draws"])
     post = xr.Dataset(
         data_vars,
         coords=coords,
