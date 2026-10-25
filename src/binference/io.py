@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -11,6 +12,8 @@ from ._version import __version__
 from .basis import Basis
 from .bins import Bins
 from .measure import Measure
+from .selection import Selection
+from .selection import _rebuild as _rebuild_selection
 
 if TYPE_CHECKING:  # pragma: no cover
     from .results import PopulationResult
@@ -22,10 +25,11 @@ SCHEMA_VERSION = 1
 
 def _bins_to_parts(bins: Bins) -> tuple[dict[str, Any], dict[str, np.ndarray]]:
     if bins.is_categorical:
-        labels = list(bins.labels)
-        if all(isinstance(lab, int | np.integer) for lab in labels):
-            return {"bins": "categories", "labels": [int(lab) for lab in labels]}, {}
-        return {"bins": "categories", "labels": [str(lab) for lab in labels]}, {}
+        # JSON keeps integer, float and string labels as they are (audit O-10)
+        labels = [lab.item() if isinstance(lab, np.generic) else lab for lab in bins.labels]
+        if not all(isinstance(lab, int | float | str) for lab in labels):
+            raise ValueError("Category labels must be integers, floats or strings to be saved.")
+        return {"bins": "categories", "labels": labels}, {}
     arrays = {f"edges_{d}": np.asarray(e) for d, e in enumerate(bins.edges)}
     names = []
     for d, (m, e) in enumerate(zip(bins.measures, bins.edges, strict=True)):
@@ -64,38 +68,43 @@ def _basis_meta(basis: Basis) -> dict[str, Any]:
     }
 
 
-def result_to_dict(result: PopulationResult) -> dict[str, Any]:
-    """Arrays and metadata of a result as a plain dictionary."""
-    meta, arrays = _bins_to_parts(result.bins)
-    out: dict[str, Any] = {
-        "draws": result._draws,
-        **(
-            {}
-            if result.basis is None
-            else {"component_draws": result.component_draws, "basis": _basis_meta(result.basis)}
-        ),
-        "method": result.method,
-        "kind": result.kind,
-        "approximate": bool(result.approximate),
-        "prior": result.prior_repr,
-        **meta,
-        **arrays,
+def _selection_parts(sel: Selection) -> tuple[dict[str, Any], dict[str, np.ndarray]]:
+    values, row, scale, _, injections = sel._parts()
+    meta: dict[str, Any] = {
+        "scale": scale,
+        "row": row if row is None or isinstance(row, str) else "array",
     }
-    if result.log_density_unconstrained is not None:
-        out["log_density_unconstrained"] = result.log_density_unconstrained
-    if result.labels is not None:
-        out["labels"] = result.labels
-        if result.label_index is not None:
-            out["label_index"] = result.label_index
-    return out
+    arrays = {"selection_values": np.asarray(values)}
+    if meta["row"] == "array":
+        arrays["selection_row"] = np.asarray(row)
+    if injections is not None:
+        meta["injections"] = {"prior": list(injections.prior), "smooth": injections.smooth}
+        arrays["selection_injected"] = np.asarray(injections.injected)
+        arrays["selection_recovered"] = np.asarray(injections.recovered)
+    return meta, arrays
 
 
-def save_result(result: PopulationResult, path: str) -> None:
-    """Save a result to a compressed ``.npz`` file (versioned schema).
+def _selection_from_parts(meta: dict[str, Any], arrays: Any, basis: Basis | None) -> Selection:
+    row = np.asarray(arrays["selection_row"]) if meta["row"] == "array" else meta["row"]
+    inj = meta.get("injections")
+    if inj is not None:
+        inj = (
+            np.asarray(arrays["selection_injected"]),
+            np.asarray(arrays["selection_recovered"]),
+            tuple(inj["prior"]),
+            inj["smooth"],
+        )
+    return _rebuild_selection(
+        np.asarray(arrays["selection_values"]), row, meta["scale"], basis, inj
+    )
 
-    A :meth:`Measure.transform <binference.Measure.transform>` axis is saved as
-    a table of points, so it loads as a tabulated measure: the loaded bins
-    compare unequal to the original ones.
+
+def result_to_dict(result: PopulationResult) -> dict[str, Any]:
+    """Arrays and metadata of a result as a plain dictionary: what :func:`save_result`
+    writes, with ``"meta"`` the JSON-compatible metadata and every other entry an array.
+
+    Engine statistics that are neither numbers, strings nor numeric arrays (e.g. lists
+    of NUTS metrics) are left out and named in ``meta["info_dropped"]``.
     """
     meta, arrays = _bins_to_parts(result.bins)
     meta.update(
@@ -106,7 +115,7 @@ def save_result(result: PopulationResult, path: str) -> None:
         approximate=bool(result.approximate),
         prior=result.prior_repr,
     )
-    scalars = {}
+    scalars, dropped = {}, []
     for k, v in result.info.items():
         if isinstance(v, int | float | bool | str | np.integer | np.floating | np.bool_):
             scalars[k] = v.item() if hasattr(v, "item") else v
@@ -115,33 +124,57 @@ def save_result(result: PopulationResult, path: str) -> None:
         elif k == "hyperparameters" and isinstance(v, dict):
             for name, draws in v.items():
                 arrays[f"hyper_{name}"] = np.asarray(draws, dtype=float)
+        else:
+            dropped.append(k)
     meta["info"] = scalars
-    payload: dict[str, Any] = {"draws": result._draws}
+    if dropped:
+        meta["info_dropped"] = dropped
+    out: dict[str, Any] = {"draws": result._draws}
     if result.basis is not None:  # the draws per bin follow from the component draws
         meta["basis"] = _basis_meta(result.basis)
-        payload["component_draws"] = result.component_draws
+        out["component_draws"] = result.component_draws
+    if result.selection is not None:  # per-object methods need it again (audit O-1)
+        meta["selection"], sel_arrays = _selection_parts(result.selection)
+        arrays.update(sel_arrays)
     total = result.total if result.kind == "fractions" else None
     if total is not None:  # kept so a result loaded without its likelihoods has rates
-        payload["total"] = total.reshape(result._draws.shape[:2])
-    payload["meta"] = np.array(json.dumps(meta))
-    payload.update(arrays)
+        out["total"] = total.reshape(result._draws.shape[:2])
     if result.log_density_unconstrained is not None:
-        payload["log_density_unconstrained"] = np.asarray(result.log_density_unconstrained)
-    if result.labels is not None:
-        payload["labels"] = np.asarray(result.labels)
+        out["log_density_unconstrained"] = np.asarray(result.log_density_unconstrained)
+    if result.labels is not None:  # draws of the objects' bins, not the bins' labels
+        out["label_draws"] = np.asarray(result.labels)
         if result.label_index is not None:
-            payload["label_index"] = np.asarray(result.label_index)
+            out["label_index"] = np.asarray(result.label_index)
+    out.update(arrays)
+    out["meta"] = meta
+    return out
+
+
+def save_result(result: PopulationResult, path: str) -> None:
+    """Save a result to a compressed ``.npz`` file (versioned schema;
+    :func:`result_to_dict`).
+
+    A :meth:`Measure.transform <binference.Measure.transform>` axis is saved as
+    a table of points, so it loads as a tabulated measure: the loaded bins
+    compare unequal to the original ones.
+    """
+    payload = result_to_dict(result)
+    payload["meta"] = np.array(json.dumps(payload["meta"]))
     np.savez_compressed(path, **payload)
 
 
 def load_result(path: str) -> PopulationResult:
-    """Load a result saved with :func:`save_result`.
+    """Load a result saved with :func:`save_result` (``.npz`` may be left off ``path``).
 
     The returned result is detached from its likelihoods; call
     ``result.attach(likelihoods)`` to use per-object methods.
     """
     from .results import PopulationResult
 
+    if isinstance(path, str | os.PathLike):  # np.savez_compressed adds .npz (audit O-10)
+        name = os.fspath(path)
+        if not os.path.exists(name) and os.path.exists(name + ".npz"):
+            path = name + ".npz"
     with np.load(path, allow_pickle=False) as data:
         meta = json.loads(str(data["meta"]))
         if meta.get("schema", 0) > SCHEMA_VERSION:
@@ -157,6 +190,9 @@ def load_result(path: str) -> PopulationResult:
         if hyper:
             info["hyperparameters"] = hyper
         basis = Basis(bins, **meta["basis"]) if "basis" in meta else None
+        selection = (
+            _selection_from_parts(meta["selection"], data, basis) if "selection" in meta else None
+        )
         return PopulationResult(
             None,
             np.array(data["component_draws" if basis is not None else "draws"]),
@@ -173,11 +209,12 @@ def load_result(path: str) -> PopulationResult:
             ),  # files written before DECISIONS #70 call it log_prob
             approximate=meta["approximate"],
             info=info,
-            labels=np.array(data["labels"]) if "labels" in data.files else None,
+            labels=np.array(data["label_draws"]) if "label_draws" in data.files else None,
             label_index=np.array(data["label_index"]) if "label_index" in data.files else None,
             prior_repr=meta.get("prior"),
             basis=basis,
             total=np.array(data["total"]) if "total" in data.files else None,
+            selection=selection,
         )
 
 
@@ -185,7 +222,10 @@ def to_datatree(result: PopulationResult):
     """Convert to an :class:`xarray.DataTree` with ``posterior`` and ``sample_stats`` groups.
 
     Follows the ArviZ (>= 1.0) layout: dimensions ``chain``, ``draw`` and
-    ``bin``. Requires xarray >= 2024.10.
+    ``bin``, with the bins' centres as numeric coordinates (``bin_center``, or
+    ``bin_center_<d>`` per axis of a grid), hyperparameter draws in the posterior,
+    and the NUTS statistics under ArviZ's names (``acceptance_rate``, ``n_steps``,
+    boolean ``diverging``). Requires xarray >= 2024.10.
     """
     try:
         import xarray as xr
@@ -195,11 +235,16 @@ def to_datatree(result: PopulationResult):
     n_chains, n_draws, _ = C.shape
     from .results import _bin_labels
 
-    coords = {
+    coords: dict[str, Any] = {
         "chain": np.arange(n_chains),
         "draw": np.arange(n_draws),
         "bin": np.asarray(_bin_labels(result.bins), dtype=str),
     }
+    if not result.bins.is_categorical:
+        centers = np.asarray(result.bins.centers).reshape(result.bins.K, -1)
+        for d in range(centers.shape[1]):
+            name = "bin_center" if centers.shape[1] == 1 else f"bin_center_{d}"
+            coords[name] = ("bin", centers[:, d])
     data_vars = {"rho": (("chain", "draw", "bin"), C)}
     rates = result.rates
     if rates is not None:
@@ -210,14 +255,23 @@ def to_datatree(result: PopulationResult):
     if "response_draws" in result.info:  # an inferred response, per draw
         dims = ("chain", "draw", "measured_bin", "bin")
         data_vars["response"] = (dims, result.info["response_draws"])
-    post = xr.Dataset(
-        data_vars,
-        coords=coords,
-        attrs={"method": result.method, "approximate": int(result.approximate)},
-    )
+    for name, draws in result.info.get("hyperparameters", {}).items():
+        data_vars[name] = (("chain", "draw"), np.asarray(draws, dtype=float))
+    attrs = {
+        "method": result.method,
+        "kind": result.kind,
+        "approximate": int(result.approximate),
+        "prior": str(result.prior_repr),
+        "binference_version": __version__,
+    }
+    post = xr.Dataset(data_vars, coords=coords, attrs=attrs)
     groups = {"posterior": post}
+    arviz_names = {"accept_stat": "acceptance_rate", "n_leapfrog": "n_steps"}
     stats = {
-        k: (("chain", "draw"), np.asarray(v))
+        arviz_names.get(k, k): (
+            ("chain", "draw"),
+            np.asarray(v, dtype=bool if k == "diverging" else None),
+        )
         for k, v in result.info.items()
         if isinstance(v, np.ndarray) and v.shape == (n_chains, n_draws)
     }

@@ -73,7 +73,7 @@ def test_save_load_round_trip(res1d, small_1d, tmp_path):
     back.attach(small_1d.likelihoods)
     assert back.assignment_probabilities(idx=[0], n_draws=5).shape == (1, 12)
     d = res1d.to_dict()
-    assert d["method"] == "gibbs" and d["bins"] == "grid"
+    assert d["meta"]["method"] == "gibbs" and d["meta"]["bins"] == "grid"
 
 
 def test_save_load_categories_and_rates(tmp_path):

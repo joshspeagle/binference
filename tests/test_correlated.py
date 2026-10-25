@@ -61,7 +61,8 @@ def test_correlated_likelihoods_support_values_and_outside_fractions():
     lk = Likelihoods.from_gaussian(MU, bins=GRID, cov=COV)
     assert np.all(lk.meta["outside_fraction"] < 0.05)
     res = binference.infer(lk, method="map")
-    vals = res.sample_values(n_draws=5, rng=0)
+    with pytest.warns(binference.InputWarning, match="population alone"):
+        vals = res.sample_values(n_draws=5, rng=0)
     assert vals.shape[1:] == (2, 2) and np.all((vals >= 0) & (vals <= 1))
 
 

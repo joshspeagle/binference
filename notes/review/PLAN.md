@@ -1,6 +1,6 @@
 # Walkthrough plan
 
-**Current position:** landing on `main` (see `landing-plan.md`): Phase C, C1–C11, C7b, C7c, C11b-1 (derived rates), C11b-2a (injections, joint Gibbs) and C11b-2b (joint selection in NUTS, MAP and Laplace) merged; C11b-3 (response inferred jointly) in review, then C12–C15; the walkthrough resumes at Phase 3 step 3.1 afterwards. Phase 1 done except 1.3's architecture decisions. Step 1.3's architecture decisions remain deferred until the relevant code has been read.
+**Current position:** landing on `main` (see `landing-plan.md`): Phase C, C1–C11, C7b, C7c, C11b (derived rates, selection from injections and tallied responses inferred jointly) merged; C12 (results) next, then C13–C15; the walkthrough resumes at Phase 3 step 3.1 afterwards. Phase 1 done except 1.3's architecture decisions. Step 1.3's architecture decisions remain deferred until the relevant code has been read.
 
 ## How each step works
 

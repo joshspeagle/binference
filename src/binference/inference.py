@@ -75,8 +75,9 @@ def infer(
     selection_mode : {"on_measurement", "on_truth"}, optional
         Required with an array or callable ``selection`` (see
         :class:`~binference.selection.Selection`).
-    method : {"nuts", "gibbs", "map", "laplace", "vb", "bootstrap", "auto"}
-        Inference engine. ``"nuts"`` (default) samples the exact posterior.
+    method : {"nuts", "gibbs", "map", "em", "laplace", "vb", "bootstrap", "auto"}
+        Inference engine. ``"nuts"`` (default) samples the exact posterior; ``"em"`` is
+        MAP by EM itself (``algorithm="em"``) rather than mix-SQP.
         ``"auto"`` uses NUTS unless the problem is very large, in which case it
         uses the importance-corrected Laplace approximation, and Gibbs for a
         selection from injections with a conjugate prior (inferred jointly).
@@ -117,17 +118,20 @@ def infer(
             likelihoods, prior, selection=selection, selection_mode=selection_mode, bins=bins
         )
     key = str(method).lower()
-    if key == "auto":
+    auto = key == "auto"
+    if auto:
         key = _auto_method(model)
     if key not in METHODS:
         raise ValueError(f"Unknown method {method!r}; choose from {sorted([*METHODS, 'auto'])}.")
+    if key == "em" and not model.joint:  # MAP by EM itself, not mix-SQP (audit O-17)
+        engine_kwargs.setdefault("algorithm", "em")
     engine = METHODS[key](model, rng=rng, progress=progress, **engine_kwargs)
     if key in ("map", "em"):
         if n_samples is not None:
-            raise ValueError("n_samples does not apply to method='map'.")
+            raise ValueError(f"n_samples does not apply to method={key!r}.")
         return engine.run()
     result = engine.run(_DEFAULT_SAMPLES[key] if n_samples is None else int(n_samples))
-    if method == "auto":
+    if auto:
         result.info["auto_method"] = key
     if check and key in ("nuts", "gibbs"):
         result.check()

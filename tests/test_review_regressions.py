@@ -133,7 +133,8 @@ def test_sample_values_follow_the_likelihood_within_bins():
         idx=[0], rng=1, loglike=lambda z, i: stats.norm.logpdf(z, [0.26, 0.7][i], 0.02)
     )
     assert custom.std() == pytest.approx(0.02, rel=0.2)
-    assert plain.sample_values(idx=[0], rng=1).std() > 0.1  # top-hat fallback
+    with pytest.warns(binference.InputWarning, match="population alone"):  # top-hat
+        assert plain.sample_values(idx=[0], rng=1).std() > 0.1
 
 
 def test_log_predictive_rates_with_selection():

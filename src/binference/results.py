@@ -11,17 +11,22 @@ from scipy import special
 
 from . import _kernels as kern
 from . import diagnostics as diag
-from ._utils import RNGLike, as_generator, chunk_slices, warn
+from ._utils import RNGLike, as_generator, chunk_slices, is_integer_array, warn
 from .bins import Bins
 from .measure import Measure
-from .warnings import ConvergenceWarning, InputWarning
+from .warnings import ConvergenceWarning, DiagnosticsError, InputWarning
 
 if TYPE_CHECKING:  # pragma: no cover
     from .basis import Basis
     from .likelihoods import Likelihoods
     from .model import PopulationModel
+    from .selection import Selection
 
 __all__ = ["PointEstimate", "PopulationResult", "Summary"]
+
+#: population draws the per-object methods use by default: their outputs grow with
+#: draws x objects (audit O-18)
+N_DRAWS = 500
 
 
 # ----------------------------------------------------------------------------
@@ -139,6 +144,13 @@ class _IndividualMixin:
     def _weight_draws(self) -> np.ndarray:  # (n, C) fractions of the model's components
         raise NotImplementedError
 
+    def plot_individual(self, i: int, **kwargs: Any):
+        """Object ``i``'s own likelihood against its hierarchical posterior (see
+        :func:`binference.plotting.plot_individual`)."""
+        from .plotting import plot_individual
+
+        return plot_individual(self, i, **kwargs)
+
     def _select_draws(self, n_draws: int | None, components: bool = False) -> np.ndarray:
         R = self._weight_draws() if components else self._rho_draws()
         return R[_draw_index(R.shape[0], n_draws)]
@@ -205,12 +217,16 @@ class _IndividualMixin:
             if isinstance(likelihoods, Likelihoods)
             else Likelihoods(likelihoods, basis or model.bins)
         )
-        if lk.K != model.K or lk.basis != basis:
-            raise ValueError("New likelihoods must use the same bins (and basis).")
+        if (
+            lk.K != model.K
+            or lk.basis != basis
+            or (basis is None and not _same_bins(lk.bins, model.bins))
+        ):
+            raise ValueError("New likelihoods must use the same bins (and basis) as the fit.")
         return lk
 
     def assignment_probabilities(
-        self, idx: Any = None, n_draws: int | None = 500, chunk: int = 4096
+        self, idx: Any = None, n_draws: int | None = N_DRAWS, chunk: int = 4096
     ) -> np.ndarray:
         r"""Posterior probability that each object lies in each bin, :math:`P(z_i = k \mid D)`.
 
@@ -222,28 +238,17 @@ class _IndividualMixin:
         """
         model = self._require_model()
         L, R, _ = self._object_draws(n_draws)
-        L = _objects(L, model.N, idx)
-        n = L.shape[-2]
-        out = np.zeros((n, model.K))
-        for sl in chunk_slices(n, chunk):
-            block = L[:, sl] if L.ndim == 3 else L[sl]
-            block = block.toarray() if hasattr(block, "toarray") else np.asarray(block)
-            acc = np.zeros((block.shape[-2], model.K))
-            for s, rho in enumerate(R):
-                P = _draw_rows(block, s) * rho
-                tot = P.sum(axis=1, keepdims=True)
-                acc += P / np.where(tot > 0, tot, 1.0)  # rows with no support stay zero
-            out[sl] = acc / R.shape[0]
-        return self._to_bins(out)
+        return self._to_bins(_mean_responsibilities(_objects(L, model.N, idx), R, chunk))
 
     def sample_assignments(
-        self, idx: Any = None, n_draws: int | None = None, rng: RNGLike = None
+        self, idx: Any = None, n_draws: int | None = N_DRAWS, rng: RNGLike = None
     ) -> np.ndarray:
         """Joint draws of the bin labels of objects ``idx`` (all by default).
 
         For each of (up to ``n_draws``) population draws :math:`\\rho^{(s)}`, labels are
         drawn from :math:`z_i \\sim \\mathrm{Cat}(r_i(\\rho^{(s)}))`; together these
-        are exact joint draws from :math:`p(\\rho, z \\mid D)`. Returns an
+        are joint draws from :math:`p(\\rho, z \\mid D)`, exact given exact draws of
+        :math:`\\rho` (approximate engines carry their approximation over). Returns an
         ``(n_draws, n_objects)`` integer array.
         """
         gen = as_generator(rng)
@@ -257,7 +262,7 @@ class _IndividualMixin:
             [kern.sample_labels(_draw_rows(L, s), rho, gen) for s, rho in enumerate(R)]
         )
 
-    def realized_counts(self, n_draws: int | None = None, rng: RNGLike = None) -> np.ndarray:
+    def realized_counts(self, n_draws: int | None = N_DRAWS, rng: RNGLike = None) -> np.ndarray:
         """Draws of the realised histogram of the observed objects' true bins.
 
         Unlike the population fractions (which include the shot noise of
@@ -270,11 +275,11 @@ class _IndividualMixin:
         L, R, _ = self._object_draws(n_draws)
         w = model._w
         unit = bool(np.all(w == 1))
-        integer = bool(np.all(np.abs(w - np.round(w)) < 1e-12))
+        integer = is_integer_array(w)
         out = np.empty((R.shape[0], self.bins.K))
         for s, rho in enumerate(R):
             Ls = _draw_rows(L, s)
-            if unit or integer:
+            if integer:
                 n = kern.sample_counts(Ls, w, rho, gen, unit_weights=unit)[0]
                 out[s] = self._counts_to_bins(n, gen)
             else:
@@ -285,7 +290,7 @@ class _IndividualMixin:
     def sample_values(
         self,
         idx: Any = None,
-        n_draws: int | None = None,
+        n_draws: int | None = N_DRAWS,
         rng: RNGLike = None,
         loglike: Callable[[np.ndarray, int], np.ndarray] | None = None,
         n_sub: int = 64,
@@ -322,6 +327,14 @@ class _IndividualMixin:
         if loglike is not None and bins.ndim != 1:
             raise ValueError("loglike-based sampling supports 1-D bins only.")
         gen = as_generator(rng)
+        # C12c (DECISIONS #50) narrows this to inputs without within-bin information
+        if loglike is None and "gaussian_mean" not in model.likelihoods.meta:
+            warn(
+                "sample_values draws values from the population alone within each bin: these "
+                "likelihoods carry no within-bin information; pass loglike= for each object's "
+                "own likelihood.",
+                InputWarning,
+            )
         rows = np.atleast_1d(np.arange(model.N)[slice(None) if idx is None else idx])
         labels = self._component_labels(rows, n_draws, gen)
         basis = model.likelihoods.basis
@@ -344,18 +357,14 @@ class _IndividualMixin:
             todo.ravel()[at] = False
         return out[..., 0] if bins.ndim == 1 else out
 
-    def predict_proba(self, likelihoods: Likelihoods | Any, n_draws: int | None = 500):
+    def predict_proba(
+        self, likelihoods: Likelihoods | Any, n_draws: int | None = N_DRAWS, chunk: int = 4096
+    ):
         """Posterior over bins for *new* objects under the inferred population."""
         L, R, _, _ = self._new_object_draws(self._new_likelihoods(likelihoods), n_draws)
-        L = L.toarray() if hasattr(L, "toarray") else np.asarray(L)
-        acc = np.zeros(L.shape[-2:])
-        for s, rho in enumerate(R):
-            P = _draw_rows(L, s) * rho
-            tot = P.sum(axis=1, keepdims=True)
-            acc += P / np.where(tot > 0, tot, 1.0)
-        return self._to_bins(acc / R.shape[0])
+        return self._to_bins(_mean_responsibilities(L, R, chunk))
 
-    def log_predictive(self, likelihoods: Likelihoods | Any, n_draws: int | None = 500):
+    def log_predictive(self, likelihoods: Likelihoods | Any, n_draws: int | None = N_DRAWS):
         r"""Log posterior-predictive density of new objects, :math:`\log E[L_i\cdot\rho]`.
 
         Includes the per-object log-scales of the likelihoods, so values can be
@@ -389,6 +398,35 @@ class _IndividualMixin:
         return L, R, (R.sum(axis=1) if S is not None else R @ model.selection), lk.log_scale
 
 
+def _mean_responsibilities(L: Any, R: np.ndarray, chunk: int) -> np.ndarray:
+    """Per-object posteriors over the columns, averaged over the draws of column weights
+    ``R``, ``chunk`` objects at a time (``L`` may hold rows per draw, ``(n, N, K)``)."""
+    n = L.shape[-2]
+    out = np.zeros((n, L.shape[-1]))
+    for sl in chunk_slices(n, chunk):
+        block = L[:, sl] if L.ndim == 3 else L[sl]
+        block = block.toarray() if hasattr(block, "toarray") else np.asarray(block)
+        rows = np.arange(sl.start, sl.stop)
+        if block.ndim == 2:  # rows shared by the draws: mean_s L R_s / (L.R_s), two products
+            T = block @ R.T
+            tiny = np.finfo(float).tiny  # 1/T overflows below: those rows go draw by draw
+            inv = np.divide(1.0, T, out=np.zeros_like(T), where=T > tiny)  # no support: zero
+            out[sl] = block * (inv @ R)
+            slow = np.any((T > 0) & (T <= tiny), axis=1)
+            if not slow.any():
+                continue
+            rows, block = (
+                rows[slow],
+                np.broadcast_to(block[slow], (len(R), slow.sum(), out.shape[1])),
+            )
+            out[rows] = 0.0
+        for s, rho in enumerate(R):  # draw by draw
+            P = block[s] * rho
+            tot = P.sum(axis=1, keepdims=True)
+            out[rows] += P / np.where(tot > 0, tot, 1.0)
+    return out / R.shape[0]
+
+
 def _objects(L: Any, N: int, idx: Any) -> Any:
     # the rows of objects idx (all by default), of per-draw rows (n_draws, N, K) too
     if idx is None:
@@ -409,6 +447,27 @@ def _flat_draws(A: Any, n_tail: int, n_draws: int | None) -> np.ndarray:
     return A[_draw_index(len(A), n_draws)]
 
 
+def _which_name(which: str) -> str:
+    """``"fractions"``, ``"rates"`` or ``"density"``, singular spellings accepted (O-12)."""
+    name = {"fraction": "fractions", "rate": "rates"}.get(which, which)
+    if name not in ("fractions", "rates", "density"):
+        raise ValueError(f"which must be 'fractions', 'rates' or 'density'; got {which!r}.")
+    return name
+
+
+def _mixing(C: np.ndarray, tail: bool = False) -> dict[str, np.ndarray]:
+    """Bulk (and tail) ESS and split R-hat of each column of draws ``(chain, draw, K)``;
+    none below 8 draws per chain (split R-hat also for one chain, audit O-7)."""
+    if C.shape[1] < 8:
+        return {}
+    cols = range(C.shape[-1])
+    out = {"ess_bulk": np.array([diag.ess(C[:, :, k], "bulk") for k in cols])}
+    if tail:
+        out["ess_tail"] = np.array([diag.ess(C[:, :, k], "tail") for k in cols])
+    out["rhat"] = np.array([diag.rhat(C[:, :, k]) for k in cols])
+    return out
+
+
 def _draw_index(n_total: int, n_draws: int | None) -> np.ndarray | slice:
     # up to n_draws draws spread evenly over all of them
     if n_draws is None or n_draws >= n_total:
@@ -421,6 +480,20 @@ def _draws_rng(draws: np.ndarray) -> np.random.Generator:
     # and independent of any generator a caller holds (DECISIONS #78)
     digest = hashlib.sha256(np.ascontiguousarray(draws).tobytes()).digest()
     return np.random.default_rng(np.frombuffer(digest, dtype=np.uint32))
+
+
+def _same_bins(a: Bins, b: Bins) -> bool:
+    # equal bins up to the identity of their measures, which do not survive save and load
+    # (a transform axis loads as a table)
+    if a.is_categorical or b.is_categorical:
+        return a == b
+    return (
+        a.shape == b.shape
+        and all(np.array_equal(x, y) for x, y in zip(a.edges, b.edges, strict=True))
+        and [m.name for m in a.measures] == [m.name for m in b.measures]
+        and a.is_masked == b.is_masked
+        and (not a.is_masked or np.array_equal(a.mask, b.mask))
+    )
 
 
 def _same_layout(a: Basis | None, b: Basis | None) -> bool:
@@ -471,16 +544,22 @@ def _propose_values(model, objects, labels, lo, hi, gen, loglike, n_sub, height)
             )
         if gauss:
             logw = logw - 0.5 * ((zz - mu[:, None]) / sig[:, None]) ** 2
-        elif loglike is not None:  # one call per object and box
-            key = np.stack([objects, labels], axis=1)
-            pairs, inverse = np.unique(key, axis=0, return_inverse=True)
-            order = np.argsort(inverse.ravel(), kind="stable")
-            for i, members in zip(
-                pairs[:, 0],
-                np.split(order, np.cumsum(np.bincount(inverse.ravel()))[:-1]),
-                strict=True,
-            ):
-                logw[members] += np.asarray(loglike(zz[members[0]], int(i)), dtype=float).ravel()
+        elif loglike is not None:  # one call per object, at the sub-points of all its boxes
+            key = objects.astype(np.int64) * (int(labels.max()) + 1) + labels  # by object
+            _, first, inverse = np.unique(key, return_index=True, return_inverse=True)
+            vals = np.empty((len(first), n_sub))
+            ids, starts = np.unique(objects[first], return_index=True)
+            for i, a, b in zip(ids, starts, [*starts[1:], len(first)], strict=True):
+                pts = zz[first[a:b]]
+                logl = loglike(pts.ravel(), int(i))
+                vals[a:b] = np.asarray(logl, dtype=float).reshape(pts.shape)
+            logw = logw + vals[inverse.ravel()]
+        empty = ~np.isfinite(logw).any(axis=1)
+        if empty.any():  # it drew from the box's first sub-point before (audit O-11)
+            raise ValueError(
+                f"The likelihood is zero at all {n_sub} sub-points of a bin with posterior "
+                f"mass (object {int(objects[empty][0])}); raise n_sub or check loglike."
+            )
         w = np.exp(logw - np.max(logw, axis=1, keepdims=True))
         c = np.cumsum(w, axis=1)
         cell = np.sum(c < gen.random(n)[:, None] * c[:, -1:], axis=1)
@@ -525,6 +604,7 @@ class PopulationResult(_IndividualMixin):
         prior_repr: str | None = None,
         basis: Basis | None = None,
         total: np.ndarray | None = None,
+        selection: Selection | None = None,
     ) -> None:
         d = np.asarray(draws, dtype=float)
         if d.ndim == 2:
@@ -564,6 +644,8 @@ class PopulationResult(_IndividualMixin):
         self.labels = labels
         self.label_index = label_index
         self.prior_repr = prior_repr or (repr(model.prior_spec) if model is not None else None)
+        # the fit's selection, kept for attach after a load (audit O-1)
+        self._selection = selection if model is None else model.selection_spec
         self._cache: dict[str, Any] = {}
 
     # ------------------------------------------------------------- creation
@@ -577,31 +659,59 @@ class PopulationResult(_IndividualMixin):
         approximate: bool = False,
         info: dict[str, Any] | None = None,
     ) -> PopulationResult:
-        """Wrap draws from an external sampler (fractions or rates, per chain or flat)."""
+        """Wrap draws from an external sampler, ``(n_chains, n_draws, K)`` or ``(n_draws, K)``:
+        fractions for a fractions model (rows summing to one), rates for a rate model."""
+        X = np.asarray(samples, dtype=float)
+        if X.ndim not in (2, 3) or X.shape[-1] != model.K:
+            raise ValueError(
+                f"samples must have shape (n_chains, n_draws, {model.K}) or (n_draws, "
+                f"{model.K}); got {X.shape}."
+            )
+        if not np.all(np.isfinite(X)) or np.any(X < 0):
+            raise ValueError("samples must be finite and non-negative.")
+        if model.kind == "fractions":
+            sums = X.sum(axis=-1)
+            if not np.allclose(sums, 1.0, atol=1e-6):
+                raise ValueError(
+                    "samples of a fractions model must sum to one per draw; rates need a rate "
+                    "model (a GammaRates prior)."
+                )
+            X = X / sums[..., None]
         return cls(
             model,
-            np.asarray(samples, dtype=float),
+            X,
             method=method,
             kind=model.kind,
             approximate=approximate,
             info=info,
         )
 
+    @property
+    def selection(self) -> Selection | None:
+        """The selection function of the fit, kept through :meth:`save` and :func:`load`."""
+        return self._selection
+
     def attach(self, likelihoods_or_model: Any) -> PopulationResult:
-        """Attach likelihoods (or a model) to a loaded result to enable per-object methods."""
+        """Attach likelihoods (or a model) to a loaded result to enable per-object methods.
+
+        Bare likelihoods take the fit's selection; likelihoods or a model with another
+        selection, or on other bins, are refused (audit O-1, O-2).
+        """
+        from .likelihoods import Likelihoods
         from .model import PopulationModel
 
-        m = likelihoods_or_model
+        m, saved = likelihoods_or_model, self.selection
         if not isinstance(m, PopulationModel):
-            m = PopulationModel(m)
+            lk = m if isinstance(m, Likelihoods) else Likelihoods(m, self.basis or self.bins)
+            m = PopulationModel(lk, selection=None if lk.selection is not None else saved)
+        if m.selection_spec != saved:
+            raise ValueError("The likelihoods (or model) carry another selection than this fit.")
         if not _same_layout(m.likelihoods.basis, self.basis):
             raise ValueError("The likelihoods use a different basis than this result.")
-        K = self.bins.K if self.basis is None else self.basis.C
-        if m.K != K:
-            raise ValueError("Likelihoods have a different number of bins.")
+        if self.basis is None and not _same_bins(m.bins, self.bins):
+            raise ValueError(f"The likelihoods are on other bins ({m.bins}) than this result.")
         self.model = m
-        if self.kind == "fractions":
-            self._total = None  # drawn again for this model (the same for the same data)
+        self._selection = m.selection_spec
         for key in [k for k in self._cache if isinstance(k, tuple) and k[0] == "predictive_p"]:
             del self._cache[key]  # computed from the previous likelihoods
         return self
@@ -678,6 +788,7 @@ class PopulationResult(_IndividualMixin):
         return W / W.sum(axis=-1, keepdims=True) if self.kind == "rates" else W
 
     def _which(self, which: str) -> np.ndarray:
+        which = _which_name(which)
         if which == "fractions":
             return self.samples
         if which == "rates":
@@ -689,9 +800,7 @@ class PopulationResult(_IndividualMixin):
                     "likelihoods)."
                 )
             return rates
-        if which == "density":
-            return self.density()
-        raise ValueError("which must be 'fractions', 'rates' or 'density'.")
+        return self.density()
 
     @property
     def mean(self) -> np.ndarray:
@@ -708,14 +817,14 @@ class PopulationResult(_IndividualMixin):
         """Posterior standard deviation of the fractions ``(K,)``."""
         return self.samples.std(axis=0, ddof=1)
 
-    def cov(self) -> np.ndarray:
-        """Posterior covariance of the fractions ``(K, K)``."""
-        return np.cov(self.samples, rowvar=False)
+    def cov(self, which: str = "fractions") -> np.ndarray:
+        """Posterior covariance ``(K, K)`` of the fractions (or ``which="rates"``, ...)."""
+        return np.cov(self._which(which), rowvar=False)
 
-    def corr(self) -> np.ndarray:
-        """Posterior correlation matrix of the fractions ``(K, K)``."""
+    def corr(self, which: str = "fractions") -> np.ndarray:
+        """Posterior correlation matrix ``(K, K)`` of the fractions (or ``which=...``)."""
         with np.errstate(invalid="ignore", divide="ignore"):
-            return np.corrcoef(self.samples, rowvar=False)
+            return np.corrcoef(self._which(which), rowvar=False)
 
     def quantile(self, q: Any, which: str = "fractions") -> np.ndarray:
         """Posterior quantiles, shape ``(*np.shape(q), K)``."""
@@ -749,8 +858,11 @@ class PopulationResult(_IndividualMixin):
         base = self.rates if self.kind == "rates" else self.samples
         return base / self.bins.volumes
 
-    def functional(self, func: Callable[[np.ndarray], Any], vectorized: bool = False):
-        """Draws of a derived quantity ``func(rho)`` (e.g. the mean redshift).
+    def functional(
+        self, func: Callable[[np.ndarray], Any], vectorized: bool = False, which: str = "fractions"
+    ):
+        """Draws of a derived quantity ``func(rho)`` (e.g. the mean redshift), or of
+        the rates or densities with ``which``.
 
         With ``vectorized=True``, ``func`` receives the full ``(n_draws, K)``
         array at once.
@@ -759,19 +871,21 @@ class PopulationResult(_IndividualMixin):
         --------
         >>> zbar = result.functional(lambda r: r @ result.bins.centers)  # doctest: +SKIP
         """
-        X = self.samples
+        X = self._which(which)
         if vectorized:
             return np.asarray(func(X))
         return np.array([func(r) for r in X])
 
-    def rebin(self, groups: Any) -> np.ndarray:
-        """Fractions aggregated into coarser groups.
+    def rebin(self, groups: Any, which: str = "fractions") -> np.ndarray:
+        """Fractions (or rates, with ``which="rates"``) aggregated into coarser groups.
 
-        ``groups`` is either a length-``K`` integer array mapping bins to groups
+        ``groups`` is either a length-``K`` array of integers mapping bins to groups
         (e.g. from :meth:`Bins.coarsen`) or a sequence of lists of bin indices.
         Returns ``(n_draws, n_groups)``.
         """
-        X = self.samples
+        if _which_name(which) == "density":
+            raise ValueError("Densities per unit volume do not add across bins; rebin fractions.")
+        X = self._which(which)
         try:
             arr = np.asarray(groups)
         except ValueError:  # ragged sequence of groups
@@ -780,13 +894,26 @@ class PopulationResult(_IndividualMixin):
             arr is not None
             and arr.ndim == 1
             and arr.shape[0] == self.K
-            and np.issubdtype(arr.dtype, np.integer)
+            and arr.dtype.kind in "iuf"
         ):
-            n_groups = int(arr.max()) + 1
-            return np.stack([X[:, arr == g].sum(axis=1) for g in range(n_groups)], axis=1)
+            if not is_integer_array(arr) or arr.min() < 0:
+                raise ValueError("groups must map each bin to a non-negative integer group.")
+            arr = arr.astype(np.intp)
+            one_hot = np.zeros((self.K, int(arr.max()) + 1))
+            one_hot[np.arange(self.K), arr] = 1.0
+            return X @ one_hot
         return np.stack([X[:, list(grp)].sum(axis=1) for grp in groups], axis=1)
 
     # ---------------------------------------------------------- diagnostics
+    def _mixing_of(self, which: str) -> dict[str, np.ndarray]:
+        """Bulk and tail ESS and split R-hat of the fractions or the rates, cached; a
+        density shares its base's (they ignore a positive scale per bin)."""
+        base = self.kind if which == "density" else which
+        if ("mixing", base) not in self._cache:
+            X = self._which(base).reshape(self.n_chains, -1, self.K)
+            self._cache["mixing", base] = _mixing(X, tail=True)
+        return self._cache["mixing", base]
+
     @property
     def diagnostics(self) -> dict[str, Any]:
         """Convergence diagnostics (computed lazily and cached)."""
@@ -794,21 +921,10 @@ class PopulationResult(_IndividualMixin):
             return self._cache["diagnostics"]
         out: dict[str, Any] = {}
         # for rate models diagnose the rates, which also carry the total
-        C = self._draws if self.kind == "rates" else self.chains
-        if C.shape[1] >= 8:
-            out["ess_bulk"] = np.array([diag.ess(C[:, :, k], "bulk") for k in range(self.K)])
-            out["ess_tail"] = np.array([diag.ess(C[:, :, k], "tail") for k in range(self.K)])
-            if self.n_chains >= 2:
-                out["rhat"] = np.array([diag.rhat(C[:, :, k]) for k in range(self.K)])
-            Sd = self._inferred_selection()  # a selection, or a response's efficiencies
-            if Sd is not None:
-                out["ess_bulk_selection"] = np.array(
-                    [diag.ess(Sd[:, :, k], "bulk") for k in range(Sd.shape[-1])]
-                )
-                if self.n_chains >= 2:
-                    out["rhat_selection"] = np.array(
-                        [diag.rhat(Sd[:, :, k]) for k in range(Sd.shape[-1])]
-                    )
+        out.update(self._mixing_of(self.kind))
+        Sd = self._inferred_selection()  # a selection, or a response's efficiencies
+        if Sd is not None:
+            out.update({f"{k}_selection": v for k, v in _mixing(Sd).items()})
         for key in (
             "n_divergent",
             "k_hat",
@@ -861,17 +977,23 @@ class PopulationResult(_IndividualMixin):
         d = self.diagnostics
         msgs = []
         hints = []
+        # Markov chains (any engine but the approximations), whose draws are correlated
+        mcmc = not self.approximate and self.method not in ("laplace", "vb", "bootstrap")
         for suffix, what in (("", ""), ("_selection", " of the selection")):
+            if not mcmc:  # independent draws: R-hat and ESS describe no chain
+                break
             if "rhat" + suffix in d and np.nanmax(d["rhat" + suffix]) > rhat_max:
                 msgs.append(f"max R-hat{what} = {np.nanmax(d['rhat' + suffix]):.3f} > {rhat_max}")
-            if "ess_bulk" + suffix in d:
-                ess = np.nanmin(d["ess_bulk" + suffix])
-                per_chain = ess / max(1, self.n_chains)
-                if self.method in ("nuts", "gibbs") and per_chain < ess_min:
-                    msgs.append(
-                        f"min bulk ESS{what} = {ess:.0f} "
-                        f"({per_chain:.0f} per chain < {ess_min:.0f})"
-                    )
+            for kind in ("bulk", "tail"):
+                key = f"ess_{kind}{suffix}"
+                if key in d:
+                    ess = np.nanmin(d[key])
+                    per_chain = ess / max(1, self.n_chains)
+                    if per_chain < ess_min:
+                        msgs.append(
+                            f"min {kind} ESS{what} = {ess:.0f} "
+                            f"({per_chain:.0f} per chain < {ess_min:.0f})"
+                        )
         if msgs and self.method == "gibbs":
             hint = "Gibbs mixes slowly when likelihoods are broad compared with the bins"
             f = self._missing_information()
@@ -888,6 +1010,14 @@ class PopulationResult(_IndividualMixin):
                 "try a higher target_accept, e.g. 0.95; divergences that persist mark a "
                 "region the sampler cannot explore (see the pitfalls guide)"
             )
+        if "ebfmi" in d and np.nanmin(d["ebfmi"]) < 0.3:
+            msgs.append(f"E-BFMI = {np.nanmin(d['ebfmi']):.2f} < 0.3 in some chain")
+            hints.append(
+                "NUTS explores the energy distribution poorly (heavy tails or a funnel); "
+                "a longer warm-up or another prior may help"
+            )
+        if d.get("converged") is False:
+            msgs.append("the optimiser did not converge")
         threshold = d.get("k_hat_threshold", 0.7)
         if d.get("k_hat", 0) >= threshold:
             msgs.append(
@@ -943,7 +1073,7 @@ class PopulationResult(_IndividualMixin):
                 if not strict:
                     warn(f"Diagnostics: {text}.", category)
         if strict and texts:
-            raise RuntimeError(f"Diagnostics failed: {'; '.join(texts)}")
+            raise DiagnosticsError(f"Diagnostics failed: {'; '.join(texts)}")
         return msgs + inputs
 
     def _predictive_pvalue(self, lk: Any, n_draws: int) -> float | None:
@@ -963,6 +1093,7 @@ class PopulationResult(_IndividualMixin):
 
     def summary(self, level: float = 0.68, which: str = "fractions") -> Summary:
         """Per-bin posterior summary table (mean, sd, median, interval, ESS, R-hat)."""
+        which = _which_name(which)
         X = self._which(which)
         lo, hi = np.quantile(X, [0.5 - level / 2, 0.5 + level / 2], axis=0)
         cols: dict[str, np.ndarray] = {
@@ -973,11 +1104,8 @@ class PopulationResult(_IndividualMixin):
             f"q{100 * (0.5 - level / 2):g}": lo,
             f"q{100 * (0.5 + level / 2):g}": hi,
         }
-        d = self.diagnostics
-        if "ess_bulk" in d:
-            cols["ess_bulk"] = d["ess_bulk"]
-        if "rhat" in d:
-            cols["rhat"] = d["rhat"]
+        mixing = self._mixing_of(which)  # of the quantity summarised (audit O-8)
+        cols.update({k: v for k, v in mixing.items() if k != "ess_tail"})
         flag = " [approximate]" if self.approximate else ""
         source = None if self.model is None else self.model.likelihoods.meta.get("source")
         inputs = "" if source is None else f"; inputs: {source}"
@@ -1120,6 +1248,15 @@ class PointEstimate(_IndividualMixin):
 
     def _rho_draws(self) -> np.ndarray:
         return self.rho[None, :]
+
+    def _which(self, which: str) -> np.ndarray:
+        """The estimate of ``which`` as one draw ``(1, K)``, as for posterior draws."""
+        which = _which_name(which)
+        if which == "density":
+            return self.density()[None, :]
+        if which == "rates" and self.rates is None:
+            raise ValueError("No rates in this result (a relative selection, or no model).")
+        return (self.rho if which == "fractions" else self.rates)[None, :]
 
     def _weight_draws(self) -> np.ndarray:
         v = self.value

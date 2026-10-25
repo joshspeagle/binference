@@ -40,7 +40,13 @@ from .model import PopulationModel
 from .response import Response
 from .results import PointEstimate, PopulationResult, Summary
 from .selection import Selection
-from .warnings import ApproximationWarning, BinferenceWarning, ConvergenceWarning, InputWarning
+from .warnings import (
+    ApproximationWarning,
+    BinferenceWarning,
+    ConvergenceWarning,
+    DiagnosticsError,
+    InputWarning,
+)
 
 __all__ = [
     "ApproximationWarning",
@@ -49,6 +55,7 @@ __all__ = [
     "Bins",
     "ConvergenceWarning",
     "Density",
+    "DiagnosticsError",
     "InputWarning",
     "Likelihoods",
     "Measure",
@@ -67,3 +74,12 @@ __all__ = [
     "simulate",
     "validation",
 ]
+
+
+def __getattr__(name: str):
+    # binference.plotting and binference.io load on first use (matplotlib stays optional)
+    if name in ("io", "plotting"):
+        import importlib
+
+        return importlib.import_module(f".{name}", __name__)
+    raise AttributeError(f"module 'binference' has no attribute {name!r}")

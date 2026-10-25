@@ -76,6 +76,12 @@ class PopulationEstimator:
         sig = inspect.signature(cls.__init__)
         return [p for p in sig.parameters if p != "self"]
 
+    def __sklearn_tags__(self):
+        # scikit-learn >= 1.6 asks every estimator for its tags; X is all it needs
+        from sklearn.utils import Tags, TargetTags
+
+        return Tags(estimator_type=None, target_tags=TargetTags(required=False))
+
     def get_params(self, deep: bool = True) -> dict[str, Any]:
         """Constructor parameters (scikit-learn convention)."""
         return {name: getattr(self, name) for name in self._get_param_names()}

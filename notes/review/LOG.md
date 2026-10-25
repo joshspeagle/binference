@@ -335,3 +335,7 @@ Append-only. One entry per working session (or per step within a long session).
 - C11b-3 (#59, DECISIONS #81): a tallied response is inferred with the population by every engine but VB and the bootstrap. The plug-in response's 68% intervals covered the truth 23% and 34% of the time with 30 and 100 validation objects per class; the joint fit's 58–62%.
 - The prior per cell was first a total of one per column (β = 1/(J+1)), which had the lowest error, but cells without events then have α < 1 and NUTS took 251 s at tree depth 7.3 on tutorial 6's route C; β = 1 took 40 s, so it is the default.
 - The SBC found a measured bin with no tallied events but observed objects: `from_binned` rejected them (zero row). For an uncertain response the rows are now the posterior means.
+
+## 2026-10-25: C11b-3 merged; C12 (results)
+
+- #60 (C11b-3) merged. /code-review caught that `fixed()` dropped the tallies, so the plug-in's label-shift check lost the covariance calibrated in DECISIONS #68, and that responses without lost events got a spurious random efficiency; both fixed before the merge. The single interface for jointly inferred blocks is deferred (#61).
