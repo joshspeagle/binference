@@ -40,6 +40,7 @@ import numpy as np
 
 from ._quadrature import bin_log_average
 from ._utils import frozen, warn
+from .basis import Basis
 from .bins import Bins
 from .warnings import InputWarning
 
@@ -84,9 +85,12 @@ class Selection:
     row : ndarray (K,) or None
         The factor applied to the likelihood columns (:math:`S_k` on the
         truth, :math:`C_k` combined, ``None`` on the measurement).
+    basis : Basis or None
+        Set when the values are per component of a :class:`~binference.Basis`
+        (:math:`\\phi_k`-weighted averages) rather than per bin.
     """
 
-    __slots__ = ("row", "scale", "values")
+    __slots__ = ("basis", "row", "scale", "values")
 
     def __init__(self, values: Any, mode: str, *, scale: str = "probability") -> None:
         _check_mode(mode)
@@ -94,6 +98,7 @@ class Selection:
         self.values = frozen(v)
         self.row = self.values if mode == "on_truth" else None
         self.scale = scale
+        self.basis = None
 
     def __setattr__(self, name: str, value: Any) -> None:
         if name in Selection.__slots__ and not hasattr(self, name):
@@ -103,7 +108,7 @@ class Selection:
 
     def __reduce__(self) -> tuple:
         row = "values" if self.row is self.values else self.row
-        return _rebuild, (self.values, row, self.scale)
+        return _rebuild, (self.values, row, self.scale, self.basis)
 
     @property
     def mode(self) -> str:
@@ -128,10 +133,15 @@ class Selection:
         points ``z`` (shape ``(M,)`` in 1-D, ``(M, ndim)`` on grids, labels for
         categories). Each bin takes its average in the measure coordinate, the
         within-bin shape of the population (DECISIONS #10, #47), by adaptive
-        quadrature to ``tol`` relative to the largest bin average.
+        quadrature to ``tol`` relative to the largest bin average. With a
+        :class:`~binference.Basis` for ``bins``, the averages are taken on its
+        quadrature cells and weighted by each component (DECISIONS #47, #76).
         """
         _check_mode(mode)
         _check_values(np.ones(2), scale, "selection")  # the scale, before any quadrature
+        if isinstance(bins, Basis):
+            sel = cls.from_function(function, bins.grid, mode, scale=scale, tol=tol)
+            return _on_basis(sel, bins, bins.grid_masses)
         return cls(_bin_average(function, bins, tol=tol)[0], mode, scale=scale)
 
     @classmethod
@@ -153,15 +163,23 @@ class Selection:
         on_measurement : array_like (K,) or callable
             :math:`P(d \\in A \\mid z)`, the probability that the measured data
             pass the cut given the true value.
-        bins : Bins, optional
+        bins : Bins or Basis, optional
             Needed when either part is a callable, which is then averaged over
             each bin in the measure coordinate (when both are, the product is
-            averaged as a whole).
+            averaged as a whole). With a :class:`~binference.Basis` the result
+            is per component, as for :meth:`from_function`.
         scale : str
             As for :class:`Selection`, applied to both parts.
         tol : float
             Quadrature tolerance for callable parts (see :meth:`from_function`).
         """
+        if isinstance(bins, Basis):  # on the quadrature cells, then per component
+            parts = [
+                p if callable(p) else _per_bin(p, bins.K)[bins.grid_to_bins]
+                for p in (on_truth, on_measurement)
+            ]
+            sel = cls.combined(*parts, bins.grid, scale=scale, tol=tol)
+            return _on_basis(sel, bins, bins.grid_masses)
         if callable(on_truth) and callable(on_measurement):
             if bins is None:
                 raise ValueError("Selection.combined needs bins when a part is a callable.")
@@ -206,7 +224,20 @@ def _combined(on_truth: Any, on_measurement: Any, scale: str) -> Selection:
     return _rebuild(C * T, C, scale)
 
 
-def _rebuild(values: np.ndarray, row: Any, scale: str) -> Selection:
+def _per_bin(values: Any, K: int) -> np.ndarray:
+    v = np.asarray(values, dtype=float).ravel()
+    if v.size != K:
+        raise ValueError(f"selection must have length K={K}; got {v.size}.")
+    return v
+
+
+def _on_basis(sel: Selection, basis: Basis, M: Any) -> Selection:
+    """``sel`` given per cell of a grid (the rows of ``M``), as averages per component."""
+    row = None if sel.row is None else "values" if sel.row is sel.values else M.T @ sel.row
+    return _rebuild(M.T @ sel.values, row, sel.scale, basis)
+
+
+def _rebuild(values: np.ndarray, row: Any, scale: str, basis: Basis | None = None) -> Selection:
     # a Selection from its arrays; row is None, "values" (on the truth) or an array
     out = Selection.__new__(Selection)
     out.values = frozen(np.array(values, dtype=float))
@@ -218,6 +249,7 @@ def _rebuild(values: np.ndarray, row: Any, scale: str) -> Selection:
         else frozen(np.array(row, dtype=float))
     )
     out.scale = scale
+    out.basis = basis
     return out
 
 
@@ -314,28 +346,37 @@ def _warn_if_steep(values: np.ndarray, bins: Bins) -> None:
         )
 
 
-def as_selection(selection: Any, mode: str | None, bins: Bins) -> Selection | None:
+def as_selection(selection: Any, mode: str | None, bins: Bins | Basis) -> Selection | None:
     """Normalise user input: ``None``, a :class:`Selection`, a callable or an array plus mode.
 
     A raw array is checked for steep changes between neighbouring bins; a
     :class:`Selection` or a callable is taken as already averaged within bins.
+    With a :class:`~binference.Basis`, arrays and selections given per bin are
+    mapped to the components (:math:`\\phi_k`-weighted averages) and callables are
+    averaged on the basis's quadrature cells.
     """
     if selection is None:
         if mode is not None:
             raise ValueError("selection_mode was given without a selection function.")
         return None
+    basis = bins if isinstance(bins, Basis) else None
+    report = bins if basis is None else basis.bins
     if isinstance(selection, Selection):
         if mode is not None and mode != selection.mode:
             raise ValueError("selection_mode conflicts with the mode of the Selection object.")
+        if selection.basis is not None:
+            if selection.basis != basis:
+                raise ValueError("The Selection was built for a different basis.")
+            return selection
         sel = selection
     elif mode is None:
         raise ValueError(_HELP)
     elif callable(selection):
-        sel = Selection.from_function(selection, bins, mode)
+        return Selection.from_function(selection, bins, mode)
     else:
         sel = Selection(selection, mode)
-        if sel.K == bins.K:
-            _warn_if_steep(sel.values, bins)
-    if sel.K != bins.K:
-        raise ValueError(f"selection must have length K={bins.K}; got {sel.K}.")
-    return sel
+        if sel.K == report.K:
+            _warn_if_steep(sel.values, report)
+    if sel.K != report.K:
+        raise ValueError(f"selection must have length K={report.K}; got {sel.K}.")
+    return sel if basis is None else _on_basis(sel, basis, basis.matrix)

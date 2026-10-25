@@ -67,6 +67,51 @@ print(masked.K, masked.shape, masked.index([[0.5, 0.5], [0.5, 1.5]]))
 Smoothness priors (`LogisticRandomWalk`, `LogisticGP`) do not yet accept
 masked grids.
 
+### Within-bin shape and internal resolution: `Basis`
+
+By default the population is flat (in $u$) within each bin, which biases the
+fractions when it changes over a bin: for a population falling as $e^{-1.5z}$
+on $[0, 3]$ in 10 bins, with Gaussian errors $\sigma = 0.2$, the error
+reaches 7% of a bin's mass even with unlimited data. A `binference.Basis` separates the bins you report in from the
+components the model fits. The population is a mixture
+$f(z) = \sum_k w_k \phi_k(z)$ of components of unit mass on the bins refined
+`resolution` times per axis; `order=0` makes each component flat on its cell,
+`order=1` a linear B-spline (a hat centred on its cell, so the density is
+continuous; unmasked grids only). Fractions are reported in the bins,
+$\rho_j = \sum_k A_{jk} w_k$, with $A_{jk}$ the mass of component $k$ in bin
+$j$ (`basis.matrix`).
+
+Pass the basis wherever bins go. Constructors that know the likelihood within
+bins (`from_gaussian`, `from_density`, `from_samples`) integrate it against
+each component on `oversample` quadrature cells per component (8 for hats);
+per-bin inputs (arrays, `from_table`, `from_log`, and `lk.on_basis(basis)` for
+anything else, such as `from_binned`) take the likelihood as flat within each
+bin. A selection function given as a callable is averaged with each component
+as the weight; arrays per bin are mapped with $A$.
+
+```python
+bins = binference.Bins.linear(0.0, 3.0, 10)
+basis = binference.Basis(bins, order=1, resolution=4)
+mock = binference.simulate.mock_1d(500, bins, rng=1)
+lk = binference.Likelihoods.from_gaussian(
+    mock.measurements["mean"], mock.measurements["sigma"], basis
+)
+res = binference.infer(lk, binference.priors.LogisticRandomWalk(order=2), method="map")
+print(lk.K, basis.C, res.rho.shape)  # 40 components, reported in 10 bins
+```
+
+The priors see the components (`lk.bins` is `basis.components`), so a finer
+resolution needs a smoothing prior: components narrower than the measurement
+errors are not identified one by one, and a flat Dirichlet then rings from
+component to component. In the noise-free limit of the example above, with
+`LogisticRandomWalk(order=2)`, the largest error of a bin's fraction was 7.4%
+with plain bins, 3.3% with hats, 0.28% with flat components at
+`resolution=4` and 0.11% with hats at `resolution=4`
+(`tests/test_basis.py`). Every result reports in the bins; per-object
+outputs share each component among the bins by $A$, which is exact for flat
+components and ignores the likelihood's variation within a hat. Gibbs label
+draws (`store_labels`) index the components.
+
 ## Likelihood matrices
 
 If you already have $L_{ik}$, pass it directly. A likelihood evaluated at bin

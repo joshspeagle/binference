@@ -312,3 +312,9 @@ Append-only. One entry per working session (or per step within a long session).
 - #46 (C10, NUTS and Laplace; DECISIONS #74) merged after CI on macOS and the minimum-dependency job: its thread test first assumed a visible BLAS pool, and now asserts the limit only where threadpoolctl sees one.
 - C11's /simplify (three reviewers: reuse with simplification, efficiency, altitude) and /code-review high replaced the row-repeating sparse label draw with conditional binomials over each row's nonzeros (a flat row no longer densifies a chunk), lowered the exact posterior's default grid to 200 nodes (tests reading the mode off the nodes keep 500–600), started Gibbs chains from counts that include missed objects, stopped silencing the bootstrap's base-fit warning, and rejected SBC `n_bins` above n_draws + 1.
 - The slow SBC tests met the new low-ESS warning (Gibbs: 46 of 200 fits below ESS 99); `test_sbc` filters it, since over-dispersed ranks only make its uniformity test stricter.
+
+## 2026-10-25: C11 merged; C7b (basis and internal resolution)
+
+- #48 (C11) merged after CI.
+- The landing plan's revision (DECISIONS #59) placed C7b (basis and internal resolution), C7c (speed) and C11b (joint inference) after C7 and C11; they were passed over in sequence, and C12 depends on C7b and C11b, so they come next: C7b, C7c, C11b, then C12.
+- C7b issue #49 (DECISIONS #76). The bias benchmark separates two effects: in the noise-free limit, plain bins and hats at resolution 1 differ by 2×, while finer resolution without a smoothing prior rings (maximum likelihood is not identified component by component); with a random-walk prior, resolution 4 cuts the error from 7.4% to 0.1–0.3%.

@@ -147,7 +147,8 @@ class SBCResult:
     n_draws : int
         Draws per simulation used for ranking (ranks lie in ``0..n_draws``).
     names : list of str
-        Quantity names (``"rho[k]"``, or ``"lambda[k]"`` for rates, and ``"loglike"``).
+        Quantity names (``"rho[k]"``, ``"lambda[k]"`` for rates or ``"w[k]"`` for the
+        component weights of a :class:`~binference.Basis`, and ``"loglike"``).
     min_ess : (n_simulations,) array
         Smallest bulk effective sample size of each fit (NaN without chains);
         :func:`sbc` warns when it falls below ``n_draws``.
@@ -199,9 +200,15 @@ class SBCResult:
         return plot_sbc(self, **kwargs)
 
 
+def _symbol(res: PopulationResult) -> str:
+    # component weights with a basis (as the prior draws them), else fractions or rates
+    return "w" if res.basis is not None else "lambda" if res.kind == "rates" else "rho"
+
+
 def _draws_of_value(res: PopulationResult) -> np.ndarray:
-    """Draws on the scale the model is parametrised in: rates for rate models."""
-    return res.rates if res.kind == "rates" else res.samples
+    """Draws on the scale the model is parametrised in: rates for rate models, and the
+    component weights with a :class:`~binference.Basis` (as the prior draws them)."""
+    return res.component_draws.reshape(-1, res.component_draws.shape[-1])
 
 
 def _thin_draws(res: PopulationResult, n_draws: int) -> np.ndarray:
@@ -254,9 +261,7 @@ def sbc(
         D = _thin_draws(res, n_draws)
         row = list((D < truth[None, :]).sum(axis=0))
         if not names:
-            names = [
-                f"{'lambda' if res.kind == 'rates' else 'rho'}[{k}]" for k in range(D.shape[1])
-            ]
+            names = [f"{_symbol(res)}[{k}]" for k in range(D.shape[1])]
             if log_likelihood:
                 names.append("loglike")
         if log_likelihood:
@@ -335,9 +340,7 @@ def coverage(
             Q.append(np.array([f(r) for r in X]))
             tq.append(f(truth))
         if not names:
-            names = [
-                f"{'lambda' if res.kind == 'rates' else 'rho'}[{k}]" for k in range(X.shape[1])
-            ] + list(functionals)
+            names = [f"{_symbol(res)}[{k}]" for k in range(X.shape[1])] + list(functionals)
         Q = np.stack(Q, axis=1)
         tq = np.asarray(tq)
         cov = np.empty((levels_arr.size, Q.shape[1]), dtype=bool)

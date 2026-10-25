@@ -504,6 +504,34 @@ class Bins:
             pairs.append(np.stack([a[keep], b[keep]], axis=1))
         return np.concatenate(pairs, axis=0)
 
+    def refine(self, factor: int | Sequence[int]) -> tuple[Bins, np.ndarray]:
+        """Split each bin into ``factor`` parts of equal width in ``u`` along each axis.
+
+        Returns the fine bins (same measures, the mask repeated) and the
+        ``(K_fine,)`` integer map from fine to coarse bins, as :meth:`coarsen`
+        returns; ``fine.coarsen(factor)`` recovers these bins.
+        """
+        if self.is_categorical:
+            raise ValueError("Categories have no geometry to refine.")
+        f = np.broadcast_to(np.asarray(factor), (self.ndim,))
+        if not all(float(x).is_integer() and x >= 1 for x in f):
+            raise ValueError(f"factor must be positive integers; got {factor!r}.")
+        f = f.astype(int)
+        new_edges = []
+        for d, (m, u) in enumerate(zip(self._measures, self._u_edges, strict=True)):
+            t = np.arange(f[d]) / f[d]
+            uf = np.append((u[:-1, None] + np.diff(u)[:, None] * t).ravel(), u[-1])
+            e = m.inverse(uf)
+            e[:: f[d]] = self._edges[d]  # the coarse edges exactly
+            new_edges.append(e)
+        mask = None
+        if self.is_masked:
+            mask = self.mask
+            for d in range(self.ndim):
+                mask = np.repeat(mask, f[d], axis=d)
+        fine = Bins.grid(*new_edges, measure=self._measures, mask=mask)
+        return fine, fine.coarsen(f)[1]
+
     def coarsen(self, factor: int | Sequence[int]) -> tuple[Bins, np.ndarray]:
         """Merge blocks of ``factor`` adjacent bins along each axis.
 
