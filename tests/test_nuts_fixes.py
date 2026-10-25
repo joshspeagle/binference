@@ -17,13 +17,21 @@ def _gp_model(n=3000, K=12, seed=2):
     return PopulationModel(mock.likelihoods, P.LogisticRandomWalk(order=1))
 
 
-def test_a_centred_input_prior_samples_from_its_non_centred_form():
+def test_nuts_refuses_a_model_whose_prior_is_already_centred():
     m = _gp_model()
     centred = m._with_bound_prior(m.prior.with_centering(np.zeros(m.prior.n_active)))
-    a = NUTS(m, n_chains=2, n_warmup=150, rng=1).run(30)
-    b = NUTS(centred, n_chains=2, n_warmup=150, rng=1).run(30)
-    assert np.all(b.model.prior.lam == 1.0)
-    np.testing.assert_allclose(a.chains, b.chains)  # the same chains from the same seed
+    with pytest.raises(ValueError, match="non-centred"):
+        NUTS(centred)
+
+
+def test_positions_from_sample_are_in_the_model_coordinates():
+    m = _gp_model()
+    eng = NUTS(m, n_chains=2, n_warmup=150, rng=1)
+    draws = eng.sample(1)
+    x = next(draws)
+    draws.close()  # records the draw
+    assert not np.all(eng.model.prior.lam == 1.0)  # sampled partly centred
+    np.testing.assert_allclose(m.to_value(x[0]), eng.result.chains[0, -1])
 
 
 def test_nuts_arguments_are_checked():

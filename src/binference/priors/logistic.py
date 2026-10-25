@@ -162,6 +162,21 @@ class _BoundLogistic(BoundPrior):
             z[:] = np.sign(z) * np.exp(np.log(np.abs(z)) + (self.lam - np.clip(lam, 0, 1)) * log_s)
         return x
 
+    def to_noncentred(self, X: np.ndarray, log_density: np.ndarray):
+        """Points ``X`` (rows) in this parametrisation, and their log densities, in the
+        non-centred one (all weights 1).
+
+        The log density gains the Jacobian ``sum_j (1 - lam_j) log s_j(theta)``.
+        """
+        X = np.array(X, dtype=float, copy=True)
+        na = self.n_active
+        LS = np.array([self.log_scales(self._theta(x[na:]))[0] for x in X]).reshape(-1, na)
+        one_m = 1.0 - self.lam
+        z = X[:, :na]
+        with np.errstate(divide="ignore", over="ignore"):  # in log space, as the density
+            z[:] = np.sign(z) * np.exp(np.log(np.abs(z)) - one_m * LS)
+        return X, np.asarray(log_density, dtype=float) + LS @ one_m
+
     # subclasses implement: log_scales(theta) -> (log s, dlogs), dlogs (n_hypers, n_active);
     # logarithms, because the scales of high-frequency modes underflow (audit P-5)
     def log_scales(self, theta: np.ndarray) -> tuple[np.ndarray, np.ndarray]:  # pragma: no cover

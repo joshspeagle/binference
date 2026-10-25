@@ -127,8 +127,9 @@ First development version.
   resolves (P-2), or `LogNormal(log(range/2), 1)` on coarse grids (P-7). Partially
   centred GP densities and gradients agree where scales underflow (P-5).
 - **NUTS and Laplace** (DECISIONS #74): NUTS results (`x`, `log_density_unconstrained`,
-  `model`) are in the model's own coordinates, not the partly centred sampling ones
-  (`info["centring"]` holds the weights; N-1, N-2). Parallel workers receive the model
+  `model`) and the positions `sample()` yields are in the model's own coordinates, not
+  the partly centred sampling ones (`info["centring"]` holds the weights; N-1, N-2).
+  `diagnostics.psis_threshold(n)` gives the k̂ threshold for n importance weights. Parallel workers receive the model
   once, reuse one pool per run, never raise a BLAS thread limit already set, respect
   CPU affinity, and errors from the model are raised instead of triggering a serial
   rerun (N-3, N-7, N-13). `max_depth`, `n_warmup`, `jitter` and `init` are checked

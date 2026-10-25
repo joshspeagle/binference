@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from .. import diagnostics as diag
-from .._utils import RNGLike, warn
+from .._utils import RNGLike, check_positive, warn
 from ..model import PopulationModel
 from ..results import PopulationResult
 from ..warnings import ApproximationWarning, ConvergenceWarning
@@ -83,20 +83,18 @@ class Laplace(Engine):
         progress: bool = False,
     ) -> None:
         super().__init__(model, rng=rng, progress=progress)
-        if n_proposals is not None and n_proposals < 1:
-            raise ValueError("n_proposals must be a positive integer.")
-        if not (inflate > 0 and step > 0):
-            raise ValueError("inflate and step must be positive.")
+        if n_proposals is not None and n_proposals < 5:
+            raise ValueError("n_proposals must be at least 5 (for Pareto smoothing).")
         self.importance = bool(importance)
         self.n_proposals = n_proposals
         if df is not None and df <= 0:
             raise ValueError("df must be positive (or None for a Gaussian proposal).")
         self.df = None if df is None else float(df)
-        self.inflate = float(inflate)
-        self.step = float(step)
+        self.inflate = float(check_positive(inflate, "inflate"))
+        self.step = float(check_positive(step, "step"))
 
     def _mode_and_eigen(self):
-        # the mode, the Hessian there, and the eigen-decomposition of -H (audit N-11)
+        # the mode, the Hessian there, the eigen-decomposition of -H and the covariance (N-11)
         m = self.model
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", ConvergenceWarning)
@@ -111,17 +109,17 @@ class Laplace(Engine):
                 "The Hessian at the mode is not positive definite; clipping eigenvalues.",
                 ApproximationWarning,
             )
-        return x0, H, lam, U
+        return x0, H, lam, U, (U / lam) @ U.T
 
     def mode_and_covariance(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Mode, covariance and Hessian in unconstrained coordinates."""
-        x0, H, lam, U = self._mode_and_eigen()
-        return x0, (U / lam) @ U.T, H
+        x0, H, _, _, cov = self._mode_and_eigen()
+        return x0, cov, H
 
     def run(self, n_samples: int = 4000) -> PopulationResult:
         """Draw ``n_samples`` (approximately) from the posterior."""
         m = self.model
-        x0, _, lam, U = self._mode_and_eigen()
+        x0, _, lam, U, cov = self._mode_and_eigen()
         d = x0.size
         sd_mat = (U / np.sqrt(lam)) * self.inflate
         # without importance resampling the proposals are the draws (audit N-4)
@@ -130,7 +128,7 @@ class Laplace(Engine):
         if self.importance and self.df is not None:
             Z = Z / np.sqrt(self.rng.chisquare(self.df, size=M) / self.df)[:, None]
         X = x0 + Z @ sd_mat.T
-        info: dict[str, Any] = {"mode": x0, "cov": (U / lam) @ U.T}
+        info: dict[str, Any] = {"mode": x0, "cov": cov}
         approximate = True
         if self.importance:
             # log q up to a constant shared by all proposals
@@ -141,9 +139,7 @@ class Laplace(Engine):
             log_p = np.array([m.log_density_unconstrained(x) for x in X])
             lw, k_hat = diag.psis(log_p - log_q)
             w = np.exp(lw)
-            # reliable below min(1 - 1/log10 S, 0.7) for S proposals (Vehtari et al. 2024;
-            # audit N-6)
-            threshold = min(1.0 - 1.0 / np.log10(M), 0.7)
+            threshold = diag.psis_threshold(M)  # depends on the number of proposals (N-6)
             info["k_hat"] = float(k_hat)
             info["k_hat_threshold"] = float(threshold)
             info["ess_importance"] = float(1.0 / np.sum(w**2))

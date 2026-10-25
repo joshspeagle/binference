@@ -24,6 +24,7 @@ __all__ = [
     "mcse",
     "missing_information",
     "psis",
+    "psis_threshold",
     "rhat",
 ]
 
@@ -233,6 +234,14 @@ def _gpinv(p: np.ndarray, k: float, sigma: float) -> np.ndarray:
     return sigma * np.expm1(-k * np.log1p(-p)) / k
 
 
+def psis_threshold(n: int) -> float:
+    """The Pareto ``k_hat`` below which PSIS with ``n`` weights is reliable.
+
+    ``min(1 - 1 / log10(n), 0.7)`` (Vehtari et al. 2024, §3).
+    """
+    return min(1.0 - 1.0 / float(np.log10(n)), 0.7)
+
+
 def psis(log_weights: Any) -> tuple[np.ndarray, float]:
     """Pareto-smoothed importance sampling.
 
@@ -246,9 +255,8 @@ def psis(log_weights: Any) -> tuple[np.ndarray, float]:
     log_weights_smoothed : (n,) array
         Normalised (``logsumexp == 0``) smoothed log-weights.
     k_hat : float
-        Estimated Pareto shape. ``k_hat < 0.5`` is excellent, ``< 0.7``
-        acceptable; larger values mean the importance sampling estimate is
-        unreliable.
+        Estimated Pareto shape: the estimate is reliable below
+        :func:`psis_threshold` of the number of weights (0.7 from about 2,000).
     """
     lw = np.array(log_weights, dtype=float).ravel()
     n = lw.size
