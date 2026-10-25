@@ -275,3 +275,9 @@ Append-only. One entry per working session (or per step within a long session).
 
 - #28 (C3b), #30 (C3c, correlated Gaussians; DECISIONS #66) and #32 (C4, one Monte Carlo estimator for samples; DECISIONS #67) merged. In #32 /simplify unified the per-bin and pointwise estimators (a per-bin prior is flat in u within bins) and built the sums with one sort; /code-review caught the variance using summed weights as the sample count, an infinite variance under the floor, tail underflow from exp-then-log and cdf-only distributions crashing, all fixed with tests.
 - C5 issue #33: `Response` (matrix, simulated events, labelled validation set) and `from_binned` replace `from_response`/`from_classifier`; classifier route A is `from_table`, route C `from_binned` with a labelled response; `summary()` names the inputs; a label-shift check (DECISIONS #68). A plug-in χ² was rejected after calibration runs (false alarms on ill-posed unfolding and on equal-size validation sets); the posterior predictive version had no false alarms in 70 null replicates.
+
+## 2026-10-25: C5 merged; C6 opened
+
+- #34 (C5, binned measurements and classifier routes; DECISIONS #68) merged. Its reviews moved the label-shift check onto `Response.predictive_pvalue` with a Woodbury form (0.025 s at J = 100) and found the missing normalisation term of a response with efficiency below one, open-ended and weighted tallies, and the warning class.
+- C6 issue #35: selection modes renamed, combined selection, callables, absolute/relative scale, steep-S warning, mocks for selection on the truth, the measurement and both (DECISIONS #69). Calibration of the measurement-cut mock exposed an inverted open upper limit in `measured_range` (fixed with a test); with it, NUTS z-scores are calibrated, and S_k matches empirical pass rates.
+
