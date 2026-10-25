@@ -56,9 +56,7 @@ def test_a_polya_tree_needs_two_bins_and_a_sensible_power():
         P.PolyaTree(power=-1.0)
 
 
-@pytest.mark.parametrize(
-    "kwargs", [{"n_basis": 0}, {"n_basis": 2.7}, {"boundary_factor": np.nan}]
-)
+@pytest.mark.parametrize("kwargs", [{"n_basis": 0}, {"n_basis": 2.7}, {"boundary_factor": np.nan}])
 def test_gp_arguments_are_checked_when_the_prior_is_made(kwargs):
     with pytest.raises(ValueError):
         P.LogisticGP(**kwargs)
