@@ -358,3 +358,8 @@ Append-only. One entry per working session (or per step within a long session).
 ## 2026-10-25: C12e (binning-bias check)
 
 - C12e (#70, DECISIONS #86): `result.binning_bias(build)` with `n_crit` as the planning number. The default threshold is 2 s.d., not 1: two models of the same flat population differed by up to 1.0 s.d. One question parked (exact large-N calculation, suggested spacing).
+- #71 (C12e) merged; C12 is complete. /simplify made `build` optional for Gaussian inputs and reported `n_crit` only for flagged bins; /code-review caught an unvalidated `build`, selections from injections and the flattened fit selection, method names, bins without spread and tables printing inf as nan; CI then caught a test whose `build` returned other data, so its warning depended on the platform's numerics.
+
+## 2026-10-25: C13 (tests)
+
+- Checked the test audit against `main`: of 33 items in T-1–T-3 and T-9–T-13, 4 were fixed, 9 partly and 20 open. Split in two: C13-1 (#72) the fast-test gaps (T-3, T-9, T-10, T-11, T-13), C13-2 (#73) the statistical power and the new SBC cases (T-1, T-2).
