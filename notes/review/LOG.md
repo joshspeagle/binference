@@ -255,3 +255,8 @@ Append-only. One entry per working session (or per step within a long session).
 ## 2026-10-25: landing, phases A and B started
 
 - Tracking issue #4 with phases #5–#8; Phase A PRs #13–#16 (history), #13 merged; #14 needed fix-forward commits for CI (ruff pin, Markdown excluded from ruff, docs step skipped before docs existed). B1 #19 (process/CI) and B2 #20 (rename) opened; B1 went through /simplify (two reviewers) and /code-review (medium); fixes applied (DECISIONS #61).
+
+## 2026-10-25: B merged; C1 reviewed
+
+- #19 (process/CI) and #20 (rename) merged; Phase A and B issues closed by their PRs.
+- C1 #22 (measures and masked grids): /simplify with four reviewers (one masked-state pair and a cached cell lookup; `cell_index`; measures compare by an identity key; unused `derivative`/`is_linear` dropped; `from_gaussian` gathers active cells only) and /code-review high (ten findings, all fixed: masked 1-D in the cdf constructor, plots and mock samples; mask shape; partly masked coarsen blocks refused; `from_centers` clamping; warning stacklevel; transform measures reload as tables, documented; DECISIONS #62 corrected).
