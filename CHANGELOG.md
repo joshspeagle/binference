@@ -67,7 +67,8 @@ First development version.
   (route A is `from_table` on categories, route C is `from_binned` with a labelled
   response). `summary()` names the inputs, and `result.check()` runs a posterior
   predictive test of the measured counts (`Response.predictive_pvalue`) that flags label
-  shift. `simulate.mock_categorical` gains `temperature` and a labelled `mock.response`;
+  shift. `check()` raises `InputWarning` for problems with the inputs (this test and the
+  samples' Monte Carlo variance) and `ConvergenceWarning` for sampler problems. `simulate.mock_categorical` gains `temperature` and a labelled `mock.response`;
   `simulate.mock_unfolding` returns `mock.response`.
 - **Correlated Gaussians** (DECISIONS #2, #25, #66): `from_gaussian(..., cov=)` takes full
   per-object covariances, averaged over N-D bins by adaptive cubature in log space.

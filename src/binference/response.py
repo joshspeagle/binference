@@ -77,7 +77,7 @@ class Response:
         col = R.sum(axis=0)
         if efficiency is not None:
             eff = np.asarray(efficiency, dtype=float).ravel()
-            if eff.shape != (truth_bins.K,) or np.any(eff < 0) or np.any(eff > 1):
+            if eff.shape != (truth_bins.K,) or not np.all((eff >= 0) & (eff <= 1)):
                 raise ValueError("efficiency must give one probability per truth bin.")
             if not np.allclose(col[col > 0], 1.0, atol=1e-3):
                 warn(
@@ -182,19 +182,23 @@ class Response:
         open_ended: bool = False,
         origin: str = "simulation",
     ) -> Response:
-        """Tally the response from simulated events.
+        r"""Tally the response from simulated events.
 
         Parameters
         ----------
         true_values : array_like
             True value of every generated event, observed or not.
         measured_values : array_like
-            Measured value of each event, aligned with ``true_values``; NaN (or a
-            value outside ``measured_bins``) marks an event that was not observed.
+            Measured value of each event, aligned with ``true_values``; NaN (or,
+            unless ``open_ended``, a value outside ``measured_bins``) marks an
+            event that was not observed.
         truth_bins, measured_bins, open_ended
             As for :class:`Response`.
         weights : array_like, optional
-            Simulation weight of each event.
+            Simulation weight of each event. The tallies are then expressed in
+            effective events, :math:`(\sum w)^2/\sum w^2` per true bin, so that
+            they measure how well each column is known whatever the scale of the
+            weights.
         origin : str
             As for :meth:`from_counts`.
 
@@ -203,6 +207,9 @@ class Response:
         from outside the truth range are not modelled.
         """
         k = truth_bins.index(true_values)
+        if open_ended:  # the same rule as Response.index
+            e = measured_bins.edges[0]
+            measured_values = np.clip(np.asarray(measured_values, dtype=float), e[0], e[-1])
         j = measured_bins.index(measured_values)
         if j.shape != k.shape:
             raise ValueError("true_values and measured_values must describe the same events.")
@@ -224,8 +231,14 @@ class Response:
         generated = np.bincount(k[inside], weights=w[inside], minlength=K)
         seen = inside & (j >= 0)
         counts = np.bincount(j[seen] * K + k[seen], weights=w[seen], minlength=J * K)
+        counts = counts.reshape(J, K)
+        if weights is not None:  # rescale the tallies to effective events
+            w2 = np.bincount(k[inside], weights=w[inside] ** 2, minlength=K)
+            n_eff = np.divide(generated**2, w2, out=np.zeros(K), where=w2 > 0)
+            counts = counts * np.divide(n_eff, generated, out=np.zeros(K), where=generated > 0)
+            generated = n_eff
         return cls.from_counts(
-            counts.reshape(J, K),
+            counts,
             generated,
             truth_bins,
             measured_bins,
@@ -338,7 +351,8 @@ class Response:
             q = R @ rho / scale
             # covariance diag(a) + V S V^T: the multinomial counts, plus the columns of a
             # tallied response propagated through q = R rho / (eff . rho); the counts sum
-            # to N, so one bin is dropped and the rest inverted by Woodbury
+            # to N, so the bin with the largest q is dropped and the rest inverted by
+            # Woodbury, O(J K^2) per draw
             a, V, S = N * q, q[:, None], np.array([[-N]])
             if self.generated is not None:
                 c = rho**2 / self.generated / scale**2
@@ -348,7 +362,8 @@ class Response:
                 S = np.zeros((V.shape[1],) * 2)
                 S[0, 0], S[0, 1], S[1, 0] = N**2 * Rc.sum() - N, -(N**2), -(N**2)
                 S[2:, 2:] = -(N**2) * np.eye(V.shape[1] - 2)
-            d, a, V = (n - N * q)[:-1], a[:-1], V[:-1]
+            keep = np.arange(J) != np.argmax(q)  # drop the best-determined bin
+            d, a, V = (n - N * q)[keep], a[keep], V[keep]
             if np.any((a <= 0) & (d != 0)):
                 D[s] = np.inf
                 continue

@@ -1,11 +1,13 @@
 """Tests for the samples estimator (DECISIONS #31, audit I-23)."""
 
+import warnings
+
 import numpy as np
 import pytest
 from scipy import stats
 
 import binference
-from binference import Bins, ConvergenceWarning, Density, InputWarning, Likelihoods
+from binference import Bins, Density, InputWarning, Likelihoods
 
 
 def _posterior_samples(rng, n_obj, n_samp, like, interim, lo, hi):
@@ -78,9 +80,13 @@ def test_check_warns_when_sample_noise_is_large():
     with pytest.warns(InputWarning, match="fewer than"):
         lk = Likelihoods.from_samples(s, bins, "flat", floor=0.5)
     res = binference.infer(lk, method="gibbs", n_samples=50, n_warmup=50, rng=0, check=False)
-    with pytest.warns(ConvergenceWarning, match="Monte Carlo variance"):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
         msgs = res.check()
     assert any("Monte Carlo" in m for m in msgs)
+    assert any(
+        issubclass(w.category, InputWarning) and "Monte Carlo" in str(w.message) for w in caught
+    )
 
 
 def test_the_scale_of_sample_weights_changes_neither_the_floor_nor_the_variance():

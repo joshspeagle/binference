@@ -135,3 +135,8 @@ def test_huge_sigmas_keep_finite_rows():
     with pytest.warns(InputWarning, match="outside the bins"):
         lk = Likelihoods.from_gaussian([0.5], [1e17], Bins.linear(0, 1, 4))
     np.testing.assert_allclose(lk.toarray(), 1.0)
+
+
+def test_fractional_counts_are_named_in_the_error():
+    with pytest.raises(ValueError, match="counts must be integers"):
+        Likelihoods.from_binned(Response(0.5 * np.eye(2), Bins.categories(2)), counts=[2.5, 1])

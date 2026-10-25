@@ -105,12 +105,16 @@ population fractions still carry multinomial uncertainty.
 ```python
 d = result.diagnostics                     # dict: rhat, ess_bulk, ess_tail, divergences, ...
 print(d["rhat"].max().round(3), d["ess_bulk"].min().round(0), d.get("n_divergent"))
-problems = result.check()                  # warns (ConvergenceWarning) and returns messages
+problems = result.check()                  # warns and returns messages
 print(problems)
 ```
 
 `check()` flags $\hat R>1.01$, bulk ESS below 100 per chain, NUTS
 divergences, saturated trees and unreliable importance weights.
+These raise a `ConvergenceWarning`. Problems with the inputs raise an `InputWarning`
+instead: Monte Carlo noise of likelihoods built from samples, and binned counts that the
+response does not describe (a posterior predictive p-value below `predictive_p_min`, by
+default $10^{-3}$, over `predictive_draws=200` draws; see {doc}`inputs`).
 `check(strict=True)` raises instead. Where it can, the warning ends with a
 hint: a higher `target_accept` after divergences, `method="gibbs"` for
 conjugate priors with very small concentrations, and, when Gibbs mixes

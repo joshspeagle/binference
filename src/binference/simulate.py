@@ -384,6 +384,10 @@ def mock_categorical(
     (:meth:`Likelihoods.from_binned`). The test-set prevalence ``prevalence``
     (default: a skewed vector) differs from the training prior (label shift).
     """
+    if not temperature > 0:
+        raise ValueError(f"temperature must be positive; got {temperature}.")
+    if int(n_validation) < 1:
+        raise ValueError(f"n_validation must be at least 1; got {n_validation}.")
     gen = as_generator(rng)
     C = int(n_classes)
     prev = (
@@ -405,6 +409,12 @@ def mock_categorical(
     lk = Likelihoods.from_table(post, bins, interim=pi)
     counts = np.bincount(labels, minlength=C).astype(float)
     truth = Truth(rho=prev, labels=labels, values=None, counts=counts, n_drawn=n_objects)
+    missing = np.setdiff1d(np.arange(C), val_labels)
+    if missing.size:
+        raise ValueError(
+            f"The validation set has no objects of class(es) {missing.tolist()}; raise "
+            "n_validation or the training prior of those classes."
+        )
     response = Response.from_labelled(
         val_x, np.asarray(bins.labels, dtype=object)[val_labels], classes=bins.labels
     )

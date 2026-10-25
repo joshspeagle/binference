@@ -78,9 +78,15 @@ def test_a_response_is_immutable_and_survives_pickling():
 
 def _measured_count_messages(lk):
     res = binference.infer(lk, method="gibbs", n_samples=300, n_warmup=300, rng=0, check=False)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        return [m for m in res.check() if "measured counts" in m], res
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        found = [m for m in res.check() if "measured counts" in m]
+    if found:  # a problem with the inputs, not with the sampler
+        assert any(
+            issubclass(w.category, InputWarning) and "measured counts" in str(w.message)
+            for w in caught
+        )
+    return found, res
 
 
 def test_the_predictive_check_flags_label_shift():
@@ -110,3 +116,41 @@ def test_the_predictive_p_value_matches_the_pseudo_inverse_form():
     d = n - N * q
     expected = stats.chi2.sf(d @ np.linalg.pinv(cov) @ d, J - 1)
     np.testing.assert_allclose(resp.predictive_pvalue(n, [rho]), expected, rtol=1e-8)
+
+
+def test_attaching_other_likelihoods_reruns_the_predictive_check():
+    mock = binference.simulate.mock_categorical(20000, 3, n_validation=20000, rng=4)
+    _, res = _measured_count_messages(_route_c(mock))
+    res.attach(_route_c(mock, shift=0.5))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        assert any("measured counts" in m for m in res.check())
+
+
+def test_open_ended_bins_tally_and_measure_by_the_same_rule():
+    rng = np.random.default_rng(8)
+    z = rng.uniform(0, 1, 5000)
+    m = z + 0.3 * rng.standard_normal(z.size)  # many values beyond the measured edges
+    truth, measured = Bins.linear(0, 1, 3), Bins.linear(0, 1, 5)
+    resp = Response.from_simulation(z, m, truth, measured, open_ended=True)
+    np.testing.assert_allclose(resp.efficiency, 1.0)
+    lk = Likelihoods.from_binned(resp, values=m)
+    np.testing.assert_allclose(lk.W, z.size)
+
+
+def test_simulation_weights_are_tallied_as_effective_events():
+    rng = np.random.default_rng(9)
+    z = rng.uniform(0, 1, 4000)
+    m = z + 0.1 * rng.standard_normal(z.size)
+    w = rng.uniform(0.5, 1.5, z.size)
+    truth, measured = Bins.linear(0, 1, 3), Bins.linear(-0.5, 1.5, 6)
+    a = Response.from_simulation(z, m, truth, measured, weights=w)
+    b = Response.from_simulation(z, m, truth, measured, weights=1e3 * w)
+    np.testing.assert_allclose(b.matrix, a.matrix)
+    np.testing.assert_allclose(b.generated, a.generated)
+    assert np.all(a.generated < np.bincount(truth.index(z), minlength=3))
+
+
+def test_an_efficiency_must_be_probabilities():
+    with pytest.raises(ValueError, match="efficiency"):
+        Response(np.eye(2), Bins.categories(2), efficiency=[0.5, np.nan])
