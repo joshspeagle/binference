@@ -132,8 +132,12 @@ $$
 
 so binference reports the **optimality gap** $\max_kg_k-1$ for every point
 estimate (`PointEstimate.kkt_gap`); it is infinite where an object has zero
-likelihood. For rates the gap is relative to the exposure,
-$\hat n_k/(\lambda_kS_k)-1$, so it does not depend on the exposure's units. With
+likelihood. For rates, with $G$ the gradient of the log posterior in $\lambda$,
+the conditions are $G_k\le0$ with equality where $\hat\lambda_k>0$, and the gap is
+the larger of $\max_kG_k/S_k$ and $|\lambda\cdot G|/(S\cdot\lambda)$, so it does
+not depend on the exposure's units. Every MAP algorithm stops when this gap (or,
+in unconstrained coordinates, the largest gradient over $\max(1,W)$) is below
+`tol`. With
 a $\mathrm{Dir}(\alpha)$ prior the MAP update adds $\alpha_k-1$ pseudo-counts. EM
 is slow when likelihoods are broad (a large fraction of missing information), so
 binference accelerates it with SQUAREM (Varadhan & Roland 2008).
@@ -161,7 +165,11 @@ $$
 in `"on_measurement"` mode, and $\sum_kL_{ik}\phi_k$ in `"on_truth"` mode. The
 maximum-likelihood estimate is invariant under this change of variables, so
 with a flat prior binference solves for $\phi$ and maps back,
-$\rho_k\propto\phi_k/S_k$.
+$\rho_k\propto\phi_k/S_k$. Rates with a `GammaRates` prior of shapes
+$a_k\ge1$ and rates $b_k$ reduce to the same problem: writing
+$\lambda_k=\Lambda\psi_k/(S_k+b_k)$ with $\psi$ on the simplex, the total
+$\Lambda=W+\sum_k(a_k-1)$ profiles out, leaving mix-SQP in $\psi$ with
+$S_k+b_k$ in place of $S_k$ and a Dirichlet term $\sum_k(a_k-1)\log\psi_k$.
 
 ## Likelihoods versus posteriors
 
@@ -377,7 +385,7 @@ the Jacobian above, so they have different modes (DECISIONS #15):
 
 | density | coordinates | Jacobian | mode | used by |
 |---|---|---|---|---|
-| `PopulationModel.log_posterior(value)` | fractions $\rho$ on the simplex (rates $\lambda$) | no | `MAP(space="simplex")` | EM, mix-SQP, reported log posteriors of point estimates on the simplex |
+| `PopulationModel.log_posterior(value)` | fractions $\rho$ on the simplex (rates $\lambda$) | no | `MAP(space="simplex")` | EM, mix-SQP, the `log_posterior` of every point estimate (NaN where the prior has no closed-form density) |
 | `PopulationModel.log_density_unconstrained(x)` | unconstrained $x$ | yes | `MAP(space="unconstrained")` | NUTS, Laplace, L-BFGS |
 
 Neither mode is "the" answer: the posterior *mean* and quantiles are the same in
@@ -406,7 +414,8 @@ as the likelihood itself.
   selection. It is exact but mixes slowly when likelihoods are broader than
   the bins: the autocorrelation time grows with the fraction of missing
   information.
-- **MAP** uses mix-SQP (Dirichlet priors with $\alpha_k\ge1$) or
+- **MAP** uses mix-SQP (Dirichlet priors with $\alpha_k\ge1$, `GammaRates` with
+  shapes $\ge1$) or
   SQUAREM-accelerated EM on the simplex, or L-BFGS in unconstrained
   coordinates (non-conjugate priors, densities unbounded at the edge of the
   simplex, and the Laplace centre), with the KKT gap as a certificate.

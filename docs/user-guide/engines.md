@@ -109,9 +109,10 @@ gives exact joint draws from any engine's output.
   broader than the bins, where EM needs thousands. With a selection function
   it applies to the flat prior only: it solves for the fractions of the
   *observed* population, $\phi_k\propto S_k\rho_k$, in which the likelihood
-  is concave, and maps the mode back.
-- **Other conjugate priors** (small concentrations, trees, `GammaRates`,
-  informative priors with selection) use SQUAREM-accelerated EM on the
+  is concave, and maps the mode back. `GammaRates` with shapes of at least
+  one use it too, once the total rate is profiled out.
+- **Other conjugate priors** (small concentrations, trees, `GammaRates` with
+  shapes below one, informative priors with selection) use SQUAREM-accelerated EM on the
   simplex. EM is "iterated stacking", and its fixed point is the
   maximum-likelihood or MAP population. If it stops before converging, the
   warning reports the fraction of missing information, which sets its speed.
@@ -119,6 +120,11 @@ gives exact joint draws from any engine's output.
   (concentrations below one, Pólya trees) and all non-conjugate priors use
   L-BFGS in unconstrained coordinates, which keeps the mode in the interior.
 - **The certificate** is the KKT optimality gap, which should be about zero.
+  `MAP(tol=1e-8)` is the tolerance on it for every algorithm (on the largest
+  gradient over the total weight for L-BFGS), and `est.log_posterior` is
+  always the density of the fractions or rates, `model.log_posterior(est.value)`;
+  L-BFGS also stores the density in its own coordinates as
+  `est.info["log_density_unconstrained"]`.
 
 ```python
 print(est, est.kkt_gap < 1e-6, est.converged)

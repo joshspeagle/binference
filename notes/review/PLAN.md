@@ -1,6 +1,6 @@
 # Walkthrough plan
 
-**Current position:** landing on `main` (see `landing-plan.md`): Phase C, C1–C6 merged, C7 (model) in review; the walkthrough resumes at Phase 3 step 3.1 afterwards. Phase 1 done except 1.3's architecture decisions. Step 1.3's architecture decisions remain deferred until the relevant code has been read.
+**Current position:** landing on `main` (see `landing-plan.md`): Phase C, C1–C7 merged, C8 (MAP) in review; the walkthrough resumes at Phase 3 step 3.1 afterwards. Phase 1 done except 1.3's architecture decisions. Step 1.3's architecture decisions remain deferred until the relevant code has been read.
 
 ## How each step works
 

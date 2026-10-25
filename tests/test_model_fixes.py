@@ -104,7 +104,7 @@ def test_missing_information_is_the_rate_of_em(mode, alpha):
     )
     sel = None if mode is None else Selection(np.linspace(1.0, 0.3, 6), mode)
     m = PopulationModel(mock.likelihoods, P.Dirichlet(alpha), selection=sel)
-    mode_value = MAP(m, algorithm="em", tol=1e-14, max_iter=100000).run().value
+    mode_value = MAP(m, algorithm="em", max_iter=100000).run().value
     f = m.missing_information(mode_value, include_prior=alpha != 1.0)
     np.testing.assert_allclose(f, _em_jacobian_radius(m, mode_value), atol=1e-4)
 

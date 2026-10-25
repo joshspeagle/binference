@@ -324,9 +324,10 @@ class PopulationModel:
         Zero (to numerical precision) at the maximum-likelihood / MAP estimate
         on the simplex (or the positive orthant for rates), and infinite where
         an object has zero likelihood. For fractions it is normalised by the
-        total weight; for rates it is relative to the exposure,
-        :math:`\hat n_k/(\lambda_k S_k) - 1` without a prior, so it does not
-        depend on the exposure's units (DECISIONS #56). Self-consistency of the
+        total weight; for rates it is the larger of :math:`\max_k G_k/S_k` and
+        :math:`|\lambda\cdot G|/(S\cdot\lambda)` for the gradient :math:`G`
+        in :math:`\lambda`, so it does not depend on the exposure's units
+        (DECISIONS #56, #71). Self-consistency of the
         EM fixed point is necessary but not sufficient for optimality; this
         certificate checks the rest.
         """
@@ -343,10 +344,11 @@ class PopulationModel:
         if include_prior and self.prior.has_density:
             G = G + self.prior.grad_log_density(v)
         if self.kind == "rates":
-            # relative to the exposure: n_k / (lambda_k S_k) - 1 without a prior, free of
-            # the exposure's units (audit M-4)
-            viol = np.where(pos, np.abs(G), np.maximum(G, 0.0)) / self._S
-            return float(viol.max())
+            # G <= 0 everywhere and lambda . G = 0 (the total), relative to the exposure so
+            # free of its units (audit M-4); one-sided like the fractions' test, so a rate
+            # EM drives towards zero is not a violation (audit M-6)
+            scale = abs(float(v[pos] @ G[pos])) / float(self._S @ v)
+            return max(float(np.max(G / self._S)), scale, 0.0)
         mu = float(v[pos] @ G[pos])
         return max(0.0, float(np.max(G - mu))) / max(self.W, 1.0)
 

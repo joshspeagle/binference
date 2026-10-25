@@ -344,8 +344,8 @@ def test_mixsqp_matches_em_and_is_certified(alpha, sparse):
     m = PopulationModel(lk, P.Dirichlet(alpha))
     sqp = MAP(m).run()
     assert sqp.info["algorithm"] == "mixsqp"
-    # mix-SQP stops on round-off with the KKT gap below 1e3 times its tolerance of
-    # 100 * tol = 1e-8 (macOS BLAS stops there at 2.5e-7 where Linux reaches 1e-13)
+    # mix-SQP stops on round-off with the KKT gap below 1e3 times tol = 1e-8 (macOS
+    # BLAS stops there at 2.5e-7 where Linux reaches 1e-13)
     assert sqp.converged and sqp.kkt_gap < 1e-5 and sqp.n_iter < 50
     em = MAP(m, algorithm="em", max_iter=200000).run()
     # EM crawls along flat directions of sparse maximum-likelihood solutions, so the
@@ -361,9 +361,9 @@ def test_mixsqp_matches_em_and_is_certified(alpha, sparse):
     )
 
 
-def test_mixsqp_low_rank_path_and_fallbacks():
+def test_mixsqp_on_tall_dense_inputs_and_fallbacks():
     mock = binference.simulate.mock_1d(6000, Bins.linear(0, 3, 30), noise=(0.1, 0.3), rng=4)
-    m = PopulationModel(mock.likelihoods)  # tall and dense: low-rank Hessian
+    m = PopulationModel(mock.likelihoods)  # tall and dense
     est = MAP(m).run()
     assert est.info["algorithm"] == "mixsqp" and est.kkt_gap < 1e-7
     # informative priors with selection fall back to EM; asking for mix-SQP there is an error
@@ -395,7 +395,7 @@ def test_mixsqp_with_selection_solves_for_observed_fractions(mode):
     sqp = MAP(m).run()
     assert sqp.info["algorithm"] == "mixsqp"
     assert sqp.converged and sqp.n_iter < 50 and sqp.kkt_gap < 1e-7
-    em = MAP(m, algorithm="em", max_iter=200000, tol=1e-14).run()
+    em = MAP(m, algorithm="em", max_iter=200000).run()
     np.testing.assert_allclose(sqp.rho, em.rho, atol=1e-4)
     assert sqp.log_posterior >= em.log_posterior - 1e-8
 

@@ -285,3 +285,8 @@ Append-only. One entry per working session (or per step within a long session).
 
 - #36 (C6, selection; DECISIONS #69) merged. Its reviews removed an `averaged` flag in favour of checking only raw arrays, unified the bin averaging, and found far-tail cancellation, NaN on empty bins and too coarse a quadrature tolerance for small S_k; macOS CI exposed a mix-SQP test held tighter than the solver's stated tolerance.
 - C7 issue #37: model and engines (DECISIONS #70). Checking the corrected missing information against the numerical EM Jacobian showed that the formula holds on the support only: at a fraction of zero the EM rate is that of an active constraint (it reached 0.994 for a bin near the boundary), so the function now works on the support.
+
+## 2026-10-25: C7 merged; C8 opened
+
+- #38 (C7, model; DECISIONS #70) merged after its reviews.
+- C8 (MAP, EM, mix-SQP; DECISIONS #71): one tolerance on the KKT gap, mix-SQP for `GammaRates`, one reported log posterior, no SVD. Timing showed the audit's uniform start for mix-SQP is wrong for this solver (105 s against 4.9 s after 10 EM steps at N = 2e5, K = 200), so the start keeps a few EM steps. Requiring the gap for EM convergence exposed two faults: SQUAREM accepted slightly worse extrapolations (a fake stall), and the C7 rates gap read a rate EM drives towards zero as a violation of order one; both fixed.

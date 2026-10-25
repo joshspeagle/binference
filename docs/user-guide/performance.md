@@ -25,7 +25,7 @@ The engines spend these differently:
 - **Gibbs** costs one sweep per draw. Each sweep is cheap, but successive
   draws are correlated when likelihoods are broad, so compare *effective*
   samples per second.
-- **MAP** with a Dirichlet prior (the default) uses mix-SQP, which converges
+- **MAP** with a Dirichlet prior (the default) or `GammaRates` with shapes of at least one uses mix-SQP, which converges
   in a handful of second-order iterations: about a second for $N=10^5$
   objects and $K=100$ bins, a few seconds when likelihoods are broad. EM, used for the other conjugate priors, needs one pass per
   iteration and thousands of iterations when likelihoods are broad compared
