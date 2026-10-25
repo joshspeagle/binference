@@ -65,7 +65,7 @@ def _subbin_points(bins: Bins, n_sub: int) -> tuple[np.ndarray, np.ndarray]:
     u, wu = _gauss_legendre_unit(n_sub)
     edges = bins.edges
     per_axis = [e[:-1, None] + np.diff(e)[:, None] * u[None, :] for e in edges]  # (K_d, n)
-    cell_idx = bins.grid_index(np.arange(bins.K))  # per axis, (K,)
+    cell_idx = bins.cell_index  # per axis, (K,)
     if bins.ndim == 1:
         return per_axis[0][cell_idx[0]].ravel(), wu
     # tensor-product points per cell, in the order of the (active) bins
@@ -645,18 +645,15 @@ class Likelihoods:
             raise ValueError("mean must be finite.")
         if not np.all(np.isfinite(sig)) or np.any(sig <= 0):
             raise ValueError("sigma must be finite and strictly positive.")
-        logL = None
-        for d, e in enumerate(bins.edges):
+        # per-axis log bin-averaged densities, summed over the axes of each active bin
+        logL = 0.0
+        for d, (e, j) in enumerate(zip(bins.edges, bins.cell_index, strict=True)):
             lm = _log_gauss_bin_mass(
                 e[None, :-1], e[None, 1:], mu[:, d : d + 1], sig[:, d : d + 1]
             )
-            lm = lm - np.log(np.diff(e))[None, :]  # mass -> bin-averaged density
-            if logL is None:
-                logL = lm
-            else:
-                logL = (logL[:, :, None] + lm[:, None, :]).reshape(mu.shape[0], -1)
+            logL = logL + (lm - np.log(np.diff(e))[None, :])[:, j]
         lk = cls(
-            logL[:, bins.cells] if bins.is_masked else logL,
+            logL,
             bins,
             log=True,
             weights=weights,

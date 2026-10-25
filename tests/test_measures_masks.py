@@ -28,7 +28,7 @@ def test_hand_built_geometric_edges_warn_unless_a_measure_is_given():
 
 
 def test_log_measure_rejects_non_positive_edges():
-    with pytest.raises(ValueError, match="positive"):
+    with pytest.raises(ValueError, match="domain of Measure.log"):
         Bins([0.0, 1.0, 2.0], measure="log")
 
 
@@ -45,12 +45,10 @@ def test_density_measure_reproduces_the_log_map():
     z = np.array([1.5, 3.0, 7.0])
     np.testing.assert_allclose(m.forward(z), np.log(z), rtol=1e-6)
     np.testing.assert_allclose(m.inverse(m.forward(z)), z, rtol=1e-9)
-    np.testing.assert_allclose(m.derivative(z), 1.0 / z, rtol=1e-3)
 
 
-def test_transform_measure_and_its_numerical_derivative():
+def test_transform_measure_sets_edges_and_centres_in_u():
     m = Measure.transform(np.sqrt, np.square, name="sqrt")
-    np.testing.assert_allclose(m.derivative(4.0), 0.25, rtol=1e-6)
     b = Bins([0.0, 1.0, 4.0], measure=m)
     np.testing.assert_allclose(b.u_edges[0], [0.0, 1.0, 2.0])
     np.testing.assert_allclose(b.centers, [0.25, 2.25])
@@ -161,3 +159,16 @@ def test_mocks_on_masked_grids_put_no_object_in_a_masked_cell(masked):
 def test_smoothness_priors_refuse_masked_grids_for_now(masked):
     with pytest.raises(NotImplementedError, match="masked"):
         binference.priors.LogisticGP().bind(masked)
+
+
+def test_a_user_measure_named_log_is_not_the_log_measure():
+    fake = Measure.transform(np.log, np.exp, name="log")
+    assert fake != Measure.log() and not fake.is_named
+
+
+def test_bins_cell_index_matches_grid_index_of_every_bin():
+    mask = np.ones((3, 4), dtype=bool)
+    mask[0, 0] = mask[2, 3] = False
+    b = Bins.grid(np.arange(4.0), np.arange(5.0), mask=mask)
+    for got, want in zip(b.cell_index, np.unravel_index(b.cells, b.shape), strict=True):
+        np.testing.assert_array_equal(got, want)

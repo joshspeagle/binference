@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import warnings
 from collections.abc import Sequence
 from typing import Any
@@ -82,10 +83,11 @@ class Bins:
 
     __slots__ = (
         "_active",
+        "_cell_index",
         "_centers",
         "_edges",
         "_labels",
-        "_mask",
+        "_lookup",
         "_measures",
         "_ordered",
         "_shape",
@@ -117,29 +119,34 @@ class Bins:
             if len(measures) != nd:
                 raise ValueError(f"measure needs one entry per axis ({nd}); got {len(measures)}.")
         u_edges = tuple(
-            _frozen(m.check(e, d)) for d, (m, e) in enumerate(zip(measures, edges, strict=True))
+            _frozen(m._check(e, d)) for d, (m, e) in enumerate(zip(measures, edges, strict=True))
         )
         shape = tuple(len(e) - 1 for e in edges)
-        if mask is None:
-            full_mask, active = None, None
-        else:
-            if np.size(mask) != np.prod(shape):
+        n = math.prod(shape)
+        # _active (flat cell of each bin) and _lookup (bin of each cell, -1 if masked)
+        # are None when nothing is masked
+        active = lookup = None
+        if mask is not None:
+            if np.size(mask) != n:
                 raise ValueError(f"mask must have one entry per cell, shape {shape}.")
-            full_mask = np.array(mask, dtype=bool).reshape(shape)
-            if not full_mask.any():
+            cells = np.flatnonzero(np.asarray(mask, dtype=bool))
+            if cells.size == 0:
                 raise ValueError("mask leaves no bins in the support.")
-            active = _frozen(np.flatnonzero(full_mask))
-            full_mask = None if active.size == full_mask.size else _frozen(full_mask)
-            if full_mask is None:
-                active = None
+            if cells.size < n:
+                active = _frozen(cells)
+                lookup = np.full(n, -1, dtype=np.int64)
+                lookup[active] = np.arange(active.size)
+                lookup = _frozen(lookup)
         self._edges = edges
         self._shape = shape
         self._ordered = True
         self._labels = None
         self._measures = measures
         self._u_edges = u_edges
-        self._mask = full_mask
         self._active = active
+        self._lookup = lookup
+        k = np.arange(n) if active is None else active
+        self._cell_index = tuple(_frozen(i) for i in np.unravel_index(k, shape))
         vol = np.ones(())
         for e in edges:
             vol = np.multiply.outer(vol, np.diff(e))
@@ -156,10 +163,10 @@ class Bins:
         self._centers = _frozen(np.ascontiguousarray(centers, dtype=float))
 
     @classmethod
-    def _from_parts(cls, edges, labels, ordered, measure=None, mask=None) -> Bins:
+    def _from_parts(cls, edges, labels, ordered, measure, mask=None) -> Bins:
         obj = cls.__new__(cls)
         if edges is not None:
-            obj._set_grid(edges, "linear" if measure is None else measure, mask)
+            obj._set_grid(edges, measure, mask)
         else:
             K = len(labels)
             obj._edges = None
@@ -168,8 +175,9 @@ class Bins:
             obj._labels = tuple(labels)
             obj._measures = None
             obj._u_edges = None
-            obj._mask = None
             obj._active = None
+            obj._lookup = None
+            obj._cell_index = (_frozen(np.arange(K)),)
             obj._volumes = _frozen(np.ones(K))
             obj._centers = _frozen(np.arange(K, dtype=float))
         return obj
@@ -205,8 +213,8 @@ class Bins:
         c = np.asarray(centers, dtype=float).ravel()
         if c.size < 2 or not np.all(np.diff(c) > 0):
             raise ValueError("centers must contain at least two strictly increasing values.")
-        if m.name == "log" and c[0] <= 0:
-            raise ValueError("A log measure needs positive centers.")
+        if not m._covers(c[0], c[-1]):
+            raise ValueError(f"centers lie outside the domain of {m!r}.")
         u = m.forward(c)
         mid = 0.5 * (u[1:] + u[:-1])
         u_edges = np.concatenate(([u[0] - (mid[0] - u[0])], mid, [u[-1] + (u[-1] - mid[-1])]))
@@ -242,13 +250,13 @@ class Bins:
                 raise ValueError("Need at least two categories.")
             if len(set(labs)) != len(labs):
                 raise ValueError("Category labels must be unique.")
-        return cls._from_parts(None, labs, ordered=False)
+        return cls._from_parts(None, labs, ordered=False, measure=None)
 
     # -------------------------------------------------------------- properties
     @property
     def K(self) -> int:
         """Number of active bins (cells or categories)."""
-        return int(np.prod(self._shape)) if self._active is None else int(self._active.size)
+        return self._cell_index[0].size
 
     @property
     def shape(self) -> tuple[int, ...]:
@@ -294,19 +302,24 @@ class Bins:
     @property
     def mask(self) -> np.ndarray:
         """Boolean array of the grid's shape: which cells are in the support."""
-        if self._mask is None:
+        if self._lookup is None:
             return np.ones(self._shape, dtype=bool)
-        return self._mask
+        return (self._lookup >= 0).reshape(self._shape)
 
     @property
     def is_masked(self) -> bool:
         """Whether some grid cells are excluded from the support."""
-        return self._mask is not None
+        return self._active is not None
 
     @property
     def cells(self) -> np.ndarray:
         """Flat grid index (C order, masked cells included) of each active bin."""
         return np.arange(self.K) if self._active is None else self._active
+
+    @property
+    def cell_index(self) -> tuple[np.ndarray, ...]:
+        """Per-axis grid indices of every active bin, each ``(K,)``."""
+        return self._cell_index
 
     @property
     def centers(self) -> np.ndarray:
@@ -348,13 +361,17 @@ class Bins:
         return (
             all(np.array_equal(a, b) for a, b in zip(self._edges, other._edges, strict=True))
             and self._measures == other._measures
-            and np.array_equal(self.mask, other.mask)
+            and (
+                np.array_equal(self._active, other._active)
+                if self.is_masked and other.is_masked
+                else self.is_masked == other.is_masked
+            )
         )
 
     def __hash__(self) -> int:
         if self.is_categorical:
             return hash(("categories", self._labels))
-        mask = None if self._mask is None else self._mask.tobytes()
+        mask = None if self._active is None else self._active.tobytes()
         return hash((tuple(e.tobytes() for e in self._edges), self._measures, mask))
 
     def __repr__(self) -> str:
@@ -363,11 +380,10 @@ class Bins:
             shown = labs if len(labs) <= 6 else [*labs[:3], "...", *labs[-2:]]
             return f"Bins.categories({shown}, K={self.K})"
         extra = ""
-        names = {m.name for m in self._measures}
-        if names != {"linear"}:
+        if any(m != Measure.linear() for m in self._measures):
             extra += f", measure={'/'.join(m.name for m in self._measures)}"
-        if self._mask is not None:
-            extra += f", {self._mask.size - self.K} masked"
+        if self.is_masked:
+            extra += f", {self._lookup.size - self.K} masked"
         if self.ndim == 1:
             e = self._edges[0]
             return f"Bins(K={self.K}, range=({e[0]:g}, {e[-1]:g}){extra})"
@@ -384,7 +400,7 @@ class Bins:
         if self.is_categorical:
             return (Bins.categories, (list(self._labels),))
         edges = tuple(np.array(e) for e in self._edges)
-        mask = None if self._mask is None else np.array(self._mask)
+        mask = self.mask if self.is_masked else None
         return (Bins._from_parts, (edges, None, True, self._measures, mask))
 
     def index(self, values: Any) -> np.ndarray:
@@ -416,10 +432,8 @@ class Bins:
         flat = np.full(x.shape[0], -1, dtype=np.int64)
         if np.any(ok):
             flat[ok] = np.ravel_multi_index(tuple(idx[ok].T), self._shape)
-        if self._active is not None:
-            lookup = np.full(int(np.prod(self._shape)), -1, dtype=np.int64)
-            lookup[self._active] = np.arange(self.K)
-            flat[ok] = lookup[flat[ok]]
+        if self._lookup is not None:
+            flat[ok] = self._lookup[flat[ok]]
         return flat
 
     def contains(self, values: Any) -> np.ndarray:
@@ -428,7 +442,8 @@ class Bins:
 
     def grid_index(self, k: Any) -> tuple[np.ndarray, ...]:
         """Per-axis grid indices of the bins ``k`` (indices into each axis's edges)."""
-        return np.unravel_index(self.cells[np.asarray(k)], self._shape)
+        k = np.asarray(k)
+        return tuple(i[k] for i in self._cell_index)
 
     def sample_within(self, k: Any, rng: np.random.Generator) -> np.ndarray:
         """Values drawn uniformly in ``u`` inside the bins ``k`` (grids only).
@@ -452,7 +467,7 @@ class Bins:
             raise ValueError(f"Last axis must have length K={self.K}.")
         if self._active is None:
             return a.reshape(*a.shape[:-1], *self._shape)
-        out = np.full((*a.shape[:-1], int(np.prod(self._shape))), np.nan)
+        out = np.full((*a.shape[:-1], self._lookup.size), np.nan)
         out[..., self._active] = a
         return out.reshape(*a.shape[:-1], *self._shape)
 
@@ -462,7 +477,7 @@ class Bins:
         nd = self.ndim
         if a.shape[-nd:] != self._shape:
             raise ValueError(f"Trailing axes must have shape {self._shape}.")
-        flat = a.reshape(*a.shape[:-nd], int(np.prod(self._shape)))
+        flat = a.reshape(*a.shape[:-nd], math.prod(self._shape))
         return flat if self._active is None else flat[..., self._active]
 
     def neighbors(self) -> np.ndarray:
@@ -472,9 +487,7 @@ class Bins:
         """
         if self.is_categorical:
             raise ValueError("Unordered categories have no neighbour structure.")
-        ids = np.full(int(np.prod(self._shape)), -1, dtype=np.int64)
-        ids[self.cells] = np.arange(self.K)
-        ids = ids.reshape(self._shape)
+        ids = (np.arange(self.K) if self._lookup is None else self._lookup).reshape(self._shape)
         pairs = []
         for d in range(self.ndim):
             a = np.take(ids, range(self._shape[d] - 1), axis=d).ravel()
@@ -499,19 +512,14 @@ class Bins:
             if f[d] < 1 or n % f[d] != 0:
                 raise ValueError(f"Axis {d} has {n} bins, not divisible by factor {f[d]}.")
             new_edges.append(e[:: f[d]])
-        fine_idx = self.grid_index(np.arange(self.K))
-        coarse_idx = tuple(fine_idx[d] // f[d] for d in range(self.ndim))
+        coarse_idx = tuple(i // f[d] for d, i in enumerate(self._cell_index))
         coarse_shape = tuple(len(e) - 1 for e in new_edges)
         coarse_flat = np.ravel_multi_index(coarse_idx, coarse_shape)
         mask = None
-        if self._mask is not None:
-            mask = np.zeros(int(np.prod(coarse_shape)), dtype=bool)
+        if self.is_masked:
+            mask = np.zeros(math.prod(coarse_shape), dtype=bool)
             mask[coarse_flat] = True
         coarse = Bins.grid(*new_edges, measure=self._measures, mask=mask)
-        return coarse, coarse.index_of_cells(coarse_flat)
-
-    def index_of_cells(self, cells: Any) -> np.ndarray:
-        """Bin index of flat grid cells (``-1`` for masked cells)."""
-        lookup = np.full(int(np.prod(self._shape)), -1, dtype=np.int64)
-        lookup[self.cells] = np.arange(self.K)
-        return lookup[np.asarray(cells)]
+        if coarse._lookup is not None:
+            coarse_flat = coarse._lookup[coarse_flat]
+        return coarse, coarse_flat

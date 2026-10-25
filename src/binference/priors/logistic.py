@@ -36,6 +36,13 @@ from .hyper import Fixed, HalfNormal, Hyperprior, InverseGamma, as_hyperprior
 __all__ = ["LogisticGP", "LogisticNormal", "LogisticRandomWalk"]
 
 
+def _require_full_grid(bins: Bins) -> None:
+    if bins.is_categorical:
+        raise ValueError("Smoothness priors need ordered (grid) bins, not categories.")
+    if bins.is_masked:
+        raise NotImplementedError("Smoothness priors do not yet support masked grids.")
+
+
 # ----------------------------------------------------------------------------
 # bases
 # ----------------------------------------------------------------------------
@@ -384,10 +391,7 @@ class LogisticRandomWalk(Prior):
         return {"order": self.order, "scale": self.scale}
 
     def bind(self, bins: Bins) -> _BoundRandomWalk:
-        if bins.is_categorical:
-            raise ValueError("Smoothness priors need ordered (grid) bins, not categories.")
-        if bins.is_masked:
-            raise NotImplementedError("Smoothness priors do not yet support masked grids.")
+        _require_full_grid(bins)
         eig = [_rw_eigen(n, self.order) for n in bins.shape]
         basis = _KronBasis([U for _, U in eig])
         lam = np.zeros(1)
@@ -492,10 +496,7 @@ class LogisticGP(Prior):
         }
 
     def bind(self, bins: Bins) -> _BoundGP:
-        if bins.is_categorical:
-            raise ValueError("Smoothness priors need ordered (grid) bins, not categories.")
-        if bins.is_masked:
-            raise NotImplementedError("Smoothness priors do not yet support masked grids.")
+        _require_full_grid(bins)
         D = bins.ndim
         nb = (
             [min(n, 48) for n in bins.shape]

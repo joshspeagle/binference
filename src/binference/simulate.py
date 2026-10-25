@@ -152,7 +152,8 @@ def _draw_values(bins: Bins, density: Any, n: int, rng: np.random.Generator):
     fb = Bins.grid(*fine)
     pts = fb.centers
     dens = np.clip(np.asarray(f(pts), dtype=float).ravel(), 0.0, None) * fb.volumes
-    dens[~bins.contains(pts)] = 0.0  # no objects in masked cells
+    if bins.is_masked:
+        dens[~bins.contains(pts)] = 0.0  # no objects in masked cells
     cell = rng.choice(fb.K, size=n, p=dens / dens.sum())
     values = fb.sample_within(cell, rng)
     labels = bins.index(values)

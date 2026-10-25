@@ -29,8 +29,8 @@ def _bins_to_parts(bins: Bins) -> tuple[dict[str, Any], dict[str, np.ndarray]]:
     names = []
     for d, (m, e) in enumerate(zip(bins.measures, bins.edges, strict=True)):
         names.append(m.name)
-        if m.name not in ("linear", "log"):  # other measures are saved as tables
-            arrays[f"measure_z_{d}"], arrays[f"measure_u_{d}"] = m.table(e)
+        if not m.is_named:  # other measures are saved as tables
+            arrays[f"measure_z_{d}"], arrays[f"measure_u_{d}"] = m._tabulate(e)
     if bins.is_masked:
         arrays["mask"] = bins.mask
     return {"bins": "grid", "ndim": bins.ndim, "measures": names}, arrays
@@ -45,7 +45,7 @@ def _bins_from_parts(meta: dict[str, Any], arrays: Any) -> Bins:
     nd = int(meta["ndim"])
     measures = []
     for d, name in enumerate(meta.get("measures", ["linear"] * nd)):
-        if name in ("linear", "log"):
+        if f"measure_z_{d}" not in arrays:
             measures.append(name)
         else:
             z, u = arrays[f"measure_z_{d}"], arrays[f"measure_u_{d}"]

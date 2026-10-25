@@ -90,9 +90,9 @@ def _bin_labels(bins: Bins) -> np.ndarray:
         return np.array([str(lab) for lab in bins.labels], dtype=object)
     if bins.ndim == 1:
         e = bins.edges[0]
-        j = bins.grid_index(np.arange(bins.K))[0]
+        j = bins.cell_index[0]
         return np.array([f"[{e[k]:.4g}, {e[k + 1]:.4g})" for k in j], dtype=object)
-    idx = np.stack(bins.grid_index(np.arange(bins.K)), axis=1)
+    idx = np.stack(bins.cell_index, axis=1)
     return np.array([str(tuple(int(i) for i in row)) for row in idx], dtype=object)
 
 
@@ -251,9 +251,8 @@ class _IndividualMixin:
             u = (np.arange(n_sub) + 0.5) / n_sub
             out = np.empty(labels.shape)
             for c, i in enumerate(rows):
-                for lab in np.unique(labels[:, c]):
-                    sel = labels[:, c] == lab
-                    k = int(bins.grid_index(lab)[0])
+                for k in np.unique(multi[0][:, c]):
+                    sel = multi[0][:, c] == k
                     z = e[k] + (e[k + 1] - e[k]) * u
                     lw = np.asarray(loglike(z, int(i)), dtype=float).ravel()
                     w = np.exp(lw - np.max(lw))
