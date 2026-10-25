@@ -10,6 +10,7 @@ import numpy as np
 from .. import _kernels as kern
 from .._utils import RNGLike, check_positive, is_integer_array, progress, spawn
 from ..model import PopulationModel
+from ..priors.dirichlet import _dirichlet_draw
 from ..results import PopulationResult
 from .base import Engine, interior_start
 
@@ -185,16 +186,14 @@ class Gibbs(Engine):
         # current efficiency, then rho and the columns of R (with their lost shares) from
         # their Dirichlet conditionals (DECISIONS #81)
         R = self._extra[c]
-        on = np.flatnonzero(m._c > 0)
-        P = R[on] * value
-        split = rng.multinomial(np.round(m._c[on]).astype(np.int64), P / P.sum(axis=1)[:, None])
+        P = R[m._mb] * value  # one row per measured bin
+        split = rng.multinomial(self._w_int.astype(np.int64), P / P.sum(axis=1)[:, None])
         counts = split.sum(axis=0)
         missed = m._draw_missed(value, counts, rng, S=R.sum(axis=0)) - counts
-        A = m._alpha.T.copy()  # (J + 1, K), the lost share last
-        A[on] += split
+        A = m._alpha.copy()  # (J + 1, K), the lost share last
+        np.add.at(A, m._mb, split)
         A[-1] += missed
-        G = np.maximum(rng.gamma(A), 1e-300)  # an underflow to zero would void its cell
-        self._extra[c] = (G / G.sum(axis=0))[:-1]
+        self._extra[c] = _dirichlet_draw(A.T, rng).T[:-1]
         self._state[c] = m.prior.posterior_sample(counts + missed, rng)
         return self._state[c], None
 

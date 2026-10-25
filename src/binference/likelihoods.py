@@ -1272,10 +1272,8 @@ class Likelihoods:
         keep = c > 0
         if not keep.any():
             raise ValueError("counts are all zero: there are no observed objects.")
-        R = response.matrix
-        if response.uncertain:  # its posterior means: positive wherever events may land
-            a = response._dirichlet()
-            R = (a / a.sum(axis=0))[:-1]
+        # an inferred response's posterior means are positive wherever events may land
+        R = response._mean_columns()[:-1] if response.uncertain else response.matrix
         eff = R.sum(axis=0)
         # column sums may exceed one by rounding (Response allows 1e-6)
         sel = None if np.allclose(eff, 1.0) else Selection(np.minimum(eff, 1.0), "on_measurement")

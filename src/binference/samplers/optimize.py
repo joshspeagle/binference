@@ -254,13 +254,13 @@ class MAP(Engine):
             **extra,
         }
         full = self._diagnostics
-        joint = {} if simplex else m._joint_info(x[None, None])  # inferred, at the mode
-        info.update(joint)
-        S, R = joint.get("selection_draws"), joint.get("response_draws")
-        S, R = (None if S is None else S[0, 0]), (None if R is None else R[0, 0])
+        if not simplex:  # what is inferred with the population, at the mode
+            info.update(m._joint_info(x[None, None]))
+        S = None if simplex else m.selection_at(x)
+        R = None if simplex else m.response_at(x)
         ll = m.log_likelihood(v, S=S, response=R) if full else np.nan
         lp = ll + m.log_prior(v) if full else np.nan
-        if joint and full:  # and the density of S or R given the injections or tallies
+        if m.joint and not simplex and full:  # and the density of S or R given the data
             lp += m._joint_log_density(x)
         return PointEstimate(
             m,

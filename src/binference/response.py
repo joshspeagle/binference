@@ -24,6 +24,7 @@ from scipy import stats
 
 from ._utils import as_generator, check_positive, frozen, warn
 from .bins import Bins
+from .priors.dirichlet import _dirichlet_draw
 from .warnings import InputWarning
 
 __all__ = ["Response"]
@@ -372,13 +373,18 @@ class Response:
         lost = np.maximum(self.generated - counts.sum(axis=0), 0.0)
         return np.vstack([counts, lost]) + self.prior
 
+    def _mean_columns(self) -> np.ndarray:
+        """Posterior means ``(J + 1, K)`` of the columns given the tallies, the lost share
+        last."""
+        a = self._dirichlet()
+        return a / a.sum(axis=0)
+
     def draw(self, n: int, rng: Any = None) -> np.ndarray:
         """``(n, J, K)`` posterior draws of the matrix given the tallies alone."""
         if not self.uncertain:
             raise ValueError("Only a response tallied from events has draws.")
-        a = self._dirichlet()
-        G = as_generator(rng).gamma(a, size=(int(n), *a.shape))
-        return (G / G.sum(axis=1, keepdims=True))[:, :-1]
+        draws = _dirichlet_draw(self._dirichlet().T, as_generator(rng), size=n)
+        return np.swapaxes(draws, -1, -2)[:, :-1]
 
     def index(self, values: Any) -> np.ndarray:
         """Measured bin of each value (``-1`` outside the measured bins, or for NaN)."""
@@ -405,16 +411,18 @@ class Response:
         with the fractions when the response is inferred jointly, each draw uses its
         own response and the tallies' covariance is left out (DECISIONS #81).
         """
-        n_all = np.asarray(counts, dtype=float).ravel()
+        n = np.asarray(counts, dtype=float).ravel()
         draws = np.atleast_2d(np.asarray(rho_draws, dtype=float))
+        tallied = self.uncertain and response_draws is None  # add the tallies' covariance
+        if response_draws is None:  # drawn responses give every measured bin some probability
+            live = self._matrix.sum(axis=1) > 0
+            if np.any(n[~live] > 0):
+                return 0.0  # counts where the response allows none
+            n, response_draws = n[live], self._matrix[None, live]
+        N, J = n.sum(), n.size
         D = np.empty(len(draws))
         for s, rho in enumerate(draws):
-            R = self._matrix if response_draws is None else np.asarray(response_draws[s])
-            live = R.sum(axis=1) > 0
-            if np.any(n_all[~live] > 0):
-                return 0.0  # counts where the response allows none
-            R, n = R[live], n_all[live]
-            N, J = n.sum(), n.size
+            R = np.asarray(response_draws[s % len(response_draws)])
             eff = R.sum(axis=0)
             scale = eff @ rho
             q = R @ rho / scale
@@ -423,7 +431,7 @@ class Response:
             # to N, so the bin with the largest q is dropped and the rest inverted by
             # Woodbury, O(J K^2) per draw
             a, V, S = N * q, q[:, None], np.array([[-N]])
-            if self.generated is not None and response_draws is None:
+            if tallied:
                 c = rho**2 / self.generated / scale**2
                 Rc, sc = R @ c, np.sqrt(c)
                 a = a + N**2 * Rc

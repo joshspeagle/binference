@@ -164,12 +164,11 @@ class _IndividualMixin:
         R = self._select_draws(n_draws, components=True)
         info = getattr(self, "info", {})
         if "response_draws" in info:
-            Rd = np.asarray(info["response_draws"])
-            Rd = Rd.reshape(-1, *Rd.shape[-2:])[_draw_index(Rd.size // Rd[0, 0].size, n_draws)]
+            Rd = _flat_draws(info["response_draws"], 2, n_draws)
             return Rd[:, model.likelihoods.meta["measured_bin"]], R, None
         S = info.get("selection_draws")
         if S is not None:
-            S = np.asarray(S).reshape(-1, model.K)[_draw_index(S.size // model.K, n_draws)]
+            S = _flat_draws(S, 1, n_draws)
         return *model._rows(R, S), S
 
     def _to_bins(self, P: np.ndarray) -> np.ndarray:
@@ -388,6 +387,13 @@ def _objects(L: Any, N: int, idx: Any) -> Any:
 def _draw_rows(L: Any, s: int) -> Any:
     # draw s's rows when they differ by draw (an inferred response), else the rows
     return L[s] if L.ndim == 3 else L
+
+
+def _flat_draws(A: Any, n_tail: int, n_draws: int | None) -> np.ndarray:
+    # per-draw arrays (chain, draw, *tail) as (n, *tail), up to n_draws spread evenly
+    A = np.asarray(A)
+    A = A.reshape(-1, *A.shape[A.ndim - n_tail :])
+    return A[_draw_index(len(A), n_draws)]
 
 
 def _draw_index(n_total: int, n_draws: int | None) -> np.ndarray | slice:
@@ -936,7 +942,7 @@ class PopulationResult(_IndividualMixin):
             n = np.bincount(lk.meta["measured_bin"], weights=lk.weights, minlength=J)
             Rd = self.info.get("response_draws")  # an inferred response, drawn with rho
             if Rd is not None:
-                Rd = np.asarray(Rd).reshape(-1, J, K)[_draw_index(Rd.size // (J * K), n_draws)]
+                Rd = _flat_draws(Rd, 2, n_draws)
             self._cache[key] = (
                 resp.predictive_pvalue(n, self._select_draws(n_draws), Rd) if J > K else None
             )

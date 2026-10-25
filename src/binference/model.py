@@ -131,22 +131,10 @@ class PopulationModel:
         #: a response tallied from events, inferred with the population (or ``None``)
         self.response = resp if resp is not None and resp.uncertain else None
         if self.response is not None:
-            if not (selection is None and selection_mode is None):
-                raise ValueError(
-                    "The efficiency of a response inferred from its tallies is the selection; "
-                    "to set another, build the likelihoods from response.fixed()."
-                )
-            if self.prior.kind == "rates":
-                raise ValueError(
-                    "A response is inferred jointly for fractions only; for rates build the "
-                    "likelihoods from response.fixed()."
-                )
-            J = self.response.measured_bins.K
-            # observed objects per measured bin, and the columns' Dirichlet parameters
-            self._c = np.bincount(
-                likelihoods.meta["measured_bin"], weights=likelihoods.weights, minlength=J
-            )
-            self._alpha = self.response._dirichlet().T  # (K, J + 1), the lost share last
+            self._check_response(likelihoods, selection is None and selection_mode is None)
+            #: each row's measured bin, and the columns' Dirichlet parameters (J + 1, K)
+            self._mb = likelihoods.meta["measured_bin"]
+            self._alpha = self.response._dirichlet()
         self.selection_spec: Selection | None = sel
         #: per-bin selection values (or ``None``)
         self.selection = None if sel is None else sel.values
@@ -159,6 +147,29 @@ class PopulationModel:
         self._detect = None if sel is None else sel.values / sel.values.max()
         self._S = np.ones(self.K) if sel is None else sel.values  # exposure, for rates
         self._set_likelihoods(likelihoods)
+
+    def _check_response(self, likelihoods: Likelihoods, no_override: bool) -> None:
+        # an inferred response needs the rows from_binned built, with its own selection
+        eff = np.minimum(self.response._mean_columns()[:-1].sum(axis=0), 1.0)
+        own = likelihoods.selection
+        own_ok = (own is None and np.allclose(eff, 1.0)) or (
+            own is not None and own.mode == "on_measurement" and np.allclose(own.values, eff)
+        )
+        if not (no_override and own_ok):
+            raise ValueError(
+                "The efficiency of a response inferred from its tallies is the selection; "
+                "to set another, build the likelihoods from response.fixed()."
+            )
+        if "measured_bin" not in likelihoods.meta or likelihoods.basis is not None:
+            raise ValueError(
+                "An inferred response needs the rows Likelihoods.from_binned builds, one per "
+                "measured bin (not compressed or moved onto a Basis); or use response.fixed()."
+            )
+        if self.prior.kind == "rates":
+            raise ValueError(
+                "A response is inferred jointly for fractions only; for rates build the "
+                "likelihoods from response.fixed()."
+            )
 
     def _set_likelihoods(self, likelihoods: Likelihoods) -> None:
         # the data and what is derived from them, in one place
@@ -270,32 +281,31 @@ class PopulationModel:
             ls, _ = _logit_density(y, self.selection_spec.injections)
             return ls - float(np.sum(special.log_expit(y) + special.log_expit(-y)))
         if self.response is not None:
-            return float(np.sum((self._alpha - 1.0) * self._response_logits(x)))
+            return float(np.sum((self._alpha.T - 1.0) * self._response_logits(x)))
         return 0.0
 
     def _response_terms(self, value: np.ndarray, R: np.ndarray):
-        r"""Log-likelihood of the counts per measured bin given ``R``, with its gradients in
+        r"""Log-likelihood of the rows (measured bins) given ``R``, with its gradients in
         the logits of :math:`\rho` and in :math:`R` ``(J, K)``."""
-        on = self._c > 0
-        c, Ro = self._c[on], R[on]
-        q = Ro @ value
-        se = float(R.sum(axis=0) @ value)
+        rows = R[self._mb]
+        q = rows @ value
+        eff = R.sum(axis=0)
+        se = float(eff @ value)
         if not (np.all(q > 0) and se > 0):
             return -np.inf, None, None
-        ll = float(c @ np.log(q)) - self.W * np.log(se)
-        t = c / q
-        nhat = value * (Ro.T @ t)
-        d_eta = nhat - self.W * value * R.sum(axis=0) / se
+        ll = float(self._w @ np.log(q)) - self.W * np.log(se)
+        t = self._w / q
+        d_eta = value * (rows.T @ t) - self.W * value * eff / se
         G = np.broadcast_to(-self.W * value / se, R.shape).copy()
-        G[on] += np.outer(t, value)
+        np.add.at(G, self._mb, np.outer(t, value))
         return ll, d_eta, G
 
-    def _response_density(self, x: np.ndarray, G: np.ndarray) -> tuple[float, np.ndarray]:
-        # the columns' Dirichlet density in their log-ratios (with the Jacobian) and the
-        # gradient of it plus the likelihood's (G in R; the lost share has none)
-        logP = self._response_logits(x)
+    def _response_density(self, logP: np.ndarray, G: np.ndarray) -> tuple[float, np.ndarray]:
+        # the columns' Dirichlet density in their log-ratios (with the Jacobian) at the log
+        # compositions logP (K, J + 1), and the gradient of it plus the likelihood's (G in R;
+        # the lost share has none)
         P = np.exp(logP)
-        a = self._alpha
+        a = self._alpha.T
         Gf = np.zeros_like(P)
         Gf[:, :-1] = G.T
         d = P * (Gf - np.sum(P * Gf, axis=1, keepdims=True)) + a - a.sum(axis=1)[:, None] * P
@@ -366,7 +376,8 @@ class PopulationModel:
         if not np.isfinite(value.sum()):
             return -np.inf, np.zeros_like(x)
         S = self.selection_at(x)
-        R = self.response_at(x)
+        logP = None if self.response is None else self._response_logits(x)
+        R = None if logP is None else np.exp(logP[:, :-1]).T
         if R is None:
             ll, d_eta = self._ll_and_deta(value, S)
             ll += self._ll_const
@@ -380,7 +391,7 @@ class PopulationModel:
             lp += ls
             g = np.concatenate([g, g_y + d_eta * (1.0 - S)])
         if R is not None:  # the response's block (DECISIONS #81)
-            lr, g_r = self._response_density(x, G)
+            lr, g_r = self._response_density(logP, G)
             lp += lr
             g = np.concatenate([g, g_r])
         return ll + lp, g
@@ -472,9 +483,8 @@ class PopulationModel:
         if self.selection_uncertain:
             return np.concatenate([x, special.logit(self.selection)])
         if self.response is not None:  # the posterior means of the columns
-            a = self._alpha
-            y = np.log(a / a.sum(axis=1, keepdims=True)) @ helmert_basis(a.shape[1])
-            return np.concatenate([x, y.ravel()])
+            P = self.response._mean_columns().T
+            return np.concatenate([x, (np.log(P) @ helmert_basis(P.shape[1])).ravel()])
         return x
 
     # ----------------------------------------------- fraction/rate space

@@ -80,6 +80,10 @@ def test_engines_refuse_or_infer_the_response_and_report_its_draws():
         m.log_likelihood(est.rho, response=R[:-1])
     fixed = Likelihoods.from_binned(resp.fixed(), values=np.full(3, 0.5))
     assert not binference.PopulationModel(fixed).joint
+    # the rows and the selection must be those from_binned built
+    for changed in (lk.with_selection(np.full(4, 0.5), "on_measurement"), lk.compress()):
+        with pytest.raises(ValueError, match=r"response\.fixed\(\)"):
+            binference.PopulationModel(changed)
 
 
 def test_per_object_methods_and_the_total_use_each_draws_response():
@@ -143,8 +147,7 @@ def test_joint_inference_of_population_and_response_is_calibrated():
     n_draws, ranks = 49, []
     for _ in range(150):
         rho = rng.dirichlet(np.ones(K))
-        beta = Response.from_counts(np.ones((J, K)), np.full(K, J), truth, measured).prior
-        cols = rng.dirichlet(np.full(J + 1, beta), size=K).T  # (J + 1, K)
+        cols = rng.dirichlet(np.ones(J + 1), size=K).T  # (J + 1, K): the default beta = 1
         counts = np.stack([rng.multinomial(40, cols[:, k]) for k in range(K)], axis=1)[:J]
         resp = Response.from_counts(counts, np.full(K, 40), truth, measured)
         R = cols[:J]
