@@ -1,6 +1,6 @@
 # Walkthrough plan
 
-**Current position:** Phase 1 step 1.4 (spec decision log D1–D16). Order: 1.4 → rest of Phase 2 (2.4 onwards). Step 1.3's architecture decisions remain deferred until the relevant code has been read.
+**Current position:** Phase 2 step 2.4. Phase 1 done except 1.3's architecture decisions. Step 1.3's architecture decisions remain deferred until the relevant code has been read.
 
 ## How each step works
 
@@ -97,4 +97,4 @@ Seven auditor reports land in `audit/` (see `audit/README.md`). Per DECISIONS #1
 | 2.3 Inputs (`from_*`) | L3 | done (decisions #22–#32) | `briefings/2.3-inputs.html`, `briefings/2.3b-redesign.html` (+ .md) | |
 | 1.1 Problem, scope, principles | L1–L2 | done (decisions #33–#37; `vision.md`) | `briefings/1.1-scope.html` (+ .md) | |
 | 1.2 Landscape | L1–L2 | done (decisions #38–#42; `post-v1.md`) | `briefings/1.2-landscape.html` (+ .md) | |
-| 1.4 Decision log D1–D16 | L1 | briefing ready | `briefings/1.4-decision-log.html` (+ .md) | |
+| 1.4 Decision log D1–D16 | L1 | done (decisions #43–#45; name → binference) | `briefings/1.4-decision-log.html` (+ .md) | |

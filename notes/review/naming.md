@@ -54,3 +54,5 @@ names like populace, and "inference" twists such as binference.
 | binsight | free | bin twist | bin + insight; upbeat, a little marketing-ish |
 | popinfer / popinf | free | inference twist | plain; bland |
 | popsterior | free | portmanteau | population posterior; memorable, maybe too jokey |
+
+**Decision (2026-10-25): binference** (#45).
