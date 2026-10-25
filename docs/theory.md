@@ -434,7 +434,8 @@ as the likelihood itself.
   finite-difference Hessian.
   - It is corrected by importance sampling from a Student-$t$ proposal with
     Pareto-smoothed weights (Vehtari et al. 2024).
-  - Results with Pareto $\hat k\ge0.7$ are flagged as approximate. This
+  - Results with Pareto $\hat k\ge\min(1-1/\log_{10}S,\,0.7)$ for $S$
+    proposals are flagged as approximate. This
     happens routinely for $K\gtrsim10$, because near-empty bins have one-sided
     tails.
 - **MeanFieldVB** applies coordinate ascent to $q(\rho)\prod_iq(z_i)$.

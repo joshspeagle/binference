@@ -107,7 +107,9 @@ def test_mocks_with_each_kind_of_selection_recover_the_population(kw):
     bins = Bins.linear(0, 3, 10)
     rho = population(bins, "bimodal")
     mock = mock_1d(20000, bins, density=rho, noise=(0.02, 1.0), rng=3, **kw)
-    fit = binference.infer(mock.likelihoods, method="laplace", rng=0, check=False)
+    with warnings.catch_warnings():  # k-hat varies near its threshold with the proposals
+        warnings.simplefilter("ignore", binference.ApproximationWarning)
+        fit = binference.infer(mock.likelihoods, method="laplace", rng=0, check=False)
     sd = fit.samples.std(axis=0)
     naive = binference.infer(mock.likelihoods.with_selection(None), method="map").value
     # each z-score is about standard normal when the selection is right, so the largest

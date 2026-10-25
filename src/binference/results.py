@@ -558,6 +558,7 @@ class PopulationResult(_IndividualMixin):
         for key in (
             "n_divergent",
             "k_hat",
+            "k_hat_threshold",
             "kkt_gap",
             "max_depth_fraction",
             "missing_information",
@@ -627,8 +628,12 @@ class PopulationResult(_IndividualMixin):
                 "try a higher target_accept, e.g. 0.95; divergences that persist mark a "
                 "region the sampler cannot explore (see the pitfalls guide)"
             )
-        if d.get("k_hat", 0) > 0.7:
-            msgs.append(f"Pareto k-hat = {d['k_hat']:.2f} > 0.7 (importance sampling unreliable)")
+        threshold = d.get("k_hat_threshold", 0.7)
+        if d.get("k_hat", 0) >= threshold:
+            msgs.append(
+                f"Pareto k-hat = {d['k_hat']:.2f} >= {threshold:.2f} (importance sampling "
+                "unreliable)"
+            )
         if d.get("max_depth_fraction", 0) > 0.05:
             msgs.append(
                 f"{100 * d['max_depth_fraction']:.0f}% of NUTS iterations hit the maximum tree "

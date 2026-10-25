@@ -14,14 +14,8 @@ from .._utils import RNGLike, progress, spawn, warn
 from ..model import PopulationModel
 from ..results import PopulationResult
 from ..warnings import ConvergenceWarning
-from ._nuts_core import (
-    Metric,
-    adaptation_windows,
-    covariance_from_hessian,
-    fd_hessian,
-    find_reasonable_eps,
-    nuts_step,
-)
+from ._curvature import covariance_from_hessian, fd_hessian, fd_hessian_diag
+from ._nuts_core import Metric, adaptation_windows, find_reasonable_eps, nuts_step
 from .base import Engine
 
 __all__ = ["NUTS"]
@@ -37,6 +31,11 @@ _HESSIAN_MAX_DIM = 500
 _CENTRING_MAX_SD = 0.28
 
 
+def _centred(model: PopulationModel, lam: np.ndarray) -> PopulationModel:
+    """The model with its logistic prior partially centred by weights ``lam``."""
+    return model._with_bound_prior(model.prior.with_centering(lam))
+
+
 def _conditional_log_scale_sd(model, prior, pts: list[np.ndarray]) -> np.ndarray:
     """Spread of each mode's log-scale given the field, from the hyperparameter curvature.
 
@@ -49,7 +48,7 @@ def _conditional_log_scale_sd(model, prior, pts: list[np.ndarray]) -> np.ndarray
     if prior.n_free == 0:
         return np.zeros(n_act)
     zeros = np.zeros(n_act)
-    fn = model._with_bound_prior(prior.with_centering(zeros)).log_density_unconstrained_and_grad
+    fn = _centred(model, zeros).log_density_unconstrained_and_grad
     cols = range(n_act, model.dim)
     H = np.mean([fd_hessian(fn, prior.recentre(x, zeros), cols=cols)[n_act:] for x in pts], axis=0)
     cov = covariance_from_hessian(H)
@@ -167,22 +166,49 @@ def _advance_chain(chain: _Chain, n_iter: int, adapt: bool, max_depth: int, reco
     return xs, lps, st, n_div
 
 
-def _limit_threads(n_threads: int) -> None:
-    """Worker initializer: share the cores between chains rather than oversubscribe.
+def _cpu_count() -> int:
+    # the cores this process may use (CPU affinity, e.g. under a batch scheduler)
+    return os.process_cpu_count() or 1
 
-    Forked workers inherit the parent's BLAS thread pool, so every chain would
-    otherwise run as many BLAS threads as there are cores.
-    """
+
+def _worker_threads(n_workers: int) -> int:
+    """BLAS threads per worker: the cores shared between workers, never above the
+    limit already in force in this process (e.g. ``OMP_NUM_THREADS=1``; audit N-3)."""
+    from threadpoolctl import threadpool_info
+
+    share = max(1, _cpu_count() // n_workers)
+    info = threadpool_info()
+    # the BLAS pools' limit (another runtime, e.g. a single-threaded OpenMP, does not cap
+    # it); where no BLAS pool is visible (e.g. Accelerate), every reported limit counts
+    blas = [lib["num_threads"] for lib in info if lib.get("user_api") == "blas"]
+    limits = [max(blas)] if blas else [lib["num_threads"] for lib in info]
+    return min([share, *limits])
+
+
+_WORKER_MODEL: PopulationModel | None = None  # the base model, sent once per worker
+
+
+def _init_worker(model: PopulationModel, n_threads: int) -> None:
+    global _WORKER_MODEL
     from threadpoolctl import threadpool_limits
 
+    _WORKER_MODEL = model
     threadpool_limits(limits=n_threads)
 
 
 def _chain_worker(payload):
-    """Run in a worker process: advance one chain and send it back without the model."""
-    chain, model, n_iter, adapt, max_depth, record = payload
-    chain.fn = model.log_density_unconstrained_and_grad
-    out = _advance_chain(chain, n_iter, adapt, max_depth, record)
+    """Run in a worker process: advance one chain and send it back without the model.
+
+    An error from the model comes back as a value, so the parent can tell it from a
+    failure of the pool itself (audit N-7).
+    """
+    chain, lam, n_iter, adapt, max_depth, record = payload
+    try:
+        model = _WORKER_MODEL if lam is None else _centred(_WORKER_MODEL, lam)
+        chain.fn = model.log_density_unconstrained_and_grad
+        out = _advance_chain(chain, n_iter, adapt, max_depth, record)
+    except Exception as err:
+        return err
     chain.fn = None
     return chain, out
 
@@ -210,7 +236,8 @@ class NUTS(Engine):
         0.8, or 0.9 for logistic (smoothness) priors, whose hyperparameters
         make the geometry harder.
     max_depth : int
-        Maximum tree depth (at most ``2**max_depth`` gradient evaluations per draw).
+        Maximum tree depth (at least 1; at most ``2**max_depth`` gradient
+        evaluations per draw).
     metric : {"auto", "diag", "dense"}
         Adapted Euclidean metric. ``"auto"`` uses a dense metric for logistic
         (smoothness) priors with at most 200 unconstrained dimensions, whose
@@ -225,16 +252,20 @@ class NUTS(Engine):
         non-centred, which avoids funnels. This changes the sampling
         coordinates, not the posterior.
     init : array_like (dim,) or (n_chains, dim), optional
-        Starting points in unconstrained coordinates. By default chains start
-        at the posterior mode (in unconstrained coordinates) plus ``jitter``.
+        Starting points in the model's unconstrained coordinates; a single
+        point gets ``jitter`` added for each chain. Every start must have a
+        finite log density. By default chains start at the posterior mode (in
+        unconstrained coordinates) plus ``jitter``.
     jitter : float
-        Standard deviation of the Gaussian jitter around the mode.
+        Standard deviation of the Gaussian jitter around the starting point.
     n_jobs : int
-        Number of worker processes for the chains (``-1``: one per CPU). The
-        default ``1`` runs the chains in this process. The workers share the
-        cores' BLAS threads instead of oversubscribing them. Parallel and
-        serial runs use the same random streams, so their draws agree up to
-        rounding differences in multithreaded linear algebra.
+        Number of worker processes for the chains (``-1``: one per CPU this
+        process may use). The default ``1`` runs the chains in this process.
+        The workers share the cores' BLAS threads instead of oversubscribing
+        them, never exceeding a thread limit already set. Parallel and serial
+        runs use the same random streams, so their draws agree up to rounding
+        differences in multithreaded linear algebra. Parallel runs show no
+        progress bar.
     rng : int, Generator or None
         Random number generator (SPEC 7); each chain gets an independent child.
     progress : bool
@@ -242,13 +273,19 @@ class NUTS(Engine):
 
     Notes
     -----
-    For logistic (smoothness) priors, after 25 warm-up iterations the engine
-    reparametrises the prior (``reparametrize``) and, for at most 500
-    dimensions, initialises the metric from the finite-difference curvature of
-    the log posterior at the chains' positions. Later adaptation windows
-    refine the metric from the warm-up draws, shrinking toward that
-    curvature-based start. Simplex and rate priors use Stan's windowed
-    adaptation unchanged.
+    For logistic (smoothness) priors, after ``min(25, first window start)``
+    warm-up iterations (none when ``n_warmup < 20``, which also skips metric
+    adaptation) the engine reparametrises the prior (``reparametrize``) and,
+    for at most 500 dimensions, initialises the metric from the
+    finite-difference curvature of the log posterior at the chains'
+    positions. Each later adaptation window shrinks its estimate toward the
+    previous window's metric, starting from that curvature-based one.
+    Simplex and rate priors use Stan's windowed adaptation unchanged.
+
+    Results (``x``, ``log_density_unconstrained``, ``model``) are in the
+    prior's non-centred coordinates whatever the sampling coordinates;
+    ``info["centring"]`` holds the partial-centring weights used, and
+    ``info["inv_metric"]`` is in those sampling coordinates.
     """
 
     name = "nuts"
@@ -269,17 +306,27 @@ class NUTS(Engine):
         rng: RNGLike = None,
         progress: bool = False,
     ) -> None:
+        logistic = hasattr(model.prior, "with_centering")
+        # results are in the non-centred form, so only engines ever hold a centred prior
+        if logistic and np.any(model.prior.lam != 1.0):
+            raise ValueError(
+                "model: the logistic prior must be in its non-centred form (prior.lam all 1), "
+                "as the model is built; NUTS chooses the centring itself."
+            )
         super().__init__(model, rng=rng, progress=progress)
         if n_chains < 1:
             raise ValueError("n_chains must be at least 1.")
+        if max_depth < 1:
+            raise ValueError("max_depth must be at least 1.")
+        if n_warmup < 0 or jitter < 0:
+            raise ValueError("n_warmup and jitter must be non-negative.")
         if n_jobs == -1:
-            n_jobs = os.cpu_count() or 1
+            n_jobs = _cpu_count()
         if n_jobs < 1:
             raise ValueError("n_jobs must be a positive integer or -1.")
         self.n_jobs = int(n_jobs)
         if metric not in ("auto", "diag", "dense"):
             raise ValueError("metric must be 'auto', 'diag' or 'dense'.")
-        logistic = hasattr(model.prior, "with_centering")
         if target_accept is None:
             target_accept = 0.9 if logistic else 0.8
         if not 0 < target_accept < 1:
@@ -296,6 +343,8 @@ class NUTS(Engine):
         self.jitter = float(jitter)
         self._chains: list[_Chain] | None = None
         self._base_model = model
+        self._lam = None  # partial-centring weights of the sampling coordinates, once chosen
+        self._pool = None  # worker processes, kept for one sample() (audit N-13)
         self._geometry_iter = 25
         self._warm = False
         self._x: list[np.ndarray] = []
@@ -314,13 +363,15 @@ class NUTS(Engine):
                 x0 = x0 + self.jitter * child.standard_normal(x0.shape)
             if x0.shape != (self.n_chains, d):
                 raise ValueError(f"init must have shape ({d},) or ({self.n_chains}, {d}).")
+            if not all(np.isfinite(self.model.log_density_unconstrained(x)) for x in x0):
+                raise ValueError("init has a starting point with zero posterior density.")
             return x0
         from .optimize import MAP
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", ConvergenceWarning)
             mode = MAP(self.model, space="unconstrained").run()
-        x_mode = mode.x if mode.x is not None else self.model.from_value(mode.value)
+        x_mode = mode.x
         pts = []
         for _ in range(self.n_chains):
             for scale in (self.jitter, self.jitter / 10, 0.0):
@@ -349,29 +400,21 @@ class NUTS(Engine):
         the posterior scales (sparse bins), so they keep Stan's adaptation.
         """
         assert self._chains is not None
-        base = self._base_model
+        base = self._base_model  # non-centred (see __init__)
         prior0 = base.prior
         if not hasattr(prior0, "with_centering"):
             return
         chains = self._chains
         d = base.dim
-        cur = self.model.prior
-        ones = np.ones(prior0.n_active)
-        # positions in the base (non-centred) parametrisation
-        pts = [cur.recentre(ch.x, ones) for ch in chains]
+        pts = [ch.x for ch in chains]
         # curvature at every chain's position for small problems, one chain otherwise
         n_pts = len(chains) if d <= _DENSE_MAX_DIM else 1
         model = base
         if self.reparametrize and prior0.n_active > 0:
             fn0 = base.log_density_unconstrained_and_grad
             n_act = prior0.n_active
-            if d <= _HESSIAN_MAX_DIM:
-                H0 = np.mean([fd_hessian(fn0, x) for x in pts[:n_pts]], axis=0)
-                diag = np.diag(H0)[:n_act]
-            else:
-                diag = np.mean(
-                    [np.diag(fd_hessian(fn0, x, cols=range(n_act))) for x in pts[:n_pts]], axis=0
-                )
+            # only the field's diagonal curvature is needed here (audit N-10)
+            diag = np.mean([fd_hessian_diag(fn0, x, range(n_act)) for x in pts[:n_pts]], axis=0)
             lam = np.clip(1.0 / np.maximum(-diag, 1.0), 0.0, 1.0)
             # one decision for all modes that share the hyperparameters: mixing centred
             # and non-centred modes under one length scale mixed worst in validation
@@ -379,8 +422,9 @@ class NUTS(Engine):
             scaled = sd_c > 0.0
             if np.any(scaled) and np.median(sd_c[scaled]) > _CENTRING_MAX_SD:
                 lam[scaled] = 1.0
-            model = base._with_bound_prior(prior0.with_centering(lam))
+            model = _centred(base, lam)
             pts = [prior0.recentre(x, lam) for x in pts]
+            self._lam = lam
         self.model = model
         fn = model.log_density_unconstrained_and_grad
         inv_m = None
@@ -396,8 +440,9 @@ class NUTS(Engine):
     def _parallel(self, n_iter: int, adapt: bool, record: bool):
         """Advance every chain ``n_iter`` iterations in worker processes.
 
-        Returns per-chain outputs, or ``None`` if no worker pool could be started
-        (the caller then runs serially; the chains are untouched).
+        Returns per-chain outputs, or ``None`` if no worker pool could be used
+        (the caller then runs serially; the chains are untouched). An error raised
+        by the model in a worker comes back as a value and is raised here.
         """
         from concurrent.futures import ProcessPoolExecutor
         from concurrent.futures.process import BrokenProcessPool
@@ -406,34 +451,31 @@ class NUTS(Engine):
         chains = self._chains
         fn = self.model.log_density_unconstrained_and_grad
         for ch in chains:
-            ch.fn = None  # the model is sent once per chain, not twice
-        payloads = [(ch, self.model, n_iter, adapt, self.max_depth, record) for ch in chains]
+            ch.fn = None  # the model goes to each worker once, not with every chain
+        payloads = [(ch, self._lam, n_iter, adapt, self.max_depth, record) for ch in chains]
         try:
-            pickle.dumps(payloads[0])  # e.g. a lambda in a prior cannot be sent to workers
-            n_workers = min(self.n_jobs, len(chains))
-            n_threads = max(1, (os.cpu_count() or 1) // n_workers)
-            with ProcessPoolExecutor(
-                max_workers=n_workers, initializer=_limit_threads, initargs=(n_threads,)
-            ) as ex:
-                results = list(ex.map(_chain_worker, payloads))
-        except (
-            OSError,
-            BrokenProcessPool,
-            NotImplementedError,
-            pickle.PicklingError,
-            AttributeError,
-            TypeError,
-        ) as err:
-            warn(
-                f"Could not run chains in parallel ({type(err).__name__}: {err}); "
-                "running them serially.",
-                RuntimeWarning,
-            )
-            self.n_jobs = 1  # do not try again for this engine
-            return None
+            if self._pool is None:
+                try:  # e.g. a lambda in a prior cannot be sent to workers
+                    pickle.dumps((self._base_model, payloads[0]))
+                except (pickle.PicklingError, AttributeError, TypeError) as err:
+                    return self._serial_from_now(err)
+                n_workers = min(self.n_jobs, len(chains))
+                self._pool = ProcessPoolExecutor(
+                    max_workers=n_workers,
+                    initializer=_init_worker,
+                    initargs=(self._base_model, _worker_threads(n_workers)),
+                )
+            # errors from the model come back as values (see _chain_worker), so only a
+            # failure of the pool itself falls back to serial (audit N-7)
+            results = list(self._pool.map(_chain_worker, payloads))
+        except (OSError, BrokenProcessPool, NotImplementedError) as err:
+            return self._serial_from_now(err)
         finally:
             for ch in chains:
                 ch.fn = fn
+        for r in results:
+            if isinstance(r, BaseException):
+                raise r
         self._chains = []
         outs = []
         for ch, out in results:
@@ -441,6 +483,20 @@ class NUTS(Engine):
             self._chains.append(ch)
             outs.append(out)
         return outs
+
+    def _serial_from_now(self, err: BaseException) -> None:
+        warn(
+            f"Could not run chains in parallel ({type(err).__name__}: {err}); "
+            "running them serially.",
+            RuntimeWarning,
+        )
+        self.n_jobs = 1  # do not try again for this engine
+        self._close_pool()
+
+    def _close_pool(self) -> None:
+        if self._pool is not None:
+            self._pool.shutdown()
+            self._pool = None
 
     def _advance(self, n_iter: int, adapt: bool, desc: str) -> None:
         """Warm-up iterations for every chain (parallel or interleaved serial)."""
@@ -467,10 +523,13 @@ class NUTS(Engine):
         logistic = hasattr(self._base_model.prior, "with_centering")
         # adapt the geometry once the chains have left the mode for the typical set
         switch = min(self._geometry_iter, windows[0][0]) if (windows and logistic) else 0
-        self._advance(switch, adapt=True, desc="NUTS warm-up")
-        if switch > 0:
-            self._adapt_geometry()
-        self._advance(self.n_warmup - switch, adapt=True, desc="NUTS warm-up")
+        try:
+            self._advance(switch, adapt=True, desc="NUTS warm-up")
+            if switch > 0:
+                self._adapt_geometry()
+            self._advance(self.n_warmup - switch, adapt=True, desc="NUTS warm-up")
+        finally:
+            self._close_pool()  # warm-up phases share one pool; sampling starts its own
         self._warm = True
 
     def _record(self, xs, lps, st, n_done: int) -> None:
@@ -480,41 +539,54 @@ class NUTS(Engine):
             for j, k in enumerate(_STAT_KEYS):
                 self._stats[k].append(st[:, j, :n_done])
 
+    def _report(self, X: np.ndarray, LP: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Draws and log densities from the sampling coordinates to the model's (audit N-1)."""
+        if self._lam is None:
+            return X, LP
+        d = X.shape[-1]
+        x, lp = self.model.prior.to_noncentred(X.reshape(-1, d), LP.reshape(-1))
+        return x.reshape(X.shape), lp.reshape(LP.shape)
+
     def sample(self, n_samples: int) -> Iterator[np.ndarray]:
         """Generator over post-warm-up iterations, yielding ``(n_chains, dim)`` positions.
 
-        Draws are also recorded and included in the next :meth:`run` /
-        :attr:`result`. With ``n_jobs > 1`` the chains advance in worker
-        processes and the positions are yielded once all have finished.
+        Positions are in the model's unconstrained coordinates (the prior's
+        non-centred form). Draws are also recorded and included in the next
+        :meth:`run` / :attr:`result`. With ``n_jobs > 1`` the chains advance in
+        worker processes and the positions are yielded once all have finished.
         """
-        self.warmup()
-        assert self._chains is not None
-        C, d = self.n_chains, self.model.dim
-        n_samples = int(n_samples)
-        if self.n_jobs > 1 and C > 1 and n_samples > 0:
-            outs = self._parallel(n_samples, adapt=False, record=True)
-            if outs is not None:
-                xs = np.stack([o[0] for o in outs])
-                lps = np.stack([o[1] for o in outs])
-                st = np.stack([o[2] for o in outs])
-                self._record(xs, lps, st, n_samples)
-                yield from (xs[:, i] for i in range(n_samples))
-                return
-        xs = np.empty((C, n_samples, d))
-        lps = np.empty((C, n_samples))
-        st = np.empty((C, len(_STAT_KEYS), n_samples))
-        n_done = 0
         try:
-            for i in progress(range(n_samples), n_samples, "NUTS sampling", self.progress):
-                for c, ch in enumerate(self._chains):
-                    acc, depth, div, nl, energy = ch.step(self.max_depth, adapt=False)
-                    xs[c, i] = ch.x
-                    lps[c, i] = ch.lp
-                    st[c, :, i] = (acc, depth, div, nl, energy)
-                n_done = i + 1
-                yield xs[:, i]
+            self.warmup()
+            assert self._chains is not None
+            C, d = self.n_chains, self.model.dim
+            n_samples = int(n_samples)
+            if self.n_jobs > 1 and C > 1 and n_samples > 0:
+                outs = self._parallel(n_samples, adapt=False, record=True)
+                if outs is not None:
+                    xs, lps = self._report(
+                        np.stack([o[0] for o in outs]), np.stack([o[1] for o in outs])
+                    )
+                    self._record(xs, lps, np.stack([o[2] for o in outs]), n_samples)
+                    yield from (xs[:, i] for i in range(n_samples))
+                    return
+            xs = np.empty((C, n_samples, d))
+            lps = np.empty((C, n_samples))
+            st = np.empty((C, len(_STAT_KEYS), n_samples))
+            n_done = 0
+            try:
+                for i in progress(range(n_samples), n_samples, "NUTS sampling", self.progress):
+                    for c, ch in enumerate(self._chains):
+                        acc, depth, div, nl, energy = ch.step(self.max_depth, adapt=False)
+                        xs[c, i] = ch.x
+                        lps[c, i] = ch.lp
+                        st[c, :, i] = (acc, depth, div, nl, energy)
+                    xs[:, i], lps[:, i] = self._report(xs[:, i], lps[:, i])
+                    n_done = i + 1
+                    yield xs[:, i]
+            finally:
+                self._record(xs, lps, st, n_done)
         finally:
-            self._record(xs, lps, st, n_done)
+            self._close_pool()
 
     def run(self, n_samples: int = 1000) -> PopulationResult:
         """Warm up (first call only), draw ``n_samples`` per chain, and return all draws so far."""
@@ -530,9 +602,11 @@ class NUTS(Engine):
         X = np.concatenate(self._x, axis=1)
         LP = np.concatenate(self._lp, axis=1)
         C, n, d = X.shape
-        vals = self.model.transform(X.reshape(-1, d)).reshape(C, n, -1)
+        base = self._base_model
+        info: dict[str, Any] = {} if self._lam is None else {"centring": self._lam}
+        vals = base.transform(X.reshape(-1, d)).reshape(C, n, -1)
         stats = {k: np.concatenate(v, axis=1) for k, v in self._stats.items()}
-        info: dict[str, Any] = dict(stats)
+        info.update(stats)
         info["n_divergent"] = int(stats["diverging"].sum())
         info["warmup_divergences"] = self.warmup_divergences
         info["max_depth_fraction"] = float(np.mean(stats["tree_depth"] >= self.max_depth))
@@ -544,15 +618,15 @@ class NUTS(Engine):
                 (E - E.mean(axis=1, keepdims=True)) ** 2, axis=1
             )
         info["ebfmi"] = ebfmi
-        hyper = getattr(self.model.prior, "hyper_names", [])
+        hyper = getattr(base.prior, "hyper_names", [])
         if hyper:
-            u = X[..., self.model.prior.n_active :]
+            u = X[..., base.prior.n_active :]
             info["hyperparameters"] = {name: np.exp(u[..., j]) for j, name in enumerate(hyper)}
         return PopulationResult(
-            self.model,
+            base,
             vals,
             method="nuts",
-            kind=self.model.kind,
+            kind=base.kind,
             x=X,
             log_density_unconstrained=LP,
             info=info,

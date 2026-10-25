@@ -79,7 +79,8 @@ functionals of the fine posterior (`result.rebin`, `result.functional`).
 - **Mean-field VB** ignores the coupling between objects' bins and the
   population, which is strongest exactly when likelihoods are broad. Its
   intervals can be several times too narrow.
-- **The Laplace approximation** is unreliable when the Pareto $\hat k\ge0.7$,
+- **The Laplace approximation** is unreliable when the Pareto $\hat k$ reaches its
+  threshold ($0.7$ with the default number of proposals),
   which is typical with ten or more bins.
 - **Bootstrap and "PDF-draw" intervals** describe an estimator's sampling
   variability, not the posterior.

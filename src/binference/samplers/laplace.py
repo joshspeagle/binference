@@ -8,10 +8,11 @@ from typing import Any
 import numpy as np
 
 from .. import diagnostics as diag
-from .._utils import RNGLike, warn
+from .._utils import RNGLike, check_positive, warn
 from ..model import PopulationModel
 from ..results import PopulationResult
 from ..warnings import ApproximationWarning, ConvergenceWarning
+from ._curvature import fd_hessian, neg_hessian_eigen
 from .base import Engine
 from .optimize import MAP
 
@@ -33,9 +34,10 @@ class Laplace(Engine):
     draws from the Gaussian are mapped to the simplex (or rates). With
     ``importance=True`` (default) the draws are corrected towards the exact
     posterior by Pareto-smoothed importance resampling; the Pareto shape
-    ``k_hat`` (in ``info``) diagnoses whether the correction is reliable
-    (``k_hat < 0.7``). Without a reliable correction the result is flagged
-    ``approximate=True``.
+    ``k_hat`` (in ``info``) diagnoses whether the correction is reliable:
+    below ``min(1 - 1 / log10(S), 0.7)`` for ``S`` proposals (Vehtari et al.
+    2024), in ``info["k_hat_threshold"]``. Without a reliable correction the
+    result is flagged ``approximate=True``.
 
     The approximation is excellent for well-populated bins with many objects
     and poorer for nearly empty bins, whose log-fractions have long tails.
@@ -46,8 +48,8 @@ class Laplace(Engine):
     importance : bool
         Apply PSIS importance resampling.
     n_proposals : int, optional
-        Number of Gaussian proposals (default: ``2 * n_samples`` with
-        importance resampling).
+        Number of proposals for importance resampling (default
+        ``2 * n_samples``); without it the draws are the proposals themselves.
     df : float or None
         Degrees of freedom of the multivariate Student-t importance proposal
         (default 5); ``None`` uses the Gaussian itself. Heavier tails make the
@@ -61,7 +63,7 @@ class Laplace(Engine):
     -----
     In ILR coordinates the posterior of nearly empty bins has a long one-sided
     tail, so for more than a handful of bins the importance correction often
-    fails (``k_hat > 0.7``) and the result is flagged approximate: the Laplace
+    fails (``k_hat`` above the threshold) and the result is flagged approximate: the Laplace
     approximation is then a fast summary of well-populated bins, not a
     replacement for NUTS.
     """
@@ -81,50 +83,48 @@ class Laplace(Engine):
         progress: bool = False,
     ) -> None:
         super().__init__(model, rng=rng, progress=progress)
+        if n_proposals is not None and n_proposals < 5:
+            raise ValueError("n_proposals must be at least 5 (for Pareto smoothing).")
         self.importance = bool(importance)
         self.n_proposals = n_proposals
         if df is not None and df <= 0:
             raise ValueError("df must be positive (or None for a Gaussian proposal).")
         self.df = None if df is None else float(df)
-        self.inflate = float(inflate)
-        self.step = float(step)
+        self.inflate = float(check_positive(inflate, "inflate"))
+        self.step = float(check_positive(step, "step"))
 
-    def mode_and_covariance(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Mode, covariance and Hessian in unconstrained coordinates."""
+    def _mode_and_eigen(self):
+        # the mode, the Hessian there, the eigen-decomposition of -H and the covariance (N-11)
         m = self.model
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", ConvergenceWarning)
-            est = MAP(m, space="unconstrained").run()
-        x0 = est.x
-        d = x0.size
-        H = np.empty((d, d))
-        for j in range(d):
-            h = self.step * max(1.0, abs(x0[j]))
-            e = np.zeros(d)
-            e[j] = h
-            gp = m.log_density_unconstrained_and_grad(x0 + e)[1]
-            gm = m.log_density_unconstrained_and_grad(x0 - e)[1]
-            H[:, j] = (gp - gm) / (2.0 * h)
-        H = 0.5 * (H + H.T)
-        lam, U = np.linalg.eigh(-H)
+            x0 = MAP(m, space="unconstrained").run().x
+        H = fd_hessian(m.log_density_unconstrained_and_grad, x0, h=self.step)
+        eig = neg_hessian_eigen(H)
+        if eig is None:
+            raise ValueError("The Hessian at the mode is not finite (a non-finite gradient).")
+        lam, U = eig
         if np.any(lam <= 0):
             warn(
                 "The Hessian at the mode is not positive definite; clipping eigenvalues.",
                 ApproximationWarning,
             )
             lam = np.maximum(lam, 1e-8 * max(1.0, lam.max()))
-        cov = (U / lam) @ U.T
+        return x0, H, lam, U, (U / lam) @ U.T
+
+    def mode_and_covariance(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Mode, covariance and Hessian in unconstrained coordinates."""
+        x0, H, _, _, cov = self._mode_and_eigen()
         return x0, cov, H
 
     def run(self, n_samples: int = 4000) -> PopulationResult:
         """Draw ``n_samples`` (approximately) from the posterior."""
         m = self.model
-        x0, cov, _ = self.mode_and_covariance()
+        x0, _, lam, U, cov = self._mode_and_eigen()
         d = x0.size
-        lam, U = np.linalg.eigh(cov)
-        lam = np.maximum(lam, 1e-300)
-        sd_mat = U * np.sqrt(lam) * self.inflate
-        M = self.n_proposals or (2 * n_samples if self.importance else n_samples)
+        sd_mat = (U / np.sqrt(lam)) * self.inflate
+        # without importance resampling the proposals are the draws (audit N-4)
+        M = (self.n_proposals or 2 * n_samples) if self.importance else n_samples
         Z = self.rng.standard_normal((M, d))
         if self.importance and self.df is not None:
             Z = Z / np.sqrt(self.rng.chisquare(self.df, size=M) / self.df)[:, None]
@@ -140,19 +140,20 @@ class Laplace(Engine):
             log_p = np.array([m.log_density_unconstrained(x) for x in X])
             lw, k_hat = diag.psis(log_p - log_q)
             w = np.exp(lw)
+            threshold = diag.psis_threshold(M)  # depends on the number of proposals (N-6)
             info["k_hat"] = float(k_hat)
+            info["k_hat_threshold"] = float(threshold)
             info["ess_importance"] = float(1.0 / np.sum(w**2))
             idx = _systematic_resample(w, n_samples, self.rng)
             X = X[idx]
-            approximate = not (k_hat < 0.7)
+            approximate = not (k_hat < threshold)
             if approximate:
                 warn(
-                    f"Pareto k-hat = {k_hat:.2f} >= 0.7: the Laplace approximation is not a good "
-                    "importance proposal; results are approximate (consider NUTS).",
+                    f"Pareto k-hat = {k_hat:.2f} >= {threshold:.2f}: the Laplace approximation "
+                    "is not a good importance proposal; results are approximate (consider NUTS).",
                     ApproximationWarning,
                 )
         else:
-            X = X[:n_samples]
             warn(
                 "Uncorrected Laplace approximation: results are approximate.", ApproximationWarning
             )

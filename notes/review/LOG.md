@@ -300,3 +300,8 @@ Append-only. One entry per working session (or per step within a long session).
 
 - Calibrated the HSGP basis against exact kernels (field SD and covariance within 5%): the basis needed is m ≈ f·c·S/ℓ with f = 1.27, 1.73, 2.13, 8.3 for RBF and Matérn-5/2, -3/2, -1/2, constant in ℓ; the bin-to-bin step SD of rough kernels needs a basis set by the grid instead. Default: one sine per bin and the length-scale prior raised to what that resolves (DECISIONS #73); the larger-basis alternative is in QUESTIONS.
 - The centred form's underflow fix needed log-space arithmetic, not only log scales: a centred coefficient underflows with its scale, and 0·inf is NaN.
+
+## 2026-10-25: C9a merged; C10 opened
+
+- #42 (C9a, priors) merged; #44 (C9b, GP defaults) in review, retargeted to `main`. Its code review removed an ellipsoidal mode cut added in /simplify (it dropped each axis's top mode and lost field variance), so the default basis is bounded at 1024 modes instead.
+- C10 (NUTS, Laplace; DECISIONS #74), stacked on C9b. Reordering the Laplace eigenvectors alone moved k̂ from 0.67 to 0.80 on a selection test with the same seed, so that test had passed by luck at the threshold; it now ignores the approximation warning, since it asserts z-scores.
