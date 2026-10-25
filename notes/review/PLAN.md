@@ -1,6 +1,6 @@
 # Walkthrough plan
 
-**Current position:** Phase 2 step 2.6. Phase 1 done except 1.3's architecture decisions. Step 1.3's architecture decisions remain deferred until the relevant code has been read.
+**Current position:** Phase 3 step 3.1 (Dirichlet family deep dive). Phase 1 done except 1.3's architecture decisions. Step 1.3's architecture decisions remain deferred until the relevant code has been read.
 
 ## How each step works
 
@@ -73,7 +73,7 @@ Order is a proposal: Josh may jump around. Rough default levels in brackets.
 ### Phase 7. API, UX and organisation [L2, Josh-led]
 - 7.1 Entry points: `pastry.infer`, `PopulationEstimator`, engine classes: `inference.py`, `estimator.py`, `__init__.py`.
 - 7.2 Naming, defaults, warnings and error messages; package layout.
-- 7.3 Implement the restructuring collected in earlier phases (one coherent change).
+- 7.3 Implement the restructuring collected in earlier phases (one coherent change). First build `changes.md`: every "change later" decision plus all 127 audit findings (review and simplify lenses), each triaged (adopt / superseded by a decision / reject with reason), grouped by module.
 
 ### Phase 8. Docs, tutorials and infrastructure [L1–L2]
 - 8.1 User guide, theory page, tutorials: what they teach and in what order.
@@ -100,4 +100,4 @@ Seven auditor reports land in `audit/` (see `audit/README.md`). Per DECISIONS #1
 | 1.4 Decision log D1–D16 | L1 | done (decisions #43–#45; name → binference) | `briefings/1.4-decision-log.html` (+ .md) | |
 | 2.4 Selection (code) | L2–L3 | done (decisions #46–#49) | `briefings/2.4-selection.html` (+ .md) | |
 | 2.5 Population, sample, objects | L2 | done (decisions #50–#53) | `briefings/2.5-individuals.html` (+ .md) | |
-| 2.6 Model and kernels | L2–L3 | briefing ready | `briefings/2.6-model-core.html` (+ .md) | |
+| 2.6 Model and kernels | L2–L3 | done (decisions #54–#57) | `briefings/2.6-model-core.html` (+ .md) | |

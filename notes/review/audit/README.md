@@ -9,9 +9,11 @@ each owning one slice of the codebase, apply two lenses:
 - **simplify**: reuse, simplification, efficiency, consistency, dead code,
   naming, API/docstring mismatches.
 
-They do not change source code. Each writes `<area>.md` here. Findings are
-triaged as we reach the corresponding walkthrough step; outcomes go to
-`../DECISIONS.md`.
+They do not change source code. Each writes `<area>.md` here. Per DECISIONS #13
+the findings are triaged after the walkthrough, when every finding (127 in
+total) and every "change later" decision is merged into one change list for
+Phase 7.3; the default is to adopt each fix unless the redesign supersedes it.
+Walkthrough pages cite findings where relevant.
 
 | File | Slice |
 |---|---|

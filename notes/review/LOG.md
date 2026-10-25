@@ -245,3 +245,4 @@ Append-only. One entry per working session (or per step within a long session).
 ## 2026-10-25: step 2.6 page
 
 - Published `2.6-model-core.html`: model attributes and methods, one evaluation, kernels with a speed benchmark (`experiments/2.6_kernel_speed.py`; memory-bound, dtype-mixing trap), simplex helpers, kkt_gap and missing_information with audit fixes, M-1…M-14 table.
+- Josh: speed plan (#54), float32 option (#55), KKT fixes (#56), each concept once (#57); confirmed the audit findings (review + simplify) all go into the Phase 7.3 change list (audit README and PLAN updated). Phase 2 done; next 3.1.
