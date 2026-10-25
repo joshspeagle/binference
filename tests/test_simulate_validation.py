@@ -63,7 +63,7 @@ def test_mock_2d_categorical_unfolding():
     np.testing.assert_allclose(mc.posteriors.sum(1), 1.0)
     mu = mock_unfolding(2000, rng=7)
     assert mu.likelihoods.selection.mode == "observed"
-    assert mu.truth.extra["response"].shape == (25, 20)
+    assert mu.response.matrix.shape == (25, 20)
     np.testing.assert_allclose(mu.likelihoods.W, mu.measurements["reco_counts"].sum())
 
 

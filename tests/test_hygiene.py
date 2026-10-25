@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from binference import Bins, InputWarning, Likelihoods, PopulationModel, Selection
+from binference import Bins, InputWarning, Likelihoods, PopulationModel, Response, Selection
 
 
 @pytest.fixture
@@ -44,8 +44,8 @@ def test_an_ambiguous_sigma_is_refused():
 def test_no_objects_is_an_error(lk):
     with pytest.raises(ValueError, match="at least one object"):
         lk.subset([])
-    with pytest.raises(ValueError, match="no observed events"):
-        Likelihoods.from_response([0, 0], 0.5 * np.eye(2))
+    with pytest.raises(ValueError, match="no observed objects"):
+        Likelihoods.from_binned(Response(0.5 * np.eye(2), Bins.categories(2)), counts=[0, 0])
 
 
 def test_a_bad_representation_is_refused_before_any_work():
@@ -139,4 +139,4 @@ def test_huge_sigmas_keep_finite_rows():
 
 def test_fractional_counts_are_named_in_the_error():
     with pytest.raises(ValueError, match="counts must be integers"):
-        Likelihoods.from_response([2.5, 1.0], 0.5 * np.eye(2))
+        Likelihoods.from_binned(Response(0.5 * np.eye(2), Bins.categories(2)), counts=[2.5, 1])

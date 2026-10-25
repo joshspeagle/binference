@@ -16,8 +16,10 @@ Main entry points
 -----------------
 * :class:`Bins` -- the support (1-D/N-D grids or categories).
 * :class:`Likelihoods` -- per-object likelihoods, with converters from
-  posteriors (+ interim priors), samples, Gaussian measurements, response
-  matrices and classifier outputs.
+  tables, posteriors (+ interim priors), densities, samples, Gaussian
+  measurements and binned measurements.
+* :class:`Response` -- the response of a binned measurement (a detector, or a
+  classifier's scores on a labelled validation set).
 * :func:`infer` -- one-call inference (NUTS by default).
 * :mod:`binference.priors` -- Dirichlet family, smoothness priors, rates.
 * :mod:`binference.samplers` -- inference engines.
@@ -34,6 +36,7 @@ from .inference import infer
 from .likelihoods import Likelihoods
 from .measure import Measure
 from .model import PopulationModel
+from .response import Response
 from .results import PointEstimate, PopulationResult, Summary
 from .selection import Selection
 from .warnings import ApproximationWarning, BinferenceWarning, ConvergenceWarning, InputWarning
@@ -51,6 +54,7 @@ __all__ = [
     "PopulationEstimator",
     "PopulationModel",
     "PopulationResult",
+    "Response",
     "Selection",
     "Summary",
     "__version__",

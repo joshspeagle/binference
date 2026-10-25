@@ -26,6 +26,7 @@ from .density import (
     log_interval_masses,
 )
 from .measure import Measure
+from .response import Response
 from .selection import Selection, as_selection
 from .warnings import InputWarning
 
@@ -1061,125 +1062,79 @@ class Likelihoods:
         return lk
 
     @classmethod
-    def from_response(
+    def from_binned(
         cls,
-        counts: Any,
-        response: Any,
+        response: Response,
         *,
-        bins: Bins | None = None,
-        efficiency: Literal["from_response"] | Any | None = "from_response",
+        counts: Any = None,
+        values: Any = None,
         fractional_weights: bool = False,
     ) -> Likelihoods:
-        r"""HEP-style unfolding input: observed counts and a response matrix.
+        r"""Binned measurements: counts per measured bin, or measured values, and a response.
 
-        Every event observed in reco bin *j* has likelihood row
-        :math:`p(\text{reco } j,\ \text{observed} \mid \text{true } k)`, and rows
-        are weighted by the observed counts. Two conventions are supported:
-
-        * ``efficiency="from_response"`` (default): ``response[j, k] =
-          P(reco j, observed | true k)`` already includes the efficiency, so
-          its columns sum to :math:`\epsilon_k \le 1`.
-        * ``efficiency=eps``: ``response`` is a *migration* matrix
-          ``P(reco j | true k, observed)`` whose columns sum to one, and ``eps``
-          is the efficiency per true bin. The likelihood rows are then
-          ``response[j, k] * eps[k]``.
-
-        Either way the efficiency becomes the selection function, in
-        ``"observed"`` mode because it is already folded into the rows. Pass
-        ``efficiency=None`` to ignore selection altogether.
+        Every object measured in bin :math:`j` has likelihood row
+        :math:`R_{j\cdot}` (:class:`Response`), and rows are weighted by the
+        counts. The truth bins are the response's. The efficiency (the column
+        sums of :math:`R`) becomes the selection function in ``"observed"`` mode,
+        because the rows already include it. This covers unfolding (a detector
+        response) and classifier outputs binned by score
+        (:meth:`Response.from_labelled`, DECISIONS #29).
 
         Parameters
         ----------
-        counts : array_like, shape (J,)
-            Observed counts per reco bin (non-negative).
-        response : array_like, shape (J, K)
-            Response or migration matrix (see above).
-        bins : Bins, optional
-            True-spectrum bins (default ``Bins.categories(K)``).
-        efficiency : "from_response", array_like (K,), or None
-            How to obtain the efficiency (see above).
+        response : Response
+            The response of the measurement.
+        counts : array_like (J,), optional
+            Observed objects per measured bin (integers).
+        values : array_like, optional
+            Measured value of each object, binned by :meth:`Response.index`;
+            values outside the measured bins are left out with a warning. Give exactly one of
+            ``counts`` and ``values``.
+        fractional_weights : bool
+            Accept non-integer (for example weighted) counts, which give a
+            pseudo-likelihood.
         """
-        c = np.asarray(counts, dtype=float).ravel()
-        R = np.asarray(response, dtype=float)
-        if R.ndim != 2 or R.shape[0] != c.size:
-            raise ValueError("response must have shape (len(counts), K).")
-        if np.any(c < 0) or not np.all(np.isfinite(c)):
-            raise ValueError("counts must be finite and non-negative.")
-        if np.any(R < 0) or not np.all(np.isfinite(R)):
-            raise ValueError("response must be finite and non-negative.")
-        col = R.sum(axis=0)
-        if np.any(col > 1.0 + 1e-6):
-            raise ValueError(
-                "Columns of the response matrix sum to more than one, so they are not "
-                "probabilities P(reco j | true k). Normalise each column by the number of "
-                "simulated events generated in that true bin."
+        if not isinstance(response, Response):
+            raise TypeError(
+                f"response must be a binference.Response; got {type(response).__name__}."
             )
-        if not fractional_weights and not is_integer_array(c):
-            raise ValueError(
-                "counts must be integers; pass fractional_weights=True for weighted (e.g. "
-                "simulation-weighted) counts, which give a pseudo-likelihood."
-            )
-        keep = c > 0
-        if not keep.any():
-            raise ValueError("counts are all zero: there are no observed events.")
-        eff: np.ndarray | None
-        if isinstance(efficiency, str):
-            if efficiency != "from_response":
-                raise ValueError("efficiency must be 'from_response', an array, or None.")
-            eff = None if np.allclose(col, 1.0) else col
-        elif efficiency is None:
-            eff = None
-        else:
-            eff = np.asarray(efficiency, dtype=float).ravel()
-            if eff.shape != (R.shape[1],):
-                raise ValueError("efficiency must have one value per true bin.")
-            if not np.allclose(col[col > 0], 1.0, atol=1e-3):
+        if (counts is None) == (values is None):
+            raise ValueError("Give exactly one of counts= and values=.")
+        J = response.measured_bins.K
+        if values is not None:
+            j = response.index(values)
+            if np.any(j < 0):
                 warn(
-                    "With an explicit efficiency the response should be a migration matrix "
-                    "whose columns sum to one; these columns do not, so the efficiency may "
-                    "be counted twice.",
+                    f"{int(np.count_nonzero(j < 0))} values lie outside the measured bins and "
+                    "are left out.",
                     InputWarning,
                 )
-            R = R * eff[None, :]
-        sel = None if eff is None else Selection(eff, "observed")
+            c = np.bincount(j[j >= 0], minlength=J).astype(float)
+        else:
+            c = np.asarray(counts, dtype=float).ravel()
+            if c.shape != (J,):
+                raise ValueError(f"counts must have one entry per measured bin (J={J}).")
+            if not np.all(np.isfinite(c)) or np.any(c < 0):
+                raise ValueError("counts must be finite and non-negative.")
+            if not fractional_weights and not is_integer_array(c):
+                raise ValueError(
+                    "counts must be integers; pass fractional_weights=True for weighted (e.g. "
+                    "simulation-weighted) counts, which give a pseudo-likelihood."
+                )
+        keep = c > 0
+        if not keep.any():
+            raise ValueError("counts are all zero: there are no observed objects.")
+        eff = response.efficiency
+        sel = None if np.allclose(eff, 1.0) else Selection(eff, "observed")
         lk = cls(
-            R[keep], bins, weights=c[keep], selection=sel, fractional_weights=fractional_weights
-        )
-        lk.meta.update(source="response", reco_bins_used=np.flatnonzero(keep))
-        return lk
-
-    @classmethod
-    def from_classifier(
-        cls,
-        probabilities: Any,
-        train_prior: Any,
-        *,
-        labels: Sequence[Any] | None = None,
-        weights: Any = None,
-        fractional_weights: bool = False,
-    ) -> Likelihoods:
-        r"""Quantification input: calibrated classifier posteriors over classes.
-
-        A classifier trained with class prevalences :math:`\pi^{\rm train}`
-        outputs posteriors :math:`p_{ic} \propto L_{ic}\,\pi^{\rm train}_c`, so
-        likelihoods are recovered as :math:`L_{ic} \propto p_{ic}/\pi^{\rm train}_c`
-        (the correction underlying EMQ / SLD and its Bayesian variants).
-        """
-        p = np.asarray(probabilities, dtype=float)
-        if p.ndim != 2:
-            raise ValueError("probabilities must have shape (N, C).")
-        C = p.shape[1]
-        bins = Bins.categories(labels if labels is not None else C)
-        if bins.K != C:
-            raise ValueError("labels must have one entry per class.")
-        lk = cls.from_table(
-            p,
-            bins,
-            interim=np.asarray(train_prior, dtype=float),
-            weights=weights,
+            response.matrix[keep],
+            response.truth_bins,
+            weights=c[keep],
+            selection=sel,
             fractional_weights=fractional_weights,
         )
-        lk.meta["source"] = "classifier"
+        lk.meta.update(source="binned", response=response)
+        _attach_per_object(lk, measured_bin=np.flatnonzero(keep))
         return lk
 
 
@@ -1196,6 +1151,7 @@ _PER_OBJECT_KEYS = (
     "sample_sum",
     "sample_sq",
     "sample_count",
+    "measured_bin",
 )
 
 

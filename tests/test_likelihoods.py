@@ -6,7 +6,7 @@ import scipy.sparse as sp
 from scipy import stats
 
 import binference
-from binference import Bins, Likelihoods
+from binference import Bins, Likelihoods, Response
 from binference.warnings import InputWarning
 
 
@@ -269,29 +269,27 @@ def test_function_quadrature_converges():
     np.testing.assert_allclose(c.toarray(), a.toarray(), rtol=1e-4, atol=1e-8)
 
 
-def test_from_response():
+def test_from_binned():
     R = np.array([[0.7, 0.1], [0.2, 0.6], [0.05, 0.2]])  # columns sum < 1 (efficiency)
     counts = np.array([10, 0, 3])
-    lk = Likelihoods.from_response(counts, R)
+    lk = Likelihoods.from_binned(Response(R, Bins.categories(2)), counts=counts)
     assert lk.N == 2
     np.testing.assert_allclose(lk.weights, [10, 3])
     np.testing.assert_allclose(lk.toarray(), R[[0, 2]] / R[[0, 2]].max(1, keepdims=True))
     assert lk.selection.mode == "observed"
     np.testing.assert_allclose(lk.selection.values, R.sum(0))
-    assert (
-        Likelihoods.from_response(counts, R / R.sum(0), efficiency="from_response").selection
-        is None
-    )
-    assert Likelihoods.from_response(counts, R, efficiency=None).selection is None
+    full = Response(R / R.sum(0), Bins.categories(2))
+    assert Likelihoods.from_binned(full, counts=counts).selection is None
+    by_value = Likelihoods.from_binned(full, values=[0] * 10 + [2] * 3)
+    np.testing.assert_allclose(by_value.weights, [10, 3])
 
 
-def test_from_classifier():
+def test_classifier_posteriors_divide_out_the_training_prior():
     p = np.array([[0.7, 0.3], [0.2, 0.8]])
     pi = np.array([0.8, 0.2])
-    lk = Likelihoods.from_classifier(p, pi, labels=["a", "b"])
+    lk = Likelihoods.from_table(p, Bins.categories(["a", "b"]), interim=pi)
     expected = p / pi
     np.testing.assert_allclose(lk.toarray(), expected / expected.max(1, keepdims=True))
-    assert lk.bins.labels == ("a", "b")
 
 
 def test_compress_preserves_inference():
