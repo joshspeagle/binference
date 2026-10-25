@@ -28,7 +28,7 @@ def test_hand_built_geometric_edges_warn_unless_a_measure_is_given():
 
 
 def test_log_measure_rejects_non_positive_edges():
-    with pytest.raises(ValueError, match="domain of Measure.log"):
+    with pytest.raises(ValueError, match="outside the domain"):
         Bins([0.0, 1.0, 2.0], measure="log")
 
 
@@ -115,7 +115,7 @@ def test_neighbours_skip_masked_cells(masked):
     assert len(pairs) == len(Bins.grid(*masked.edges).neighbors()) - 4
 
 
-def test_coarsen_keeps_cells_with_any_active_fine_cell():
+def test_coarsen_keeps_wholly_active_blocks_and_drops_masked_ones():
     mask = np.ones(4, dtype=bool)
     mask[:2] = False
     b = Bins(np.linspace(0, 4, 5), mask=mask)
@@ -136,8 +136,10 @@ def test_masked_bins_compare_pickle_and_save_with_their_measure(masked):
 
 
 def test_invalid_masks_are_rejected():
-    with pytest.raises(ValueError, match="one entry per cell"):
+    with pytest.raises(ValueError, match="must have the grid"):
         Bins.linear(0, 1, 3, mask=[True, False])
+    with pytest.raises(ValueError, match="must have the grid"):  # a transposed 2-D mask
+        Bins.grid(np.arange(3.0), np.arange(4.0), mask=np.ones((3, 2), dtype=bool))
     with pytest.raises(ValueError, match="no bins"):
         Bins.linear(0, 1, 2, mask=[False, False])
 
@@ -172,3 +174,46 @@ def test_bins_cell_index_matches_grid_index_of_every_bin():
     b = Bins.grid(np.arange(4.0), np.arange(5.0), mask=mask)
     for got, want in zip(b.cell_index, np.unravel_index(b.cells, b.shape), strict=True):
         np.testing.assert_array_equal(got, want)
+
+
+def test_coarsen_rejects_a_partly_masked_block():
+    b = Bins(np.linspace(0, 4, 5), mask=[True, False, True, True])
+    with pytest.raises(ValueError, match="wholly active"):
+        b.coarsen(2)
+
+
+def test_from_centers_refuses_outer_bins_beyond_a_tabulated_measure():
+    m = Measure.density(lambda z: 1.0 + 0.0 * z, 0.0, 10.0)
+    with pytest.raises(ValueError, match="beyond the range"):
+        Bins.from_centers([0.0, 5.0, 10.0], measure=m)
+
+
+def test_cdf_likelihoods_on_masked_1d_bins_keep_only_active_bins():
+    from scipy import stats
+
+    b = Bins.linear(0, 4, 4, mask=[True, False, True, True])
+    L = Likelihoods.from_distributions([stats.norm(1.5, 0.3)], b).toarray()
+    full = Likelihoods.from_distributions([stats.norm(1.5, 0.3)], Bins.linear(0, 4, 4)).toarray()
+    ratio = L / full[:, b.cells]  # likelihoods are defined up to a per-object scale
+    np.testing.assert_allclose(ratio, ratio[0, 0], rtol=1e-6)
+
+
+@pytest.mark.parametrize("interim_prior", [None, "uniform"])
+def test_mock_posterior_samples_avoid_masked_bins(interim_prior):
+    mask = np.ones(30, dtype=bool)
+    mask[10:15] = False
+    b = Bins.linear(0, 3, 30, mask=mask)
+    mock = binference.simulate.mock_1d(300, b, interim_prior=interim_prior, n_samples=50, rng=3)
+    assert np.all(b.contains(mock.samples.ravel()))
+
+
+def test_masked_1d_results_plot_with_gaps():
+    import matplotlib
+
+    matplotlib.use("Agg")
+    mask = np.ones(30, dtype=bool)
+    mask[10:15] = False
+    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 30, mask=mask), rng=3)
+    res = binference.infer(mock.likelihoods, method="gibbs", rng=1, n_samples=20, check=False)
+    ax = res.plot(truth=mock.truth.rho, stack=mock.likelihoods.stack())
+    assert ax.get_xlim() == (0.0, 3.0)

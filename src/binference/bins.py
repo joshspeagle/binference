@@ -109,7 +109,7 @@ class Bins:
                         "linear, so the population is taken as flat in z within each bin. "
                         "Pass measure='log' (or use Bins.log) if it should be flat in log z.",
                         InputWarning,
-                        stacklevel=4,
+                        stacklevel=3,
                     )
             measure = "linear"
         if isinstance(measure, Measure | str):
@@ -127,9 +127,10 @@ class Bins:
         # are None when nothing is masked
         active = lookup = None
         if mask is not None:
-            if np.size(mask) != n:
-                raise ValueError(f"mask must have one entry per cell, shape {shape}.")
-            cells = np.flatnonzero(np.asarray(mask, dtype=bool))
+            mask = np.asarray(mask, dtype=bool)
+            if mask.shape != shape:
+                raise ValueError(f"mask must have the grid's shape {shape}; got {mask.shape}.")
+            cells = np.flatnonzero(mask)
             if cells.size == 0:
                 raise ValueError("mask leaves no bins in the support.")
             if cells.size < n:
@@ -218,7 +219,10 @@ class Bins:
         u = m.forward(c)
         mid = 0.5 * (u[1:] + u[:-1])
         u_edges = np.concatenate(([u[0] - (mid[0] - u[0])], mid, [u[-1] + (u[-1] - mid[-1])]))
-        return cls(m.inverse(u_edges), measure=m)
+        edges = m.inverse(u_edges)
+        if not np.allclose(m.forward(edges), u_edges):
+            raise ValueError(f"The outer bins extend beyond the range of {m!r}.")
+        return cls(edges, measure=m)
 
     @classmethod
     def grid(cls, *edges: Any, measure: Any = None, mask: Any = None) -> Bins:
@@ -499,9 +503,10 @@ class Bins:
     def coarsen(self, factor: int | Sequence[int]) -> tuple[Bins, np.ndarray]:
         """Merge blocks of ``factor`` adjacent bins along each axis.
 
-        Returns the coarse bins (same measures; a coarse cell is active when any
-        of its fine cells is) and a ``(K,)`` integer map from fine to coarse
-        bins, so that coarse fractions are ``np.bincount(map, weights=rho)``.
+        Returns the coarse bins (same measures and a coarsened mask) and a
+        ``(K,)`` integer map from fine to coarse bins, so that coarse fractions
+        are ``np.bincount(map, weights=rho)``. Each block must be wholly active
+        or wholly masked, since a coarse bin's volume is its full block.
         """
         if self.is_categorical:
             raise ValueError("Use explicit groups to merge categories.")
@@ -517,8 +522,10 @@ class Bins:
         coarse_flat = np.ravel_multi_index(coarse_idx, coarse_shape)
         mask = None
         if self.is_masked:
-            mask = np.zeros(math.prod(coarse_shape), dtype=bool)
-            mask[coarse_flat] = True
+            count = np.bincount(coarse_flat, minlength=math.prod(coarse_shape))
+            if np.any((count > 0) & (count < math.prod(f))):
+                raise ValueError("coarsen needs each block wholly active or wholly masked.")
+            mask = (count > 0).reshape(coarse_shape)
         coarse = Bins.grid(*new_edges, measure=self._measures, mask=mask)
         if coarse._lookup is not None:
             coarse_flat = coarse._lookup[coarse_flat]

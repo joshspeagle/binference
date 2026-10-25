@@ -710,7 +710,7 @@ class Likelihoods:
             if bins.ndim == 1 and hasattr(dist, "cdf"):
                 e = bins.edges[0]
                 c = np.asarray(dist.cdf(e), dtype=float)
-                masses[i] = np.clip(np.diff(c), 0.0, None)
+                masses[i] = np.clip(np.diff(c), 0.0, None)[bins.cells]
                 continue
             if pts is None:
                 pts, wq = _subbin_points(bins, n_sub)

@@ -77,7 +77,12 @@ def result_to_dict(result: PopulationResult) -> dict[str, Any]:
 
 
 def save_result(result: PopulationResult, path: str) -> None:
-    """Save a result to a compressed ``.npz`` file (versioned schema)."""
+    """Save a result to a compressed ``.npz`` file (versioned schema).
+
+    A :meth:`Measure.transform <binference.Measure.transform>` axis is saved as
+    a table of points, so it loads as a tabulated measure: the loaded bins
+    compare unequal to the original ones.
+    """
     meta, arrays = _bins_to_parts(result.bins)
     meta.update(
         schema=SCHEMA_VERSION,
