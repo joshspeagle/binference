@@ -35,6 +35,11 @@ class Density:
     __slots__ = ("_dist", "_flat", "_func", "_per_volume", "_values")
 
     def __init__(self, *, flat=None, values=None, per_volume=False, func=None, dist=None):
+        if sum(x is not None for x in (flat, values, func, dist)) != 1:
+            raise TypeError(
+                "Build a Density with flat, from_masses, from_densities, from_function, "
+                "from_distribution or coerce."
+            )
         self._flat = flat
         self._values = values
         self._per_volume = per_volume
@@ -91,9 +96,10 @@ class Density:
     ) -> Density:
         """A :class:`Density` from a density, ``"flat"``, a callable, a distribution or an array.
 
-        An array is read as masses or densities by ``representation``. Without
-        it the array is accepted only on bins where both readings agree
-        (categories and bins of equal volume); :meth:`masses` raises otherwise.
+        An array is read as masses or densities by ``representation`` (which
+        applies to arrays only). Without it the array is accepted only on bins
+        where both readings agree (categories and bins of equal volume);
+        :meth:`masses` raises otherwise.
         """
         if representation not in (None, "mass", "density"):
             raise ValueError(f"{name} representation must be 'mass' or 'density'.")
@@ -136,7 +142,7 @@ class Density:
             v = self._values
             if v.size != bins.K:
                 raise ValueError(f"{self!r} has {v.size} values but the bins have K={bins.K}.")
-            if self._per_volume is None and not np.allclose(bins.volumes, bins.volumes[0]):
+            if self._per_volume is None and not _equal_volumes(bins.volumes):
                 raise ValueError(
                     "An array interim prior on bins of unequal volume is ambiguous: pass its "
                     "representation ('mass' or 'density'), or Density.from_masses / "
@@ -146,15 +152,18 @@ class Density:
         if bins.is_categorical:
             if self._func is None:
                 raise ValueError("A distribution needs grid bins, not categories.")
-            labels = np.empty(bins.K, dtype=object)
-            labels[:] = bins.labels
-            return np.asarray(self._func(labels), dtype=float).ravel()
+            m = np.asarray(self._func(np.asarray(bins.labels)), dtype=float).ravel()
+            if m.size != bins.K:
+                raise ValueError(f"{self!r} must return one value per category.")
+            return m
         if self._dist is not None:
             return _dist_bin_masses(self._dist, bins, n_sub)
         return _func_bin_masses(self._func, bins, n_sub)
 
     def _pointwise(self) -> Callable[[np.ndarray], np.ndarray] | None:
         # the density as a function of z, or None when only bin masses are known
+        if self._flat == "z":
+            return lambda z: np.ones(np.shape(z)[0])
         return self._func if self._dist is None else _dist_pdf(self._dist)
 
     def __repr__(self) -> str:
@@ -166,6 +175,11 @@ class Density:
         if self._dist is not None:
             return f"Density.from_distribution({self._dist!r})"
         return f"Density.from_function({self._func!r})"
+
+
+def _equal_volumes(vol: np.ndarray) -> bool:
+    """Whether all bins have the same volume, so masses and densities read alike."""
+    return bool(np.allclose(vol, vol[0], rtol=1e-9, atol=0.0))
 
 
 def _is_distribution(x: Any) -> bool:
@@ -180,7 +194,7 @@ def _dist_pdf(dist: Any) -> Callable[[np.ndarray], np.ndarray]:
 
 def _func_bin_masses(func: Callable, bins: Bins, n_sub: int) -> np.ndarray:
     pts, w = _subbin_points(bins, n_sub)
-    dens = np.asarray(func(pts), dtype=float).ravel()
+    dens = np.asarray(func(pts.copy()), dtype=float).ravel()
     if dens.size != pts.shape[0]:
         raise ValueError("A density function must return one value per point.")
     return (dens.reshape(bins.K, -1) @ w) * bins.volumes

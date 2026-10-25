@@ -109,3 +109,24 @@ def test_every_prior_default_is_flat_in_the_measure_coordinate():
     np.testing.assert_allclose(alpha, flat)
     mean = _resolve_mean(None, logbins)  # the logistic priors' default mean
     np.testing.assert_allclose(np.exp(mean) / np.exp(mean).sum(), flat)
+
+
+def test_a_numeric_callable_on_integer_categories_gets_numbers():
+    d = Density.from_function(lambda k: np.exp(-k))
+    w = np.exp(-np.arange(3.0))
+    np.testing.assert_allclose(d.masses(Bins.categories(3)), w / w.sum())
+
+
+def test_tiny_unequal_bins_still_need_a_representation():
+    tiny = Bins([0.0, 1e-9, 3e-9])
+    with pytest.raises(ValueError, match="ambiguous"):
+        Density.coerce([1.0, 1.0]).masses(tiny)
+
+
+def test_the_interim_uses_the_constructor_quadrature():
+    bins = Bins.linear(0, 1, 2)
+    interim = lambda z: np.exp(8 * z)  # noqa: E731
+    lk = Likelihoods.from_function(
+        lambda z: np.exp(8 * z)[None, :], bins, n_sub=2, kind="posterior", interim_prior=interim
+    )
+    np.testing.assert_allclose(lk.toarray(), 1.0, rtol=1e-12)  # the interim divides out exactly

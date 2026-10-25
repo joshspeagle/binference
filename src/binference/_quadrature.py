@@ -15,9 +15,12 @@ def _gauss_legendre_unit(n: int) -> tuple[np.ndarray, np.ndarray]:
     return 0.5 * (x + 1.0), 0.5 * w
 
 
-@lru_cache(maxsize=16)
+@lru_cache(maxsize=4)
 def _subbin_points(bins: Bins, n_sub: int) -> tuple[np.ndarray, np.ndarray]:
-    """Quadrature points inside every bin and their within-bin weights (cached, read-only).
+    """Quadrature points inside every bin and their within-bin weights.
+
+    Cached for repeated calls on the same bins, so the arrays are read-only;
+    pass a copy to code that may modify them.
 
     Returns ``points`` with shape ``(K * M,)`` (1-D) or ``(K * M, ndim)`` and
     ``weights`` with shape ``(M,)``, where ``M = n_sub ** ndim``; points for

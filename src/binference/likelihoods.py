@@ -13,7 +13,13 @@ from scipy import special
 from ._quadrature import _subbin_points
 from ._utils import check_positive_weights
 from .bins import Bins
-from .density import Density, Representation, _dist_bin_masses, _is_distribution
+from .density import (
+    Density,
+    Representation,
+    _dist_bin_masses,
+    _equal_volumes,
+    _is_distribution,
+)
 from .selection import Selection, as_selection
 from .warnings import InputWarning
 
@@ -51,10 +57,13 @@ def _scale_columns(values, factors: np.ndarray):
 
 
 def _interim_masses(
-    interim_prior: InterimPrior, bins: Bins, representation: Representation | None = None
+    interim_prior: InterimPrior,
+    bins: Bins,
+    representation: Representation | None = None,
+    n_sub: int = 5,
 ) -> np.ndarray:
     """Normalised interim-prior mass per bin."""
-    return Density.coerce(interim_prior, representation).masses(bins)
+    return Density.coerce(interim_prior, representation).masses(bins, n_sub)
 
 
 def _check_kind(kind: str, interim_prior: Any) -> None:
@@ -347,7 +356,11 @@ class Likelihoods:
         meta["compressed_from"] = self.N
         return Likelihoods._from_parts(vals, ls / w, self._bins, w, self._selection, meta)
 
-    def stack(self, interim_prior: InterimPrior | None = None) -> np.ndarray:
+    def stack(
+        self,
+        interim_prior: InterimPrior | None = None,
+        interim_representation: Representation | None = None,
+    ) -> np.ndarray:
         """Naive "stacked" population estimate: the weighted mean of per-object posteriors.
 
         Posteriors are formed under ``interim_prior``: by default the interim
@@ -363,7 +376,7 @@ class Likelihoods:
             if Pi is None:
                 Pi = Density.flat().masses(self._bins)
         else:
-            Pi = _interim_masses(interim_prior, self._bins)
+            Pi = _interim_masses(interim_prior, self._bins, interim_representation)
         P = _scale_columns(self._values, Pi)
         tot = np.asarray(P.sum(axis=1)).ravel()
         if np.any(tot <= 0):
@@ -680,9 +693,11 @@ class Likelihoods:
             lk = cls.from_posteriors(
                 masses,
                 bins,
-                interim_prior,
+                # the interim prior uses the same quadrature as the values
+                Density.from_masses(
+                    _interim_masses(interim_prior, bins, interim_representation, n_sub)
+                ),
                 representation="mass",
-                interim_representation=interim_representation,
                 weights=weights,
                 selection=selection,
                 selection_mode=selection_mode,
@@ -720,7 +735,7 @@ class Likelihoods:
             raise ValueError("from_function needs ordered (grid) bins.")
         _check_kind(kind, interim_prior)
         pts, wq = _subbin_points(bins, n_sub)
-        vals = np.asarray(func(pts), dtype=float)
+        vals = np.asarray(func(pts.copy()), dtype=float)
         if vals.ndim != 2 or vals.shape[1] != pts.shape[0]:
             raise ValueError("func(points) must return an array of shape (N, n_points).")
         N = vals.shape[0]
@@ -745,9 +760,11 @@ class Likelihoods:
             lk = cls.from_posteriors(
                 dens,
                 bins,
-                interim_prior,
+                # the interim prior uses the same quadrature as the values
+                Density.from_masses(
+                    _interim_masses(interim_prior, bins, interim_representation, n_sub)
+                ),
                 representation="density",
-                interim_representation=interim_representation,
                 weights=weights,
                 selection=selection,
                 selection_mode=selection_mode,
@@ -941,7 +958,7 @@ def _normalise_log(log_values: Any):
 
 def _check_posterior_representation(P, vol: np.ndarray, representation: str) -> None:
     """Warn if declared posterior masses look like densities (or vice versa)."""
-    if np.allclose(vol, vol[0]):
+    if _equal_volumes(vol):
         return  # representation cannot affect inference with equal volumes
     # sums of the values read as masses, and as densities integrated over bins
     if sp.issparse(P):

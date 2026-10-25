@@ -246,11 +246,11 @@ class PopulationModel:
         return self.prior.prior_transform(np.asarray(u, dtype=float))
 
     def stack(self) -> np.ndarray:
-        """Naive stacking: average of per-object posteriors under a flat interim prior.
+        """Naive stacking: the mean of per-object posteriors; see :meth:`Likelihoods.stack`.
 
-        This is one EM step from a population that is uniform in the bin
-        coordinate. It is biased and too broad when PDFs are broad; it is
-        provided for comparison only.
+        The posteriors use the interim prior the likelihoods were built with
+        (flat if none). This is one EM step from that prior; it is biased and
+        too broad when PDFs are broad, and is provided for comparison only.
         """
         return self.likelihoods.stack()
 
