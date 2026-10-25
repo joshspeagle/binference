@@ -200,7 +200,10 @@ class SBCResult:
 
 
 def _draws_of_value(res: PopulationResult) -> np.ndarray:
-    """Draws on the scale the model is parametrised in: rates for rate models."""
+    """Draws on the scale the model is parametrised in: rates for rate models, and the
+    component weights with a :class:`~binference.Basis` (as the prior draws them)."""
+    if res.basis is not None:
+        return res.component_draws.reshape(-1, res.basis.C)
     return res.rates if res.kind == "rates" else res.samples
 
 

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from ._version import __version__
+from .basis import Basis
 from .bins import Bins
 from .measure import Measure
 
@@ -60,6 +61,7 @@ def result_to_dict(result: PopulationResult) -> dict[str, Any]:
     meta, arrays = _bins_to_parts(result.bins)
     out: dict[str, Any] = {
         "draws": result._draws,
+        **({} if result.basis is None else {"component_draws": result.component_draws}),
         "method": result.method,
         "kind": result.kind,
         "approximate": bool(result.approximate),
@@ -102,7 +104,16 @@ def save_result(result: PopulationResult, path: str) -> None:
             for name, draws in v.items():
                 arrays[f"hyper_{name}"] = np.asarray(draws, dtype=float)
     meta["info"] = scalars
-    payload: dict[str, Any] = {"draws": result._draws, "meta": np.array(json.dumps(meta))}
+    draws = result._draws
+    if result.basis is not None:  # the component draws, from which the bins' follow
+        b = result.basis
+        meta["basis"] = {
+            "order": b.order,
+            "resolution": list(b.resolution),
+            "oversample": b.oversample,
+        }
+        draws = result.component_draws
+    payload: dict[str, Any] = {"draws": draws, "meta": np.array(json.dumps(meta))}
     payload.update(arrays)
     if result.log_density_unconstrained is not None:
         payload["log_density_unconstrained"] = np.asarray(result.log_density_unconstrained)
@@ -135,6 +146,7 @@ def load_result(path: str) -> PopulationResult:
                 hyper[key[6:]] = np.array(data[key])
         if hyper:
             info["hyperparameters"] = hyper
+        basis = Basis(bins, **meta["basis"]) if "basis" in meta else None
         return PopulationResult(
             None,
             np.array(data["draws"]),
@@ -154,6 +166,7 @@ def load_result(path: str) -> PopulationResult:
             labels=np.array(data["labels"]) if "labels" in data.files else None,
             label_index=np.array(data["label_index"]) if "label_index" in data.files else None,
             prior_repr=meta.get("prior"),
+            basis=basis,
         )
 
 

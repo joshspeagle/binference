@@ -96,7 +96,7 @@ class PopulationModel:
         if selection is None and selection_mode is None:
             sel = likelihoods.selection
         else:
-            sel = as_selection(selection, selection_mode, likelihoods.bins)
+            sel = as_selection(selection, selection_mode, likelihoods.basis or likelihoods.bins)
         if sel is not None and sel.scale == "relative" and self.prior.kind == "rates":
             raise ValueError(
                 "Rates need an absolute selection (exposures); this one is relative "

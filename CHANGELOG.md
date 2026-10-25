@@ -33,6 +33,13 @@ First development version.
   its inverse, or the cumulative integral of a positive density. `Bins.log` uses the log
   measure; bin centres are midpoints in `u`; `Bins.from_centers` takes midpoints in `u`
   (positive edges for log-spaced centres, I-16). Geometric hand-built edges warn.
+- **Mixture basis and internal resolution** (DECISIONS #4, #5, #47, #76):
+  `binference.Basis(bins, order=0|1, resolution=r)` fits components on the bins refined
+  `r` times, flat (`order=0`) or linear B-spline hats (`order=1`), and reports in the
+  bins. Every constructor takes a `Basis` for `bins` (`Likelihoods.on_basis` for
+  per-bin likelihoods); callable selections are averaged with each component as the
+  weight. Results report per bin and keep `component_draws`; save and load keep the
+  basis. `Bins.refine` is the counterpart of `coarsen`.
 - **Masked grids** (DECISIONS #19): `mask=` on `Bins`, `Bins.grid`, `Bins.linear` and
   `Bins.log`; masked cells leave the support and the model. Saved and loaded with
   results.

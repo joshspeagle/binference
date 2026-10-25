@@ -1,0 +1,168 @@
+"""Tests for the mixture basis and internal resolution (DECISIONS #4, #5, #47, #76)."""
+
+import itertools
+
+import numpy as np
+import pytest
+from scipy import integrate, stats
+
+import binference
+from binference import Basis, Bins, Likelihoods, PopulationModel, PopulationResult
+from binference import priors as P
+from binference.samplers import MAP
+
+
+def _hats(bins, z):
+    # brute-force order-1 shapes in 1-D, linear bins: hats at the centres, constant ends
+    c = bins.centers
+    H = np.array([np.interp(z, c, np.eye(bins.K)[k]) for k in range(bins.K)])
+    return H / np.trapezoid(H, z, axis=1)[:, None]
+
+
+def test_hat_masses_are_exact_and_columns_sum_to_one():
+    A = Basis(Bins.linear(0, 3, 4), order=1).matrix.toarray()
+    # the first hat is 1 on [0, 0.375] then falls to 0 at 1.125: 0.65625 of its 0.75 in bin 0
+    np.testing.assert_allclose(A[:, 0], [0.875, 0.125, 0, 0], atol=1e-15)
+    np.testing.assert_allclose(A[:, 1], [0.125, 0.75, 0.125, 0], atol=1e-15)
+    basis = Basis(Bins.log(1, 100, 5), order=1, resolution=2)
+    np.testing.assert_allclose(basis.grid_masses.sum(axis=0), 1.0)
+    np.testing.assert_allclose(basis.matrix.sum(axis=0), 1.0)
+
+
+def test_hats_on_a_masked_grid_are_renormalised_over_active_cells():
+    G = Bins.grid([0, 1, 2, 3], [0, 1, 2], mask=np.array([[1, 1], [1, 0], [1, 1]], bool))
+    basis = Basis(G, order=1)
+    assert basis.matrix.shape == (5, 5)
+    np.testing.assert_allclose(basis.matrix.sum(axis=0), 1.0)
+
+
+def test_refine_and_coarsen_are_inverse():
+    for bins in (
+        Bins.log(1, 100, 4),
+        Bins.grid([0, 1, 2], [0, 1, 2, 3], mask=[[1, 0, 1], [1, 1, 1]]),
+    ):
+        fine, fmap = bins.refine(3 if bins.ndim == 1 else [2, 1])
+        assert fine.coarsen(3 if bins.ndim == 1 else [2, 1])[0] == bins
+        np.testing.assert_array_equal(np.bincount(fmap), [3 if bins.ndim == 1 else 2] * bins.K)
+    with pytest.raises(ValueError, match="factor"):
+        Bins.linear(0, 1, 3).refine(0)
+
+
+def test_the_flat_basis_at_resolution_one_changes_nothing():
+    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 8), rng=1)
+    d, s = mock.measurements["mean"], mock.measurements["sigma"]
+    plain = Likelihoods.from_gaussian(d, s, mock.likelihoods.bins)
+    on_basis = Likelihoods.from_gaussian(d, s, Basis(mock.likelihoods.bins))
+    np.testing.assert_array_equal(on_basis.values, plain.values)
+    np.testing.assert_array_equal(
+        MAP(PopulationModel(on_basis)).run().rho, MAP(PopulationModel(plain)).run().rho
+    )
+
+
+def test_flat_components_are_the_refined_bins_summed_back():
+    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 6), rng=2)
+    d, s = mock.measurements["mean"], mock.measurements["sigma"]
+    basis = Basis(mock.likelihoods.bins, resolution=3)
+    fine, fmap = mock.likelihoods.bins.refine(3)
+    lk, lk_fine = Likelihoods.from_gaussian(d, s, basis), Likelihoods.from_gaussian(d, s, fine)
+    np.testing.assert_allclose(lk.values, lk_fine.values, rtol=1e-12)
+    prior = P.LogisticGP(length_scale=1.0)
+    rho = MAP(PopulationModel(lk, prior)).run().rho
+    w = MAP(PopulationModel(lk_fine, prior)).run().rho
+    np.testing.assert_allclose(rho, np.bincount(fmap, weights=w), atol=1e-8)
+
+
+@pytest.mark.filterwarnings("ignore:Non-integer weights:binference.InputWarning")
+def test_resolution_and_hats_remove_the_binning_bias():
+    # the large-N limit: data on a fine grid weighted by their exact density, so the
+    # fit has no noise and its error is the binning bias alone (DECISIONS #5)
+    beta, s = 1.5, 0.2
+    bins = Bins.linear(0, 3, 10)
+    f = lambda x: beta * np.exp(-beta * x) / (1 - np.exp(-beta * 3))  # noqa: E731
+    e = bins.edges[0]
+    truth = np.array([integrate.quad(f, a, b)[0] for a, b in itertools.pairwise(e)])
+    zq = np.linspace(0, 3, 6001)
+    d = np.linspace(-0.8, 3.8, 1500)
+    pd = np.trapezoid(f(zq)[None] * stats.norm.pdf(d[:, None], zq[None], s), zq, axis=1)
+    err = {}
+    for order, res in [(0, 1), (1, 1), (1, 4)]:
+        basis = Basis(bins, order=order, resolution=res)
+        lk = Likelihoods.from_gaussian(
+            d,
+            np.full(d.size, s),
+            basis,
+            weights=1e4 * pd / pd.sum(),
+            fractional_weights=True,
+            warn_outside=False,  # data beyond the range, as the population convolved
+        )
+        rho = MAP(PopulationModel(lk, P.LogisticRandomWalk(order=2))).run().rho
+        err[order, res] = np.max(np.abs(rho / truth - 1))
+    # measured: 7.4%, 3.3% and 0.11%
+    assert err[0, 1] > 0.05 and err[1, 1] < 0.6 * err[0, 1] and err[1, 4] < 0.005
+
+
+def test_a_selection_function_is_averaged_with_each_component_as_weight():
+    bins = Bins.linear(0, 3, 8)
+    basis = Basis(bins, order=1)
+    S = lambda z: 1 / (1 + np.exp(-3 * (np.asarray(z) - 1.0)))  # noqa: E731
+    z = np.linspace(0, 3, 300001)
+    brute = np.trapezoid(_hats(bins, z) * S(z), z, axis=1)
+    sel = binference.Selection.from_function(S, basis, "on_truth")
+    # the grid cells average S, then the hats weight them: an O(h^2) error, h = 3/64
+    np.testing.assert_allclose(sel.values, brute, atol=1e-3)
+    assert sel.basis == basis
+    per_bin = np.linspace(0.2, 0.9, 8)
+    sel = binference.selection.as_selection(per_bin, "on_measurement", basis)
+    np.testing.assert_allclose(sel.values, basis.matrix.T @ per_bin)
+    assert binference.selection.as_selection(sel, None, basis) is sel  # not mapped twice
+    with pytest.raises(ValueError, match="different basis"):
+        binference.selection.as_selection(sel, None, Basis(bins, order=1, resolution=2))
+
+
+def test_per_bin_likelihoods_move_onto_a_basis_as_flat_within_bins():
+    bins = Bins.linear(0, 1, 4)
+    basis = Basis(bins, order=1)
+    L = np.array([[1.0, 2.0, 1.0, 0.0], [0.0, 1.0, 3.0, 1.0]])
+    lk = Likelihoods(L, bins).on_basis(basis)
+    expect = L @ basis.matrix.toarray()
+    np.testing.assert_allclose(lk.toarray(), expect / expect.max(axis=1, keepdims=True))
+    np.testing.assert_allclose(Likelihoods(L, basis).toarray(), lk.toarray())
+    with pytest.raises(ValueError, match="already"):
+        lk.on_basis(basis)
+    with pytest.raises(ValueError, match="bins"):
+        Likelihoods(L, Bins.linear(0, 2, 4)).on_basis(basis)
+
+
+def test_values_drawn_inside_hats_follow_the_population():
+    # broad likelihoods: an object's value then follows the population density itself
+    bins = Bins.linear(0, 3, 6)
+    basis = Basis(bins, order=1)
+    n = 4000
+    lk = Likelihoods.from_gaussian(np.full(n, 1.5), np.full(n, 50.0), basis, warn_outside=False)
+    w = np.array([0.0, 0.7, 0.0, 0.0, 0.3, 0.0])  # separate hats: triangles, not boxes
+    est = binference.PointEstimate(PopulationModel(lk), w)
+    v = est.sample_values(rng=0)[0]
+    z = np.linspace(0, 3, 30001)
+    cdf = np.concatenate([[0], integrate.cumulative_trapezoid(w @ _hats(bins, z), z)])
+    assert stats.kstest(v, lambda x: np.interp(x, z, cdf)).pvalue > 1e-3
+
+
+def test_results_report_bins_and_keep_component_draws(tmp_path):
+    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 6), rng=3)
+    d, s = mock.measurements["mean"], mock.measurements["sigma"]
+    basis = Basis(mock.likelihoods.bins, order=1, resolution=2)
+    lk = Likelihoods.from_gaussian(d, s, basis)
+    res = binference.infer(lk, method="gibbs", n_samples=100, n_warmup=50, rng=0, check=False)
+    assert res.bins == basis.bins and res.samples.shape[1] == 6
+    np.testing.assert_allclose(res.samples, basis.to_bins(res.component_draws.reshape(-1, 12)))
+    counts = res.realized_counts(n_draws=3, rng=1)
+    assert np.all(counts == np.round(counts)) and np.allclose(counts.sum(axis=1), 300)
+    np.testing.assert_allclose(res.assignment_probabilities(idx=[0, 1]).sum(axis=1), 1.0)
+    path = tmp_path / "r.npz"
+    res.save(str(path))
+    back = PopulationResult.load(str(path))
+    assert back.basis == basis
+    np.testing.assert_allclose(back.mean, res.mean)
+    back.attach(lk).assignment_probabilities(idx=[0])
+    with pytest.raises(ValueError, match="basis"):
+        back.attach(Likelihoods.from_gaussian(d, s, mock.likelihoods.bins))

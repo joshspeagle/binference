@@ -6,6 +6,7 @@ from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+import scipy.sparse as sp
 from scipy import special
 
 from . import _kernels as kern
@@ -15,6 +16,7 @@ from .bins import Bins
 from .warnings import ConvergenceWarning, InputWarning
 
 if TYPE_CHECKING:  # pragma: no cover
+    from .basis import Basis
     from .likelihoods import Likelihoods
     from .model import PopulationModel
 
@@ -110,9 +112,18 @@ def _hdi(x: np.ndarray, level: float) -> tuple[float, float]:
 # shared individual-object helpers
 # ----------------------------------------------------------------------------
 class _IndividualMixin:
-    """Methods for per-object outputs that need the likelihoods (via the model)."""
+    """Methods for per-object outputs that need the likelihoods (via the model).
+
+    With a :class:`~binference.Basis` the model's columns are components: these
+    methods work on the component weights and report per bin, sharing each
+    component among the bins by its mass :math:`A_{jk}` (exact for flat
+    components; for hats the likelihood's variation within a component is
+    ignored in that share).
+    """
 
     model: PopulationModel | None
+    basis: Basis | None
+    bins: Bins
 
     def _require_model(self) -> PopulationModel:
         if self.model is None:
@@ -121,15 +132,55 @@ class _IndividualMixin:
             )
         return self.model
 
-    def _rho_draws(self) -> np.ndarray:  # (n, K) fractions
+    def _rho_draws(self) -> np.ndarray:  # (n, K) fractions in the bins
         raise NotImplementedError
 
-    def _select_draws(self, n_draws: int | None, rng: RNGLike = None) -> np.ndarray:
-        R = self._rho_draws()
+    def _weight_draws(self) -> np.ndarray:  # (n, C) fractions of the model's components
+        raise NotImplementedError
+
+    def _select_draws(self, n_draws: int | None, components: bool = False) -> np.ndarray:
+        R = self._weight_draws() if components else self._rho_draws()
         if n_draws is None or n_draws >= R.shape[0]:
             return R
         idx = np.linspace(0, R.shape[0] - 1, int(n_draws)).round().astype(int)
         return R[idx]
+
+    def _to_bins(self, P: np.ndarray) -> np.ndarray:
+        """Per-component values ``(..., C)`` summed into the bins ``(..., K)``."""
+        return P if self.basis is None else self.basis.to_bins(P)
+
+    def _shares(self) -> sp.csr_array:
+        # (C, K): each component's mass in each bin, a row per component
+        return sp.csr_array(self.basis.matrix.T)
+
+    def _labels_to_bins(self, labels: np.ndarray, gen: np.random.Generator) -> np.ndarray:
+        """Component labels as bin labels, each drawn from its component's shares."""
+        if self.basis is None or self.basis.is_identity:
+            return labels
+        flat = kern.sample_labels(self._shares()[labels.ravel()], np.ones(self.bins.K), gen)
+        return flat.reshape(labels.shape)
+
+    def _counts_to_bins(self, counts: np.ndarray, gen: np.random.Generator) -> np.ndarray:
+        """Integer counts per component as counts per bin, shared multinomially."""
+        if self.basis is None or self.basis.is_identity:
+            return counts
+        S = self._shares()
+        n = kern._multinomial_csr(S, np.round(counts).astype(np.int64), np.ones(self.bins.K), gen)
+        return np.bincount(S.indices, weights=n, minlength=self.bins.K)
+
+    def _new_likelihoods(self, likelihoods: Any) -> Likelihoods:
+        from .likelihoods import Likelihoods
+
+        model = self._require_model()
+        basis = model.likelihoods.basis
+        lk = (
+            likelihoods
+            if isinstance(likelihoods, Likelihoods)
+            else Likelihoods(likelihoods, basis or model.bins)
+        )
+        if lk.K != model.K or lk.basis != basis:
+            raise ValueError("New likelihoods must use the same bins (and basis).")
+        return lk
 
     def assignment_probabilities(
         self, idx: Any = None, n_draws: int | None = 500, chunk: int = 4096
@@ -143,7 +194,7 @@ class _IndividualMixin:
         Returns an ``(n, K)`` array for the objects ``idx`` (all by default).
         """
         model = self._require_model()
-        R = self._select_draws(n_draws)
+        R = self._select_draws(n_draws, components=True)
         L = model._L if idx is None else model._L[np.atleast_1d(np.arange(model.N)[idx])]
         n = L.shape[0]
         out = np.zeros((n, model.K))
@@ -156,7 +207,7 @@ class _IndividualMixin:
                 tot = P.sum(axis=1, keepdims=True)
                 acc += P / np.where(tot > 0, tot, 1.0)  # rows with no support stay zero
             out[sl] = acc / R.shape[0]
-        return out
+        return self._to_bins(out)
 
     def sample_assignments(
         self, idx: Any = None, n_draws: int | None = None, rng: RNGLike = None
@@ -168,9 +219,12 @@ class _IndividualMixin:
         are exact joint draws from :math:`p(\\rho, z \\mid D)`. Returns an
         ``(n_draws, n_objects)`` integer array.
         """
-        model = self._require_model()
         gen = as_generator(rng)
-        R = self._select_draws(n_draws)
+        return self._labels_to_bins(self._component_labels(idx, n_draws, gen), gen)
+
+    def _component_labels(self, idx: Any, n_draws: int | None, gen: np.random.Generator):
+        model = self._require_model()
+        R = self._select_draws(n_draws, components=True)
         L = model._L if idx is None else model._L[np.atleast_1d(np.arange(model.N)[idx])]
         return np.stack([kern.sample_labels(L, rho, gen) for rho in R])
 
@@ -184,17 +238,18 @@ class _IndividualMixin:
         """
         model = self._require_model()
         gen = as_generator(rng)
-        R = self._select_draws(n_draws)
+        R = self._select_draws(n_draws, components=True)
         w = model._w
         unit = bool(np.all(w == 1))
         integer = bool(np.all(np.abs(w - np.round(w)) < 1e-12))
-        out = np.empty((R.shape[0], model.K))
+        out = np.empty((R.shape[0], self.bins.K))
         for s, rho in enumerate(R):
             if unit or integer:
-                out[s] = kern.sample_counts(model._L, w, rho, gen, unit_weights=unit)[0]
+                n = kern.sample_counts(model._L, w, rho, gen, unit_weights=unit)[0]
+                out[s] = self._counts_to_bins(n, gen)
             else:
-                labels = kern.sample_labels(model._L, rho, gen)
-                out[s] = np.bincount(labels, weights=w, minlength=model.K)
+                labels = self._labels_to_bins(kern.sample_labels(model._L, rho, gen), gen)
+                out[s] = np.bincount(labels, weights=w, minlength=self.bins.K)
         return out
 
     def sample_values(
@@ -220,16 +275,24 @@ class _IndividualMixin:
         * otherwise uniformly within the bin, the top-hat approximation, which
           is accurate only when likelihoods are nearly flat within bins.
 
+        With a :class:`~binference.Basis` the label is a component: flat
+        components are sampled as above on their cells, and for hats a value
+        proposed in the same way on the hat's support is accepted with the
+        hat's height.
+
         With weighted (compressed) rows each row is treated as one object.
         Returns ``(n_draws, n_objects)`` (1-D) or ``(n_draws, n_objects, ndim)``.
         """
         model = self._require_model()
-        bins = model.bins
+        bins = model.bins  # the components' cells with a basis
         if bins.is_categorical:
             raise ValueError("Categorical bins have no continuous values; use sample_assignments.")
         gen = as_generator(rng)
         rows = np.atleast_1d(np.arange(model.N)[slice(None) if idx is None else idx])
-        labels = self.sample_assignments(idx=rows, n_draws=n_draws, rng=gen)
+        labels = self._component_labels(rows, n_draws, gen)
+        basis = model.likelihoods.basis
+        if basis is not None and basis.order == 1:
+            return self._sample_values_hat(model, basis, rows, labels, gen, loglike, n_sub)
         multi = bins.grid_index(labels)
         meta = model.likelihoods.meta
         if "gaussian_mean" in meta:
@@ -262,19 +325,56 @@ class _IndividualMixin:
             return out
         return bins.sample_within(labels, gen)
 
+    @staticmethod
+    def _sample_values_hat(model, basis, rows, labels, gen, loglike, n_sub) -> np.ndarray:
+        # hats: propose from the object's likelihood (or uniformly in u) on the hat's
+        # support and accept with the hat's height, which is at most one
+        meta = model.likelihoods.meta
+        nd = basis.bins.ndim
+        if loglike is not None and nd != 1:
+            raise ValueError("loglike-based sampling supports 1-D bins only.")
+        cols = np.broadcast_to(np.arange(rows.size), labels.shape)
+        out = np.empty((*labels.shape, nd))
+        todo = np.ones(labels.shape, dtype=bool)
+        while todo.any():
+            lab, col = labels[todo], cols[todo]
+            lo, hi = basis.support(lab)  # (n, nd) in u
+            u = np.empty_like(lo)
+            for d, m in enumerate(basis.bins.measures):
+                zlo, zhi = m.inverse(lo[:, d]), m.inverse(hi[:, d])
+                if "gaussian_mean" in meta:
+                    from scipy import stats
+
+                    mu = np.asarray(meta["gaussian_mean"])[rows[col], d]
+                    sig = np.asarray(meta["gaussian_sigma"])[rows[col], d]
+                    a, b = (zlo - mu) / sig, (zhi - mu) / sig
+                    z = stats.truncnorm.rvs(a, b, loc=mu, scale=sig, random_state=gen)
+                    u[:, d] = m.forward(z)
+                elif loglike is not None:
+                    t = (np.arange(n_sub) + 0.5) / n_sub
+                    for r in range(lab.size):
+                        zz = zlo[r] + (zhi[r] - zlo[r]) * t
+                        lw = np.asarray(loglike(zz, int(rows[col[r]])), dtype=float).ravel()
+                        p = np.exp(lw - lw.max())
+                        cell = gen.choice(n_sub, p=p / p.sum())
+                        z = zz[cell] + (zhi[r] - zlo[r]) / n_sub * (gen.random() - 0.5)
+                        u[r, d] = m.forward(z)
+                else:
+                    u[:, d] = lo[:, d] + (hi[:, d] - lo[:, d]) * gen.random(lab.size)
+            z = np.stack([m.inverse(u[:, d]) for d, m in enumerate(basis.bins.measures)], -1)
+            ok = gen.random(lab.size) < basis.shape(lab, u)
+            if basis.bins.is_masked:
+                ok &= basis.bins.contains(z if nd > 1 else z[:, 0])
+            idx = np.flatnonzero(todo)[ok]
+            out.reshape(-1, nd)[idx] = z[ok]
+            todo.ravel()[idx] = False
+        return out[..., 0] if nd == 1 else out
+
     def predict_proba(self, likelihoods: Likelihoods | Any, n_draws: int | None = 500):
         """Posterior over bins for *new* objects under the inferred population."""
-        from .likelihoods import Likelihoods
-
         model = self._require_model()
-        lk = (
-            likelihoods
-            if isinstance(likelihoods, Likelihoods)
-            else Likelihoods(likelihoods, model.bins)
-        )
-        if lk.K != model.K:
-            raise ValueError("New likelihoods must use the same bins.")
-        R = self._select_draws(n_draws)
+        lk = self._new_likelihoods(likelihoods)
+        R = self._select_draws(n_draws, components=True)
         L = model.effective_likelihoods(lk)
         L = L.toarray() if hasattr(L, "toarray") else np.asarray(L)
         acc = np.zeros_like(L)
@@ -282,7 +382,7 @@ class _IndividualMixin:
             P = L * rho
             tot = P.sum(axis=1, keepdims=True)
             acc += P / np.where(tot > 0, tot, 1.0)
-        return acc / R.shape[0]
+        return self._to_bins(acc / R.shape[0])
 
     def log_predictive(self, likelihoods: Likelihoods | Any, n_draws: int | None = 500):
         r"""Log posterior-predictive density of new objects, :math:`\log E[L_i\cdot\rho]`.
@@ -290,15 +390,9 @@ class _IndividualMixin:
         Includes the per-object log-scales of the likelihoods, so values can be
         compared across priors and binnings (e.g. for cross-validation).
         """
-        from .likelihoods import Likelihoods
-
         model = self._require_model()
-        lk = (
-            likelihoods
-            if isinstance(likelihoods, Likelihoods)
-            else Likelihoods(likelihoods, model.bins)
-        )
-        R = self._select_draws(n_draws)  # fractions (rates rescale out of the ratio)
+        lk = self._new_likelihoods(likelihoods)
+        R = self._select_draws(n_draws, components=True)  # rates rescale out of the ratio
         S = np.asarray(model.effective_likelihoods(lk) @ R.T)  # (N_new, n_draws)
         if model.selection is not None:  # a new *detected* object: divide by S . rho
             S = S / (R @ model.selection)[None, :]
@@ -342,6 +436,7 @@ class PopulationResult(_IndividualMixin):
         labels: np.ndarray | None = None,
         label_index: np.ndarray | None = None,
         prior_repr: str | None = None,
+        basis: Basis | None = None,
     ) -> None:
         d = np.asarray(draws, dtype=float)
         if d.ndim == 2:
@@ -349,9 +444,17 @@ class PopulationResult(_IndividualMixin):
         if d.ndim != 3:
             raise ValueError("draws must have shape (n_chains, n_draws, K) or (n_draws, K).")
         self.model = model
-        self._draws = d
+        if basis is None and model is not None:
+            basis = model.likelihoods.basis
+        #: the :class:`~binference.Basis` of the model's components, or ``None``
+        self.basis = basis
+        #: draws of the component weights (with a basis; the draws are then per bin)
+        self.component_draws = None if basis is None else d
+        self._draws = d if basis is None else basis.to_bins(d)
         self.kind = kind
-        self.bins = bins if bins is not None else (model.bins if model is not None else None)
+        if bins is None:
+            bins = basis.bins if basis is not None else model.bins if model is not None else None
+        self.bins = bins
         if self.bins is None:
             self.bins = Bins.categories(d.shape[-1])
         self.x = x
@@ -394,7 +497,10 @@ class PopulationResult(_IndividualMixin):
         m = likelihoods_or_model
         if not isinstance(m, PopulationModel):
             m = PopulationModel(m)
-        if m.K != self.bins.K:
+        if m.likelihoods.basis != self.basis:
+            raise ValueError("The likelihoods use a different basis than this result.")
+        K = self.bins.K if self.basis is None else self.basis.C
+        if m.K != K:
             raise ValueError("Likelihoods have a different number of bins.")
         self.model = m
         for key in [k for k in self._cache if isinstance(k, tuple) and k[0] == "predictive_p"]:
@@ -436,6 +542,12 @@ class PopulationResult(_IndividualMixin):
 
     def _rho_draws(self) -> np.ndarray:
         return self.samples
+
+    def _weight_draws(self) -> np.ndarray:
+        if self.basis is None:
+            return self.samples
+        W = self.component_draws.reshape(-1, self.basis.C)
+        return W / W.sum(axis=-1, keepdims=True) if self.kind == "rates" else W
 
     def _which(self, which: str) -> np.ndarray:
         if which == "fractions":
@@ -572,8 +684,13 @@ class PopulationResult(_IndividualMixin):
 
     def _missing_information(self) -> float | None:
         """Fraction of missing information at the posterior mean (cached in ``info``)."""
-        if "missing_information" not in self.info and self.model is not None and self.K <= 500:
-            value = self._draws.reshape(-1, self.K).mean(axis=0)
+        if (
+            "missing_information" not in self.info
+            and self.model is not None
+            and self.model.K <= 500
+        ):
+            draws = self._draws if self.basis is None else self.component_draws
+            value = draws.reshape(-1, self.model.K).mean(axis=0)
             try:
                 self.info["missing_information"] = self.model.missing_information(value)
             except (np.linalg.LinAlgError, ValueError):
@@ -648,7 +765,8 @@ class PopulationResult(_IndividualMixin):
         lk = self.model.likelihoods if self.model is not None else None
         inputs, input_hints = [], []
         if lk is not None and "sample_sum" in lk.meta:
-            rho = self.mean  # the population the objects are drawn from, after selection
+            # the population the objects are drawn from, after selection
+            rho = self._weight_draws().mean(axis=0)
             if self.model.selection_row is not None:
                 rho = rho * self.model.selection_row
             var, _ = lk.sample_variance(rho)
@@ -785,7 +903,9 @@ class PointEstimate(_IndividualMixin):
     Attributes
     ----------
     value : (K,) array
-        Fractions (or rates for rate models) at the optimum.
+        Fractions (or rates for rate models) at the optimum; with a
+        :class:`~binference.Basis`, the component weights (:attr:`rho` and
+        :attr:`rates` are per bin).
     x : (dim,) array or None
         Unconstrained coordinates (when optimised there).
     kkt_gap : float
@@ -817,24 +937,33 @@ class PointEstimate(_IndividualMixin):
         self.converged = bool(converged)
         self.info = dict(info or {})
         self.kind = model.kind if model is not None else "fractions"
-        self.bins = model.bins if model is not None else Bins.categories(self.value.size)
+        self.basis = model.likelihoods.basis if model is not None else None
+        if self.basis is not None:
+            self.bins = self.basis.bins
+        else:
+            self.bins = model.bins if model is not None else Bins.categories(self.value.size)
 
     @property
     def rho(self) -> np.ndarray:
-        """Population fractions at the optimum."""
-        return self.value / self.value.sum() if self.kind == "rates" else self.value
+        """Population fractions at the optimum (per bin)."""
+        v = self._to_bins(self.value)
+        return v / v.sum() if self.kind == "rates" else v
 
     @property
     def rates(self) -> np.ndarray | None:
-        """Rates at the optimum for rate models, else ``None``."""
-        return self.value if self.kind == "rates" else None
+        """Rates at the optimum (per bin) for rate models, else ``None``."""
+        return self._to_bins(self.value) if self.kind == "rates" else None
 
     def _rho_draws(self) -> np.ndarray:
         return self.rho[None, :]
 
+    def _weight_draws(self) -> np.ndarray:
+        v = self.value
+        return (v / v.sum() if self.kind == "rates" else v)[None, :]
+
     def density(self) -> np.ndarray:
         """Population density per unit bin volume at the optimum."""
-        base = self.value if self.kind == "rates" else self.rho
+        base = self.rates if self.kind == "rates" else self.rho
         return base / self.bins.volumes
 
     def laplace(self, n_samples: int = 4000, rng: RNGLike = None, **kwargs: Any):
