@@ -181,14 +181,30 @@ def _rows_logpdf(dists: list[Any], ndim: int) -> Callable[[np.ndarray, np.ndarra
     return logpdf
 
 
-def _log_mvn_rows(z: np.ndarray, r: np.ndarray, mu: np.ndarray, chol: np.ndarray) -> np.ndarray:
-    # log N(z[p] | mu[r[p]], L L^T) with L = chol[r[p]], for points z of shape (P, M, ndim)
-    L = chol[r]
-    diff = np.swapaxes(z - mu[r][:, None, :], 1, 2)  # (P, ndim, M)
-    y = np.linalg.solve(L, diff)  # L is lower triangular
-    logdet = np.log(np.diagonal(L, axis1=1, axis2=2)).sum(axis=1)
-    nd = z.shape[-1]
-    return -0.5 * (y**2).sum(axis=1) - logdet[:, None] - 0.5 * nd * np.log(2 * np.pi)
+def _correlated_gaussian(mu, C, bins, tol, max_depth) -> tuple[np.ndarray, np.ndarray]:
+    """Log bin averages (in u) and log bin masses (in z) of multivariate normal likelihoods."""
+    try:
+        chol = np.linalg.cholesky(C)
+    except np.linalg.LinAlgError:
+        raise ValueError("cov must be symmetric positive definite for every object.") from None
+    inv_chol = np.linalg.inv(chol)  # whitening: y = L^-1 (z - mu)
+    log_norm = -np.log(np.diagonal(chol, axis1=1, axis2=2)).sum(axis=1)
+    log_norm -= 0.5 * bins.ndim * np.log(2 * np.pi)
+    logf = partial(_log_mvn_rows, mu=mu, inv_chol=inv_chol, log_norm=log_norm)
+    rows = mu.shape[0]
+    log_avg = bin_log_average(logf, bins, rows=rows, tol=tol, max_depth=max_depth)
+    if all(m == Measure.linear() for m in bins.measures):
+        return log_avg, log_avg + np.log(bins.volumes)
+    # the masses only feed the outside fraction, so a looser tolerance is enough
+    loose = max(tol, 1e-2)
+    log_z = bin_log_average(logf, bins, rows=rows, coordinate="z", tol=loose, max_depth=max_depth)
+    return log_avg, log_z + np.log(bins.volumes)
+
+
+def _log_mvn_rows(z, r, mu, inv_chol, log_norm) -> np.ndarray:
+    # log N(z[p] | mu[r[p]], C[r[p]]) for points z of shape (P, M, ndim)
+    y = (z - mu[r][:, None, :]) @ np.swapaxes(inv_chol[r], 1, 2)
+    return log_norm[r][:, None] - 0.5 * (y**2).sum(axis=-1)
 
 
 def _log_gauss_rows(z: np.ndarray, r: np.ndarray, mu: np.ndarray, sig: np.ndarray) -> np.ndarray:
@@ -784,11 +800,16 @@ class Likelihoods:
                 raise ValueError(
                     f"cov must have shape ({nd}, {nd}) or (N, {nd}, {nd}); got {np.shape(cov)}."
                 )
-            if nd > 1:
-                return cls._from_correlated_gaussian(
-                    mu, C, bins, tol, max_depth, warn_outside, tail
-                )
-            sigma = np.sqrt(C[:, 0, 0])
+            if not np.allclose(C, np.swapaxes(C, 1, 2)):
+                raise ValueError("cov must be symmetric positive definite for every object.")
+            off = C * (1 - np.eye(nd))
+            if np.any(off):  # correlated: adaptive cubature
+                logL, log_mass = _correlated_gaussian(mu, C, bins, tol, max_depth)
+                lk = cls(logL, bins, log=True, **tail)
+                lk.meta.update(source="gaussian")
+                _record_outside(lk, _outside(special.logsumexp(log_mass, axis=1)), warn_outside)
+                return lk
+            sigma = np.sqrt(np.diagonal(C, axis1=1, axis2=2))  # independent axes: exact
         sig = np.asarray(sigma, dtype=float)
         if sig.ndim == 1 and bins.ndim > 1:
             if sig.shape[0] == mu.shape[0] == bins.ndim:
@@ -836,28 +857,6 @@ class Likelihoods:
         lk.meta.update(source="gaussian")
         # kept so that true values can be drawn from the likelihood within bins
         _attach_per_object(lk, gaussian_mean=mu, gaussian_sigma=np.array(sig))
-        _record_outside(lk, _outside(special.logsumexp(log_mass, axis=1)), warn_outside)
-        return lk
-
-    @classmethod
-    def _from_correlated_gaussian(cls, mu, C, bins, tol, max_depth, warn_outside, tail):
-        # per-object multivariate normal likelihoods, averaged by adaptive cubature
-        try:
-            chol = np.linalg.cholesky(C)
-        except np.linalg.LinAlgError:
-            raise ValueError("cov must be symmetric positive definite for every object.") from None
-        if not np.allclose(C, np.swapaxes(C, 1, 2)):
-            raise ValueError("cov must be symmetric positive definite for every object.")
-        logf = partial(_log_mvn_rows, mu=mu, chol=chol)
-        quad = {"rows": mu.shape[0], "tol": tol, "max_depth": max_depth}
-        log_avg = bin_log_average(logf, bins, **quad)
-        if all(m == Measure.linear() for m in bins.measures):
-            log_mass = log_avg + np.log(bins.volumes)
-        else:
-            log_mass = bin_log_average(logf, bins, coordinate="z", **quad) + np.log(bins.volumes)
-        lk = cls(log_avg, bins, log=True, **tail)
-        lk.meta.update(source="gaussian")
-        _attach_per_object(lk, gaussian_mean=mu, gaussian_cov=C)
         _record_outside(lk, _outside(special.logsumexp(log_mass, axis=1)), warn_outside)
         return lk
 
@@ -1088,7 +1087,6 @@ _PER_OBJECT_KEYS = (
     "outside_fraction",
     "gaussian_mean",
     "gaussian_sigma",
-    "gaussian_cov",
 )
 
 

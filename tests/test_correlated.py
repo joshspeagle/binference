@@ -30,9 +30,12 @@ def test_correlated_bins_match_rectangle_probabilities():
 
 
 def test_a_diagonal_covariance_equals_independent_sigmas():
-    d = Likelihoods.from_gaussian(MU, bins=GRID, cov=np.diag([0.01, 0.0064]), tol=1e-8)
     s = Likelihoods.from_gaussian(MU, [[0.1, 0.08]], GRID)
-    np.testing.assert_allclose(d.toarray(), s.toarray(), atol=1e-8)
+    d = Likelihoods.from_gaussian(MU, bins=GRID, cov=np.diag([0.01, 0.0064]))
+    np.testing.assert_allclose(d.toarray(), s.toarray(), rtol=1e-14)  # the exact path
+    tiny = np.array([[0.01, 1e-12], [1e-12, 0.0064]])  # correlated in name only: cubature
+    c = Likelihoods.from_gaussian(MU, bins=GRID, cov=tiny, tol=1e-8)
+    np.testing.assert_allclose(c.toarray(), s.toarray(), atol=1e-7)
 
 
 def test_a_one_dimensional_covariance_is_a_variance():
