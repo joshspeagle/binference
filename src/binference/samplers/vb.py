@@ -27,6 +27,10 @@ class MeanFieldVB(Engine):
 
     With a selection function on fractions, the expected number of missed
     objects is plugged in at the current mean (an additional approximation).
+
+    No evidence lower bound is computed (with selection the plug-in update does
+    not ascend one): iterations stop when the largest change of the mean is
+    below ``tol`` times its largest value.
     """
 
     name = "vb"

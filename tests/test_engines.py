@@ -416,9 +416,8 @@ def test_map_with_prior_and_selection(k3_selection_problem):
     mock, exact = k3_selection_problem
     m = PopulationModel(mock.likelihoods, P.Dirichlet(2.0))
     est = MAP(m).run()
-    pts = exact.points
-    logp = np.array([m.log_posterior(p) for p in pts[::7]])
-    best = pts[::7][np.argmax(logp)]
+    # the reference used a flat prior; Dirichlet(2) adds sum(log rho) to its log density
+    best = exact.points[np.argmax(exact.log_density + np.log(exact.points).sum(axis=1))]
     np.testing.assert_allclose(est.rho, best, atol=5e-3)
     assert est.kkt_gap < 1e-7
 
@@ -428,7 +427,7 @@ def test_map_tree_prior_matches_grid():
     m = PopulationModel(mock.likelihoods, P.GeneralizedDirichlet([3.0, 2.0], [4.0, 2.5]))
     est = MAP(m).run()
     ex = binference.validation.exact_posterior(m, n_grid=600)
-    best = ex.points[np.argmax(ex.weights)]
+    best = ex.points[np.argmax(ex.log_density)]
     np.testing.assert_allclose(est.rho, best, atol=3e-3)
 
 
@@ -486,7 +485,7 @@ def test_bootstrap(k3_problem):
     assert res.samples.shape == (60, 3) and res.approximate
     assert np.all(res.std < 2.5 * exact.std) and np.all(res.std > 0.3 * exact.std)
     with pytest.warns(ApproximationWarning):
-        bb = Bootstrap(PopulationModel(mock.likelihoods), kind="bayesian", rng=1).run(20)
-    assert bb.info["kind"] == "bayesian"
+        bb = Bootstrap(PopulationModel(mock.likelihoods), scheme="bayesian", rng=1).run(20)
+    assert bb.info["scheme"] == "bayesian" and bb.info["n_not_converged"] == 0
     with pytest.raises(ValueError):
-        Bootstrap(PopulationModel(mock.likelihoods), kind="parametric")
+        Bootstrap(PopulationModel(mock.likelihoods), scheme="parametric")

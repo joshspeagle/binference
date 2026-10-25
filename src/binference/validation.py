@@ -19,11 +19,12 @@ from typing import Any
 import numpy as np
 from scipy import special, stats
 
-from ._utils import RNGLike, as_generator, progress, spawn
+from ._utils import RNGLike, as_generator, progress, spawn, warn
 from .likelihoods import Likelihoods
 from .model import PopulationModel
 from .priors import PopulationPrior
 from .results import PopulationResult
+from .warnings import ConvergenceWarning
 
 __all__ = ["CoverageResult", "ExactPosterior", "SBCResult", "coverage", "exact_posterior", "sbc"]
 
@@ -33,10 +34,22 @@ __all__ = ["CoverageResult", "ExactPosterior", "SBCResult", "coverage", "exact_p
 # ----------------------------------------------------------------------------
 @dataclass
 class ExactPosterior:
-    """Posterior on a grid over the simplex (``K <= 3``)."""
+    """Posterior on quadrature nodes over the simplex (``K <= 3``).
+
+    Attributes
+    ----------
+    points : (n, K) array
+        Quadrature nodes (fractions).
+    weights : (n,) array
+        Normalised posterior weights (quadrature weight times density), summing to one.
+    log_density : (n,) array
+        Unnormalised log posterior density of the fractions at each node (its
+        maximum locates the mode; the weights also carry the node spacing).
+    """
 
     points: np.ndarray
     weights: np.ndarray
+    log_density: np.ndarray = field(default_factory=lambda: np.empty(0))
 
     @property
     def mean(self) -> np.ndarray:
@@ -62,12 +75,21 @@ def exact_posterior(
     model: PopulationModel | Likelihoods | Any,
     prior: PopulationPrior | None = None,
     n_grid: int = 400,
-    chunk: int = 20000,
+    max_elements: int = 10_000_000,
 ) -> ExactPosterior:
-    """Grid-quadrature posterior of the fractions for ``K = 2`` or ``K = 3`` bins.
+    r"""Quadrature posterior of the fractions for ``K = 2`` or ``K = 3`` bins.
 
     Works for priors with a closed-form simplex density (Dirichlet family).
-    Selection effects are included.
+    Selection effects are included. The fractions are stick-broken,
+    :math:`\rho = (x, (1-x)y, (1-x)(1-y))`, each stick coordinate substituted
+    as :math:`(1-\cos\pi s)/2` and integrated by Gauss-Legendre with
+    ``n_grid`` nodes, which places nodes densely at the boundary and handles
+    the integrable singularities of concentrations below one (audit G-3).
+    With the default ``n_grid``, means of a known Dirichlet posterior are
+    exact to 0.01 posterior SD for concentrations down to 0.2, and tail
+    probabilities to 0.005 for concentrations of 0.5 and above (at 0.2 the
+    mass below a 6e-9 quantile is 17% off). ``max_elements`` bounds the size of
+    the (objects x nodes) blocks evaluated at once (audit G-5).
     """
     if not isinstance(model, PopulationModel):
         model = PopulationModel(model, prior)
@@ -75,32 +97,35 @@ def exact_posterior(
         raise ValueError(
             "exact_posterior needs a fractions model with a closed-form prior density."
         )
-    K = model.K
-    u = (np.arange(n_grid) + 0.5) / n_grid
-    if K == 2:
-        pts = np.stack([u, 1.0 - u], axis=1)
-    elif K == 3:
-        a, b = np.meshgrid(u, u, indexing="ij")
-        keep = a + b < 1.0
-        pts = np.stack([a[keep], b[keep], 1.0 - a[keep] - b[keep]], axis=1)
-    else:
+    if model.K not in (2, 3):
         raise ValueError("exact_posterior supports K = 2 or 3 bins.")
-    L = model._L
-    w = model._w
+    s, ws = np.polynomial.legendre.leggauss(int(n_grid))
+    s, ws = 0.5 * (s + 1.0), 0.5 * ws
+    x = 0.5 * (1.0 - np.cos(np.pi * s))
+    log_dx = np.log(0.5 * np.pi * np.sin(np.pi * s) * ws)  # quadrature weight in x
+    if model.K == 2:
+        pts = np.stack([x, 1.0 - x], axis=1)
+        log_q = log_dx
+    else:
+        X, Y = np.meshgrid(x, x, indexing="ij")
+        pts = np.stack([X.ravel(), ((1 - X) * Y).ravel(), ((1 - X) * (1 - Y)).ravel()], axis=1)
+        # d(rho_1, rho_2) = (1 - x) dx dy
+        log_q = (log_dx[:, None] + log_dx[None, :] + np.log1p(-X)).ravel()
+    L, w = model._L, model._w
     logp = np.empty(pts.shape[0])
+    chunk = max(1, int(max_elements) // max(model.N, 1))
     for start in range(0, pts.shape[0], chunk):
         P = pts[start : start + chunk]
-        S = np.asarray(L @ P.T)
         with np.errstate(divide="ignore"):
-            ll = w @ np.log(S)
+            ll = w @ np.log(np.asarray(L @ P.T))
         if model.selection is not None:
             ll = ll - model.W * np.log(P @ model.selection)
         logp[start : start + chunk] = ll
     with np.errstate(divide="ignore", invalid="ignore"):
         logp = logp + model.prior.log_density(pts)
     logp = np.where(np.isfinite(logp), logp, -np.inf)
-    wts = np.exp(logp - special.logsumexp(logp))
-    return ExactPosterior(points=pts, weights=wts)
+    wts = np.exp(logp + log_q - special.logsumexp(logp + log_q))
+    return ExactPosterior(points=pts, weights=wts, log_density=logp)
 
 
 # ----------------------------------------------------------------------------
@@ -122,6 +147,9 @@ class SBCResult:
         Draws per simulation used for ranking (ranks lie in ``0..n_draws``).
     names : list of str
         Quantity names (``"rho[k]"``, or ``"lambda[k]"`` for rates, and ``"loglike"``).
+    min_ess : (n_simulations,) array
+        Smallest bulk effective sample size of each fit (NaN without chains);
+        :func:`sbc` warns when it falls below ``n_draws``.
     """
 
     ranks: np.ndarray
@@ -129,11 +157,22 @@ class SBCResult:
     names: list[str]
     min_ess: np.ndarray = field(default_factory=lambda: np.empty(0))
 
+    def _edges(self, n_bins: int | None) -> np.ndarray:
+        return np.linspace(0, self.n_draws + 1, (n_bins or self._default_bins()) + 1)
+
     def histogram(self, n_bins: int | None = None) -> np.ndarray:
         """Rank histograms, shape ``(n_quantities, n_bins)``."""
-        n_bins = n_bins or self._default_bins()
-        edges = np.linspace(0, self.n_draws + 1, n_bins + 1)
+        edges = self._edges(n_bins)
         return np.stack([np.histogram(r, bins=edges)[0] for r in self.ranks.T])
+
+    def expected(self, n_bins: int | None = None) -> np.ndarray:
+        """Expected count per histogram bin under uniform ranks, ``(n_bins,)``.
+
+        Bins hold different numbers of the ``n_draws + 1`` possible ranks unless
+        ``n_bins`` divides ``n_draws + 1`` (audit G-1).
+        """
+        per_bin = np.histogram(np.arange(self.n_draws + 1), bins=self._edges(n_bins))[0]
+        return per_bin * self.ranks.shape[0] / (self.n_draws + 1)
 
     def _default_bins(self) -> int:
         n = self.ranks.shape[0]
@@ -142,7 +181,8 @@ class SBCResult:
     def pvalues(self, n_bins: int | None = None) -> np.ndarray:
         """Chi-square p-values of rank uniformity per quantity."""
         H = self.histogram(n_bins)
-        return np.array([stats.chisquare(h).pvalue for h in H])
+        e = self.expected(n_bins)
+        return np.array([stats.chisquare(h, f_exp=e).pvalue for h in H])
 
     def passed(self, alpha: float = 0.01, n_bins: int | None = None) -> bool:
         """True if no quantity rejects uniformity at Bonferroni-corrected level ``alpha``."""
@@ -194,7 +234,9 @@ def sbc(
         Number of simulated data sets.
     n_draws : int
         Posterior draws used for ranking (thinned evenly from each fit; they
-        should be roughly independent, i.e. fewer than the ESS).
+        should be roughly independent, i.e. fewer than the ESS: a warning
+        names the fraction of fits whose smallest bulk ESS is below it, since
+        autocorrelated draws make the rank histograms look over-dispersed).
     log_likelihood : bool
         Also rank the joint log-likelihood of the true population.
     """
@@ -221,7 +263,15 @@ def sbc(
         ranks.append(row)
         d = res.diagnostics
         ess_min.append(np.nanmin(d["ess_bulk"]) if "ess_bulk" in d else np.nan)
-    return SBCResult(np.asarray(ranks, dtype=int), n_draws, names, np.asarray(ess_min))
+    ess_min = np.asarray(ess_min)
+    low = np.mean(ess_min < n_draws)  # NaN (no chains) compares False
+    if low > 0:
+        warn(
+            f"In {low:.0%} of the fits the smallest bulk ESS is below n_draws={n_draws}; "
+            "autocorrelated draws make the ranks look over-dispersed.",
+            ConvergenceWarning,
+        )
+    return SBCResult(np.asarray(ranks, dtype=int), n_draws, names, ess_min)
 
 
 # ----------------------------------------------------------------------------

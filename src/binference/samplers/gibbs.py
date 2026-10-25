@@ -46,9 +46,15 @@ class Gibbs(Engine):
         Keep every ``thin``-th draw.
     store_labels : bool or array_like of int
         Store joint label draws for all objects (``True``; unit weights only)
-        or for the given object indices.
-    chunk : int
-        Objects processed per block when drawing labels (bounds memory).
+        or for the given object indices (sorted and deduplicated, as
+        ``result.label_index`` records).
+    init : array_like (K,), optional
+        Positive fractions or rates around which the chains start: each chain
+        starts from its own draw of the population's conditional given the
+        expected counts there, as by default around a few EM steps.
+    chunk : int or None
+        Objects processed per block when drawing labels (bounds memory);
+        ``None`` processes all at once.
     """
 
     name = "gibbs"
@@ -90,12 +96,20 @@ class Gibbs(Engine):
             self.label_index = np.unique(np.atleast_1d(np.asarray(store_labels, dtype=int)))
             if not self._unit:
                 raise ValueError("Storing labels needs unit object weights.")
+            if self.label_index.size and not (
+                0 <= self.label_index[0] and self.label_index[-1] < model.N
+            ):
+                raise ValueError(f"store_labels must be object indices in 0..{model.N - 1}.")
+        if init is not None:
+            init = np.asarray(init, dtype=float)
+            if init.shape != (model.K,) or not np.all(np.isfinite(init)) or np.any(init <= 0):
+                raise ValueError(f"init must be {model.K} finite positive values.")
         if n_chains < 1 or thin < 1:
             raise ValueError("n_chains and thin must be positive.")
         self.n_chains = int(n_chains)
         self.n_warmup = int(n_warmup)
         self.thin = int(thin)
-        self.chunk = int(chunk)
+        self.chunk = None if chunk is None else int(chunk)
         self.init = init
         self._state: list[np.ndarray] | None = None
         self._rngs: list[np.random.Generator] | None = None
@@ -108,15 +122,11 @@ class Gibbs(Engine):
             return
         m = self.model
         self._rngs = spawn(self.rng, self.n_chains)
-        if self.init is not None:
-            v0 = np.asarray(self.init, dtype=float)
-            starts = [v0.copy() for _ in range(self.n_chains)]
-        else:
-            base = interior_start(m)
-            nhat = m.expected_counts(base)
-            exposure = m._S if m.kind == "rates" else None
-            starts = [m.prior.posterior_sample(nhat, r, exposure=exposure) for r in self._rngs]
-        self._state = starts
+        # overdispersed starts: each chain draws from the conditional given expected counts
+        base = interior_start(m) if self.init is None else self.init
+        nhat = m.expected_counts(base)
+        exposure = m._S if m.kind == "rates" else None
+        self._state = [m.prior.posterior_sample(nhat, r, exposure=exposure) for r in self._rngs]
 
     def _iterate(self, c: int) -> tuple[np.ndarray, np.ndarray | None]:
         m = self.model
@@ -126,13 +136,7 @@ class Gibbs(Engine):
             m._L, self._w_int, value, rng, chunk=self.chunk, unit_weights=self._unit
         )
         if m.kind == "fractions" and m.selection is not None:
-            S = m._detect
-            rho = value / value.sum()
-            p_det = float(np.clip(S @ rho, 1e-300, 1.0))
-            n_missed = rng.negative_binomial(m.W, p_det) if p_det < 1.0 else 0
-            if n_missed > 0:
-                q = rho * (1.0 - S)
-                counts = counts + rng.multinomial(n_missed, q / q.sum())
+            counts = counts + m._draw_missed(value, rng)
         exposure = m._S if m.kind == "rates" else None
         self._state[c] = m.prior.posterior_sample(counts, rng, exposure=exposure)
         return self._state[c], labels

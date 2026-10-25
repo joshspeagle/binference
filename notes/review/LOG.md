@@ -305,3 +305,7 @@ Append-only. One entry per working session (or per step within a long session).
 
 - #42 (C9a, priors) merged; #44 (C9b, GP defaults) in review, retargeted to `main`. Its code review removed an ellipsoidal mode cut added in /simplify (it dropped each axis's top mode and lost field variance), so the default basis is bounded at 1024 modes instead.
 - C10 (NUTS, Laplace; DECISIONS #74), stacked on C9b. Reordering the Laplace eigenvectors alone moved k̂ from 0.67 to 0.80 on a selection test with the same seed, so that test had passed by luck at the threshold; it now ignores the approximation warning, since it asserts z-scores.
+
+## 2026-10-25: C11 (Gibbs, VB, bootstrap, validation)
+
+- C11 stacked on C10 (DECISIONS #75). The new SBC low-ESS warning fired in two existing tests with short single chains, as intended; they now expect or silence it. The boundary quadrature is exact to 0.01 SD in means down to α = 0.2, but at α = 0.2 the tail mass below a 6e-9 quantile is 17% off, so the docstring states that limit instead of a stronger substitution.

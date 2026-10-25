@@ -160,9 +160,10 @@ def sample_counts(
 ) -> tuple[np.ndarray, np.ndarray | None]:
     """Draw latent bin counts ``n_k = sum_i w_i 1[z_i = k]``.
 
-    For unit weights a label is drawn per object (and returned); integer weights
-    ``m_i > 1`` (compressed duplicate rows) use ``Mult(m_i, r_i)`` per row and
-    return ``labels=None``.
+    For unit weights a label is drawn per object (and returned). Integer weights
+    ``m_i`` (compressed duplicate rows) return ``labels=None``: for sparse ``L``
+    a label is drawn per underlying object (rows repeated, so the matrix stays
+    sparse; audit G-2), for dense ``L`` one ``Mult(m_i, r_i)`` per row.
 
     Returns
     -------
@@ -178,6 +179,11 @@ def sample_counts(
     counts = np.zeros(K)
     N = L.shape[0]
     m_all = np.asarray(np.round(w_int), dtype=np.int64)
+    if sp.issparse(L):
+        rows = np.repeat(np.arange(N), m_all)
+        for sl in chunk_slices(rows.size, chunk):
+            counts += np.bincount(sample_labels(L[rows[sl]], rho, rng, None), minlength=K)
+        return counts, None
     for sl in chunk_slices(N, chunk):
         R = responsibilities(L[sl], rho, chunk=None)
         # guard tiny negative round-off and renormalise

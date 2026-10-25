@@ -94,7 +94,8 @@ def test_sbc_and_coverage_smoke():
             lk, method="gibbs", rng=rng, n_samples=200, n_warmup=50, n_chains=1, check=False
         )
 
-    res = binference.validation.sbc(sim, fit, n_simulations=15, n_draws=49, rng=1)
+    with pytest.warns(binference.ConvergenceWarning, match="ESS is below n_draws"):
+        res = binference.validation.sbc(sim, fit, n_simulations=15, n_draws=49, rng=1)
     assert res.ranks.shape == (15, 4)
     assert res.ranks.min() >= 0 and res.ranks.max() <= 49
     assert res.names[-1] == "loglike"
@@ -114,3 +115,31 @@ def test_sbc_and_coverage_smoke():
     assert cov.stderr().shape == (2, 1)
     with pytest.raises(ValueError):
         binference.simulate.prior_predictive(P.GammaRates(), bins)
+
+
+def test_sbc_p_values_of_uniform_ranks_reject_at_the_nominal_rate():
+    # 50 possible ranks in 20 bins hold 2 or 3 ranks each; the chi-square test assumed equal
+    # bins and rejected uniform ranks 9% of the time at 1% (audit G-1)
+    rng = np.random.default_rng(0)
+    p = [
+        binference.validation.SBCResult(rng.integers(0, 50, size=(150, 1)), 49, ["x"]).pvalues()[0]
+        for _ in range(1000)
+    ]
+    # 1000 replicates: the rejection rate has a Monte Carlo SD of about 0.003 at 1%
+    assert np.mean(np.array(p) <= 0.01) < 0.025
+
+
+@pytest.mark.parametrize("alpha", [1.0, 0.5, 0.2])
+def test_the_exact_posterior_is_accurate_at_the_simplex_boundary(alpha):
+    # one flat object and one-hot counts (20, 15, 0): the posterior is Dir(alpha + counts);
+    # the midpoint grid missed the rho_3 mean by up to 0.6 SD and its lower tail entirely
+    from scipy import stats
+
+    rows = [np.ones(3)] + [np.eye(3)[0]] * 20 + [np.eye(3)[1]] * 15
+    a = alpha + np.array([20.0, 15.0, 0.0])
+    ex = binference.validation.exact_posterior(Likelihoods(np.array(rows)), P.Dirichlet(alpha))
+    sd = np.sqrt(a * (a.sum() - a) / (a.sum() ** 2 * (a.sum() + 1)))
+    np.testing.assert_allclose((ex.mean - a / a.sum()) / sd, 0.0, atol=0.01)
+    if alpha >= 0.5:  # at 0.2 the 5% quantile is 6e-9 and its tail mass is 17% off
+        q05 = stats.beta.ppf(0.05, a[2], a.sum() - a[2])
+        np.testing.assert_allclose(ex.weights[ex.points[:, 2] < q05].sum(), 0.05, atol=0.005)

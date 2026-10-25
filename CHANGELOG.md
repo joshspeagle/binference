@@ -136,6 +136,13 @@ First development version.
   (N-5); Laplace returns every draw asked for without importance resampling (N-4) and
   judges k̂ against min(1 − 1/log10 S, 0.7) (N-6). Dense momentum draws use a
   precomputed triangular factor (N-9).
+- **Validation, Gibbs, bootstrap** (DECISIONS #75): SBC p-values and bands use the
+  expected count per rank bin (G-1) and `sbc` warns when the ESS is below `n_draws` (G-9);
+  `exact_posterior` integrates by stick-breaking Gauss–Legendre quadrature that resolves
+  the simplex boundary, also for concentrations below one, adds `log_density`, and bounds
+  its memory (G-3, G-5); weighted Gibbs on sparse likelihoods no longer densifies them
+  (G-2); Gibbs checks `chunk`, `store_labels` and `init`, and chains start apart (G-6);
+  `Bootstrap(kind=)` is now `scheme=` and non-converged replicates are counted (G-8).
 - **Correlated Gaussians** (DECISIONS #2, #25, #66): `from_gaussian(..., cov=)` takes full
   per-object covariances, averaged over N-D bins by adaptive cubature in log space.
 - `weights` are integer multiplicities; non-integer weights need `fractional_weights=True`

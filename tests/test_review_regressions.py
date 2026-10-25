@@ -22,16 +22,16 @@ def _bootstrap(model, **kw):
 
 
 # -------------------------------------------------------------- bootstrap (1-3)
-@pytest.mark.parametrize("kind", ["nonparametric", "bayesian"])
-def test_bootstrap_resamples_objects_not_rows(kind):
+@pytest.mark.parametrize("scheme", ["nonparametric", "bayesian"])
+def test_bootstrap_resamples_objects_not_rows(scheme):
     rng = np.random.default_rng(0)
     labels = rng.choice(4, size=2000, p=[0.4, 0.1, 0.4, 0.1])
     L = np.eye(4)[labels] * 0.9 + 0.1 / 4  # only four distinct rows
     raw = Likelihoods(L)
     packed = raw.compress()
     assert packed.N == 4
-    sd_raw = _bootstrap(PopulationModel(raw), kind=kind, rng=1).std
-    sd_packed = _bootstrap(PopulationModel(packed), kind=kind, rng=1).std
+    sd_raw = _bootstrap(PopulationModel(raw), scheme=scheme, rng=1).std
+    sd_packed = _bootstrap(PopulationModel(packed), scheme=scheme, rng=1).std
     np.testing.assert_allclose(sd_packed, sd_raw, rtol=0.3)
     assert np.all(sd_packed < 0.05)  # was ~0.35 when rows were resampled
 
@@ -163,7 +163,9 @@ def test_sbc_ranks_rates_for_rate_models():
         return binference.infer(lk, P.GammaRates(20.0, 1.0), method="gibbs", rng=rng, n_chains=1,
                             n_warmup=50, n_samples=100, check=False)  # fmt: skip
 
-    res = binference.validation.sbc(simulate, fit, n_simulations=20, n_draws=19, rng=0)
+    with warnings.catch_warnings():  # short chains: a few fits have an ESS below n_draws
+        warnings.simplefilter("ignore", binference.ConvergenceWarning)
+        res = binference.validation.sbc(simulate, fit, n_simulations=20, n_draws=19, rng=0)
     # ranks of rates are spread out; ranking fractions against rates would pile them at 0
     assert res.ranks[:, :3].mean() == pytest.approx(9.5, abs=3.0)
 
