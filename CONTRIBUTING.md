@@ -17,8 +17,8 @@ pre-commit install          # ruff lint + format on every commit
 ## Tests
 
 ```bash
-pytest                      # fast suite (~40 s); warnings are errors
-pytest -m slow              # statistical validation: SBC, coverage, Geweke (~10 min)
+pytest                      # fast suite (about 80 s); warnings are errors
+pytest -m slow              # statistical validation: SBC, coverage, Geweke (about 10 min)
 pytest --cov=pastry         # coverage report
 ```
 
@@ -71,12 +71,18 @@ sphinx-build -b html docs docs/_build/html
 The tutorials in `docs/tutorials/` are MyST notebooks executed at build time,
 so keep each under a minute or two.
 
-## Pull requests
+## Issues and pull requests
 
-* Keep each pull request focused. Add an entry to `CHANGELOG.md` under
+* Every change starts from an issue that states its scope and how we will know it is
+  done; bugs and changes have templates.
+* A pull request closes its issue and follows the template: scope, checks, review
+  outcome and records. Keep it focused and add an entry to `CHANGELOG.md` under
   *Unreleased*.
-* Describe how you validated a statistical change: exact comparisons, SBC,
-  coverage.
-* CI runs lint, the fast suite on Linux, macOS and Windows (Python 3.11–3.14),
-  a minimum-dependency job, the docs build and a packaging check. The slow
-  suite runs weekly and on demand.
+* Describe how you validated a statistical change: exact comparisons, SBC, coverage.
+* Pull requests merge with a merge commit once CI is green. History is never rewritten:
+  bring `main` into a branch with a merge, not a rebase.
+* CI runs lint (ruff, pinned to the pre-commit version), the fast suite on Linux, macOS
+  and Windows with Python 3.13 and 3.14, a minimum-dependency job, the code of the README
+  and user guide, the docs build with the tutorials executed, and a wheel built and
+  imported in a clean environment. The slow suite runs weekly, by hand, and on pull
+  requests labelled `slow`. Pushes to `main` publish the docs to GitHub Pages.

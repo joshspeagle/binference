@@ -10,8 +10,8 @@ readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Joshua S. Speagle" }]
-requires-python = ">=3.11"
-dependencies = ["numpy>=1.25", "scipy>=1.11", "threadpoolctl>=3.1"]
+requires-python = ">=3.13"
+dependencies = ["numpy>=2.1", "scipy>=1.14", "threadpoolctl>=3.1"]
 keywords = [
     "bayesian",
     "hierarchical",
@@ -29,8 +29,6 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Astronomy",
@@ -39,9 +37,9 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-plot = ["matplotlib>=3.7"]
+plot = ["matplotlib>=3.9"]
 xarray = ["xarray>=2024.10"]
-test = ["pytest>=7.4", "pytest-cov>=4", "matplotlib>=3.7"]
+test = ["pytest>=8", "pytest-cov>=5", "matplotlib>=3.9"]
 docs = [
     "sphinx>=7.2",
     "myst-nb>=1.1",
@@ -49,10 +47,10 @@ docs = [
     "numpydoc>=1.6",
     "sphinx-copybutton>=0.5",
     "sphinx-design>=0.5",
-    "matplotlib>=3.7",
+    "matplotlib>=3.9",
     "ipykernel>=6",
 ]
-dev = ["pastry-inference[test,docs,plot]", "ruff>=0.6", "pre-commit>=3"]
+dev = ["pastry-inference[test,docs,plot,xarray]", "ruff==0.17.1", "pre-commit>=3"]
 all = ["pastry-inference[plot,xarray]"]
 
 [project.urls]
@@ -70,7 +68,7 @@ packages = ["src/pastry"]
 include = ["src/pastry", "tests", "README.md", "LICENSE", "CHANGELOG.md", "CITATION.cff"]
 
 [tool.pytest.ini_options]
-minversion = "7.4"
+minversion = "8.0"
 testpaths = ["tests"]
 addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not slow"]
 markers = ["slow: statistical validation (SBC, coverage, long chains); run with `-m slow`"]
@@ -93,16 +91,14 @@ exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "@overload"]
 
 [tool.ruff]
 line-length = 99
-target-version = "py311"
+target-version = "py313"
 src = ["src", "tests"]
-extend-exclude = ["docs/_build", "research_notes", "reports", "*.md"]
+extend-exclude = ["docs/_build", "research_notes", "reports", "notes", "*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "NPY", "RUF", "SIM", "C4", "PT", "PIE", "PERF"]
 ignore = [
     "E741",    # ambiguous variable names (l, I) are idiomatic in the maths
-    "N803",
-    "N806",
     "RUF001",  # unicode in strings (Greek letters in messages are intentional)
     "RUF002",
     "RUF003",

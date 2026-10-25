@@ -14,6 +14,14 @@ def test_namespace():
     assert pastry.samplers.NUTS and pastry.priors.Dirichlet and pastry.Selection
 
 
+def test_citation_file_version_matches_package():
+    from pathlib import Path
+
+    cff = Path(__file__).parents[1] / "CITATION.cff"
+    line = next(ln for ln in cff.read_text().splitlines() if ln.startswith("version:"))
+    assert line.split(":", 1)[1].strip() == pastry.__version__
+
+
 def test_infer_accepts_arrays_likelihoods_models(small_1d):
     raw = small_1d.likelihoods.toarray()
     a = pastry.infer(raw, method="map")

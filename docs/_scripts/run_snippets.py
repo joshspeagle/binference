@@ -1,7 +1,8 @@
 """Execute the code of Markdown pages, in order, one namespace per page.
 
 Usage: python docs/_scripts/run_snippets.py docs/user-guide/*.md docs/tutorials/*.md
-Blocks fenced as ```python or ```{code-cell} python run; other fences do not.
+Blocks fenced as ```python or ```{code-cell} python run; other fences do not, nor
+do blocks whose fence says "skip" (```python skip), for sketches with placeholder data.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 
-FENCE = re.compile(r"^```(?:python|\{code-cell\} python)[^\n]*\n(.*?)^```\s*$", re.S | re.M)
+FENCE = re.compile(r"^```(?:python|\{code-cell\} python)([^\n]*)\n(.*?)^```\s*$", re.S | re.M)
 
 
 def run_page(path: str) -> bool:
@@ -25,7 +26,9 @@ def run_page(path: str) -> bool:
     ok = True
     t0 = time.time()
     for i, m in enumerate(FENCE.finditer(text)):
-        code = m.group(1)
+        if "skip" in m.group(1).split():
+            continue
+        code = m.group(2)
         # drop MyST cell options such as ":tags: [hide-input]"
         lines = code.splitlines(keepends=True)
         while lines and re.match(r"^:[\w-]+:", lines[0]):
