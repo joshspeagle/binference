@@ -60,11 +60,32 @@ def bin_log_average(
       ``(P, M)``: row ``r[p]`` at the points ``z[p]``. Cells are refined per row.
 
     Each bin starts as one cell. A cell is estimated with 5 and 3 Gauss-Legendre
-    points per axis; while their difference, relative to the row's largest bin
-    average, exceeds ``tol``, it is split in half along every axis, at most
-    ``max_depth`` times, after which an :class:`~binference.InputWarning` is
-    raised. With ``n_sub`` a fixed ``n_sub``-point rule is used instead.
+    points per axis; while their difference exceeds ``tol`` relative to the row's
+    largest bin average (in ``u``) or bin mass (in ``z``), it is split in half
+    along every axis, at most ``max_depth`` times, after which an
+    :class:`~binference.InputWarning` is raised. With ``n_sub`` a fixed
+    ``n_sub``-point rule is used instead.
     """
+    if not tol > 0 or max_depth < 0:
+        raise ValueError(
+            f"tol must be positive and max_depth non-negative; got {tol}, {max_depth}."
+        )
+    if rows is not None:
+        # refine blocks of rows separately, so the per-row state stays bounded
+        block = max(1, MAX_ELEMENTS // (8 * bins.K))
+        if rows > block:
+            kw = {"coordinate": coordinate, "tol": tol, "max_depth": max_depth, "n_sub": n_sub}
+            return np.concatenate(
+                [
+                    bin_log_average(
+                        lambda z, r, start=sl.start: logf(z, r + start),
+                        bins,
+                        rows=sl.stop - sl.start,
+                        **kw,
+                    )
+                    for sl in chunk_slices(rows, block)
+                ]
+            )
     nd = bins.ndim
     if coordinate == "measure":
         edges, inverse = bins.u_edges, [m.inverse for m in bins.measures]
@@ -83,6 +104,8 @@ def bin_log_average(
             z = rule.points(lo, hi, inverse)
             C, M = z.shape[:2]
             first = _call(logf, z[:1], M)
+            if first.shape[0] == 0:
+                raise ValueError("The function returned no rows.")
             size = max(1, MAX_ELEMENTS // (first.shape[0] * M))
             parts = [special.logsumexp(first.reshape(-1, 1, M) + rule.logw, axis=2)]
             for sl in chunk_slices(C - 1, size):
@@ -113,11 +136,20 @@ def bin_log_average(
     out = np.full((N, bins.K), -np.inf)
     if n_sub is not None:
         return fine if rows is None else fine.reshape(N, bins.K)
-    rowmax = fine.max(axis=1) if rows is None else fine.reshape(N, bins.K).max(axis=1)
+    # errors are measured on averages (in u) or on masses (in z), relative to the
+    # row's largest; the reference grows as refinement resolves narrow peaks
+    logvol = np.zeros(bins.K) if coordinate == "measure" else np.log(bins.volumes)
+    rowmax = np.full(N, -np.inf)
     corners = np.array(list(product((0.0, 0.5), repeat=nd)))
     unconverged = np.zeros(bins.K, dtype=bool)
     for depth in range(max_depth + 1):
-        scale = rowmax[:, None] if rows is None else rowmax[row]
+        shift = logfrac + logvol[owner]
+        if rows is None:
+            rowmax = np.maximum(rowmax, (fine + shift).max(axis=1))
+        else:
+            np.maximum.at(rowmax, row, fine + shift)
+        rowmax = np.maximum(rowmax, (out + logvol).max(axis=1))
+        scale = (rowmax[:, None] if rows is None else rowmax[row]) - logvol[owner]
         with np.errstate(invalid="ignore"):
             diff = np.nan_to_num(np.abs(np.exp(fine - scale) - np.exp(coarse[0] - scale)))
         err = np.exp(logfrac) * (diff.max(axis=0) if rows is None else diff)

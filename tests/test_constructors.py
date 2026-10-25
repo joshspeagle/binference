@@ -1,13 +1,15 @@
 """Tests for the constructors by input form (DECISIONS #32), adaptive quadrature (#23),
 measure-aware averages (#21) and mass outside the support (#18)."""
 
+import warnings
 from itertools import pairwise
 
 import numpy as np
 import pytest
 from scipy import integrate, stats
 
-from binference import Bins, InputWarning, Likelihoods
+from binference import Bins, Density, InputWarning, Likelihoods
+from binference import _quadrature as quadrature
 
 
 def test_adaptive_averages_of_narrow_gaussians_match_the_exact_ones():
@@ -74,3 +76,76 @@ def test_outside_fractions_are_recorded_per_object():
     bins = Bins.linear(0, 1, 4)
     lk = Likelihoods.from_gaussian([0.5, 1.0], 0.1, bins)
     np.testing.assert_allclose(lk.meta["outside_fraction"], [0.0, 0.5], atol=1e-6)
+
+
+def test_a_peak_the_first_estimate_misses_does_not_warn():
+    bins = Bins.log(0.1, 10.0, 50)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        lk = Likelihoods.from_gaussian([8.588], [0.01], bins)
+    assert np.isfinite(lk.log_scale).all()
+
+
+def test_distributions_without_a_density_are_refused_where_one_is_needed():
+    class OnlyCdf:
+        def cdf(self, z):
+            return stats.norm.cdf(z, 5.0, 1.0)
+
+    with pytest.raises(TypeError, match="logpdf or pdf"):
+        Likelihoods.from_density([OnlyCdf()], Bins.log(1.0, 100.0, 5), kind="likelihood")
+
+    class OnlyLogcdf:
+        def logcdf(self, z):
+            return stats.norm.logcdf(z, 0.5, 0.2)
+
+    lk = Likelihoods.from_density([OnlyLogcdf()], Bins.linear(0, 1, 5), kind="likelihood")
+    assert lk.toarray()[0, 2] == 1.0
+
+
+def test_n_dimensional_distributions_receive_points_as_rows():
+    class Blob:
+        def logpdf(self, x):
+            return -0.5 * np.sum((np.asarray(x) - 0.5) ** 2, axis=1) / 0.01
+
+    grid = Bins.grid(np.linspace(0, 1, 4), np.linspace(0, 1, 4))
+    lk = Likelihoods.from_density([Blob(), Blob()], grid, kind="likelihood")
+    assert lk.toarray().shape == (2, 9) and lk.toarray()[0, 4] == 1.0
+
+
+def test_a_non_positive_tolerance_is_refused():
+    with pytest.raises(ValueError, match="tol must be positive"):
+        Likelihoods.from_gaussian([5.0], [1.0], Bins.log(1, 10, 4), tol=0)
+
+
+def test_refining_rows_in_blocks_gives_the_same_averages(monkeypatch):
+    bins = Bins.log(1.0, 100.0, 10)
+    mu = np.linspace(2, 90, 7)
+    whole = Likelihoods.from_gaussian(mu, 0.05 * mu, bins).toarray()
+    monkeypatch.setattr(quadrature, "MAX_ELEMENTS", 200)
+    blocked = Likelihoods.from_gaussian(mu, 0.05 * mu, bins).toarray()
+    np.testing.assert_allclose(blocked, whole, rtol=1e-12)
+
+
+def test_the_outside_warning_points_at_the_caller():
+    with pytest.warns(InputWarning, match="outside the bins") as record:
+        Likelihoods.from_gaussian([0.5, 50.0], [0.1, 0.1], Bins.linear(0, 1, 5))
+    assert record[0].filename == __file__
+
+
+def test_density_masses_meet_the_tolerance_on_unequal_bins():
+    edges = [1.0, 1.001, 10.0, 100.0, 1000.0]
+    m = Density.from_function(lambda z: 1 / z).masses(Bins(edges), tol=1e-5)
+    exact = np.diff(np.log(edges)) / np.log(1000.0)
+    np.testing.assert_allclose(m, exact, rtol=1e-5)
+
+
+def test_a_function_with_no_rows_is_refused():
+    with pytest.raises(ValueError, match="no rows"):
+        Likelihoods.from_density(
+            lambda z: np.zeros((0, np.shape(z)[0])), Bins.linear(0, 1, 3), kind="likelihood"
+        )
+
+
+def test_errors_name_the_interim_argument():
+    with pytest.raises(ValueError, match=r"^interim must be"):
+        Likelihoods.from_table(np.ones((1, 3)), Bins.linear(0, 1, 3), interim="gaussian")

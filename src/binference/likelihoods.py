@@ -21,6 +21,7 @@ from .density import (
     _dist_logpdf,
     _equal_volumes,
     _has_cdf,
+    _has_pdf,
     _is_distribution,
     _log_nonneg,
     log_interval_masses,
@@ -67,10 +68,13 @@ def _interim_masses(
     bins: Bins,
     representation: Representation | None = None,
     tol: float = 1e-3,
+    max_depth: int = 12,
     n_sub: int | None = None,
 ) -> np.ndarray:
     """Normalised interim-prior mass per bin."""
-    return Density.coerce(interim, representation).masses(bins, tol=tol, n_sub=n_sub)
+    return Density.coerce(interim, representation).masses(
+        bins, tol=tol, max_depth=max_depth, n_sub=n_sub
+    )
 
 
 def _check_kind(kind: Any, interim: Any) -> bool:
@@ -119,10 +123,12 @@ def _rows_logpdf(dists: list[Any], ndim: int) -> Callable[[np.ndarray, np.ndarra
         )
 
     def logpdf(z, r):
+        # each distribution receives its points as (n,) or (n, ndim), as everywhere else
         out = np.empty(z.shape[:2])
         for i in np.unique(r):
             sel = r == i
-            out[sel] = _dist_logpdf(dists[i], z[sel])
+            pts = z[sel].reshape(-1, ndim) if ndim > 1 else z[sel].ravel()
+            out[sel] = _dist_logpdf(dists[i], pts).reshape(out[sel].shape)
         return out
 
     return logpdf
@@ -133,17 +139,17 @@ def _log_gauss_rows(z: np.ndarray, r: np.ndarray, mu: np.ndarray, sig: np.ndarra
     return -0.5 * ((z - m) / s) ** 2 - np.log(s) - 0.5 * np.log(2 * np.pi)
 
 
-def _record_outside(lk: Likelihoods, log_inside: np.ndarray, warn: bool = True) -> None:
+#: the outside-mass warning fires when more than OUTSIDE_SHARE of the objects have
+#: more than OUTSIDE_THRESHOLD of their mass outside the bins (DECISIONS #64)
+OUTSIDE_THRESHOLD, OUTSIDE_SHARE = 0.9, 0.1
+
+
+def _record_outside(lk: Likelihoods, outside: np.ndarray, warn: bool = True) -> None:
     """Store each object's mass fraction outside the active bins, and warn if many lose most."""
-    _attach_per_object(lk, outside_fraction=-np.expm1(np.minimum(log_inside, 0.0)))
-    if warn:
-        _warn_outside(lk.meta["outside_fraction"])
-
-
-def _warn_outside(outside: np.ndarray, threshold: float = 0.9, share: float = 0.1) -> None:
-    """Warn when over ``share`` of the objects have over ``threshold`` of their mass outside."""
+    _attach_per_object(lk, outside_fraction=outside)
+    outside, threshold = lk.meta["outside_fraction"], OUTSIDE_THRESHOLD
     many = outside > threshold
-    if outside.size and many.mean() > share:
+    if warn and outside.size and many.mean() > OUTSIDE_SHARE:
         warnings.warn(
             f"{int(many.sum())} of {outside.size} objects have more than {threshold:.0%} of "
             "their likelihood mass outside the bins (see meta['outside_fraction']); "
@@ -151,6 +157,10 @@ def _warn_outside(outside: np.ndarray, threshold: float = 0.9, share: float = 0.
             InputWarning,
             stacklevel=3,
         )
+
+
+def _outside(log_inside: np.ndarray) -> np.ndarray:
+    return -np.expm1(np.minimum(log_inside, 0.0))
 
 
 # ----------------------------------------------------------------------------
@@ -564,6 +574,7 @@ class Likelihoods:
         sparse: bool | None = None,
         drop_empty: bool = False,
         min_samples: int = 20,
+        warn_outside: bool = True,
     ) -> Likelihoods:
         r"""Build likelihoods from per-object posterior samples.
 
@@ -593,6 +604,9 @@ class Likelihoods:
             of entries are non-zero.
         min_samples : int
             Warn if the median effective number of samples per object is below this.
+        warn_outside : bool
+            Warn when many objects have most of their samples outside the bins
+            (see :meth:`from_gaussian`).
         """
         if bins.is_categorical:
             raise ValueError("from_samples needs ordered (grid) bins.")
@@ -629,8 +643,8 @@ class Likelihoods:
             drop_empty=drop_empty,
         )
         lk.meta.update(source="samples", interim_prior_masses=Pi)
-        _attach_per_object(lk, n_eff=n_eff, outside_fraction=outside)
-        _warn_outside(outside)
+        _attach_per_object(lk, n_eff=n_eff)
+        _record_outside(lk, outside, warn_outside)
         return lk
 
     @classmethod
@@ -645,6 +659,7 @@ class Likelihoods:
         selection_mode: str | None = None,
         drop_empty: bool = False,
         tol: float = 1e-3,
+        max_depth: int = 12,
         warn_outside: bool = True,
     ) -> Likelihoods:
         r"""Likelihoods for Gaussian measurements :math:`d_i \sim \mathcal N(z, \sigma_i^2)`.
@@ -652,8 +667,9 @@ class Likelihoods:
         Bin averages are exact CDF differences (stable in the far tails) on
         axes with a linear measure; on other axes the likelihood is averaged
         uniformly in the measure coordinate by adaptive quadrature to ``tol``
-        (see :meth:`from_density`). For N-D grids, measurement errors are
-        independent per axis (``mean`` and ``sigma`` of shape ``(N, ndim)``).
+        with at most ``max_depth`` refinements (see :meth:`from_density`). For
+        N-D grids, measurement errors are independent per axis (``mean`` and
+        ``sigma`` of shape ``(N, ndim)``).
         Each object's fraction of mass outside the active bins is recorded in
         ``meta["outside_fraction"]``; ``warn_outside`` warns when more than 10% of
         the objects have more than 90% of their mass outside.
@@ -706,6 +722,7 @@ class Likelihoods:
                     Bins(e, measure=m),
                     rows=mu.shape[0],
                     tol=tol,
+                    max_depth=max_depth,
                 )
             logL = logL + avg[:, j]
             log_mass = log_mass + lm[:, j]
@@ -721,7 +738,7 @@ class Likelihoods:
         lk.meta.update(source="gaussian")
         # kept so that true values can be drawn from the likelihood within bins
         _attach_per_object(lk, gaussian_mean=mu, gaussian_sigma=np.array(sig))
-        _record_outside(lk, special.logsumexp(log_mass, axis=1), warn_outside)
+        _record_outside(lk, _outside(special.logsumexp(log_mass, axis=1)), warn_outside)
         return lk
 
     @classmethod
@@ -770,8 +787,6 @@ class Likelihoods:
         if bins.is_categorical:
             raise ValueError("from_density needs grid bins.")
         posterior = _check_kind(kind, interim)
-        if tol <= 0 or max_depth < 0:
-            raise ValueError("tol must be positive and max_depth non-negative.")
         quad = {
             "coordinate": "z" if posterior else "measure",
             "tol": tol,
@@ -792,13 +807,18 @@ class Likelihoods:
                 log_inside = special.logsumexp(log_mass, axis=1)
             if log_inside is not None and (posterior or bins.measures[0] == Measure.linear()):
                 log_avg = log_mass - np.log(bins.volumes)  # exact
+            elif not all(_has_pdf(d) for d in dists):
+                raise TypeError(
+                    "Distributions need a logpdf or pdf here: a cdf gives exact bin masses only "
+                    "for posteriors or likelihoods on 1-D bins with a linear measure."
+                )
             else:
                 log_avg = bin_log_average(
                     _rows_logpdf(dists, bins.ndim), bins, rows=len(dists), **quad
                 )
         if posterior:  # the interim prior gets the same quadrature as the values
             interim = Density.from_masses(
-                _interim_masses(interim, bins, interim_representation, tol, n_sub)
+                _interim_masses(interim, bins, interim_representation, tol, max_depth, n_sub)
             )
         lk = cls.from_table(
             log_avg,
@@ -811,7 +831,7 @@ class Likelihoods:
         )
         lk.meta["source"] = "density"
         if log_inside is not None:
-            _record_outside(lk, log_inside, warn_outside)
+            _record_outside(lk, _outside(log_inside), warn_outside)
         return lk
 
     @classmethod

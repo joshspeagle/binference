@@ -92,7 +92,7 @@ class Density:
 
     @classmethod
     def coerce(
-        cls, value: Any, representation: Representation | None = None, name: str = "interim_prior"
+        cls, value: Any, representation: Representation | None = None, name: str = "interim"
     ) -> Density:
         """A :class:`Density` from a density, ``"flat"``, a callable, a distribution or an array.
 
@@ -117,15 +117,18 @@ class Density:
         return cls(values=_nonneg(value, name), per_volume=per_volume)
 
     # ----------------------------------------------------------------- methods
-    def masses(self, bins: Bins, *, tol: float = 1e-3, n_sub: int | None = None) -> np.ndarray:
+    def masses(
+        self, bins: Bins, *, tol: float = 1e-3, max_depth: int = 12, n_sub: int | None = None
+    ) -> np.ndarray:
         """Normalised probability mass of each bin, shape ``(K,)``.
 
         Callables and distributions without a usable ``cdf`` are integrated by
-        adaptive quadrature to ``tol``, or with ``n_sub`` fixed Gauss-Legendre
+        adaptive quadrature to ``tol`` (at most ``max_depth`` refinements), or with
+        ``n_sub`` fixed Gauss-Legendre
         points per bin and axis (see :meth:`Likelihoods.from_density
         <binference.Likelihoods.from_density>`).
         """
-        m = self._bin_masses(bins, tol, n_sub)
+        m = self._bin_masses(bins, tol, max_depth, n_sub)
         total = m.sum()
         if not np.all(np.isfinite(m)) or np.any(m < 0):
             raise ValueError(f"{self!r} must give finite, non-negative masses.")
@@ -133,7 +136,7 @@ class Density:
             raise ValueError(f"{self!r} has no mass on the bins.")
         return m / total
 
-    def _bin_masses(self, bins: Bins, tol: float, n_sub: int | None) -> np.ndarray:
+    def _bin_masses(self, bins: Bins, tol: float, max_depth: int, n_sub: int | None) -> np.ndarray:
         # unnormalised bin masses
         if self._flat is not None:
             if bins.is_categorical or self._flat == "z":
@@ -164,7 +167,11 @@ class Density:
             logf = lambda z: _dist_logpdf(self._dist, z)[None]  # noqa: E731
         else:
             logf = lambda z: _log_nonneg(self._func(z))[None]  # noqa: E731
-        log_avg = bin_log_average(logf, bins, coordinate="z", tol=tol, n_sub=n_sub)
+        if self._dist is not None and not _has_pdf(self._dist):
+            raise TypeError(f"{self!r} needs a logpdf or pdf here (or a cdf on 1-D bins).")
+        log_avg = bin_log_average(
+            logf, bins, coordinate="z", tol=tol, max_depth=max_depth, n_sub=n_sub
+        )
         return np.exp(log_avg[0]) * bins.volumes
 
     def _pointwise(self) -> Callable[[np.ndarray], np.ndarray] | None:
@@ -190,7 +197,7 @@ def _equal_volumes(vol: np.ndarray) -> bool:
 
 
 def _is_distribution(x: Any) -> bool:
-    return any(hasattr(x, m) for m in ("cdf", "logpdf", "pdf"))
+    return any(hasattr(x, m) for m in ("cdf", "logcdf", "logpdf", "pdf"))
 
 
 def _dist_pdf(dist: Any) -> Callable[[np.ndarray], np.ndarray]:
@@ -204,6 +211,10 @@ def _dist_logpdf(dist: Any, z: np.ndarray) -> np.ndarray:
         return np.asarray(dist.logpdf(z), dtype=float)
     with np.errstate(divide="ignore"):
         return np.log(np.asarray(dist.pdf(z), dtype=float))
+
+
+def _has_pdf(dist: Any) -> bool:
+    return hasattr(dist, "logpdf") or hasattr(dist, "pdf")
 
 
 def _has_cdf(dist: Any) -> bool:
