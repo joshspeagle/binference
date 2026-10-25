@@ -107,6 +107,35 @@ smooth = binference.infer(lk, method="map", selection=completeness, selection_mo
 print(smooth.rho.round(3))
 ```
 
+## Selection measured by injections
+
+Completeness is often measured by injecting objects of known true value and
+counting how many are recovered. `Selection.from_injections(z, detected, bins,
+"on_truth")` counts the injections $n_k$ and recoveries $d_k$ per bin and gives
+each $S_k$ a $\mathrm{Beta}(a + d_k, b + n_k - d_k)$ posterior (prior
+`(a, b) = (1, 1)`). The selection is then uncertain, and Gibbs sampling infers it
+with the population: the catalogue's objects count as detections in their
+bins and the objects it missed (imputed at each step) as non-detections. The
+catalogue informs only the ratios between the $S_k$ (its likelihood does not
+change when all of them are scaled together), so their level, and with it
+the total, comes from the injections. The draws of $S$ are in
+`result.info["selection_draws"]`, and the total uses them draw by draw.
+
+```python
+rng = np.random.default_rng(3)
+z_inj = rng.uniform(0.0, 3.0, 600)
+recovered = rng.random(600) < S[mock.likelihoods.bins.index(z_inj)]  # the mock's S
+measured = binference.Selection.from_injections(z_inj, recovered, mock.likelihoods.bins, "on_truth")
+joint = binference.infer(lk, selection=measured, method="gibbs", n_samples=300, rng=1, check=False)
+print(joint.mean.round(3), joint.info["selection_draws"].mean(axis=(0, 1)).round(2))
+```
+
+Only Gibbs (conjugate priors) infers the selection jointly so far; other
+engines refuse an uncertain selection, and `measured.at_mean()` gives a fixed
+selection at the posterior means, which ignores its uncertainty. A selection
+on the measurement is fixed by the likelihoods' own cut, so injections give
+it only as such a plug-in.
+
 ## Rates and exposure
 
 Every fit of fractions also gives the total and the rates. With $W$ detected

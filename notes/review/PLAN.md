@@ -1,6 +1,6 @@
 # Walkthrough plan
 
-**Current position:** landing on `main` (see `landing-plan.md`): Phase C, C1–C11 merged, C7b merged; C7c (speed, measured) and C11b-1 (derived rates) in review, then C11b-2/3 and C12–C15; the walkthrough resumes at Phase 3 step 3.1 afterwards. Phase 1 done except 1.3's architecture decisions. Step 1.3's architecture decisions remain deferred until the relevant code has been read.
+**Current position:** landing on `main` (see `landing-plan.md`): Phase C, C1–C11 merged, C7b and C7c merged; C11b-1 (derived rates) and C11b-2a (injections, joint Gibbs) in review, then C11b-2b, C11b-3 and C12–C15; the walkthrough resumes at Phase 3 step 3.1 afterwards. Phase 1 done except 1.3's architecture decisions. Step 1.3's architecture decisions remain deferred until the relevant code has been read.
 
 ## How each step works
 

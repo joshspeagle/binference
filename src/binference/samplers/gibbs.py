@@ -15,6 +15,9 @@ from .base import Engine, interior_start
 
 __all__ = ["Gibbs"]
 
+#: smallest detection probability a chain holds (Beta draws can underflow to zero)
+S_FLOOR = 1e-12
+
 
 class Gibbs(Engine):
     r"""Data-augmentation Gibbs sampler (the "hierarchical" sampler).
@@ -58,6 +61,7 @@ class Gibbs(Engine):
     """
 
     name = "gibbs"
+    joint_selection = True
 
     def __init__(
         self,
@@ -116,6 +120,7 @@ class Gibbs(Engine):
         self._warm = False
         self._draws: list[np.ndarray] = []
         self._labels: list[np.ndarray] = []
+        self._sel_draws: list[np.ndarray] = []
 
     def _setup(self) -> None:
         if self._state is not None:
@@ -127,17 +132,40 @@ class Gibbs(Engine):
         nhat = m._complete_counts(base, m.expected_counts(base))
         exposure = m._S if m.kind == "rates" else None
         self._state = [m.prior.posterior_sample(nhat, r, exposure=exposure) for r in self._rngs]
+        if m.selection_uncertain:  # each chain starts from a draw given the injections
+            self._sel = [np.maximum(m.selection_spec.draw(1, r)[0], S_FLOOR) for r in self._rngs]
 
     def _iterate(self, c: int) -> tuple[np.ndarray, np.ndarray | None]:
         m = self.model
         rng = self._rngs[c]
         value = self._state[c]
+        if m.selection_uncertain:
+            return self._iterate_joint(c, m, rng, value)
         counts, labels = kern.sample_counts(
             m._L, self._w_int, value, rng, chunk=self.chunk, unit_weights=self._unit
         )
         counts = m._draw_missed(value, counts, rng)
         exposure = m._S if m.kind == "rates" else None
         self._state[c] = m.prior.posterior_sample(counts, rng, exposure=exposure)
+        return self._state[c], labels
+
+    def _iterate_joint(self, c, m, rng, value) -> tuple[np.ndarray, np.ndarray | None]:
+        # labels with the current S, the missed objects with the absolute S, then rho and
+        # S from their conjugate conditionals (DECISIONS #79)
+        S = self._sel[c]  # on the truth: rows of L_i scaled by S, detections are successes
+        counts, labels = kern.sample_counts(
+            m.likelihoods.values,
+            self._w_int,
+            value * S,
+            rng,
+            chunk=self.chunk,
+            unit_weights=self._unit,
+        )
+        missed = m._draw_missed(value, counts, rng, S=S) - counts  # with the absolute S
+        injected, recovered, (a, b) = m.selection_spec.injections
+        S = rng.beta(a + recovered + counts, b + injected - recovered + missed)
+        self._sel[c] = np.maximum(S, S_FLOOR)  # an underflow to zero would void its bin
+        self._state[c] = m.prior.posterior_sample(counts + missed, rng)
         return self._state[c], labels
 
     def warmup(self) -> None:
@@ -155,6 +183,8 @@ class Gibbs(Engine):
         self.warmup()
         C, K = self.n_chains, self.model.K
         draws = np.empty((C, n_samples, K))
+        joint = self.model.selection_uncertain
+        sel = np.empty((C, n_samples, K)) if joint else None
         store = self.label_index is not None
         labs = np.empty((C, n_samples, len(self.label_index)), dtype=np.int32) if store else None
         n_done = 0
@@ -164,6 +194,8 @@ class Gibbs(Engine):
                     for _ in range(self.thin):
                         value, labels = self._iterate(c)
                     draws[c, i] = value
+                    if joint:
+                        sel[c, i] = self._sel[c]
                     if store:
                         labs[c, i] = labels[self.label_index]
                 n_done = i + 1
@@ -171,6 +203,8 @@ class Gibbs(Engine):
         finally:
             if n_done:
                 self._draws.append(draws[:, :n_done])
+                if joint:
+                    self._sel_draws.append(sel[:, :n_done])
                 if store:
                     self._labels.append(labs[:, :n_done])
 
@@ -187,6 +221,8 @@ class Gibbs(Engine):
         D = np.concatenate(self._draws, axis=1)
         labels = np.concatenate(self._labels, axis=1) if self._labels else None
         info = {"thin": self.thin, "n_warmup": self.n_warmup}
+        if self._sel_draws:  # the selection inferred with the population (DECISIONS #79)
+            info["selection_draws"] = np.concatenate(self._sel_draws, axis=1)
         return PopulationResult(
             self.model,
             D,
