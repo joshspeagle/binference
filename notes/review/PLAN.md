@@ -94,4 +94,4 @@ Seven auditor reports land in `audit/` (see `audit/README.md`). Per DECISIONS #1
 | 1.3 Architecture | L2 | overview done; decisions deferred | `briefings/1.3-architecture.md` | Josh: needs code context before judging the 8 decisions |
 | 2.1 Core math (+2.6 code) | L3 | done (2026-10-23) | `briefings/2.1-core-math.html` (+ .md) | decisions #1–#15; 2.6 code review of model/kernels partly covered |
 | 2.2 Bins and binning bias | L2–L3 | done (2026-10-23) | `briefings/2.2-bins.html` (+ .md) | |
-| 2.3 Inputs (`from_*`) | L3 | in discussion (follow-up page 2.3b) | `briefings/2.3-inputs.html`, `briefings/2.3b-redesign.html` (+ .md) | |
+| 2.3 Inputs (`from_*`) | L3 | done (decisions #22–#32) | `briefings/2.3-inputs.html`, `briefings/2.3b-redesign.html` (+ .md) | |
