@@ -136,7 +136,7 @@ def population(bins: Bins, density: Any = "bimodal", tol: float = 1e-6) -> np.nd
 
 def _draw_values(bins: Bins, density: Any, n: int, rng: np.random.Generator):
     """True values (continuous) and labels for n objects."""
-    f = _as_density(density, bins)._pointwise()
+    f = _as_density(density, bins)._log_pointwise()
     if f is None:
         rho = population(bins, density)
         labels = rng.choice(bins.K, size=n, p=rho)
@@ -150,7 +150,7 @@ def _draw_values(bins: Bins, density: Any, n: int, rng: np.random.Generator):
     ]
     fb = Bins.grid(*fine, measure=bins.measures)
     pts = fb.centers
-    dens = np.clip(np.asarray(f(pts), dtype=float).ravel(), 0.0, None) * fb.volumes
+    dens = np.exp(np.asarray(f(pts), dtype=float).ravel()) * fb.volumes
     if bins.is_masked:
         dens[~bins.contains(pts)] = 0.0  # no objects in masked cells
     if not dens.sum() > 0:
@@ -252,20 +252,20 @@ def mock_1d(
     counts = np.bincount(labels, minlength=bins.K).astype(float)
     truth = Truth(rho=rho, labels=labels, values=values, counts=counts, n_drawn=n_drawn)
     mock = Mock(bins, lk, truth, {"mean": obs, "sigma": sigma})
-    pi_dens = None
+    log_pi = None
     if interim is not None:
         if isinstance(interim, str) and interim == "gaussian":
             lo, hi = bins.range[0]
             interim = stats.norm(0.4 * lo + 0.6 * hi, 0.3 * (hi - lo))
         interim = _as_density(interim, bins)
-        pi_dens = interim._pointwise()
+        log_pi = interim._log_pointwise()
         Pi = interim.masses(bins, tol=1e-6)
         P = lk.toarray() * Pi[None, :]  # row scales are irrelevant after normalising
         mock.posteriors = P / P.sum(axis=1, keepdims=True)
         mock.interim = Pi
     if n_samples > 0:
         mock.samples = _posterior_samples_1d(
-            obs, sigma, bins, pi_dens, mock.interim, n_samples, gen
+            obs, sigma, bins, log_pi, mock.interim, n_samples, gen
         )
         if mock.interim is None:
             mock.interim = population(bins, "uniform")
@@ -294,21 +294,21 @@ def _draw_selected(bins, density, n_objects, selection, gen):
     return np.concatenate(vals), np.concatenate(labs), n_drawn
 
 
-def _posterior_samples_1d(obs, sigma, bins, pi_dens, pi_masses, n_samples, gen):
+def _posterior_samples_1d(obs, sigma, bins, log_pi, pi_masses, n_samples, gen):
     e = bins.edges[0]  # 50 steps per bin, so each step lies inside one bin
     grid = np.append(
         (e[:-1, None] + np.diff(e)[:, None] * np.linspace(0, 1, 51)[:-1]).ravel(), e[-1]
     )
     mid = 0.5 * (grid[1:] + grid[:-1])
     k = bins.index(mid)
-    if pi_dens is not None:
-        prior = np.asarray(pi_dens(mid), dtype=float)
-    elif pi_masses is not None:
-        prior = pi_masses[k] / bins.volumes[k]
-    else:
-        prior = np.ones_like(mid)
     with np.errstate(divide="ignore"):
-        log_prior = np.where(k >= 0, np.log(prior), -np.inf)  # no mass in masked bins
+        if log_pi is not None:
+            log_prior = np.asarray(log_pi(mid), dtype=float)
+        elif pi_masses is not None:
+            log_prior = np.log(pi_masses[k] / bins.volumes[k])
+        else:
+            log_prior = np.zeros_like(mid)
+    log_prior = np.where(k >= 0, log_prior, -np.inf)  # no mass in masked bins
     out = np.empty((obs.size, n_samples))
     for i in range(obs.size):
         logp = -0.5 * ((mid - obs[i]) / sigma[i]) ** 2 + log_prior

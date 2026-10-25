@@ -140,7 +140,7 @@ class Measure:
             zt, ut = self._table
             j = np.clip(np.searchsorted(zt, z, side="right") - 1, 0, zt.size - 2)
             return np.log((ut[j + 1] - ut[j]) / (zt[j + 1] - zt[j]))
-        h = 1e-6 * np.maximum(1.0, np.abs(z))
+        h = 1e-6 * np.where(z != 0, np.abs(z), 1.0)  # relative, so small z stay in the domain
         return np.log((self.forward(z + h) - self.forward(z - h)) / (2 * h))
 
     def _covers(self, lo: float, hi: float) -> bool:

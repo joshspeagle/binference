@@ -81,3 +81,54 @@ def test_check_warns_when_sample_noise_is_large():
     with pytest.warns(ConvergenceWarning, match="Monte Carlo variance"):
         msgs = res.check()
     assert any("Monte Carlo" in m for m in msgs)
+
+
+def test_the_scale_of_sample_weights_changes_neither_the_floor_nor_the_variance():
+    rng = np.random.default_rng(4)
+    bins = Bins.linear(0, 1, 5)
+    s = rng.normal(0.5, 0.2, size=(20, 200))
+    kw = {"floor": 1.0, "warn_outside": False}
+    unit = Likelihoods.from_samples(s, bins, "flat", sample_weights=np.ones_like(s), **kw)
+    norm = Likelihoods.from_samples(s, bins, "flat", sample_weights=np.full(s.shape, 0.005), **kw)
+    np.testing.assert_allclose(norm.toarray(), unit.toarray(), rtol=1e-12)
+    rho = np.array([0.1, 0.1, 0.2, 0.3, 0.3])
+    np.testing.assert_allclose(norm.sample_variance(rho)[0], unit.sample_variance(rho)[0])
+    assert unit.sample_variance(rho)[0].min() > 0
+
+
+def test_a_floored_object_without_samples_in_the_bins_has_no_sampling_error():
+    bins = Bins.linear(0, 1, 5)
+    samples = [np.linspace(0.05, 0.95, 50), np.full(10, 5.0)]
+    lk = Likelihoods.from_samples(
+        samples, bins, "flat", floor=1.0, min_samples=0, warn_outside=False
+    )
+    var, _ = lk.sample_variance(np.full(5, 0.2))
+    assert np.isfinite(var).all() and var[1] == 0.0
+
+
+def test_an_interim_distribution_is_divided_out_in_its_far_tail():
+    rng = np.random.default_rng(5)
+    bins = Bins.linear(30, 45, 3)
+    # the pdf underflows to zero here; the log-pdf does not
+    lk = Likelihoods.from_samples(
+        [rng.uniform(36, 40, 200)], bins, stats.norm(0, 1), min_samples=0
+    )
+    np.testing.assert_array_equal(lk.toarray()[0] > 0, [False, True, False])
+
+
+def test_an_interim_with_only_a_cdf_is_divided_out_per_bin():
+    class CdfOnly:
+        def cdf(self, z):
+            return stats.uniform(0, 1).cdf(z)
+
+    rng = np.random.default_rng(6)
+    bins = Bins.linear(0, 1, 4)
+    s = [rng.uniform(0, 1, 400)]
+    via_cdf = Likelihoods.from_samples(s, bins, CdfOnly()).toarray()
+    np.testing.assert_allclose(via_cdf, Likelihoods.from_samples(s, bins, "flat").toarray())
+
+
+def test_a_transform_measure_works_on_an_axis_of_small_values():
+    m = binference.Measure.transform(np.sqrt, np.square)
+    z = np.array([1e-9, 1e-8, 3e-8])
+    np.testing.assert_allclose(m.log_jacobian(z), np.log(0.5 / np.sqrt(z)), rtol=1e-6)

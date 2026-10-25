@@ -747,26 +747,25 @@ class Likelihoods:
         inside = idx >= 0
         rows, cols, sw_in = obj_ids[inside], idx[inside], sw[inside]
         # weight each sample by T'(z) / pi(z); a per-bin prior is flat in u within bins
-        pointwise = density._pointwise()
-        with np.errstate(divide="ignore", invalid="ignore"):
-            if pointwise is None:
+        log_pi = density._log_pointwise()
+        if log_pi is None:
+            with np.errstate(divide="ignore"):
                 log_pi_u = np.log(Pi[cols] / du[cols])
-            else:
-                zz = flat[inside].reshape(-1, bins.ndim)
-                pi = np.asarray(pointwise(zz[:, 0] if bins.ndim == 1 else zz), dtype=float)
-                log_pi_u = np.log(pi).ravel() - sum(
-                    m.log_jacobian(zz[:, d]) for d, m in enumerate(bins.measures)
-                )
+        else:
+            zz = flat[inside].reshape(-1, bins.ndim)
+            log_pi_u = np.asarray(log_pi(zz[:, 0] if bins.ndim == 1 else zz), dtype=float).ravel()
+            log_pi_u -= sum(m.log_jacobian(zz[:, d]) for d, m in enumerate(bins.measures))
         if not np.all(np.isfinite(log_pi_u)):
             raise ValueError("Samples fall where the interim density is zero or undefined.")
-        w = sw_in * np.exp(-log_pi_u)
+        # rows are rescaled to counts below, so shift each object's log weights to max 0
+        shift = np.full(n_obj, -np.inf)
+        np.maximum.at(shift, rows, -log_pi_u)
+        w = sw_in * np.exp(-log_pi_u - shift[rows])
         # sum the weights and their squares per (object, bin) entry with one sort
         entry, inv = np.unique(rows * bins.K + cols, return_inverse=True)
         s1, s2 = np.bincount(inv, weights=w), np.bincount(inv, weights=w**2)
         er, ec = np.divmod(entry, bins.K)
         shape = (n_obj, bins.K)
-        S1 = sp.csr_array((s1 / du[ec], (er, ec)), shape=shape)
-        S2 = sp.csr_array((s2 / du[ec] ** 2, (er, ec)), shape=shape)
         n_samples = np.bincount(obj_ids, weights=sw, minlength=n_obj)
         inside_w = np.bincount(rows, weights=sw_in, minlength=n_obj)
         outside = 1.0 - inside_w / np.where(n_samples > 0, n_samples, 1.0)
@@ -774,12 +773,14 @@ class Likelihoods:
             np.bincount(er, weights=s1, minlength=n_obj),
             np.bincount(er, weights=s2, minlength=n_obj),
         )
-        est = S1  # proportional to the bin averages
-        if floor > 0:  # as counts c + floor * Pi, divided by Pi, with sum(c) = inside_w
-            tot = S1 @ Pi
-            est = S1.toarray()
-            est *= (inside_w / np.where(tot > 0, tot, 1.0))[:, None]
-            est += floor
+        # scale each row to counts: sum_k S1_k Pi_k = number of samples inside, so the
+        # floor is in pseudo-samples whatever the scale of sample_weights
+        S1 = sp.csr_array((s1 / du[ec], (er, ec)), shape=shape)
+        tot = S1 @ Pi
+        scale = np.bincount(rows, minlength=n_obj) / np.where(tot > 0, tot, 1.0)
+        S1 = sp.diags_array(scale) @ S1
+        S2 = sp.diags_array(scale**2) @ sp.csr_array((s2 / du[ec] ** 2, (er, ec)), shape=shape)
+        est = S1 if floor == 0 else S1.toarray() + floor  # proportional to the bin averages
         if sparse is None:
             sparse = floor == 0 and S1.nnz < 0.3 * n_obj * bins.K
         values = sp.csr_array(est) if sparse else (est.toarray() if sp.issparse(est) else est)
@@ -806,8 +807,9 @@ class Likelihoods:
             n_eff=n_eff,
             sample_sum=S1,
             sample_sq=S2,
-            sample_count=n_samples,
+            sample_count=np.bincount(obj_ids, minlength=n_obj),
         )
+        lk.meta["sample_floor"] = float(floor)
         _record_outside(lk, outside, warn_outside)
         return lk
 
@@ -827,8 +829,11 @@ class Likelihoods:
             raise ValueError(f"rho must have length K={self.K}.")
         m = np.asarray(self.meta["sample_sum"] @ a).ravel()
         q = np.asarray(self.meta["sample_sq"] @ a**2).ravel()
+        est = (
+            m + self.meta.get("sample_floor", 0.0) * a.sum()
+        )  # the floor carries no sampling error
         with np.errstate(divide="ignore", invalid="ignore"):
-            var = np.where(m > 0, q / m**2 - 1.0 / self.meta["sample_count"], np.inf)
+            var = np.where(est > 0, (q - m**2 / self.meta["sample_count"]) / est**2, np.inf)
         return np.maximum(var, 0.0), _ess(m, q)
 
     @classmethod
