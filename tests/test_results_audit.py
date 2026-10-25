@@ -79,7 +79,7 @@ def _external(draws, model, **info):
 
 
 def test_check_flags_energy_tail_mixing_one_chain_and_unconverged_fits():
-    lk, res = _fit_with_selection()
+    _, res = _fit_with_selection()
     m = res.model
     rng = np.random.default_rng(0)
     good = rng.dirichlet(np.ones(4) * 50, size=(4, 400))
