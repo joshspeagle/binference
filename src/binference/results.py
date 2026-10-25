@@ -20,6 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from .basis import Basis
     from .likelihoods import Likelihoods
     from .model import PopulationModel
+    from .selection import Selection
 
 __all__ = ["PointEstimate", "PopulationResult", "Summary"]
 
@@ -205,8 +206,8 @@ class _IndividualMixin:
             if isinstance(likelihoods, Likelihoods)
             else Likelihoods(likelihoods, basis or model.bins)
         )
-        if lk.K != model.K or lk.basis != basis:
-            raise ValueError("New likelihoods must use the same bins (and basis).")
+        if lk.K != model.K or lk.basis != basis or (basis is None and lk.bins != model.bins):
+            raise ValueError("New likelihoods must use the same bins (and basis) as the fit.")
         return lk
 
     def assignment_probabilities(
@@ -525,6 +526,7 @@ class PopulationResult(_IndividualMixin):
         prior_repr: str | None = None,
         basis: Basis | None = None,
         total: np.ndarray | None = None,
+        selection: Selection | None = None,
     ) -> None:
         d = np.asarray(draws, dtype=float)
         if d.ndim == 2:
@@ -564,6 +566,8 @@ class PopulationResult(_IndividualMixin):
         self.labels = labels
         self.label_index = label_index
         self.prior_repr = prior_repr or (repr(model.prior_spec) if model is not None else None)
+        # the fit's selection, kept for attach after a load (audit O-1)
+        self._selection = selection if model is None else model.selection_spec
         self._cache: dict[str, Any] = {}
 
     # ------------------------------------------------------------- creation
@@ -587,21 +591,36 @@ class PopulationResult(_IndividualMixin):
             info=info,
         )
 
+    @property
+    def selection(self) -> Selection | None:
+        """The selection function of the fit, kept through :meth:`save` and :func:`load`."""
+        return self._selection if self.model is None else self.model.selection_spec
+
     def attach(self, likelihoods_or_model: Any) -> PopulationResult:
-        """Attach likelihoods (or a model) to a loaded result to enable per-object methods."""
+        """Attach likelihoods (or a model) to a loaded result to enable per-object methods.
+
+        Bare likelihoods take the fit's selection; likelihoods or a model with another
+        selection, or on other bins, are refused (audit O-1, O-2).
+        """
+        from .likelihoods import Likelihoods
         from .model import PopulationModel
 
-        m = likelihoods_or_model
+        m, saved = likelihoods_or_model, self.selection
         if not isinstance(m, PopulationModel):
-            m = PopulationModel(m)
+            lk = m if isinstance(m, Likelihoods) else Likelihoods(m, self.basis or self.bins)
+            given = lk.selection is not None
+            m = (
+                PopulationModel(lk)
+                if saved is None or given
+                else PopulationModel(lk, selection=saved)
+            )
+        if saved is not None and m.selection_spec != saved:
+            raise ValueError("The likelihoods (or model) carry another selection than this fit.")
         if not _same_layout(m.likelihoods.basis, self.basis):
             raise ValueError("The likelihoods use a different basis than this result.")
-        K = self.bins.K if self.basis is None else self.basis.C
-        if m.K != K:
-            raise ValueError("Likelihoods have a different number of bins.")
+        if self.basis is None and m.bins != self.bins:
+            raise ValueError(f"The likelihoods are on other bins ({m.bins}) than this result.")
         self.model = m
-        if self.kind == "fractions":
-            self._total = None  # drawn again for this model (the same for the same data)
         for key in [k for k in self._cache if isinstance(k, tuple) and k[0] == "predictive_p"]:
             del self._cache[key]  # computed from the previous likelihoods
         return self

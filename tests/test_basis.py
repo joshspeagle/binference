@@ -245,4 +245,4 @@ def test_a_reloaded_result_attaches_on_a_transform_axis(tmp_path):
     res.save(str(tmp_path / "r.npz"))
     back = PopulationResult.load(str(tmp_path / "r.npz"))
     back.attach(lk).assignment_probabilities(idx=[0])
-    assert back.to_dict()["basis"]["order"] == 1
+    assert back.to_dict()["meta"]["basis"]["order"] == 1
