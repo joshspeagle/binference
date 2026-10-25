@@ -177,9 +177,12 @@ def _worker_threads(n_workers: int) -> int:
     from threadpoolctl import threadpool_info
 
     share = max(1, _cpu_count() // n_workers)
-    # the BLAS pools' own limit; other runtimes (e.g. a single-threaded OpenMP) do not cap it
-    blas = [lib["num_threads"] for lib in threadpool_info() if lib.get("user_api") == "blas"]
-    return min(share, max(blas)) if blas else share
+    info = threadpool_info()
+    # the BLAS pools' limit (another runtime, e.g. a single-threaded OpenMP, does not cap
+    # it); where no BLAS pool is visible (e.g. Accelerate), every reported limit counts
+    blas = [lib["num_threads"] for lib in info if lib.get("user_api") == "blas"]
+    limits = [max(blas)] if blas else [lib["num_threads"] for lib in info]
+    return min([share, *limits])
 
 
 _WORKER_MODEL: PopulationModel | None = None  # the base model, sent once per worker
