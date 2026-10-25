@@ -11,11 +11,20 @@ from .._utils import RNGLike, warn
 from ..likelihoods import _scale_columns
 from ..model import PopulationModel
 from ..priors.dirichlet import _BoundDirichlet
+from ..priors.rates import _BoundGammaRates
 from ..results import PointEstimate
 from ..warnings import ConvergenceWarning, InputWarning
 from .base import Engine, em_update, interior_start
 
 __all__ = ["MAP"]
+
+#: a run that can no longer improve its objective in floating point is converged where
+#: its optimality gap is below this many times ``tol`` (DECISIONS #71)
+_ROUNDOFF = 1e3
+
+
+def _converged(gap: float, tol: float, stalled: bool) -> bool:
+    return gap <= tol or (stalled and gap <= _ROUNDOFF * tol)
 
 
 def _mixsqp(
@@ -33,9 +42,9 @@ def _mixsqp(
     objective :math:`f(x)=-W^{-1}[\dots]+c\sum_kx_k` with :math:`c=(W+\sum a)/W`
     has its minimiser on the simplex, so only :math:`x\ge0` is imposed. Each
     iteration solves a non-negative quadratic program for the Newton step
-    (as a non-negative least-squares problem) and backtracks along it. For
-    tall dense ``L`` the Hessian uses a fixed low-rank approximation of ``L``;
-    gradients and objectives stay exact, so the fixed point is exact.
+    (as a non-negative least-squares problem) and backtracks along it. It
+    stops when the KKT gap :math:`-\min_k g_k` is at most ``tol``, or at most
+    ``1e3 * tol`` once the objective no longer resolves progress (round-off).
 
     Returns ``(x, n_iter, converged)``.
     """
@@ -43,13 +52,8 @@ def _mixsqp(
     A = float(a.sum())
     c = (W + A) / W
     pos = a > 0
-    N, K = L.shape
+    K = L.shape[1]
     dense = not hasattr(L, "toarray")
-    low_rank = None
-    if dense and N > 10 * K:
-        U, sv, Vt = np.linalg.svd(np.asarray(L), full_matrices=False)
-        r = int(np.sum(sv > 1e-8 * sv[0]))
-        low_rank = (U[:, :r], sv[:r, None] * Vt[:r])  # L ~= U @ B
 
     def objective(x):
         s = L @ x
@@ -65,7 +69,7 @@ def _mixsqp(
     x = np.maximum(np.asarray(x0, dtype=float), 1e-12)
     x = x / x.sum()
     f = objective(x)
-    converged = False
+    gap, stalled = np.inf, False
     it = 0
     for it in range(1, max_iter + 1):  # noqa: B007 (used after the loop)
         s = np.asarray(L @ x).ravel()
@@ -73,34 +77,32 @@ def _mixsqp(
         g = -np.asarray(L.T @ u).ravel() / W + c
         if A > 0:
             g[pos] -= a[pos] / (W * x[pos])
-        if np.min(g) >= -tol:
-            converged = True
+        gap = -float(np.min(g))
+        if gap <= tol:
             break
         d2 = u / s  # w_i / s_i^2
-        if low_rank is not None:
-            Uh, B = low_rank
-            M = (Uh * d2[:, None]).T @ Uh
-            H = B.T @ M @ B / W
-        elif dense:
+        if dense:
             Ls = np.asarray(L) * np.sqrt(d2)[:, None]
             H = Ls.T @ Ls / W
         else:
             H = (L.T @ (L.multiply(d2[:, None]))).toarray() / W
         if A > 0:
-            H[np.diag_indices(K)] += np.where(pos, a / (W * np.maximum(x, 1e-300) ** 2), 0.0)
+            H[pos, pos] += a[pos] / (W * x[pos] ** 2)  # only where a_k > 0 (audit T-4)
         H[np.diag_indices(K)] += 1e-10 * max(np.trace(H) / K, 1e-300)
         try:
-            Lc = np.linalg.cholesky(H)
-        except np.linalg.LinAlgError:
-            H[np.diag_indices(K)] += 1e-6 * max(np.trace(H) / K, 1e-300)
-            Lc = np.linalg.cholesky(H)
-        q = g - H @ x
-        b = -np.linalg.solve(Lc, q)
-        y, _ = optimize.nnls(Lc.T, b, maxiter=50 * K)
+            try:
+                Lc = np.linalg.cholesky(H)
+            except np.linalg.LinAlgError:
+                H[np.diag_indices(K)] += 1e-6 * max(np.trace(H) / K, 1e-300)
+                Lc = np.linalg.cholesky(H)
+            b = -np.linalg.solve(Lc, g - H @ x)
+            y, _ = optimize.nnls(Lc.T, b, maxiter=50 * K)
+        except (np.linalg.LinAlgError, RuntimeError):  # no quadratic step (audit M-13)
+            break
         step = y - x
         slope = float(g @ step)
         if slope >= 0:  # no descent direction left: at the optimum up to round-off
-            converged = bool(np.min(g) >= -1e3 * tol)
+            stalled = True
             break
         t = 1.0
         while t > 1e-12:
@@ -110,15 +112,14 @@ def _mixsqp(
                 break
             t *= 0.5
         else:
-            converged = bool(np.min(g) >= -1e3 * tol)
+            stalled = True
             break
         stalled = f - fc <= 1e-15 * max(abs(f), 1.0)
         x, f = cand, fc
         if stalled:  # the objective no longer resolves the remaining KKT violation
-            converged = bool(np.min(g) >= -1e3 * tol)
             break
     x = np.maximum(x, 0.0)
-    return x / x.sum(), it, converged
+    return x / x.sum(), it, _converged(gap, tol, stalled)
 
 
 class MAP(Engine):
@@ -129,11 +130,14 @@ class MAP(Engine):
     :math:`\rho_k \leftarrow \sum_i w_i r_{ik}(\rho)/W` plus prior pseudo-counts --
     accelerated with SQUAREM (Varadhan & Roland 2008). For a ``Dirichlet``
     prior with all concentrations >= 1 (exactly 1 with a selection function),
-    the default uses mix-SQP (Kim et al. 2020) instead, a second-order method
-    that converges in tens of iterations where EM can need thousands (broad
-    likelihoods). With selection it solves for the fractions of the observed
-    population, :math:`\phi_k \propto S_k\rho_k`, in which the likelihood
-    is concave, and maps the mode back. The
+    and for ``GammaRates`` with all shapes >= 1, the default uses mix-SQP
+    (Kim et al. 2020) instead, a second-order method that converges in tens
+    of iterations where EM can need thousands (broad likelihoods). With
+    selection it solves for the fractions of the observed population,
+    :math:`\phi_k \propto S_k\rho_k`, in which the likelihood is concave,
+    and maps the mode back; rates :math:`\lambda = \Lambda\psi` reduce to
+    the same problem with :math:`S_k + b_k` in place of :math:`S_k` once the
+    total :math:`\Lambda` is profiled out. The
     default ``Dirichlet(1)`` prior gives the maximum-likelihood estimate (the
     NPMLE on the grid). Other priors, or ``space="unconstrained"``, maximise
     the density in the unconstrained coordinates with L-BFGS.
@@ -148,7 +152,13 @@ class MAP(Engine):
         the prior density is unbounded at the boundary (concentrations below
         one, Polya trees), where the simplex mode can have exact zeros.
     tol : float
-        Relative tolerance on the objective.
+        Tolerance on first-order optimality: the KKT gap
+        (:meth:`~binference.PopulationModel.kkt_gap`) for EM, and for mix-SQP
+        the same gap of the problem it solves (in the observed fractions under
+        selection, the composition for rates); the largest absolute gradient
+        divided by ``max(1, W)`` for L-BFGS. A run that can no longer improve
+        the objective in floating point counts as converged when that measure
+        is below ``1e3 * tol``.
     max_iter : int
         Maximum number of (accelerated) EM iterations or L-BFGS iterations.
     accelerate : bool
@@ -156,9 +166,10 @@ class MAP(Engine):
     algorithm : {"auto", "mixsqp", "em"}
         Simplex-space algorithm: ``"auto"`` uses mix-SQP where it applies
         (Dirichlet prior with concentrations >= 1, or exactly 1 with
-        selection) and EM otherwise.
+        selection; GammaRates with shapes >= 1) and EM otherwise.
     init : array_like (K,), optional
-        Starting fractions (or rates).
+        Starting fractions (or rates). By default mix-SQP starts after 10
+        regularised EM steps from uniform, the other algorithms after up to 50.
     """
 
     name = "map"
@@ -168,7 +179,7 @@ class MAP(Engine):
         model: PopulationModel,
         *,
         space: str = "auto",
-        tol: float = 1e-10,
+        tol: float = 1e-8,
         max_iter: int = 20000,
         accelerate: bool = True,
         algorithm: str = "auto",
@@ -218,7 +229,7 @@ class MAP(Engine):
             if self.algorithm == "mixsqp":
                 raise ValueError(
                     "mix-SQP needs a Dirichlet prior with concentrations >= 1 (exactly 1 with "
-                    "a selection function)."
+                    "a selection function) or GammaRates with shapes >= 1."
                 )
             return self._run_em(m)
         return self._run_lbfgs(m)
@@ -227,24 +238,24 @@ class MAP(Engine):
     #: the bootstrap turns them off, as it reads only the values
     _diagnostics = True
 
-    def _estimate(
-        self, m, v, n_iter, converged, algorithm, x=None, log_posterior=None, grad_norm=None
-    ) -> PointEstimate:
-        # a mode with its certificate: on the simplex (or orthant), or in unconstrained x
+    def _estimate(self, m, v, n_iter, converged, algorithm, x=None, **extra) -> PointEstimate:
+        # a mode with its certificate: on the simplex (or orthant), or in unconstrained x;
+        # log_posterior is the density of the fractions or rates for every algorithm (audit M-8)
         simplex = x is None
-        info = {"space": "simplex" if simplex else "unconstrained", "algorithm": algorithm}
-        if grad_norm is not None:
-            info["grad_norm"] = grad_norm
+        info = {
+            "space": "simplex" if simplex else "unconstrained",
+            "algorithm": algorithm,
+            **extra,
+        }
         full = self._diagnostics
-        if log_posterior is None and full:
-            log_posterior = _objective(m, v)
+        ll = m.log_likelihood(v) if full else np.nan
         return PointEstimate(
             m,
             v,
             method="map",
             x=x,
-            log_posterior=np.nan if log_posterior is None else log_posterior,
-            log_likelihood=m.log_likelihood(v) if full else np.nan,
+            log_posterior=ll + m.log_prior(v) if full else np.nan,
+            log_likelihood=ll,
             kkt_gap=m.kkt_gap(v) if simplex and full else np.nan,
             n_iter=n_iter,
             converged=converged,
@@ -252,38 +263,53 @@ class MAP(Engine):
         )
 
     def _mixsqp_applies(self) -> bool:
-        m = self.model
-        if not (
-            self.algorithm in ("auto", "mixsqp")
-            and isinstance(m.prior, _BoundDirichlet)
-            and bool(np.all(m.prior.alpha >= 1.0))
-        ):
+        p = self.model.prior
+        if self.algorithm not in ("auto", "mixsqp"):
             return False
+        if isinstance(p, _BoundGammaRates):
+            return bool(np.all(p.a >= 1.0))
         # with selection the likelihood is concave in the observed fractions
         # phi = S rho / (S . rho); a flat prior keeps the mode under that map
-        return m.selection is None or bool(np.all(m.prior.alpha == 1.0))
+        return (
+            isinstance(p, _BoundDirichlet)
+            and bool(np.all(p.alpha >= 1.0))
+            and (self.model.selection is None or bool(np.all(p.alpha == 1.0)))
+        )
 
     def _run_mixsqp(self, m: PopulationModel) -> PointEstimate:
-        x0 = interior_start(m) if self.init is None else self.init.copy()
-        a = np.asarray(m.prior.alpha, dtype=float) - 1.0
-        tol = max(self.tol, 1e-12) * 100.0  # tolerance on the (relative) KKT conditions
-        L = m._L
-        if m.selection is not None:
-            # p(x_i | observed) = sum_k (L_ik / S_k) phi_k: solve for phi, then map back
-            L = _scale_columns(L, 1.0 / m._detect)
-            x0 = x0 * m._detect / float(x0 @ m._detect)
-        x, n_iter, converged = _mixsqp(L, m._w, a, x0, tol=tol, max_iter=self.max_iter)
-        if m.selection is not None:
-            x = x / m._detect
-            x /= x.sum()
-        if not converged:
-            warn(f"mix-SQP did not converge in {n_iter} iterations.", ConvergenceWarning)
+        rates = m.kind == "rates"
+        a = (m.prior.a if rates else m.prior.alpha) - 1.0
+        # the likelihood is sum_k (L_ik / e_k) psi_k in psi proportional to e * value: the
+        # observed fractions (e = S) or, for rates lambda = Lambda psi / e, the composition
+        # with e = S + b, whose total Lambda = W + sum(a) profiles out (audit M-6)
+        e = m._S + m.prior.b if rates else m._detect
+        L = m._L if e is None else _scale_columns(m._L, 1.0 / e)
+        # ten regularised EM steps are the cheapest start measured; from uniform, mix-SQP
+        # can need over a hundred iterations (audit M-5)
+        x0 = interior_start(m, n_iter=10) if self.init is None else self.init
+        if e is not None:
+            x0 = x0 * e
+        x, n_iter, converged = _mixsqp(L, m._w, a, x0, tol=self.tol, max_iter=self.max_iter)
+        if e is not None:  # back from psi to the fractions or rates
+            x = x / e
+            if rates:
+                x *= m.W + a.sum()
+            else:
+                x /= x.sum()
+        if not converged:  # EM takes over from where mix-SQP stopped (audit M-13)
+            warn(
+                f"mix-SQP did not converge in {n_iter} iterations; continuing with EM.",
+                ConvergenceWarning,
+            )
+            return self._run_em(m, x)
         return self._estimate(m, x, n_iter, converged, "mixsqp")
 
     # ------------------------------------------------------------------- EM
-    def _run_em(self, m: PopulationModel) -> PointEstimate:
+    def _run_em(self, m: PopulationModel, start: np.ndarray | None = None) -> PointEstimate:
         fractions = m.kind == "fractions"
-        v = interior_start(m) if self.init is None else self.init.copy()
+        if start is None:
+            start = interior_start(m) if self.init is None else self.init
+        v = start.copy()
         if fractions:
             v = v / v.sum()
 
@@ -301,7 +327,7 @@ class MAP(Engine):
             )
         converged = False
         n_iter = 0
-        for n_iter in range(1, self.max_iter + 1):  # noqa: B007 (used after the loop)
+        for n_iter in range(1, self.max_iter + 1):
             if self.accelerate:
                 v_new, f_new = self._squarem_step(m, F, v, fractions)
             else:
@@ -315,12 +341,22 @@ class MAP(Engine):
                     ConvergenceWarning,
                 )
                 break
-            dv = np.max(np.abs(v_new - v)) / max(np.max(np.abs(v_new)), 1e-300)
-            df = abs(f_new - f_old) / (abs(f_old) + 1.0)
+            df = (f_new - f_old) / (abs(f_new) + 1.0)  # EM never decreases the objective
             v, f_old = v_new, f_new
-            if df <= self.tol and dv <= 1e-7:
-                converged = True
-                break
+            # once the objective has nearly stopped, check optimality every tenth step (two
+            # passes over the data each), at a fixed point and at the last step (audit M-6)
+            if df <= self.tol and (n_iter % 10 == 0 or df <= 0.0 or n_iter == self.max_iter):
+                gap = m.kkt_gap(v)
+                stalled = df <= 0.0  # EM is monotone: no gain is the round-off floor
+                if _converged(gap, self.tol, stalled):
+                    converged = True
+                    break
+                if stalled:
+                    warn(
+                        f"EM stopped improving the objective with a KKT gap of {gap:.1e}.",
+                        ConvergenceWarning,
+                    )
+                    break
         else:
             msg = f"EM did not converge in {self.max_iter} iterations"
             if self._diagnostics and m.K <= 500:  # EM is slow when information is missing
@@ -329,7 +365,7 @@ class MAP(Engine):
                     msg += f" (missing information {f:.3f})"
             warn(msg + "; raise max_iter.", ConvergenceWarning)
         algorithm = "squarem" if self.accelerate else "em"
-        return self._estimate(m, v, n_iter, converged, algorithm, log_posterior=f_old)
+        return self._estimate(m, v, n_iter, converged, algorithm)
 
     def _squarem_step(self, m, F, v, fractions):
         # one SQUAREM step; (None, -inf) when the first plain EM step meets an impossible object
@@ -356,7 +392,7 @@ class MAP(Engine):
                 # an extrapolation that makes an object impossible is rejected
                 if cand is not None:
                     fc = _objective(m, cand)
-                    if fc >= f2 - 1e-12 * abs(f2):
+                    if fc >= f2:  # monotone, so a fall in the objective means round-off
                         return cand, fc
             if step == -1.0:
                 break
@@ -381,12 +417,18 @@ class MAP(Engine):
             x0,
             jac=True,
             method="L-BFGS-B",
-            options={"maxiter": self.max_iter, "maxcor": 30, "ftol": 1e-15, "gtol": 1e-10 * scale},
+            options={
+                "maxiter": self.max_iter,
+                "maxcor": 30,
+                "ftol": 1e-15,
+                "gtol": self.tol * scale,
+            },
         )
         x = res.x
         lp, g = m.log_density_unconstrained_and_grad(x)
         gnorm = float(np.max(np.abs(g))) if g.size else 0.0
-        converged = bool(res.success) or gnorm < 1e-5 * scale
+        # any stop but the iteration limit means the objective stopped improving
+        converged = _converged(gnorm / scale, self.tol, stalled=res.status != 1)
         if not converged:
             warn(
                 f"L-BFGS did not converge ({res.message}); max |gradient| = {gnorm:.2e}.",
@@ -394,7 +436,14 @@ class MAP(Engine):
             )
         v = m.to_value(x)
         return self._estimate(
-            m, v, int(res.nit), converged, "l-bfgs-b", x=x, log_posterior=lp, grad_norm=gnorm
+            m,
+            v,
+            int(res.nit),
+            converged,
+            "l-bfgs-b",
+            x=x,
+            grad_norm=gnorm,
+            log_density_unconstrained=lp,
         )
 
 
@@ -402,4 +451,4 @@ def _objective(m: PopulationModel, v: np.ndarray) -> float:
     # log posterior on the simplex (or orthant), up to the likelihoods' log-scales;
     # components clipped to zero are active constraints: the prior is evaluated at a tiny
     # positive value so the objective stays finite (and constant) for them
-    return m.log_likelihood(v, absolute=False) + float(m.prior.log_density(np.maximum(v, 1e-300)))
+    return m.log_likelihood(v, absolute=False) + m.log_prior(np.maximum(v, 1e-300))

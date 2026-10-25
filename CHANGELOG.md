@@ -93,6 +93,19 @@ First development version.
   `LogisticGP()` works on two bins (M-14). `PopulationResult.log_prob` is now
   `log_density_unconstrained` (old files still load); `MAP.run` no longer takes
   `weights=`.
+- **MAP** (DECISIONS #71): `tol` (default 1e-8, was 1e-10 on the objective) is the
+  tolerance on the KKT gap for every simplex algorithm and on the largest gradient over
+  `max(1, W)` for L-BFGS (mix-SQP bounds the gap of the problem it solves), and EM is
+  converged only when the gap is below it, or below `1e3 * tol` once the objective
+  stops improving (M-6, M-9).
+  `GammaRates` with shapes of at least one use mix-SQP, with the total rate profiled
+  out (M-6). `PointEstimate.log_posterior` is `model.log_posterior(value)` for every
+  algorithm (NaN for priors without a closed-form density); L-BFGS adds
+  `info["log_density_unconstrained"]` (M-8). mix-SQP drops its SVD and starts after
+  10 EM steps instead of 50, 2–3 times faster on large dense inputs (M-5); a failed
+  quadratic step hands over to EM instead of raising (M-13); Dirichlet priors
+  mixing concentrations of one and above one no longer warn (T-4). The rates KKT gap
+  is one-sided, so a rate EM drives towards zero no longer reads as a violation.
 - **Correlated Gaussians** (DECISIONS #2, #25, #66): `from_gaussian(..., cov=)` takes full
   per-object covariances, averaged over N-D bins by adaptive cubature in log space.
 - `weights` are integer multiplicities; non-integer weights need `fractional_weights=True`
