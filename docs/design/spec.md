@@ -252,8 +252,7 @@ R-BINS-1: smoothness priors require ordered grids and raise a clear error on cat
 | `Likelihoods.from_samples(samples, bins, interim, sample_weights=None)` (no default interim prior, per R-INPUT-1) | per-object posterior samples (list of arrays, or `(N, S[, ndim])`) | histogram masses divided by interim masses; out-of-range mass reported; per-object effective sample counts stored in `meta` |
 | `Likelihoods.from_gaussian(mean, sigma, bins, tol=1e-3)` | Gaussian measurement model, 1-D or N-D with diagonal $\sigma$ | exact CDF differences on linear axes, adaptive quadrature in $u$ otherwise |
 | `Likelihoods.from_density(f, bins, kind="likelihood" \| interim=..., tol=1e-3, max_depth=12, n_sub=None)` | a vectorised function or distribution objects | exact log-CDF masses where valid, else adaptive quadrature (DECISIONS #23, #64) |
-| `Likelihoods.from_response(counts, response, efficiency="from_response", bins=None)` | HEP: reco counts $c_j$ and response $R_{jk}=P(\text{reco }j\mid\text{true }k)$ | rows $R_{j\cdot}$ with weights $c_j$; efficiency becomes `selection` |
-| `Likelihoods.from_classifier(probs, train_prior, labels=None)` | calibrated classifier posteriors | $L\propto p/\pi_\text{train}$ |
+| `Likelihoods.from_binned(response, counts=None, values=None)` | binned measurements: counts $c_j$ (or values) in measured bins and a `Response` $R_{jk}=P(\text{measured }j,\text{ observed}\mid\text{true }k)$ from a matrix, simulated events or a labelled validation set (DECISIONS #27, #29) | rows $R_{j\cdot}$ with weights $c_j$ on the response's truth bins; efficiency becomes an `"observed"` selection |
 
 Methods:
 - `compress(decimals=None)`: merge identical rows into integer weights (sparse stays sparse).

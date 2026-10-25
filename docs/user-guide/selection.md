@@ -70,7 +70,7 @@ print(np.allclose(a, b), c)
 
 Simulators and adapters attach the right mode themselves:
 `simulate.mock_1d(..., selection=S)` uses `"true"`, and
-`Likelihoods.from_response` uses `"observed"` for the efficiency.
+`Likelihoods.from_binned` uses `"observed"` for the efficiency.
 
 For **fractions**, only ratios between the $S_k$ matter, so a selection
 function known only up to a constant is fine. Values above one are allowed

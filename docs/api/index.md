@@ -16,6 +16,7 @@ namespace; priors, engines and helpers live in sub-modules.
    Measure
    Density
    Likelihoods
+   Response
    Selection
    PopulationModel
 ```
