@@ -95,3 +95,4 @@ Seven auditor reports land in `audit/` (see `audit/README.md`). Per DECISIONS #1
 | 2.1 Core math (+2.6 code) | L3 | done (2026-10-23) | `briefings/2.1-core-math.html` (+ .md) | decisions #1–#15; 2.6 code review of model/kernels partly covered |
 | 2.2 Bins and binning bias | L2–L3 | done (2026-10-23) | `briefings/2.2-bins.html` (+ .md) | |
 | 2.3 Inputs (`from_*`) | L3 | done (decisions #22–#32) | `briefings/2.3-inputs.html`, `briefings/2.3b-redesign.html` (+ .md) | |
+| 1.1 Problem, scope, principles | L1–L2 | briefing ready | `briefings/1.1-scope.html` (+ .md) | |
