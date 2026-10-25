@@ -63,8 +63,9 @@ values = result.sample_values(idx=[0], n_draws=1000, rng=0)              # true-
 print(p.round(2)[0], labels.shape, values.mean().round(3), mock.truth.values[0].round(3))
 ```
 
-`sample_assignments` gives exact joint draws of $(\rho, z)$, whatever engine
-produced $\rho$. `sample_values` then draws a true value inside the drawn
+`sample_assignments` gives joint draws of $(\rho, z)$ that are exact given exact draws
+of $\rho$; draws from an approximation (VB, Laplace, the bootstrap) carry its
+approximation over. `sample_values` then draws a true value inside the drawn
 bin from the object's own likelihood, since the population is flat within a
 bin:
 

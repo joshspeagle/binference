@@ -534,6 +534,11 @@ class Likelihoods:
     def __len__(self) -> int:
         return self.N
 
+    @property
+    def shape(self) -> tuple[int, int]:
+        """``(N, K)``; with ``len`` and row indexing, it lets scikit-learn split objects."""
+        return (self.N, self.K)
+
     def __repr__(self) -> str:
         store = "sparse" if self.is_sparse else "dense"
         extra = "" if self._selection is None else f", selection={self._selection.mode!r}"

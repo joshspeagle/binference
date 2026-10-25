@@ -222,7 +222,10 @@ def to_datatree(result: PopulationResult):
     """Convert to an :class:`xarray.DataTree` with ``posterior`` and ``sample_stats`` groups.
 
     Follows the ArviZ (>= 1.0) layout: dimensions ``chain``, ``draw`` and
-    ``bin``. Requires xarray >= 2024.10.
+    ``bin``, with the bins' centres as numeric coordinates (``bin_center``, or
+    ``bin_center_<d>`` per axis of a grid), hyperparameter draws in the posterior,
+    and the NUTS statistics under ArviZ's names (``acceptance_rate``, ``n_steps``,
+    boolean ``diverging``). Requires xarray >= 2024.10.
     """
     try:
         import xarray as xr
@@ -232,11 +235,16 @@ def to_datatree(result: PopulationResult):
     n_chains, n_draws, _ = C.shape
     from .results import _bin_labels
 
-    coords = {
+    coords: dict[str, Any] = {
         "chain": np.arange(n_chains),
         "draw": np.arange(n_draws),
         "bin": np.asarray(_bin_labels(result.bins), dtype=str),
     }
+    if not result.bins.is_categorical:
+        centers = np.asarray(result.bins.centers).reshape(result.bins.K, -1)
+        for d in range(centers.shape[1]):
+            name = "bin_center" if centers.shape[1] == 1 else f"bin_center_{d}"
+            coords[name] = ("bin", centers[:, d])
     data_vars = {"rho": (("chain", "draw", "bin"), C)}
     rates = result.rates
     if rates is not None:
@@ -247,14 +255,23 @@ def to_datatree(result: PopulationResult):
     if "response_draws" in result.info:  # an inferred response, per draw
         dims = ("chain", "draw", "measured_bin", "bin")
         data_vars["response"] = (dims, result.info["response_draws"])
-    post = xr.Dataset(
-        data_vars,
-        coords=coords,
-        attrs={"method": result.method, "approximate": int(result.approximate)},
-    )
+    for name, draws in result.info.get("hyperparameters", {}).items():
+        data_vars[name] = (("chain", "draw"), np.asarray(draws, dtype=float))
+    attrs = {
+        "method": result.method,
+        "kind": result.kind,
+        "approximate": int(result.approximate),
+        "prior": str(result.prior_repr),
+        "binference_version": __version__,
+    }
+    post = xr.Dataset(data_vars, coords=coords, attrs=attrs)
     groups = {"posterior": post}
+    arviz_names = {"accept_stat": "acceptance_rate", "n_leapfrog": "n_steps"}
     stats = {
-        k: (("chain", "draw"), np.asarray(v))
+        arviz_names.get(k, k): (
+            ("chain", "draw"),
+            np.asarray(v, dtype=bool if k == "diverging" else None),
+        )
         for k, v in result.info.items()
         if isinstance(v, np.ndarray) and v.shape == (n_chains, n_draws)
     }

@@ -127,3 +127,112 @@ def test_psis_rounds_the_tail_length_up():
     cut = np.exp(s[-96])
     k_ref, _ = _gpdfit(np.exp(s[-95:]) - cut)
     assert psis(lw)[1] == pytest.approx(k_ref)
+
+
+def test_external_draws_are_checked_and_normalised():
+    _, res = _fit_with_selection()
+    m = res.model
+    with pytest.raises(ValueError, match="shape"):
+        PopulationResult.from_samples(m, np.full((10, 3), 1 / 3))
+    with pytest.raises(ValueError, match="sum to one"):
+        PopulationResult.from_samples(m, np.full((10, 4), 2.0))
+    with pytest.raises(ValueError, match="non-negative"):
+        PopulationResult.from_samples(m, np.full((10, 4), -0.25))
+    near = np.full((10, 4), 0.25) * (1 + 1e-9)
+    np.testing.assert_allclose(PopulationResult.from_samples(m, near).samples.sum(1), 1.0)
+
+
+def test_which_takes_both_spellings_everywhere():
+    pytest.importorskip("matplotlib")
+    import matplotlib
+
+    matplotlib.use("Agg")
+    _, res = _fit_with_selection()
+    np.testing.assert_allclose(
+        res.rebin([0, 0, 1, 1], which="rate"), res.rebin([[0, 1], [2, 3]], "rates")
+    )
+    np.testing.assert_allclose(res.rebin(np.array([0.0, 0.0, 1.0, 1.0])), res.rebin([0, 0, 1, 1]))
+    with pytest.raises(ValueError, match="integer group"):
+        res.rebin(np.array([0.0, 0.5, 1.0, 1.0]))
+    assert res.cov("rates").shape == (4, 4)
+    np.testing.assert_allclose(res.functional(np.sum, which="rates"), res.total)
+    res.plot(which="fractions")
+    res.plot_corner(which="rates")
+    res.plot_trace(which="rate")
+    res.plot_individual(0)
+    est = binference.infer(_fit_with_selection()[0], method="map")
+    ax = est.plot(which="rates")
+    np.testing.assert_allclose(ax.lines[0].get_ydata()[:-1], est.rates)
+    with pytest.raises(ValueError, match="which"):
+        est.plot(which="bogus")
+    grid3 = Bins.grid([0, 1, 2], [0, 1, 2], [0, 1, 2])
+    cube = PopulationResult(None, np.full((5, 8), 1 / 8), method="external", bins=grid3)
+    with pytest.raises(ValueError, match="1-D and 2-D"):
+        cube.plot()
+    grid2 = Bins.grid([0, 1, 2], [0, 1, 2])
+    square = PopulationResult(None, np.full((5, 4), 1 / 4), method="external", bins=grid2)
+    with pytest.warns(binference.InputWarning, match="2-D plots"):
+        square.plot(truth=np.full(4, 0.25))
+
+
+def test_plotting_and_io_are_reachable_from_the_package():
+    import subprocess
+    import sys
+
+    code = "import binference; print(binference.plotting.__name__, binference.io.__name__)"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert out.stdout.split() == ["binference.plotting", "binference.io"], out.stderr
+
+
+def test_method_em_runs_em_and_auto_is_recorded_in_any_case():
+    lk, _ = _fit_with_selection()
+    assert binference.infer(lk, method="em").info["algorithm"] in ("em", "squarem")
+    res = binference.infer(lk, method="AUTO", n_samples=20, rng=0, check=False)
+    assert res.info["auto_method"] == "nuts"
+
+
+def test_estimator_works_with_scikit_learn_model_selection():
+    model_selection = pytest.importorskip("sklearn.model_selection")
+    bins = Bins.linear(0, 1, 4)
+    lk = binference.simulate.mock_1d(120, bins, noise=0.1, rng=0).likelihoods
+    est = binference.PopulationEstimator(method="map", bins=bins)
+    assert np.isfinite(model_selection.cross_val_score(est, lk, cv=3)).all()
+    grid = {"prior": [binference.priors.Dirichlet(0.5), binference.priors.Dirichlet(1.0)]}
+    assert model_selection.GridSearchCV(est, grid, cv=3).fit(lk.toarray()).best_params_
+
+
+def test_loglike_values_need_support_in_the_bin_and_call_loglike_once_per_object():
+    bins = Bins.linear(0, 1, 4)
+    mock = binference.simulate.mock_1d(30, bins, noise=0.3, rng=0)
+    lk = Likelihoods(mock.likelihoods.toarray(), bins)
+    res = binference.infer(lk, method="gibbs", n_samples=20, rng=0, check=False)
+    calls = []
+
+    def loglike(z, i):
+        calls.append(i)
+        return -0.5 * ((z - mock.measurements["mean"][i]) / 0.3) ** 2
+
+    res.sample_values(idx=[0, 1, 2], n_draws=20, rng=0, loglike=loglike)
+    assert sorted(calls) == [0, 1, 2]
+
+    def narrow(z, i):
+        return np.where(np.abs(z - 0.08) < 1e-6, 0.0, -np.inf)
+
+    with pytest.raises(ValueError, match="sub-points"):
+        res.sample_values(idx=[0], n_draws=20, rng=0, loglike=narrow)
+
+
+def test_the_datatree_uses_arviz_names_numeric_centres_and_hyperparameters():
+    pytest.importorskip("xarray")
+    bins = Bins.linear(0, 1, 6)
+    lk = binference.simulate.mock_1d(100, bins, noise=0.1, rng=0).likelihoods
+    res = binference.infer(
+        lk, binference.priors.LogisticRandomWalk(), n_samples=20, n_warmup=30, rng=0, check=False
+    )
+    tree = res.to_datatree()
+    post, stats = tree["posterior"], tree["sample_stats"]
+    np.testing.assert_allclose(post["bin_center"].values, bins.centers)
+    assert post.attrs["kind"] == "fractions" and "binference_version" in post.attrs
+    assert set(res.info["hyperparameters"]) <= set(post.data_vars)
+    assert stats["diverging"].dtype == bool
+    assert "acceptance_rate" in stats.data_vars and "n_steps" in stats.data_vars

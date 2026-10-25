@@ -11,7 +11,7 @@ from scipy import special
 
 from . import _kernels as kern
 from . import diagnostics as diag
-from ._utils import RNGLike, as_generator, chunk_slices, warn
+from ._utils import RNGLike, as_generator, chunk_slices, is_integer_array, warn
 from .bins import Bins
 from .measure import Measure
 from .warnings import ConvergenceWarning, DiagnosticsError, InputWarning
@@ -140,6 +140,13 @@ class _IndividualMixin:
     def _weight_draws(self) -> np.ndarray:  # (n, C) fractions of the model's components
         raise NotImplementedError
 
+    def plot_individual(self, i: int, **kwargs: Any):
+        """Object ``i``'s own likelihood against its hierarchical posterior (see
+        :func:`binference.plotting.plot_individual`)."""
+        from .plotting import plot_individual
+
+        return plot_individual(self, i, **kwargs)
+
     def _select_draws(self, n_draws: int | None, components: bool = False) -> np.ndarray:
         R = self._weight_draws() if components else self._rho_draws()
         return R[_draw_index(R.shape[0], n_draws)]
@@ -223,28 +230,17 @@ class _IndividualMixin:
         """
         model = self._require_model()
         L, R, _ = self._object_draws(n_draws)
-        L = _objects(L, model.N, idx)
-        n = L.shape[-2]
-        out = np.zeros((n, model.K))
-        for sl in chunk_slices(n, chunk):
-            block = L[:, sl] if L.ndim == 3 else L[sl]
-            block = block.toarray() if hasattr(block, "toarray") else np.asarray(block)
-            acc = np.zeros((block.shape[-2], model.K))
-            for s, rho in enumerate(R):
-                P = _draw_rows(block, s) * rho
-                tot = P.sum(axis=1, keepdims=True)
-                acc += P / np.where(tot > 0, tot, 1.0)  # rows with no support stay zero
-            out[sl] = acc / R.shape[0]
-        return self._to_bins(out)
+        return self._to_bins(_mean_responsibilities(_objects(L, model.N, idx), R, chunk))
 
     def sample_assignments(
-        self, idx: Any = None, n_draws: int | None = None, rng: RNGLike = None
+        self, idx: Any = None, n_draws: int | None = 500, rng: RNGLike = None
     ) -> np.ndarray:
         """Joint draws of the bin labels of objects ``idx`` (all by default).
 
         For each of (up to ``n_draws``) population draws :math:`\\rho^{(s)}`, labels are
         drawn from :math:`z_i \\sim \\mathrm{Cat}(r_i(\\rho^{(s)}))`; together these
-        are exact joint draws from :math:`p(\\rho, z \\mid D)`. Returns an
+        are joint draws from :math:`p(\\rho, z \\mid D)`, exact given exact draws of
+        :math:`\\rho` (approximate engines carry their approximation over). Returns an
         ``(n_draws, n_objects)`` integer array.
         """
         gen = as_generator(rng)
@@ -258,7 +254,7 @@ class _IndividualMixin:
             [kern.sample_labels(_draw_rows(L, s), rho, gen) for s, rho in enumerate(R)]
         )
 
-    def realized_counts(self, n_draws: int | None = None, rng: RNGLike = None) -> np.ndarray:
+    def realized_counts(self, n_draws: int | None = 500, rng: RNGLike = None) -> np.ndarray:
         """Draws of the realised histogram of the observed objects' true bins.
 
         Unlike the population fractions (which include the shot noise of
@@ -271,11 +267,11 @@ class _IndividualMixin:
         L, R, _ = self._object_draws(n_draws)
         w = model._w
         unit = bool(np.all(w == 1))
-        integer = bool(np.all(np.abs(w - np.round(w)) < 1e-12))
+        integer = is_integer_array(w)
         out = np.empty((R.shape[0], self.bins.K))
         for s, rho in enumerate(R):
             Ls = _draw_rows(L, s)
-            if unit or integer:
+            if integer:
                 n = kern.sample_counts(Ls, w, rho, gen, unit_weights=unit)[0]
                 out[s] = self._counts_to_bins(n, gen)
             else:
@@ -286,7 +282,7 @@ class _IndividualMixin:
     def sample_values(
         self,
         idx: Any = None,
-        n_draws: int | None = None,
+        n_draws: int | None = 500,
         rng: RNGLike = None,
         loglike: Callable[[np.ndarray, int], np.ndarray] | None = None,
         n_sub: int = 64,
@@ -323,6 +319,12 @@ class _IndividualMixin:
         if loglike is not None and bins.ndim != 1:
             raise ValueError("loglike-based sampling supports 1-D bins only.")
         gen = as_generator(rng)
+        if loglike is None and "gaussian_mean" not in model.likelihoods.meta:
+            warn(
+                "sample_values draws values flat within each bin: these likelihoods carry no "
+                "within-bin information; pass loglike= for each object's own likelihood.",
+                InputWarning,
+            )
         rows = np.atleast_1d(np.arange(model.N)[slice(None) if idx is None else idx])
         labels = self._component_labels(rows, n_draws, gen)
         basis = model.likelihoods.basis
@@ -345,16 +347,12 @@ class _IndividualMixin:
             todo.ravel()[at] = False
         return out[..., 0] if bins.ndim == 1 else out
 
-    def predict_proba(self, likelihoods: Likelihoods | Any, n_draws: int | None = 500):
+    def predict_proba(
+        self, likelihoods: Likelihoods | Any, n_draws: int | None = 500, chunk: int = 4096
+    ):
         """Posterior over bins for *new* objects under the inferred population."""
         L, R, _, _ = self._new_object_draws(self._new_likelihoods(likelihoods), n_draws)
-        L = L.toarray() if hasattr(L, "toarray") else np.asarray(L)
-        acc = np.zeros(L.shape[-2:])
-        for s, rho in enumerate(R):
-            P = _draw_rows(L, s) * rho
-            tot = P.sum(axis=1, keepdims=True)
-            acc += P / np.where(tot > 0, tot, 1.0)
-        return self._to_bins(acc / R.shape[0])
+        return self._to_bins(_mean_responsibilities(L, R, chunk))
 
     def log_predictive(self, likelihoods: Likelihoods | Any, n_draws: int | None = 500):
         r"""Log posterior-predictive density of new objects, :math:`\log E[L_i\cdot\rho]`.
@@ -388,6 +386,21 @@ class _IndividualMixin:
         if model.selection is None:
             return L, R, None, lk.log_scale
         return L, R, (R.sum(axis=1) if S is not None else R @ model.selection), lk.log_scale
+
+
+def _mean_responsibilities(L: Any, R: np.ndarray, chunk: int) -> np.ndarray:
+    """Per-object posteriors over the columns, averaged over the draws of column weights
+    ``R``, ``chunk`` objects at a time (``L`` may hold rows per draw, ``(n, N, K)``)."""
+    n = L.shape[-2]
+    out = np.zeros((n, L.shape[-1]))
+    for sl in chunk_slices(n, chunk):
+        block = L[:, sl] if L.ndim == 3 else L[sl]
+        block = block.toarray() if hasattr(block, "toarray") else np.asarray(block)
+        for s, rho in enumerate(R):
+            P = _draw_rows(block, s) * rho
+            tot = P.sum(axis=1, keepdims=True)
+            out[sl] += P / np.where(tot > 0, tot, 1.0)  # rows with no support stay zero
+    return out / R.shape[0]
 
 
 def _objects(L: Any, N: int, idx: Any) -> Any:
@@ -490,16 +503,23 @@ def _propose_values(model, objects, labels, lo, hi, gen, loglike, n_sub, height)
             )
         if gauss:
             logw = logw - 0.5 * ((zz - mu[:, None]) / sig[:, None]) ** 2
-        elif loglike is not None:  # one call per object and box
+        elif loglike is not None:  # one call per object, at the sub-points of all its boxes
             key = np.stack([objects, labels], axis=1)
-            pairs, inverse = np.unique(key, axis=0, return_inverse=True)
-            order = np.argsort(inverse.ravel(), kind="stable")
-            for i, members in zip(
-                pairs[:, 0],
-                np.split(order, np.cumsum(np.bincount(inverse.ravel()))[:-1]),
-                strict=True,
-            ):
-                logw[members] += np.asarray(loglike(zz[members[0]], int(i)), dtype=float).ravel()
+            pairs, first, inverse = np.unique(key, axis=0, return_index=True, return_inverse=True)
+            vals = np.empty((len(pairs), n_sub))
+            ids, starts = np.unique(pairs[:, 0], return_index=True)  # pairs sorted by object
+            for i, a, b in zip(ids, starts, [*starts[1:], len(pairs)], strict=True):
+                pts = zz[first[a:b]]
+                vals[a:b] = np.asarray(loglike(pts.ravel(), int(i)), dtype=float).reshape(
+                    pts.shape
+                )
+            logw = logw + vals[inverse.ravel()]
+            empty = ~np.isfinite(logw).any(axis=1)
+            if empty.any():  # it drew from the box's first sub-point before (audit O-11)
+                raise ValueError(
+                    f"loglike is -inf at all {n_sub} sub-points of a bin with posterior mass "
+                    f"(object {int(objects[empty][0])}); raise n_sub or check loglike."
+                )
         w = np.exp(logw - np.max(logw, axis=1, keepdims=True))
         c = np.cumsum(w, axis=1)
         cell = np.sum(c < gen.random(n)[:, None] * c[:, -1:], axis=1)
@@ -599,10 +619,27 @@ class PopulationResult(_IndividualMixin):
         approximate: bool = False,
         info: dict[str, Any] | None = None,
     ) -> PopulationResult:
-        """Wrap draws from an external sampler (fractions or rates, per chain or flat)."""
+        """Wrap draws from an external sampler, ``(n_chains, n_draws, K)`` or ``(n_draws, K)``:
+        fractions for a fractions model (rows summing to one), rates for a rate model."""
+        X = np.asarray(samples, dtype=float)
+        if X.ndim not in (2, 3) or X.shape[-1] != model.K:
+            raise ValueError(
+                f"samples must have shape (n_chains, n_draws, {model.K}) or (n_draws, "
+                f"{model.K}); got {X.shape}."
+            )
+        if not np.all(np.isfinite(X)) or np.any(X < 0):
+            raise ValueError("samples must be finite and non-negative.")
+        if model.kind == "fractions":
+            sums = X.sum(axis=-1)
+            if not np.allclose(sums, 1.0, atol=1e-6):
+                raise ValueError(
+                    "samples of a fractions model must sum to one per draw; rates need a rate "
+                    "model (a GammaRates prior)."
+                )
+            X = X / sums[..., None]
         return cls(
             model,
-            np.asarray(samples, dtype=float),
+            X,
             method=method,
             kind=model.kind,
             approximate=approximate,
@@ -744,14 +781,14 @@ class PopulationResult(_IndividualMixin):
         """Posterior standard deviation of the fractions ``(K,)``."""
         return self.samples.std(axis=0, ddof=1)
 
-    def cov(self) -> np.ndarray:
-        """Posterior covariance of the fractions ``(K, K)``."""
-        return np.cov(self.samples, rowvar=False)
+    def cov(self, which: str = "fractions") -> np.ndarray:
+        """Posterior covariance ``(K, K)`` of the fractions (or ``which="rates"``, ...)."""
+        return np.cov(self._which(which), rowvar=False)
 
-    def corr(self) -> np.ndarray:
-        """Posterior correlation matrix of the fractions ``(K, K)``."""
+    def corr(self, which: str = "fractions") -> np.ndarray:
+        """Posterior correlation matrix ``(K, K)`` of the fractions (or ``which=...``)."""
         with np.errstate(invalid="ignore", divide="ignore"):
-            return np.corrcoef(self.samples, rowvar=False)
+            return np.corrcoef(self._which(which), rowvar=False)
 
     def quantile(self, q: Any, which: str = "fractions") -> np.ndarray:
         """Posterior quantiles, shape ``(*np.shape(q), K)``."""
@@ -785,8 +822,11 @@ class PopulationResult(_IndividualMixin):
         base = self.rates if self.kind == "rates" else self.samples
         return base / self.bins.volumes
 
-    def functional(self, func: Callable[[np.ndarray], Any], vectorized: bool = False):
-        """Draws of a derived quantity ``func(rho)`` (e.g. the mean redshift).
+    def functional(
+        self, func: Callable[[np.ndarray], Any], vectorized: bool = False, which: str = "fractions"
+    ):
+        """Draws of a derived quantity ``func(rho)`` (e.g. the mean redshift), or of
+        the rates or densities with ``which``.
 
         With ``vectorized=True``, ``func`` receives the full ``(n_draws, K)``
         array at once.
@@ -795,19 +835,19 @@ class PopulationResult(_IndividualMixin):
         --------
         >>> zbar = result.functional(lambda r: r @ result.bins.centers)  # doctest: +SKIP
         """
-        X = self.samples
+        X = self._which(which)
         if vectorized:
             return np.asarray(func(X))
         return np.array([func(r) for r in X])
 
-    def rebin(self, groups: Any) -> np.ndarray:
-        """Fractions aggregated into coarser groups.
+    def rebin(self, groups: Any, which: str = "fractions") -> np.ndarray:
+        """Fractions (or rates, with ``which="rates"``) aggregated into coarser groups.
 
-        ``groups`` is either a length-``K`` integer array mapping bins to groups
+        ``groups`` is either a length-``K`` array of integers mapping bins to groups
         (e.g. from :meth:`Bins.coarsen`) or a sequence of lists of bin indices.
         Returns ``(n_draws, n_groups)``.
         """
-        X = self.samples
+        X = self._which(which)
         try:
             arr = np.asarray(groups)
         except ValueError:  # ragged sequence of groups
@@ -816,10 +856,14 @@ class PopulationResult(_IndividualMixin):
             arr is not None
             and arr.ndim == 1
             and arr.shape[0] == self.K
-            and np.issubdtype(arr.dtype, np.integer)
+            and arr.dtype.kind in "iuf"
         ):
-            n_groups = int(arr.max()) + 1
-            return np.stack([X[:, arr == g].sum(axis=1) for g in range(n_groups)], axis=1)
+            if not np.all(arr == np.round(arr)) or arr.min() < 0:
+                raise ValueError("groups must map each bin to a non-negative integer group.")
+            arr = arr.astype(np.intp)
+            one_hot = np.zeros((self.K, int(arr.max()) + 1))
+            one_hot[np.arange(self.K), arr] = 1.0
+            return X @ one_hot
         return np.stack([X[:, list(grp)].sum(axis=1) for grp in groups], axis=1)
 
     # ---------------------------------------------------------- diagnostics

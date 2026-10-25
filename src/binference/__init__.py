@@ -69,8 +69,19 @@ __all__ = [
     "__version__",
     "diagnostics",
     "infer",
+    "io",
+    "plotting",
     "priors",
     "samplers",
     "simulate",
     "validation",
 ]
+
+
+def __getattr__(name: str):
+    # binference.plotting and binference.io load on first use (matplotlib stays optional)
+    if name in ("io", "plotting"):
+        import importlib
+
+        return importlib.import_module(f".{name}", __name__)
+    raise AttributeError(f"module 'binference' has no attribute {name!r}")

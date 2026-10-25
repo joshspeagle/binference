@@ -7,6 +7,9 @@ from typing import Any
 
 import numpy as np
 
+from ._utils import warn
+from .warnings import InputWarning
+
 __all__ = ["plot_corner", "plot_individual", "plot_population", "plot_sbc", "plot_trace"]
 
 # Colour-vision-deficiency-checked categorical colours (first slots of a validated
@@ -31,21 +34,16 @@ def _plt():
 
 
 def _draws(result: Any, which: str) -> np.ndarray:
+    # draws of the quantity plotted, (n, K); which is already normalised (_which_name)
     from .results import PointEstimate
 
-    if isinstance(result, PointEstimate) and which != "rate":
-        base = result.density() if which == "density" else result.rho
-        return base[None, :]
-    if which == "density":
-        return result.density()
-    if which == "fraction":
-        return result.samples
-    if which == "rate":
-        rates = result.rates
-        if rates is None:
+    if not isinstance(result, PointEstimate):
+        return result._which(which)
+    if which == "rates":
+        if result.rates is None:
             raise ValueError("No rates in this result (a relative selection, or no model).")
-        return np.atleast_2d(rates)
-    raise ValueError("which must be 'density', 'fraction' or 'rate'.")
+        return result.rates[None, :]
+    return (result.density() if which == "density" else result.rho)[None, :]
 
 
 def _to_which(values: np.ndarray, bins: Any, which: str, total: float = 1.0) -> np.ndarray:
@@ -57,7 +55,7 @@ def _to_which(values: np.ndarray, bins: Any, which: str, total: float = 1.0) -> 
     """
     v = np.asarray(values, dtype=float)
     v = v / v.sum()
-    if which == "fraction":
+    if which == "fractions":
         return v
     v = v * total
     return v / bins.volumes if which == "density" else v
@@ -82,27 +80,39 @@ def plot_population(
     ----------
     result : PopulationResult or PointEstimate
     ax : matplotlib Axes, optional
-    which : {"density", "fraction", "rate"}
-        Plot densities per unit volume (n(z)-style), fractions per bin, or rates.
+    which : {"density", "fractions", "rates"}
+        Plot densities per unit volume (n(z)-style), fractions per bin, or rates
+        (the singular spellings are accepted too).
     levels : sequence of float
         Central credible levels shown as nested bands.
     truth, stack : array_like (K,), optional
         True fractions and a naive stacked estimate to overlay. Only their
         shape is used: for rates (and rate models) they are scaled to the
-        posterior mean total.
+        posterior mean total. 2-D grids show the median and the relative uncertainty as
+        images (an array of two axes) and take no overlays.
     """
+    from .results import _which_name
+
     plt = _plt()
     bins = result.bins
+    which = _which_name(which)
+    if bins.ndim > 2 and not bins.is_categorical:
+        raise ValueError(
+            "plot supports 1-D and 2-D grids and categories; for more axes use "
+            "result.density() or result.summary() (audit O-9)."
+        )
     X = _draws(result, which)
     med = np.median(X, axis=0)
     # overlays of rates (and of densities of rate models) are scaled to the mean total
-    scaled = which == "rate" or result.kind == "rates"
+    scaled = which == "rates" or result.kind == "rates"
     total = float(np.mean(result.total)) if scaled else 1.0
     if bins.ndim == 2 and not bins.is_categorical:
+        if truth is not None or stack is not None or label is not None:
+            warn("2-D plots show no truth, stack or label; they are ignored.", InputWarning)
         return _plot_2d(result, X, plt, ax)
     if ax is None:
         _, ax = plt.subplots(figsize=(7, 4))
-    ylabel = {"density": "density", "fraction": "fraction per bin", "rate": "rate"}[which]
+    ylabel = {"density": "density", "fractions": "fraction per bin", "rates": "rate"}[which]
     if bins.is_categorical:
         x = np.arange(bins.K)
         lo, hi = np.quantile(X, [0.5 - levels[0] / 2, 0.5 + levels[0] / 2], axis=0)
@@ -227,10 +237,15 @@ def plot_corner(
     n_hist: int = 30,
     color: str = POSTERIOR_COLOR,
     fig: Any = None,
+    which: str = "fractions",
 ):
-    """Corner plot of the fractions in selected bins (default: the most populated)."""
+    """Corner plot of the fractions (or ``which="rates"``, ...) in selected bins
+    (default: the most populated)."""
+    from .results import _which_name
+
     plt = _plt()
-    X = result.samples
+    X = result._which(which)
+    name = {"fractions": "rho", "rates": "rate", "density": "density"}[_which_name(which)]
     if idx is None:
         idx = np.sort(np.argsort(-X.mean(axis=0))[:max_bins])
     idx = list(idx)
@@ -251,19 +266,28 @@ def plot_corner(
             else:
                 a.hist2d(X[:, kj], X[:, ki], bins=n_hist, cmap="Blues")
             if i == n - 1:
-                a.set_xlabel(f"rho[{kj}]")
+                a.set_xlabel(f"{name}[{kj}]")
             if j == 0 and i > 0:
-                a.set_ylabel(f"rho[{ki}]")
+                a.set_ylabel(f"{name}[{ki}]")
     fig.tight_layout()
     return fig
 
 
 def plot_trace(
-    result: Any, idx: Sequence[int] | None = None, *, max_bins: int = 4, fig: Any = None
+    result: Any,
+    idx: Sequence[int] | None = None,
+    *,
+    max_bins: int = 4,
+    fig: Any = None,
+    which: str = "fractions",
 ):
-    """Trace plots of the fractions in selected bins, one line per chain."""
+    """Trace plots of the fractions (or ``which="rates"``, ...) in selected bins, one
+    line per chain."""
+    from .results import _which_name
+
     plt = _plt()
-    C = result.chains
+    C = result._which(which).reshape(result.n_chains, -1, result.K)
+    name = {"fractions": "rho", "rates": "rate", "density": "density"}[_which_name(which)]
     if idx is None:
         idx = np.sort(np.argsort(-C.reshape(-1, C.shape[-1]).mean(axis=0))[:max_bins])
     idx = list(idx)
@@ -276,7 +300,7 @@ def plot_trace(
     for a, k in zip(axes[:, 0], idx, strict=True):
         for c in range(C.shape[0]):
             a.plot(C[c, :, k], lw=0.6, alpha=0.8)
-        a.set_ylabel(f"rho[{k}]")
+        a.set_ylabel(f"{name}[{k}]")
     axes[-1, 0].set_xlabel("iteration")
     fig.tight_layout()
     return fig
