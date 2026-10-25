@@ -380,7 +380,12 @@ class PopulationModel:
         value of an inferred selection (by default its :attr:`~Selection.values`).
         """
         v = np.asarray(value, dtype=float)
-        S = None if S is None else np.asarray(S, dtype=float)
+        if S is not None:
+            if not self.selection_uncertain:
+                raise ValueError("S applies only to a selection inferred from injections.")
+            S = np.asarray(S, dtype=float)
+            if S.shape != (self.K,) or not np.all((S > 0) & (S <= 1)):
+                raise ValueError(f"S must have shape ({self.K},) with values in (0, 1].")
         L, u = self._rows(v, S)
         ll = kern.loglike(L, self._w, u)
         if not np.isfinite(ll):

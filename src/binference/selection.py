@@ -44,7 +44,7 @@ from ._utils import as_generator, check_positive, frozen, warn
 from .basis import Basis
 from .bins import Bins
 from .priors.logistic import _rw_precision
-from .warnings import InputWarning
+from .warnings import ConvergenceWarning, InputWarning
 
 __all__ = ["SELECTION_MODES", "SELECTION_SCALES", "Selection", "as_selection"]
 
@@ -190,10 +190,10 @@ class Selection:
         if not (a > 0 and b > 0 and np.isfinite(a) and np.isfinite(b)):
             raise ValueError(f"prior must be two positive numbers (a, b); got {prior!r}.")
         if smooth is not None:
-            if bins.ndim != 1 or bins.K < 3:
+            if bins.ndim != 1 or bins.is_categorical or bins.K < 3:
                 raise ValueError(
-                    "smooth needs 1-D bins, at least three: the random walk of second "
-                    "differences runs along them."
+                    "smooth needs ordered 1-D bins, at least three: the random walk of "
+                    "second differences runs along them."
                 )
             smooth = float(check_positive(smooth, "smooth"))
         inside = k >= 0
@@ -388,7 +388,11 @@ def _logit_mode(injections: _Injections) -> np.ndarray:
             break
         y, lp, g = y + t * step, new_lp, new_g
         if np.max(np.abs(t * step)) < 1e-10:
-            break
+            return y
+    warn(
+        f"The smooth selection's mode did not converge (gradient {np.max(np.abs(g)):.1e}).",
+        ConvergenceWarning,
+    )
     return y
 
 

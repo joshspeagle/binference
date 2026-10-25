@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
-from scipy import optimize
+from scipy import optimize, special
 
 from .._utils import RNGLike, warn
 from ..likelihoods import _scale_columns
@@ -13,6 +13,7 @@ from ..model import PopulationModel
 from ..priors.dirichlet import _BoundDirichlet
 from ..priors.rates import _BoundGammaRates
 from ..results import PointEstimate
+from ..selection import _logit_density
 from ..warnings import ConvergenceWarning, InputWarning
 from .base import Engine, em_update, interior_start
 
@@ -191,10 +192,10 @@ class MAP(Engine):
         super().__init__(model, rng=rng, progress=progress)
         if space not in ("auto", "simplex", "unconstrained"):
             raise ValueError("space must be 'auto', 'simplex' or 'unconstrained'.")
-        if space == "simplex" and model.selection_uncertain:
+        if model.selection_uncertain and (space == "simplex" or algorithm != "auto"):
             raise ValueError(
-                "space='simplex' cannot infer a selection from injections; use "
-                "space='unconstrained' (DECISIONS #80)."
+                "A selection from injections is inferred by L-BFGS in space='unconstrained' "
+                "only; leave algorithm='auto' (DECISIONS #80)."
             )
         if algorithm not in ("auto", "mixsqp", "em"):
             raise ValueError("algorithm must be 'auto', 'mixsqp' or 'em'.")
@@ -258,12 +259,17 @@ class MAP(Engine):
         if S is not None:
             info["selection_draws"] = S[None, None]
         ll = m.log_likelihood(v, S=S) if full else np.nan
+        lp = ll + m.log_prior(v) if full else np.nan
+        if S is not None and full:  # and the density of S given the injections, in S
+            y = x[m.prior.dim :]
+            ls, _ = _logit_density(y, m.selection_spec.injections)
+            lp += ls - float(np.sum(special.log_expit(y) + special.log_expit(-y)))
         return PointEstimate(
             m,
             v,
             method="map",
             x=x,
-            log_posterior=ll + m.log_prior(v) if full else np.nan,
+            log_posterior=lp,
             log_likelihood=ll,
             kkt_gap=m.kkt_gap(v) if simplex and full else np.nan,
             n_iter=n_iter,

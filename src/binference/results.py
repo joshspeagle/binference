@@ -1060,9 +1060,11 @@ class PointEstimate(_IndividualMixin):
         """Total rate at the optimum (see :attr:`rates`)."""
         if self.kind == "rates":
             return float(self.value.sum())
+        if self.model is None:
+            return None
         S = self.info.get("selection_draws")  # an inferred selection, at the mode
-        S = (None if self.model is None else self.model.total_exposure) if S is None else S
-        return None if S is None else float(self.model.W / (np.ravel(S) @ self.value))
+        S = self.model.total_exposure if S is None else np.ravel(S)
+        return None if S is None else float(self.model.W / (S @ self.value))
 
     def _rho_draws(self) -> np.ndarray:
         return self.rho[None, :]

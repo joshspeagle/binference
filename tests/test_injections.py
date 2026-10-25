@@ -72,8 +72,9 @@ def test_engines_that_cannot_infer_a_selection_refuse_and_name_those_that_can():
     m = binference.PopulationModel(lk, selection=sel)
     with pytest.raises(ValueError, match="method='nuts'"):
         MeanFieldVB(m)
-    with pytest.raises(ValueError, match="space='unconstrained'"):
-        MAP(m, space="simplex")
+    for kw in ({"space": "simplex"}, {"algorithm": "em"}):
+        with pytest.raises(ValueError, match="space='unconstrained'"):
+            MAP(m, **kw)
     est = binference.infer(lk, selection=sel.at_mean(), method="map")  # the plug-in
     assert np.isfinite(est.rho).all()
     res = binference.infer(lk, selection=sel, method="auto", n_samples=50, rng=0, check=False)
@@ -113,6 +114,15 @@ def test_map_and_laplace_infer_the_selection_in_unconstrained_coordinates():
     np.testing.assert_allclose(S, m.selection_at(est.x))
     assert est.total == pytest.approx(m.W / (S @ est.rho))  # the mode's S, not the means
     assert est.log_likelihood == pytest.approx(m.log_likelihood(est.rho, S=S))
+    # the log posterior includes the Beta density of S given the injections
+    n, r, (a, b), _ = sel.injections
+    log_beta = np.sum((a + r - 1) * np.log(S) + (b + n - r - 1) * np.log1p(-S))
+    assert est.log_posterior == pytest.approx(est.log_likelihood + m.log_prior(est.rho) + log_beta)
+    with pytest.raises(ValueError, match="shape"):
+        m.log_likelihood(est.rho, S=np.full(3, 0.5))
+    with pytest.raises(ValueError, match="inferred"):
+        binference.PopulationModel(lk).log_likelihood(est.rho, S=S)
+    assert binference.PointEstimate(None, est.rho, info=est.info).total is None
     with pytest.warns(binference.ApproximationWarning):
         res = Laplace(m, importance=False, rng=0).run(200)
     assert res.info["selection_draws"].shape == (1, 200, 4)
@@ -243,8 +253,8 @@ def test_a_smooth_selection_is_refused_where_it_does_not_apply():
     assert binference.inference._auto_method(m) == "nuts"
     with pytest.raises(ValueError, match="smooth"):
         Selection.from_injections(z, detected, bins, "on_truth", smooth=0.0)
-    for few in (Bins.grid([0, 1, 2], [0, 1, 2]), Bins.linear(0, 1, 2)):
-        with pytest.raises(ValueError, match="at least three"):
+    for few in (Bins.grid([0, 1, 2], [0, 1, 2]), Bins.linear(0, 1, 2), Bins.categories(4)):
+        with pytest.raises(ValueError, match="ordered 1-D bins"):
             Selection.from_injections(few.centers[:1], [1], few, "on_truth", smooth=1.0)
 
 
