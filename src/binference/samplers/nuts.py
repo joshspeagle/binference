@@ -49,7 +49,7 @@ def _conditional_log_scale_sd(model, prior, pts: list[np.ndarray]) -> np.ndarray
     if prior.n_free == 0:
         return np.zeros(n_act)
     zeros = np.zeros(n_act)
-    fn = model._with_bound_prior(prior.with_centering(zeros)).log_prob_and_grad
+    fn = model._with_bound_prior(prior.with_centering(zeros)).log_density_unconstrained_and_grad
     cols = range(n_act, model.dim)
     H = np.mean([fd_hessian(fn, prior.recentre(x, zeros), cols=cols)[n_act:] for x in pts], axis=0)
     cov = covariance_from_hessian(H)
@@ -181,7 +181,7 @@ def _limit_threads(n_threads: int) -> None:
 def _chain_worker(payload):
     """Run in a worker process: advance one chain and send it back without the model."""
     chain, model, n_iter, adapt, max_depth, record = payload
-    chain.fn = model.log_prob_and_grad
+    chain.fn = model.log_density_unconstrained_and_grad
     out = _advance_chain(chain, n_iter, adapt, max_depth, record)
     chain.fn = None
     return chain, out
@@ -325,7 +325,7 @@ class NUTS(Engine):
         for _ in range(self.n_chains):
             for scale in (self.jitter, self.jitter / 10, 0.0):
                 x = x_mode + scale * child.standard_normal(d)
-                if np.isfinite(self.model.log_prob(x)):
+                if np.isfinite(self.model.log_density_unconstrained(x)):
                     break
             pts.append(x)
         return np.asarray(pts)
@@ -335,7 +335,7 @@ class NUTS(Engine):
             return
         x0 = self._initial_points()
         rngs = spawn(self.rng, self.n_chains)
-        fn = self.model.log_prob_and_grad
+        fn = self.model.log_density_unconstrained_and_grad
         self._chains = [
             _Chain(x0[c], fn, rngs[c], self.n_warmup, self.target_accept, self.metric == "dense")
             for c in range(self.n_chains)
@@ -363,7 +363,7 @@ class NUTS(Engine):
         n_pts = len(chains) if d <= _DENSE_MAX_DIM else 1
         model = base
         if self.reparametrize and prior0.n_active > 0:
-            fn0 = base.log_prob_and_grad
+            fn0 = base.log_density_unconstrained_and_grad
             n_act = prior0.n_active
             if d <= _HESSIAN_MAX_DIM:
                 H0 = np.mean([fd_hessian(fn0, x) for x in pts[:n_pts]], axis=0)
@@ -382,7 +382,7 @@ class NUTS(Engine):
             model = base._with_bound_prior(prior0.with_centering(lam))
             pts = [prior0.recentre(x, lam) for x in pts]
         self.model = model
-        fn = model.log_prob_and_grad
+        fn = model.log_density_unconstrained_and_grad
         inv_m = None
         if d <= _HESSIAN_MAX_DIM:
             H = np.mean([fd_hessian(fn, x) for x in pts[:n_pts]], axis=0)
@@ -404,7 +404,7 @@ class NUTS(Engine):
 
         assert self._chains is not None
         chains = self._chains
-        fn = self.model.log_prob_and_grad
+        fn = self.model.log_density_unconstrained_and_grad
         for ch in chains:
             ch.fn = None  # the model is sent once per chain, not twice
         payloads = [(ch, self.model, n_iter, adapt, self.max_depth, record) for ch in chains]
@@ -549,5 +549,11 @@ class NUTS(Engine):
             u = X[..., self.model.prior.n_active :]
             info["hyperparameters"] = {name: np.exp(u[..., j]) for j, name in enumerate(hyper)}
         return PopulationResult(
-            self.model, vals, method="nuts", kind=self.model.kind, x=X, log_prob=LP, info=info
+            self.model,
+            vals,
+            method="nuts",
+            kind=self.model.kind,
+            x=X,
+            log_density_unconstrained=LP,
+            info=info,
         )

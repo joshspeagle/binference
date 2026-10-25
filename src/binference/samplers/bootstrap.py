@@ -85,7 +85,10 @@ class Bootstrap(Engine):
             wb = self._replicate_weights(w, integer, rates)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", ConvergenceWarning)
-                est = MAP(m, tol=self.tol, max_iter=self.max_iter, init=start).run(weights=wb)
+                mw = m._with_weights(wb)  # zero-weight objects dropped (audit M-1)
+                engine = MAP(mw, tol=self.tol, max_iter=self.max_iter, init=start)
+                engine._diagnostics = False  # only the value is used
+                est = engine.run()
             out[b] = est.value
         warn(
             "Bootstrap replicates describe the sampling distribution of the MAP estimator, not "

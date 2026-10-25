@@ -67,8 +67,8 @@ def result_to_dict(result: PopulationResult) -> dict[str, Any]:
         **meta,
         **arrays,
     }
-    if result.log_prob is not None:
-        out["log_prob"] = result.log_prob
+    if result.log_density_unconstrained is not None:
+        out["log_density_unconstrained"] = result.log_density_unconstrained
     if result.labels is not None:
         out["labels"] = result.labels
         if result.label_index is not None:
@@ -104,8 +104,8 @@ def save_result(result: PopulationResult, path: str) -> None:
     meta["info"] = scalars
     payload: dict[str, Any] = {"draws": result._draws, "meta": np.array(json.dumps(meta))}
     payload.update(arrays)
-    if result.log_prob is not None:
-        payload["log_prob"] = np.asarray(result.log_prob)
+    if result.log_density_unconstrained is not None:
+        payload["log_density_unconstrained"] = np.asarray(result.log_density_unconstrained)
     if result.labels is not None:
         payload["labels"] = np.asarray(result.labels)
         if result.label_index is not None:
@@ -141,7 +141,14 @@ def load_result(path: str) -> PopulationResult:
             method=meta["method"],
             kind=meta["kind"],
             bins=bins,
-            log_prob=np.array(data["log_prob"]) if "log_prob" in data.files else None,
+            log_density_unconstrained=next(
+                (
+                    np.array(data[k])
+                    for k in ("log_density_unconstrained", "log_prob")
+                    if k in data.files
+                ),
+                None,
+            ),  # files written before DECISIONS #70 call it log_prob
             approximate=meta["approximate"],
             info=info,
             labels=np.array(data["labels"]) if "labels" in data.files else None,
@@ -183,8 +190,9 @@ def to_datatree(result: PopulationResult):
         for k, v in result.info.items()
         if isinstance(v, np.ndarray) and v.shape == (n_chains, n_draws)
     }
-    if result.log_prob is not None and np.shape(result.log_prob) == (n_chains, n_draws):
-        stats["lp"] = (("chain", "draw"), np.asarray(result.log_prob))
+    lp = result.log_density_unconstrained
+    if lp is not None and np.shape(lp) == (n_chains, n_draws):
+        stats["lp"] = (("chain", "draw"), np.asarray(lp))
     if stats:
         groups["sample_stats"] = xr.Dataset(
             stats, coords={k: coords[k] for k in ("chain", "draw")}

@@ -102,8 +102,8 @@ class Laplace(Engine):
             h = self.step * max(1.0, abs(x0[j]))
             e = np.zeros(d)
             e[j] = h
-            gp = m.log_prob_and_grad(x0 + e)[1]
-            gm = m.log_prob_and_grad(x0 - e)[1]
+            gp = m.log_density_unconstrained_and_grad(x0 + e)[1]
+            gm = m.log_density_unconstrained_and_grad(x0 - e)[1]
             H[:, j] = (gp - gm) / (2.0 * h)
         H = 0.5 * (H + H.T)
         lam, U = np.linalg.eigh(-H)
@@ -137,7 +137,7 @@ class Laplace(Engine):
                 log_q = -0.5 * np.sum(Z**2, axis=1)
             else:
                 log_q = -0.5 * (self.df + d) * np.log1p(np.sum(Z**2, axis=1) / self.df)
-            log_p = np.array([m.log_prob(x) for x in X])
+            log_p = np.array([m.log_density_unconstrained(x) for x in X])
             lw, k_hat = diag.psis(log_p - log_q)
             w = np.exp(lw)
             info["k_hat"] = float(k_hat)

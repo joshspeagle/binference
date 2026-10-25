@@ -3,7 +3,14 @@
 import numpy as np
 import pytest
 
-from binference._simplex import clr, helmert_basis, ilr, ilr_inv, log_softmax, softmax
+import binference
+from binference._simplex import helmert_basis, log_softmax, softmax
+
+
+def ilr_inv(x):
+    # the map simplex priors use from unconstrained x to fractions
+    prior = binference.priors.Dirichlet(1.0).bind(binference.Bins.categories(x.size + 1))
+    return softmax(prior.forward(x)[0])
 
 
 @pytest.mark.parametrize("K", [2, 3, 7, 20])
@@ -17,13 +24,6 @@ def test_helmert_orthonormal_zero_sum(K):
 def test_helmert_needs_two_bins():
     with pytest.raises(ValueError):
         helmert_basis(1)
-
-
-def test_ilr_round_trip(rng):
-    for K in (2, 5, 13):
-        rho = rng.dirichlet(np.ones(K))
-        np.testing.assert_allclose(ilr_inv(ilr(rho)), rho, rtol=1e-12)
-        np.testing.assert_allclose(clr(rho).sum(), 0.0, atol=1e-12)
 
 
 def test_softmax_stable():

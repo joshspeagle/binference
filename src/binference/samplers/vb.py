@@ -51,7 +51,7 @@ class MeanFieldVB(Engine):
         """Run coordinate ascent; returns ``(state, n_iter, converged)``."""
         m = self.model
         prior = m.prior
-        exposure = m._exposure() if m.kind == "rates" else None
+        exposure = m._S if m.kind == "rates" else None
         state = prior.vb_update(np.full(m.K, m.W / m.K), exposure=exposure)
         mean_old = prior.vb_mean(state)
         converged = False
@@ -60,10 +60,7 @@ class MeanFieldVB(Engine):
             elog = prior.vb_expected_log(state)
             t = np.exp(elog - np.max(elog))
             _, nhat, _ = kern.loglike_and_counts(m._L, m._w, t)
-            if m.kind == "fractions" and m.selection is not None:
-                S = m._detect
-                rho = mean_old / mean_old.sum()
-                nhat = nhat + m.W * rho * (1.0 - S) / float(S @ rho)
+            nhat = m._complete_counts(mean_old, nhat)
             state = prior.vb_update(nhat, exposure=exposure)
             mean = prior.vb_mean(state)
             if np.max(np.abs(mean - mean_old)) <= self.tol * max(np.max(np.abs(mean)), 1e-300):

@@ -70,11 +70,15 @@ def test_gradients_match_finite_differences(prior, mode, lk6, rng):
     for _ in range(2):
         x = m.from_value(m.prior.sample(1, rng)[0] * (lk6.N if m.kind == "rates" else 1))
         x = x + rng.normal(scale=0.05, size=x.size)
-        lp, g = m.log_prob_and_grad(x)
+        lp, g = m.log_density_unconstrained_and_grad(x)
         assert np.isfinite(lp)
         h = 1e-6
         fd = np.array(
-            [(m.log_prob(x + h * e) - m.log_prob(x - h * e)) / (2 * h) for e in np.eye(m.dim)]
+            [
+                (m.log_density_unconstrained(x + h * e) - m.log_density_unconstrained(x - h * e))
+                / (2 * h)
+                for e in np.eye(m.dim)
+            ]
         )
         np.testing.assert_allclose(g, fd, rtol=1e-4, atol=1e-4 * max(1.0, np.abs(fd).max()))
 

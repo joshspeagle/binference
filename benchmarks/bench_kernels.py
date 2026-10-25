@@ -45,7 +45,9 @@ def bench_kernels(N: int = 20000, K: int = 80, seed: int = 0) -> dict[str, float
     x = np.zeros(model.dim)
     out = {
         "loglike_and_counts": _median_time(lambda: kern.loglike_and_counts(L, w, rho)),
-        "log_prob_and_grad": _median_time(lambda: model.log_prob_and_grad(x)),
+        "log_density_unconstrained_and_grad": _median_time(
+            lambda: model.log_density_unconstrained_and_grad(x)
+        ),
         "gibbs_label_sweep": _median_time(
             lambda: kern.sample_counts(L, w, rho, rng, unit_weights=True), repeat=10
         ),
