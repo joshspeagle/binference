@@ -178,10 +178,20 @@ lk_samp = binference.Likelihoods.from_samples(samples, bins, interim="flat")
 print(lk_samp.is_sparse, np.median(lk_samp.meta["n_eff"]))
 ```
 
-The per-object effective sample size and the fraction of samples outside the
-bins are stored in `lk_samp.meta`. binference warns if most objects have fewer
-effective samples than `min_samples` (default 20); histogrammed likelihoods
-are then noisy.
+One estimator covers every interim prior: each sample is weighted by $T'(z)/\pi(z)$,
+which stays exact when the interim prior varies within a bin. An interim prior known only
+per bin (`"flat"`, masses or densities) is read as flat in the measure coordinate within
+each bin, so the estimate becomes each object's counts divided by the interim masses. Samples drawn from a likelihood are samples under
+`binference.Density.flat("z")`.
+
+The effective number of samples inside the bins and the fraction outside are stored in
+`lk_samp.meta`; binference warns when more than 10% of the objects have fewer effective
+samples than `min_samples` (default 20). Bins that no sample reached have zero likelihood;
+`floor=a` adds `a` pseudo-samples per object (whatever the scale of `sample_weights`), spread over the bins in proportion to the
+interim prior. At a fitted population, `lk_samp.sample_variance(rho)` gives each object's
+relative Monte Carlo variance $V_i(\rho)$ and effective sample size; `result.check()`
+warns when $\sum_i V_i > 1$, which is roughly the bias that sample noise puts into the
+total log-likelihood.
 
 ## Likelihood functions and distributions
 

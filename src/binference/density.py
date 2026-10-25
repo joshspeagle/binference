@@ -142,8 +142,7 @@ class Density:
         if self._flat is not None:
             if bins.is_categorical or self._flat == "z":
                 return bins.volumes
-            widths = [np.diff(u)[j] for u, j in zip(bins.u_edges, bins.cell_index, strict=True)]
-            return np.prod(widths, axis=0)
+            return bins.u_volumes
         if self._values is not None:
             v = self._values
             if v.size != bins.K:
@@ -175,11 +174,15 @@ class Density:
         )
         return np.exp(log_avg[0]) * bins.volumes
 
-    def _pointwise(self) -> Callable[[np.ndarray], np.ndarray] | None:
-        # the density as a function of z, or None when only bin masses are known
+    def _log_pointwise(self) -> Callable[[np.ndarray], np.ndarray] | None:
+        # the log density as a function of z, or None when only bin masses are known
         if self._flat == "z":
-            return lambda z: np.ones(np.shape(z)[0])
-        return self._func if self._dist is None else _dist_pdf(self._dist)
+            return lambda z: np.zeros(np.shape(z)[0])
+        if self._func is not None:
+            return lambda z: _log_nonneg(self._func(z))
+        if self._dist is not None and _has_pdf(self._dist):
+            return lambda z: _dist_logpdf(self._dist, z)
+        return None
 
     def __repr__(self) -> str:
         if self._flat is not None:
@@ -199,12 +202,6 @@ def _equal_volumes(vol: np.ndarray) -> bool:
 
 def _is_distribution(x: Any) -> bool:
     return any(hasattr(x, m) for m in ("cdf", "logcdf", "logpdf", "pdf"))
-
-
-def _dist_pdf(dist: Any) -> Callable[[np.ndarray], np.ndarray]:
-    if hasattr(dist, "logpdf"):
-        return lambda z: np.exp(np.asarray(dist.logpdf(z), dtype=float))
-    return dist.pdf
 
 
 def _dist_logpdf(dist: Any, z: np.ndarray) -> np.ndarray:

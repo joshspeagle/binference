@@ -335,6 +335,12 @@ class Bins:
         return self._volumes
 
     @property
+    def u_volumes(self) -> np.ndarray:
+        """Bin volumes in the measure coordinate ``u`` ``(K,)`` (raises for categories)."""
+        widths = [np.diff(u)[j] for u, j in zip(self.u_edges, self.cell_index, strict=True)]
+        return np.prod(widths, axis=0)
+
+    @property
     def widths(self) -> tuple[np.ndarray, ...]:
         """Per-axis bin widths in ``z`` over the whole grid (raises for categories)."""
         return tuple(np.diff(e) for e in self.edges)

@@ -158,11 +158,11 @@ def test_unequal_bins_representation_matters():
 def test_from_samples_histogram_and_meta(rng):
     bins = Bins.linear(0, 1, 4)
     samples = [rng.uniform(0, 1, 400), rng.uniform(0.0, 0.5, 300), np.array([0.1, 0.2, 1.5])]
-    with pytest.warns(InputWarning):  # third object has few samples (median check)
+    with pytest.warns(InputWarning):  # every object has fewer than 500 samples
         lk = Likelihoods.from_samples(samples, bins, "flat", min_samples=500)
     assert lk.N == 3
     assert lk.meta["source"] == "samples"
-    np.testing.assert_allclose(lk.meta["n_eff"], [400, 300, 3])
+    np.testing.assert_allclose(lk.meta["n_eff"], [400, 300, 2])  # samples inside the bins
     np.testing.assert_allclose(lk.meta["outside_fraction"][2], 1 / 3)
     # object 1 has no samples above 0.5
     np.testing.assert_allclose(lk.toarray()[1, 2:], 0.0)
