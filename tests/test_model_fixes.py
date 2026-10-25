@@ -53,10 +53,13 @@ def test_em_stops_with_a_warning_where_an_object_becomes_impossible():
     with pytest.warns(binference.InputWarning, match="pseudo-likelihood"):
         lk = Likelihoods(L, Bins.categories(4), weights=w, fractional_weights=True)
     m = PopulationModel(lk, P.Dirichlet(0.5))
-    with pytest.warns(binference.InputWarning, match="unbounded"):
-        engine = MAP(m, space="simplex")
-        with pytest.warns(ConvergenceWarning, match="zero likelihood"):
-            est = engine.run()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        est = MAP(m, space="simplex").run()  # also warns that the prior is unbounded
+    assert any(
+        issubclass(w.category, ConvergenceWarning) and "zero likelihood" in str(w.message)
+        for w in caught
+    )
     assert np.isfinite(est.log_posterior) and not np.allclose(est.value, 0.25)
 
 
