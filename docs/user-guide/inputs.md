@@ -241,19 +241,22 @@ A response comes from one of three places:
   $p(\text{measured }j\mid\text{true }k,\text{ observed})$ with columns that sum to
   one, takes the efficiency separately: `Response(migration, truth_bins,
   efficiency=eps)`. Columns that sum to more than one are rejected.
-- **Simulated events**: `Response.from_simulation(true_values, measured_values,
-  truth_bins, measured_bins)`. A measured value that is NaN, or outside the measured
-  bins, marks an event that was not observed.
+- **Tallied events**: `Response.from_counts(counts, generated, truth_bins,
+  measured_bins)`, or from the events themselves, `Response.from_simulation(true_values,
+  measured_values, truth_bins, measured_bins)`, where a measured value that is NaN, or
+  outside the measured bins, marks an event that was not observed.
 - **A labelled validation set**, for classifiers: `Response.from_labelled(scores,
   labels)`. Real-valued scores (for example the probability of one class) get 10 score
   bins holding equal numbers of validation objects, the outer two open-ended; predicted
   labels give the confusion matrix.
 
-Responses built from events keep the tallies (`response.counts`,
-`response.generated`).
+Responses built from events keep the tallies (`response.counts`, `response.generated`).
+`open_ended=True` lets the outer two of 1-D measured bins take every value below or above
+them; `from_labelled` sets it for its score bins.
 
 **Classifiers** reach the population by one of two routes, chosen by what you have
-(DECISIONS #29); `result.summary()` names the route in its title.
+(DECISIONS #29); `result.summary()` names the inputs in its title (`posteriors` for
+route A, `binned, response from labelled data` for route C).
 
 - **Route A**: posteriors and the training prevalence. `from_table(probs,
   Bins.categories(classes), interim=train_prior)` divides the prevalence out. It is
@@ -274,12 +277,8 @@ mu = binference.simulate.mock_unfolding(3000, rng=2)
 lk_unfold = binference.Likelihoods.from_binned(mu.response, counts=mu.measurements["reco_counts"])
 mc = binference.simulate.mock_categorical(1000, 4, rng=3)
 lk_a = binference.Likelihoods.from_table(mc.posteriors, mc.bins, interim=mc.interim)
-m = mc.measurements
-response = binference.Response.from_labelled(
-    m["validation_feature"], m["validation_labels"], classes=mc.bins.labels
-)
-lk_c = binference.Likelihoods.from_binned(response, values=m["feature"])
-print(lk_unfold.selection.mode, response, lk_c.bins.labels)
+lk_c = binference.Likelihoods.from_binned(mc.response, values=mc.measurements["feature"])
+print(lk_unfold.selection.mode, mc.response, lk_c.bins.labels)
 ```
 
 ## Working with `Likelihoods`

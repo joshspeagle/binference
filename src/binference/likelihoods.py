@@ -1092,7 +1092,7 @@ class Likelihoods:
             ``counts`` and ``values``.
         fractional_weights : bool
             Accept non-integer (for example weighted) counts, which give a
-            pseudo-likelihood.
+            pseudo-likelihood (the counts are the rows' weights).
         """
         if not isinstance(response, Response):
             raise TypeError(
@@ -1116,11 +1116,6 @@ class Likelihoods:
                 raise ValueError(f"counts must have one entry per measured bin (J={J}).")
             if not np.all(np.isfinite(c)) or np.any(c < 0):
                 raise ValueError("counts must be finite and non-negative.")
-            if not fractional_weights and not is_integer_array(c):
-                raise ValueError(
-                    "counts must be integers; pass fractional_weights=True for weighted (e.g. "
-                    "simulation-weighted) counts, which give a pseudo-likelihood."
-                )
         keep = c > 0
         if not keep.any():
             raise ValueError("counts are all zero: there are no observed objects.")
@@ -1133,7 +1128,7 @@ class Likelihoods:
             selection=sel,
             fractional_weights=fractional_weights,
         )
-        lk.meta.update(source="binned", response=response)
+        lk.meta.update(source=f"binned, response from {response.origin}", response=response)
         _attach_per_object(lk, measured_bin=np.flatnonzero(keep))
         return lk
 

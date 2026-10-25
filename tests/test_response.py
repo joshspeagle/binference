@@ -12,11 +12,7 @@ from binference import Bins, InputWarning, Likelihoods, Response
 
 
 def _route_c(mock, shift=0.0):
-    m = mock.measurements
-    resp = Response.from_labelled(
-        m["validation_feature"] + shift, m["validation_labels"], classes=mock.bins.labels
-    )
-    return Likelihoods.from_binned(resp, values=m["feature"])
+    return Likelihoods.from_binned(mock.response, values=mock.measurements["feature"] + shift)
 
 
 def test_score_bins_recover_the_prevalence_when_the_posteriors_are_miscalibrated():
@@ -65,14 +61,19 @@ def test_observed_events_from_outside_the_truth_range_are_reported():
 
 
 def test_a_response_is_immutable_and_survives_pickling():
-    resp = binference.simulate.mock_unfolding(500, rng=3).response
-    with pytest.raises(AttributeError):
-        resp.origin = "x"
-    with pytest.raises(ValueError):
-        resp.matrix[0, 0] = 1.0
-    back = pickle.loads(pickle.dumps(resp))
-    np.testing.assert_array_equal(back.matrix, resp.matrix)
-    assert not back.matrix.flags.writeable
+    for resp in (
+        binference.simulate.mock_unfolding(500, rng=3).response,
+        binference.simulate.mock_categorical(100, 3, rng=3).response,
+    ):
+        with pytest.raises(AttributeError):
+            resp.origin = "x"
+        with pytest.raises(ValueError):
+            resp.matrix[0, 0] = 1.0
+        back = pickle.loads(pickle.dumps(resp))
+        np.testing.assert_array_equal(back.matrix, resp.matrix)
+        assert not back.matrix.flags.writeable
+        assert (back.origin, back.open_ended) == (resp.origin, resp.open_ended)
+        assert (back.generated is None) == (resp.generated is None)
 
 
 def _measured_count_messages(lk):
@@ -91,3 +92,21 @@ def test_the_predictive_check_flags_label_shift():
     assert "response from labelled data" in res.summary().title
     bad, _ = _measured_count_messages(_route_c(mock, shift=0.5))
     assert len(bad) == 1
+
+
+def test_the_predictive_p_value_matches_the_pseudo_inverse_form():
+    rng = np.random.default_rng(7)
+    J, K = 8, 3
+    counts = rng.integers(20, 200, size=(J, K)).astype(float)
+    generated = counts.sum(axis=0) / 0.8
+    resp = Response.from_counts(counts, generated, Bins.categories(K))
+    n = rng.multinomial(2000, resp.measured_fractions([0.2, 0.3, 0.5])).astype(float)
+    rho = np.array([0.25, 0.25, 0.5])
+    R, N = resp.matrix, n.sum()
+    q = R @ rho / (R.sum(0) @ rho)
+    c = rho**2 / generated / (R.sum(0) @ rho) ** 2
+    A = np.eye(J) - np.outer(q, np.ones(J))  # derivative of q in the columns of R
+    cov = N * (np.diag(q) - np.outer(q, q)) + N**2 * A @ (np.diag(R @ c) - (R * c) @ R.T) @ A.T
+    d = n - N * q
+    expected = stats.chi2.sf(d @ np.linalg.pinv(cov) @ d, J - 1)
+    np.testing.assert_allclose(resp.predictive_pvalue(n, [rho]), expected, rtol=1e-8)

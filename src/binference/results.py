@@ -6,7 +6,7 @@ from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from scipy import special, stats
+from scipy import special
 
 from . import _kernels as kern
 from . import diagnostics as diag
@@ -82,40 +82,6 @@ class Summary:
         return "\n".join(lines)
 
     _repr_html_ = None
-
-
-def _describe_inputs(lk: Any) -> str:
-    # what the likelihoods were built from, so results report the route (DECISIONS #29)
-    source = lk.meta.get("source", "values")
-    if source == "binned":
-        origin = lk.meta["response"].origin
-        return f"binned, response from {'labelled data' if origin == 'labelled' else origin}"
-    return source
-
-
-def _predictive_check(lk: Any, draws: np.ndarray, max_draws: int = 200) -> float | None:
-    # posterior predictive p-value of the counts per measured bin: the mean over draws of
-    # P(chi^2_{J-1} >= D), D the discrepancy of the counts from those the draw predicts
-    # through the response, under the multinomial covariance of the counts plus that of a
-    # response tallied from finite events; needs more measured bins than truth bins
-    resp = lk.meta["response"]
-    R = resp.matrix
-    J, K = R.shape
-    if J <= K:
-        return None
-    n = np.bincount(lk.meta["measured_bin"], weights=lk.weights, minlength=J)
-    N = n.sum()
-    pvals = []
-    for rho in draws[np.linspace(0, len(draws) - 1, min(len(draws), max_draws)).astype(int)]:
-        scale = float(R.sum(axis=0) @ rho)
-        q = R @ rho / scale
-        cov = N * (np.diag(q) - np.outer(q, q))
-        if resp.generated is not None:
-            c = rho**2 / resp.generated / scale**2
-            cov += N**2 * (np.diag(R @ c) - (R * c) @ R.T)
-        d = n - N * q
-        pvals.append(stats.chi2.sf(float(d @ np.linalg.pinv(cov) @ d), J - 1))
-    return float(np.mean(pvals))
 
 
 def _bin_labels(bins: Bins) -> np.ndarray:
@@ -670,7 +636,7 @@ class PopulationResult(_IndividualMixin):
                 )
                 hints.append("draw more samples per object, or use wider bins or floor=")
         if lk is not None and "measured_bin" in lk.meta:
-            ppp = _predictive_check(lk, self.samples)
+            ppp = self._predictive_pvalue(lk)
             if ppp is not None and ppp < 1e-3:
                 msgs.append(
                     "the measured counts disagree with the fitted population and the response "
@@ -690,6 +656,17 @@ class PopulationResult(_IndividualMixin):
             warn(f"Diagnostics: {text}.", ConvergenceWarning)
         return msgs
 
+    def _predictive_pvalue(self, lk: Any) -> float | None:
+        # label-shift check of binned inputs (DECISIONS #68); needs J > K
+        if "predictive_p" not in self._cache:
+            resp = lk.meta["response"]
+            J, K = resp.matrix.shape
+            n = np.bincount(lk.meta["measured_bin"], weights=lk.weights, minlength=J)
+            self._cache["predictive_p"] = (
+                resp.predictive_pvalue(n, self._select_draws(200)) if J > K else None
+            )
+        return self._cache["predictive_p"]
+
     def summary(self, level: float = 0.68, which: str = "fractions") -> Summary:
         """Per-bin posterior summary table (mean, sd, median, interval, ESS, R-hat)."""
         X = self._which(which)
@@ -708,9 +685,8 @@ class PopulationResult(_IndividualMixin):
         if "rhat" in d:
             cols["rhat"] = d["rhat"]
         flag = " [approximate]" if self.approximate else ""
-        inputs = (
-            "" if self.model is None else f"; inputs: {_describe_inputs(self.model.likelihoods)}"
-        )
+        source = None if self.model is None else self.model.likelihoods.meta.get("source")
+        inputs = "" if source is None else f"; inputs: {source}"
         title = f"binference {which} posterior ({self.method}{flag}, {self.n_draws} draws{inputs})"
         return Summary(cols, title)
 

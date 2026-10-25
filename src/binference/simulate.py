@@ -377,12 +377,12 @@ def mock_categorical(
     reports posteriors ``mock.posteriors``, calibrated when ``temperature`` is
     one (its log-likelihoods are divided by ``temperature``);
     ``mock.likelihoods`` divides them by the training prior (route A,
-    :meth:`Likelihoods.from_table`). A labelled validation set of
-    ``n_validation`` objects drawn with the training prior is in
-    ``mock.measurements["validation_feature"]`` and
-    ``["validation_labels"]`` (route C, :meth:`Response.from_labelled`). The
-    test-set prevalence ``prevalence`` (default: a skewed vector) differs from
-    the training prior (label shift).
+    :meth:`Likelihoods.from_table`). ``mock.response`` is tallied with
+    :meth:`Response.from_labelled` from a validation set of ``n_validation``
+    objects drawn with the training prior, scored by their feature; with
+    ``mock.measurements["feature"]`` it gives route C
+    (:meth:`Likelihoods.from_binned`). The test-set prevalence ``prevalence``
+    (default: a skewed vector) differs from the training prior (label shift).
     """
     gen = as_generator(rng)
     C = int(n_classes)
@@ -405,12 +405,10 @@ def mock_categorical(
     lk = Likelihoods.from_table(post, bins, interim=pi)
     counts = np.bincount(labels, minlength=C).astype(float)
     truth = Truth(rho=prev, labels=labels, values=None, counts=counts, n_drawn=n_objects)
-    meas = {
-        "feature": x,
-        "validation_feature": val_x,
-        "validation_labels": np.asarray(bins.labels, dtype=object)[val_labels],
-    }
-    return Mock(bins, lk, truth, meas, posteriors=post, interim=pi)
+    response = Response.from_labelled(
+        val_x, np.asarray(bins.labels, dtype=object)[val_labels], classes=bins.labels
+    )
+    return Mock(bins, lk, truth, {"feature": x}, posteriors=post, interim=pi, response=response)
 
 
 def mock_unfolding(
@@ -453,9 +451,9 @@ def mock_unfolding(
     det = gen.random(n_events) < eff(z)
     reco = z + resolution * gen.standard_normal(n_events)
     observed = det & (reco >= re[0]) & (reco <= re[-1])
-    counts = np.histogram(reco[observed], bins=re)[0].astype(float)
     response = Response(R, tb, Bins(re))
-    lk = Likelihoods.from_binned(response, counts=counts)
+    lk = Likelihoods.from_binned(response, values=reco[observed])
+    counts = np.bincount(lk.meta["measured_bin"], weights=lk.weights, minlength=n_reco)
     true_lab = tb.index(z[observed])
     truth = Truth(
         rho=rho,

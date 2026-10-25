@@ -93,21 +93,19 @@ and the score is the one-dimensional feature itself:
 flat = binference.simulate.mock_categorical(
     3000, n_classes=4, separation=1.2, temperature=2.0, n_validation=2000, rng=5
 )
-m = flat.measurements
 lk_a = binference.Likelihoods.from_table(flat.posteriors, flat.bins, interim=flat.interim)
-response = binference.Response.from_labelled(
-    m["validation_feature"], m["validation_labels"], classes=flat.bins.labels
-)
-lk_c = binference.Likelihoods.from_binned(response, values=m["feature"])
+lk_c = binference.Likelihoods.from_binned(flat.response, values=flat.measurements["feature"])
 fit_a = binference.infer(lk_a, rng=1)
 fit_c = binference.infer(lk_c, rng=1)
-print(response)
+print(flat.response)
 print("truth  ", flat.truth.rho.round(3))
 print("route A", fit_a.mean.round(3))
 print("route C", fit_c.mean.round(3))
 print(fit_c.summary().title)
 ```
 
+`flat.response` was built by `Response.from_labelled(validation_scores,
+validation_labels)` from the mock's labelled validation set.
 `fit_c.check()` also tests label shift: with more score bins than classes, the
 counts per score bin must match those the fitted prevalence predicts through
 the response, and a mismatch raises a warning.
