@@ -3,27 +3,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Literata:opsz,wght@7..72,500;7..72,600&display=swap">
-<script>
-  window.MathJax = {
-    tex: { inlineMath: [["$", "$"], ["\\(", "\\)"]], displayMath: [["$$", "$$"]] },
-    svg: { fontCache: "global" },
-    options: { skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"] }
-  };
-</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
 <style>
-/* Layout: sticky section index on the left, a single reading column on the right; explorers break out to full column width. */
+/* Layout: sticky section index on the left, one reading column; phase tables carry the record, chips carry state. */
 :root {
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --ink: #18202b;
-  --muted: #5a6573;
-  --rule: #d9dee5;
-  --accent: #1f5fa8;      /* ink blue: the model, exact quantities */
-  --warm: #b4691f;        /* amber: approximations, the flat-within-bin assumption */
-  --good: #2e7d4f;
-  --alt: #8a3b8f;         /* purple: ignoring selection */
-  --code-bg: #eef1f5;
+  --bg: #f6f7f9; --surface: #ffffff; --ink: #18202b; --muted: #5a6573; --rule: #d9dee5;
+  --accent: #1f5fa8; --warm: #b4691f; --good: #2e7d4f; --alt: #8a3b8f; --code-bg: #eef1f5;
   --font-display: "Literata", Georgia, serif;
   --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
@@ -40,10 +24,8 @@
 }
 * { box-sizing: border-box; }
 body {
-  background: var(--bg); color: var(--ink); font-family: var(--font-body);
-  font-size: 16px; line-height: 1.6;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-block: 0 48px;
 }
 .page { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 40px; }
@@ -52,166 +34,166 @@ nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 nav.toc a { color: var(--muted); text-decoration: none; display: flex; gap: 8px; padding: 4px 8px; border-radius: 4px; }
 nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink); background: var(--code-bg); outline: none; }
 nav.toc .n { font-family: var(--font-mono); width: 1.6em; color: var(--muted); }
-nav.toc .now { color: var(--accent); font-weight: 600; }
-nav.toc .done::after { content: "discussed"; margin-left: auto; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--good); }
 main { min-width: 0; padding-top: 40px; }
-header.top { border-bottom: 1px solid var(--rule); padding-bottom: 24px; margin-bottom: 8px; }
+header.top { border-bottom: 1px solid var(--rule); padding-bottom: 24px; }
 .eyebrow { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 h1 { font-family: var(--font-display); font-weight: 600; font-size: 2.3rem; line-height: 1.15; margin: 6px 0 12px; text-wrap: balance; }
 h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.55rem; margin: 0 0 8px; text-wrap: balance; }
 h3 { font-size: 1rem; font-weight: 600; margin: 22px 0 6px; }
 .lede { max-width: 66ch; color: var(--muted); margin: 0; }
-section { padding: 36px 0 8px; border-bottom: 1px solid var(--rule); }
-section > p, section > ul, section > ol { max-width: 68ch; }
+.figs { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 16px 0 0; font-size: 14px; color: var(--muted); }
+.figs b { font-family: var(--font-mono); font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+section { padding: 36px 0 8px; border-bottom: 1px solid var(--rule); scroll-margin-top: 16px; }
+section > p, section > ul { max-width: 68ch; }
 .sec-head { display: flex; align-items: baseline; gap: 12px; }
 .sec-head .n { font-family: var(--font-mono); color: var(--muted); font-size: 14px; }
-.files { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
-.eq { overflow-x: auto; padding: 4px 0; }
-.callout { border: 1px solid var(--rule); background: var(--surface); padding: 14px 18px; border-radius: 6px; max-width: 68ch; }
-.callout.approx { border-color: var(--warm); }
-.callout.approx strong { color: var(--warm); }
 code { font-family: var(--font-mono); font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
-details.code { margin: 14px 0; max-width: 820px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
-details.code summary { cursor: pointer; padding: 8px 14px; font-size: 13.5px; color: var(--muted); }
-details.code summary b { font-family: var(--font-mono); font-weight: 500; color: var(--ink); }
-details.code pre { margin: 0; padding: 12px 14px; overflow-x: auto; background: var(--code-bg); border-top: 1px solid var(--rule); font-family: var(--font-mono); font-size: 12.8px; line-height: 1.5; border-radius: 0 0 6px 6px; }
-.cm { color: var(--muted); }
-.explorer { margin: 22px 0 10px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 18px; }
-.explorer h3 { margin-top: 0; font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; }
-.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px 20px; margin: 10px 0 14px; }
-.controls label { display: grid; gap: 2px; font-size: 13px; color: var(--muted); }
-.controls .val { font-family: var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
-input[type=range] { width: 100%; accent-color: var(--accent); }
-canvas { width: 100%; display: block; }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
-.legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
-.stats { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 12px; font-size: 13.5px; }
-.stats b { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
-.note { font-size: 13.5px; color: var(--muted); max-width: 70ch; }
-table.tbl { border-collapse: collapse; font-size: 13.5px; margin: 10px 0; }
 .tblwrap { overflow-x: auto; }
+table.tbl { border-collapse: collapse; font-size: 13.5px; margin: 10px 0; }
 table.tbl th, table.tbl td { padding: 6px 12px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
 table.tbl th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
-pre.mermaid { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 12px; overflow-x: auto; }
-.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 10px; }
-.pair figure { margin: 0; min-width: 0; } .pair figcaption { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 4px; }
-.qs { list-style: none; padding: 0; display: grid; gap: 10px; max-width: 72ch; }
-.qs li { display: grid; grid-template-columns: auto 1fr; gap: 12px; border: 1px solid var(--rule); background: var(--surface); padding: 10px 14px; border-radius: 6px; }
-.qs .tag { font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding-top: 2px; }
+table.tbl td.pr { font-family: var(--font-mono); white-space: nowrap; font-variant-numeric: tabular-nums; }
+table.tbl td.pr a { text-decoration: none; }
+.chip { display: inline-block; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.chip.ok { color: var(--good); } .chip.open { color: var(--warm); } .chip.you { color: var(--alt); }
+.caught { list-style: none; padding: 0; display: grid; gap: 8px; max-width: 74ch; }
+.caught li { border-left: 2px solid var(--warm); padding: 2px 0 2px 12px; }
+.caught .src { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.qs { list-style: none; padding: 0; display: grid; gap: 10px; max-width: 74ch; }
+.qs li { border: 1px solid var(--rule); background: var(--surface); padding: 10px 14px; border-radius: 6px; }
+.qs .def { display: block; font-size: 14px; color: var(--muted); margin-top: 4px; }
+.qs .def b { color: var(--ink); font-weight: 500; }
 a { color: var(--accent); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; max-width: 100%; padding: 2px 0; }
-.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 12px 0; max-width: 820px; }
-.mode { border: 1px solid var(--rule); background: var(--surface); border-radius: 6px; padding: 12px 14px; min-width: 0; }
-.mode h4 { margin: 0 0 6px; font-size: 14px; } .mode h4 code { font-size: 13px; }
-.mode dl { margin: 0; display: grid; gap: 6px; font-size: 14px; } .mode dt { color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; } .mode dd { margin: 0; min-width: 0; }
-input[type=range] { height: 28px; }
 @media (max-width: 860px) {
   .page { grid-template-columns: minmax(0, 1fr); gap: 0; }
   body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
-  nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--rule); margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  nav.toc { z-index: 5; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--rule); margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   nav.toc .eyebrow { display: none; }
-  nav.toc ol { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  nav.toc ol { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
   nav.toc ol::-webkit-scrollbar { display: none; }
   nav.toc a { white-space: nowrap; border: 1px solid var(--rule); border-radius: 999px; padding: 6px 12px; }
-  nav.toc .done::after { content: "✓"; letter-spacing: 0; margin-left: 2px; font-size: 12px; }
   main { padding-top: 20px; }
   h1 { font-size: 1.7rem; } h2 { font-size: 1.3rem; }
   section { padding-top: 28px; scroll-margin-top: 64px; }
-  .explorer { padding: 14px 12px; margin-left: -4px; margin-right: -4px; }
-  .sec-head { flex-wrap: wrap; gap: 4px 10px; }
 }
-section { scroll-margin-top: 16px; }
-.sel { font: inherit; width: 100%; padding: 6px; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); color: var(--ink); }
 </style>
-<style>
-.chip { display: inline-block; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; margin-left: 6px; vertical-align: 2px; white-space: nowrap; }
-.chip.holds { color: var(--good); } .chip.revise { color: var(--warm); } .chip.new { color: var(--accent); } .chip.drift { color: var(--alt); }
-details.pr { border: 1px solid var(--rule); background: var(--surface); border-radius: 6px; margin: 10px 0; max-width: 72ch; }
-details.pr summary { cursor: pointer; padding: 10px 14px; font-weight: 600; list-style: none; }
-details.pr summary::-webkit-details-marker { display: none; }
-details.pr summary::before { content: "▸"; color: var(--muted); margin-right: 8px; display: inline-block; transition: transform .15s; }
-details.pr[open] summary::before { transform: rotate(90deg); }
-details.pr .body { padding: 0 14px 12px; font-size: 15px; }
-details.pr .body p { margin: 6px 0; }
-.filt { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
-.filt button { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); cursor: pointer; }
-.filt button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
-</style>
-<style>.qs li > span { min-width: 0; overflow-wrap: anywhere; }</style>
+
 <div class="page">
-<nav class="toc" aria-label="Sections"><div class="eyebrow" style="padding:0 8px 8px">Landing plan</div><ol>
-<li><a href="#p0"><span class="n">0</span>Shape</a></li><li><a href="#p1"><span class="n">1</span>Per-PR loop</a></li><li><a href="#pa"><span class="n">A</span>History</a></li><li><a href="#pb"><span class="n">B</span>Foundations</a></li><li><a href="#pc"><span class="n">C</span>Decisions &amp; audit</a></li><li><a href="#pd"><span class="n">D</span>Deferred</a></li><li><a href="#pq"><span class="n">?</span>Questions</a></li></ol></nav>
+<nav class="toc" aria-label="Sections"><div class="eyebrow" style="padding:0 8px 8px">Landing summary</div><ol>
+<li><a href="#landed"><span class="n">0</span>What landed</a></li>
+<li><a href="#pa"><span class="n">A</span>History</a></li>
+<li><a href="#pb"><span class="n">B</span>Foundations</a></li>
+<li><a href="#pc"><span class="n">C</span>Decisions, audit</a></li>
+<li><a href="#caught"><span class="n">R</span>Reviews caught</a></li>
+<li><a href="#rc"><span class="n">✓</span>Final checks</a></li>
+<li><a href="#open"><span class="n">D</span>Still open</a></li>
+<li><a href="#qs"><span class="n">?</span>Your calls</a></li>
+</ol></nav>
 <main>
-<header class="top"><div class="eyebrow">binference · from the v0.1 branch to main</div><h1>Landing plan</h1>
-<p class="lede">How the v0.1 code, the walkthrough's 57 decisions and the audit's 127 findings reach <code>main</code> through issues and pull requests, modelled on telescopic's landing. Draft for your answers to the questions at the end.</p></header>
+<header class="top"><div class="eyebrow">binference · from the v0.1 branch to main · 24–26 October 2026</div>
+<h1>Landing summary</h1>
+<p class="lede">The v0.1 package, the walkthrough's decisions and the audit's 127 findings are on <code>main</code>, each through an issue and a reviewed pull request. This page replaces the landing plan: what landed, what the reviews found, what remains open, and the defaults that wait for your decision.</p>
+<div class="figs">
+<span><b>40</b> pull requests merged</span>
+<span><b>#58–#90</b> decisions recorded during the landing</span>
+<span><b>657</b> fast tests, <b>37</b> slow</span>
+<span><b>11</b> tutorials, <b>8</b> background pages</span>
+<span><b>7</b> deferred issues</span>
+</div>
+</header>
 
-<section id="p0"><div class="sec-head"><span class="n">§0</span><h2>The shape</h2></div>
-<ul>
-<li><strong>A tracking issue</strong> lists four phases as sub-issues; each phase issue lists its work issues.</li>
-<li><strong>One work issue per pull request</strong>, written before the code: scope, the decisions (#n) and audit findings (IDs) it resolves, acceptance criteria, records.</li>
-<li><strong>Pull requests are stacked</strong>: each branches from the previous one and is retargeted to <code>main</code> when that merges. Merge commits, so the commit hashes the notes cite stay valid.</li>
-<li><strong>At the end</strong> every decision so far and every audit finding is resolved on <code>main</code>, or is an open, well-specified issue labelled <code>deferred</code>. Walkthrough explainers stay in <code>notes/review/</code>, not issues.</li>
-</ul>
-<div class="tblwrap"><table class="tbl"><tr><th>Phase</th><th>Pull requests</th><th>New code?</th></tr>
-<tr><td>A. Land the history</td><td>4</td><td>only fixes to get CI green</td></tr>
-<tr><td>B. Foundations</td><td>2</td><td>process, CI, docs deploy, rename</td></tr>
-<tr><td>C. Decisions and audit</td><td>14 + a phase-wide review</td><td>yes</td></tr>
-<tr><td>D. Deferred work</td><td>none: open issues</td><td>no</td></tr></table></div></section>
-
-<section id="p1"><div class="sec-head"><span class="n">§1</span><h2>The loop for every pull request</h2></div>
-<ol>
-<li>Write and link the issue.</li>
-<li>Branch <code>land/NN-topic</code> from the previous PR's branch; commits that each make one logical change.</li>
-<li>Fast tests, lint, format and the docs build pass locally (plus slow tests of changed modules).</li>
-<li>Open the PR; CI runs.</li>
-<li><code>/simplify</code>, then <code>/code-review</code>, on the PR's diff, sized by lines changed: under 100 one reviewer (low effort); 100–500 two (medium); over 500 four (high); numerics or public API one size up. Fix valid findings, answer the rest in <code>notes/pr-reviews/NN.md</code>.</li>
-<li>CI green, merge, log entry, plan updated.</li>
-</ol>
-<p>Independent PRs can be built in parallel worktrees while earlier ones are in review; merges stay in order.</p></section>
-
-<section id="pa"><div class="sec-head"><span class="n">A</span><h2>Land the history</h2></div>
-<p>The existing commits enter <code>main</code> unchanged, with merge commits. CI has never run on this branch (it triggers only on <code>main</code> and on PRs), so a landing PR may need one small commit to get CI green. The first independent review and the background audit stand in for per-PR reviews here; their findings are fixed in Phase C.</p>
-<div class="tblwrap"><table class="tbl"><tr><th>PR</th><th>Commits</th><th>Content</th></tr><tr><td>A1</td><td><code>029b2fe..dd4a4dc</code></td><td>Landscape census, research notes, spec, test and implementation plans</td></tr><tr><td>A2</td><td><code>e1a0ae0..c76e60e</code></td><td>v0.1 core package, engines, results, tests and infrastructure (CI, pre-commit, README)</td></tr><tr><td>A3</td><td><code>9100566..73d1930</code></td><td>Docs, eight tutorials, and the fixes of the first independent review</td></tr><tr><td>A4</td><td><code>8efa643..now</code></td><td>Walkthrough notes and briefings, the seven audit reports, this plan</td></tr></table></div></section>
-
-<section id="pb"><div class="sec-head"><span class="n">B</span><h2>Foundations</h2></div>
-<details class="pr" open><summary>B1. Process and infrastructure</summary><div class="body"><p>CLAUDE.md rules for issues, branches, PRs and reviews; CONTRIBUTING; issue and PR templates; labels; CI (Python ≥ 3.13 matrix, pinned ruff, timeouts, wheel build, README and user-guide code executed, slow suite on demand); docs built and deployed to Pages by Actions</p><p><strong>Resolves:</strong> #41 (Python); T-8, T-14, T-15, T-16, T-20</p></div></details><details class="pr" open><summary>B2. Rename pastry → binference</summary><div class="body"><p>Package, imports, docs, citation file, URLs, notes references</p><p><strong>Resolves:</strong> #45</p></div></details>
+<section id="landed"><div class="sec-head"><span class="n">§0</span><h2>What landed</h2></div>
+<p>Every pull request followed the same loop: an issue first; a branch; local checks; <code>/simplify</code> then <code>/code-review</code> sized by lines changed; fixes; a merge commit once CI was green. The plan grew in Phase C: items first listed as deferred (the B-spline basis, joint inference of selection and response, the benchmark matrix with adaptive defaults, the survey as docs) were implemented as extra pull requests. A phase-wide review of Phase C's whole diff closed it.</p>
+<div class="tblwrap"><table class="tbl"><tr><th>Phase</th><th>Pull requests</th><th>What it did</th></tr>
+<tr><td>A</td><td class="pr">4</td><td>History: the census and spec, the v0.1 package, docs and tutorials, the walkthrough notes, with the commit hashes the notes cite.</td></tr>
+<tr><td>B</td><td class="pr">2</td><td>Process, CI and docs deployment; the rename from <code>pastry</code> to <code>binference</code>.</td></tr>
+<tr><td>C</td><td class="pr">34</td><td>Decisions #1–#57 and the audit, module group by module group, plus the extra items above, then the phase-wide review.</td></tr>
+</table></div>
 </section>
 
-<section id="pc"><div class="sec-head"><span class="n">C</span><h2>Decisions and audit, in dependency order</h2></div>
-<p>Inputs first (bins → densities → constructors → samples → binned → selection), then the model, the engines, the outputs, tests and docs. Tap for contents.</p>
-<details class="pr"><summary>C1. Bins</summary><div class="body"><p>Measure (transform or density), masked grids, arbitrary edges everywhere</p><p><strong>Decisions:</strong> #17, #19, #21, #22</p><p><strong>Audit:</strong> I-12, I-16, I-22</p></div></details>
-<details class="pr"><summary>C2. Density class and interim priors</summary><div class="body"><p>One fixed-density class (interim prior, base measure); PopulationPrior rename; stacking made explicit</p><p><strong>Decisions:</strong> #11, #24, #26</p><p><strong>Audit:</strong> I-1, I-5, I-6, I-13, I-17</p></div></details>
-<details class="pr"><summary>C3. Likelihood constructors</summary><div class="body"><p>Named by input form; kind/interim rule; adaptive quadrature; outside-support mass; weights policy</p><p><strong>Decisions:</strong> #1, #18, #22, #23, #32</p><p><strong>Audit:</strong> I-2–I-4, I-7–I-11, I-14, I-15, I-18, I-19, I-21</p></div></details>
-<details class="pr"><summary>C4. Samples</summary><div class="body"><p>One Monte Carlo estimator, pointwise interim prior, N/S check, opt-in Dirichlet floor</p><p><strong>Decisions:</strong> #31</p><p><strong>Audit:</strong> I-23</p></div></details>
-<details class="pr"><summary>C5. Binned measurements</summary><div class="body"><p>Response object, from_binned, classifier routes recorded on the result, label-shift check</p><p><strong>Decisions:</strong> #27, #29</p><p><strong>Audit:</strong> –</p></div></details>
-<details class="pr"><summary>C6. Selection</summary><div class="body"><p>on_truth / on_measurement, absolute vs relative, combined per-bin, callables, steep-S warning; mocks for truth, measurement and both</p><p><strong>Decisions:</strong> #7, #8, #10 (arrays, callables), #46, #47 (warning), #48</p><p><strong>Audit:</strong> G-4, G-10, G-11</p></div></details>
-<details class="pr"><summary>C7. Model and kernels</summary><div class="body"><p>KKT fixes, missing information, zero-weight rows, each concept once, Jacobian naming</p><p><strong>Decisions:</strong> #15, #56, #57</p><p><strong>Audit:</strong> M-1–M-4, M-7, M-10–M-12, M-14</p></div></details>
-<details class="pr"><summary>C8. MAP, EM, mix-SQP</summary><div class="body"><p>Audit fixes only (the deep dive is walkthrough 4.4)</p><p><strong>Decisions:</strong> –</p><p><strong>Audit:</strong> M-5, M-6, M-8, M-9, M-13, T-4</p></div></details>
-<details class="pr"><summary>C9. Priors</summary><div class="body"><p>Audit fixes, including the GP in the measure coordinate and K = 2</p><p><strong>Decisions:</strong> #21 (GP)</p><p><strong>Audit:</strong> P-1 to P-22</p></div></details>
-<details class="pr"><summary>C10. NUTS and Laplace</summary><div class="body"><p>Audit fixes (internal coordinates in results, validation, speed)</p><p><strong>Decisions:</strong> –</p><p><strong>Audit:</strong> N-1 to N-15</p></div></details>
-<details class="pr"><summary>C11. Gibbs, VB, bootstrap, validation</summary><div class="body"><p>Audit fixes (SBC calibration, sparse Gibbs, exact posterior)</p><p><strong>Decisions:</strong> –</p><p><strong>Audit:</strong> G-1–G-3, G-5–G-9, G-12</p></div></details>
-<details class="pr"><summary>C12. Results and outputs</summary><div class="body"><p>Selected population, derived total and rates, full-sample counts, value draws from within-bin information, KKT in check(), data-support flags, prior-vs-data ratio</p><p><strong>Decisions:</strong> #9 (derived rates), #12, #41, #49, #50, #53</p><p><strong>Audit:</strong> O-1 to O-21</p></div></details>
-<details class="pr"><summary>C13. Tests</summary><div class="body"><p>Stronger slow tests; SBC on selection, rates and GP; coverage gaps</p><p><strong>Decisions:</strong> –</p><p><strong>Audit:</strong> T-1–T-3, T-9–T-11, T-13</p></div></details>
-<details class="pr"><summary>C14. Docs</summary><div class="body"><p>Vision and principles; field-neutral README and landing page; guide and tutorials updated for every change; spec and test plan refreshed; CHANGELOG</p><p><strong>Decisions:</strong> #33, #34, #36, #37</p><p><strong>Audit:</strong> T-5–T-7, T-12, T-17–T-19, I-20, P-21, N-15, O-21</p></div></details>
+<section id="pa"><div class="sec-head"><span class="n">A</span><h2>Land the history</h2></div>
+<div class="tblwrap"><table class="tbl"><tr><th>PR</th><th>Content</th></tr>
+<tr><td class="pr"><a href="https://github.com/joshspeagle/binference/pull/13">#13</a></td><td>Landscape census and the v0.1 design</td></tr>
+<tr><td class="pr"><a href="https://github.com/joshspeagle/binference/pull/14">#14</a></td><td>The v0.1 package</td></tr>
+<tr><td class="pr"><a href="https://github.com/joshspeagle/binference/pull/15">#15</a></td><td>Documentation, tutorials and the first review's fixes</td></tr>
+<tr><td class="pr"><a href="https://github.com/joshspeagle/binference/pull/16">#16</a></td><td>Walkthrough notes, briefings, audit reports and the landing plan</td></tr>
+</table></div>
+</section>
 
-<p>Then a phase-wide <code>/simplify</code> and <code>/code-review</code> on Phase C's whole diff, and a release-candidate check: every test, the slow suite and the docs.</p></section>
+<section id="pb"><div class="sec-head"><span class="n">B</span><h2>Foundations</h2></div>
+<div class="tblwrap"><table class="tbl"><tr><th>PR</th><th>Content</th></tr>
+<tr><td class="pr"><a href="https://github.com/joshspeagle/binference/pull/19">#19</a></td><td>Development process (CLAUDE.md, CONTRIBUTING, templates), CI on three systems and Python 3.13/3.14, docs deployed to Pages</td></tr>
+<tr><td class="pr"><a href="https://github.com/joshspeagle/binference/pull/20">#20</a></td><td>Rename from <code>pastry</code> to <code>binference</code> (DECISIONS #45)</td></tr>
+</table></div>
+</section>
 
-<section id="pd"><div class="sec-head"><span class="n">D</span><h2>Deferred work, as open issues</h2></div>
-<ul>
-<li><strong>Needs the Phase 3–5 walkthrough first:</strong> B-spline basis and internal resolution (#4, #5); binning-bias diagnostic and planner (#6, #20); adaptive defaults (#14); measure in random-walk and tree priors, masked smoothness priors (#19, #21); removing the rates "kind" and the explicit-total option (#9); selection draws, injections and joint inference (#10, #30); response inferred jointly (#28); within-bin selection at internal resolution (#47); one result object with draws + best fit and <code>_best</code> names (#35, #51); leave-one-out (#52); correlated Gaussians (#2, #25); speed plan and float32 (#54, #55); benchmark matrix (#39, #42); golden-value tests (#41); the survey as docs (#43); per-field tutorials (#37).</li>
-<li><strong>Post-v1</strong> (<code>post-v1.md</code>): PDF calibration and recalibration, implicit interim priors (#38); overdispersion (#40); chunked inputs, GPU, checkpoints, exports (#41).</li>
-<li><strong>Parked questions</strong>: the 1.3 architecture decisions, how priors use bins, small concentrations, tree-matched coordinates, N-D Pólya trees, <code>Bins.neighbors</code>.</li>
-</ul></section>
+<section id="pc"><div class="sec-head"><span class="n">C</span><h2>Decisions and audit</h2></div>
+<p>In dependency order, from inputs to docs.</p>
+<div class="tblwrap"><table class="tbl"><tr><th>Group</th><th>PRs</th><th>Content</th></tr>
+<tr><td>Inputs</td><td class="pr">#22 #24 #27 #28 #30 #32 #34 #36</td><td>Bins with measures and masks; <code>Density</code> for interim priors; constructors named by input form; validated, frozen likelihoods with sparse compression; full covariances; one Monte Carlo estimator for samples; <code>Response</code> and <code>from_binned</code>; the selection modes <code>on_truth</code> and <code>on_measurement</code></td></tr>
+<tr><td>Model and engines</td><td class="pr">#38 #40 #42 #44 #46 #48</td><td>Weights, KKT gap and missing information; MAP with mix-SQP, SQUAREM EM or L-BFGS; prior fixes; the GP in the measure coordinate; NUTS and Laplace; Gibbs, VB, bootstrap and validation</td></tr>
+<tr><td>Extensions</td><td class="pr">#50 #52 #54 #56 #58 #60</td><td>B-spline basis and internal resolution; speed (float32 and a compiled kernel measured, not adopted); rates derived for every fit; selection from injections, inferred jointly; responses tallied from calibration sets, inferred jointly</td></tr>
+<tr><td>Results</td><td class="pr">#63 #65 #67 #69 #71</td><td>The selected population, derived totals and rates, per-object outputs and draws, best fit with every result, leave-one-out, the binning-bias check</td></tr>
+<tr><td>Tests and defaults</td><td class="pr">#74 #75 #78 #85 #90</td><td>Fast-test gaps; SBC power and new cases; the benchmark matrix and <code>method="auto"</code> as the default; auto extends Gibbs until it mixes, or gives way; auto flags Laplace draws kept without passing its check</td></tr>
+<tr><td>Docs</td><td class="pr">#82 #87 #91</td><td>Docs audit and refreshed spec; background pages for seven fields and tutorials 09–11; vision, principles and a field-neutral front page</td></tr>
+<tr><td>Phase review</td><td class="pr">#94</td><td>Phase C's whole diff reviewed: fixes between pull requests, one helper per concept, one name per concept, speed-ups (DECISIONS #90)</td></tr>
+</table></div>
+</section>
 
-<section id="pq"><div class="sec-head"><span class="n">?</span><h2>Questions for you</h2></div>
+<section id="caught"><div class="sec-head"><span class="n">R</span><h2>What the reviews caught</h2></div>
+<p>Defects found by the reviews and fixed before merging, each with a test that fails without its fix. A selection:</p>
+<ul class="caught">
+<li>Auto chose Gibbs for jointly inferred responses and selections, and that run failed its own convergence check (R-hat 1.09 and 1.54). It now extends Gibbs until it mixes, or gives way to Laplace or NUTS. <span class="src">#85, found writing tutorials 10 and 11</span></li>
+<li>Auto kept Laplace draws whose importance ESS fell short without marking them approximate. <span class="src">#90, found by the vision page's accuracy review</span></li>
+<li><code>attach</code> after a load refused valid results with a basis and a selection, and accepted a model with another prior (prior reprs shorten arrays; priors are now compared by a digest of their arguments). <span class="src">#94</span></li>
+<li>PSIS let ties at the cut into the tail, so leave-one-out crashed on resampled Laplace draws. <span class="src">#94</span></li>
+<li>Mock posterior samples on unequal bins ignored step widths: with bins [0, 0.1, 3], half the samples fell in the narrow bin. <span class="src">#94</span></li>
+<li>The background pages overstated binference four times, for example that a selection on the measurement is inferred from injections (it is a plug-in). <span class="src">#87</span></li>
+<li>A full N × K copy of new-object rows under a selection on the truth. <span class="src">#82</span></li>
+</ul>
+<p>Speed, measured on one thread: Laplace's importance step 5.3 s from 28.4 s (N = 10⁵, K = 50); leave-one-out 3.1 s from 7.4 s (N = 2 × 10⁴, 2000 draws); EM one likelihood product per point (estimates identical).</p>
+</section>
+
+<section id="rc"><div class="sec-head"><span class="n">✓</span><h2>Final checks</h2></div>
+<div class="tblwrap"><table class="tbl"><tr><th>Check</th><th>Result</th></tr>
+<tr><td>Fast suite</td><td><span class="chip ok">pass</span> 657 passed, 1 skipped (scikit-learn not installed), about 110 s</td></tr>
+<tr><td>Slow suite</td><td><span class="chip ok">pass</span> 36 passed, 1 expected failure (mean-field VB is over-confident, documented)</td></tr>
+<tr><td>Docs build</td><td><span class="chip ok">pass</span> clean build with warnings as errors; 11 tutorials executed</td></tr>
+<tr><td>Code in README and user guide</td><td><span class="chip ok">pass</span> every snippet runs</td></tr>
+<tr><td>CI</td><td><span class="chip ok">pass</span> lint, three systems with Python 3.13 and 3.14, minimum dependencies, docs, wheel</td></tr>
+</table></div>
+</section>
+
+<section id="open"><div class="sec-head"><span class="n">D</span><h2>Still open</h2></div>
+<p>Deferred work, each a specified issue labelled <code>deferred</code>. Phase D (<a href="https://github.com/joshspeagle/binference/issues/8">#8</a>) turns the post-v1 notes and the open questions into more of these.</p>
+<div class="tblwrap"><table class="tbl"><tr><th>Issue</th><th>What</th><th>Why it waits</th></tr>
+<tr><td class="pr"><a href="https://github.com/joshspeagle/binference/issues/93">#93</a></td><td>Plain bins as an identity basis (about 20 branches go)</td><td>Changes the public <code>.basis</code> and the save format; your call in the Phase 3 tour</td></tr>
+<tr><td class="pr"><a href="https://github.com/joshspeagle/binference/issues/88">#88</a></td><td>Gaps between the design principles and the code: checks for every engine, raw arrays, auto's constants, a data-support default</td><td>Each needs a decision</td></tr>
+<tr><td class="pr"><a href="https://github.com/joshspeagle/binference/issues/86">#86</a></td><td>A public accessor for inferred selection and response draws</td><td>API naming</td></tr>
+<tr><td class="pr"><a href="https://github.com/joshspeagle/binference/issues/83">#83</a></td><td>Seed sweeps for the engine tests; enforced coverage</td><td>Test-suite work, not blocking</td></tr>
+<tr><td class="pr"><a href="https://github.com/joshspeagle/binference/issues/77">#77</a></td><td>Golden values against mixsqp, REBayes and Empirikos</td><td>Needs R and Julia, which this environment could not install</td></tr>
+<tr><td class="pr"><a href="https://github.com/joshspeagle/binference/issues/61">#61</a></td><td>One interface for quantities inferred with the population</td><td>Repays itself with a third such quantity</td></tr>
+<tr><td class="pr"><a href="https://github.com/joshspeagle/binference/issues/8">#8</a></td><td>Phase D: post-v1 work and undecided questions as issues</td><td>After the walkthrough reaches them</td></tr>
+</table></div>
+</section>
+
+<section id="qs"><div class="sec-head"><span class="n">?</span><h2>Your calls</h2></div>
+<p>Questions parked during the landing, each with the default the code now uses. Work continued on the default; nothing here blocks. The full list is in <code>notes/review/QUESTIONS.md</code>.</p>
 <ul class="qs">
-<li><span class="tag">1</span><span>History: land v0.1 and the notes as Phase A's four history-preserving PRs (my recommendation; the notes cite those hashes), or one squashed PR?</span></li>
-<li><span class="tag">2</span><span>Merging: I merge each PR once CI is green and the reviews are addressed (as in telescopic), or you approve each?</span></li>
-<li><span class="tag">3</span><span>Scope: items that need the Phase 3–5 walkthrough stay issues, not code, notably #9 (removing the rates kind), #10/#28/#30 (joint inference) and #54/#55 (speed). Agree?</span></li>
-<li><span class="tag">4</span><span>Python ≥ 3.13 with current NumPy/SciPy floors; add mypy (telescopic runs it strictly)?</span></li>
-<li><span class="tag">5</span><span>PR review reports in <code>notes/pr-reviews/</code>, keeping <code>notes/review/</code> for the walkthrough?</span></li>
-</ul></section>
-</main></div>
-<script>
-</script>
+<li><span class="chip you">totals</span> Totals derived under the flat Dirichlet are pulled low when some bins are poorly determined (simulations: mean z of 1.5–1.9).<span class="def">Default: <b>documented in the selection guide.</b> Alternative: a different prior behind derived totals.</span></li>
+<li><span class="chip you">rates</span> Keep the rates kind as the explicit-rate model (DECISIONS #78)?<span class="def">Default: <b>keep it</b>, and derive rates for every fractions fit.</span></li>
+<li><span class="chip you">results</span> One result type or two (DECISIONS #85)?<span class="def">Default: <b>two</b>, <code>PopulationResult</code> and <code>PointEstimate</code>, linked by <code>result.best</code>.</span></li>
+<li><span class="chip you">loo</span> A count downdate for leave-one-out in conjugate fits?<span class="def">Default: <b>PSIS only</b>, with k̂ per object.</span></li>
+<li><span class="chip you">binning</span> An exact large-N binning-bias calculation and a suggested spacing?<span class="def">Default: <b>the refit check</b> with <code>n_crit</code> per bin.</span></li>
+<li><span class="chip you">sbc</span> Which uniformity test does <code>SBCResult.passed</code> run?<span class="def">Default: <b>chi-square</b>; the tests require both.</span></li>
+<li><span class="chip you">speed</span> A float32 storage option, or a compiled kernel (DECISIONS #77)?<span class="def">Default: <b>neither</b>; revisit on many-core or GPU hardware.</span></li>
+<li><span class="chip you">selection</span> Averaging over selection draws as an opt-in?<span class="def">Default: <b>none</b>; selections from injections are parameters.</span></li>
+</ul>
+</section>
+
+<section id="next" style="border-bottom:0"><div class="sec-head"><span class="n">→</span><h2>Next</h2></div>
+<p>A rundown of where things stand, then back to the walkthrough at Phase 3, step 3.1, with the code tours that the deferred design questions (#93, the architecture decisions of step 1.3) are waiting for.</p>
+</section>
+</main>
+</div>
