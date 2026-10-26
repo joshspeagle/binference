@@ -18,7 +18,7 @@ derived quantity and every object are honest.
 import binference
 
 mock = binference.simulate.mock_1d(2000, rng=42)
-result = binference.infer(mock.likelihoods, rng=1)   # exact posterior with NUTS
+result = binference.infer(mock.likelihoods, rng=1)   # method="auto" picks the engine
 result.summary()
 result.plot(truth=mock.truth.rho)
 ```

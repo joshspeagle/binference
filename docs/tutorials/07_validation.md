@@ -39,7 +39,7 @@ S = np.array([0.9, 0.5, 0.25])
 mock = binference.simulate.mock_1d(250, bins, density=np.array([0.4, 0.35, 0.25]),
                                noise=(0.3, 0.8), selection=S, rng=777)
 exact = exact_posterior(mock.likelihoods, priors.Dirichlet(1.0))
-nuts = binference.infer(mock.likelihoods, rng=1)
+nuts = binference.infer(mock.likelihoods, method="nuts", rng=1)
 gibbs = binference.infer(mock.likelihoods, method="gibbs", rng=1, n_samples=4000)
 print("exact mean", exact.mean.round(4), " sd", exact.std.round(4))
 print("NUTS  mean", nuts.mean.round(4), " sd", nuts.std.round(4))

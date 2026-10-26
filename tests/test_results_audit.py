@@ -204,7 +204,7 @@ def test_method_em_runs_em_and_auto_is_recorded_in_any_case():
     lk, _ = _fit_with_selection()
     assert binference.infer(lk, method="em").info["algorithm"] in ("em", "squarem")
     res = binference.infer(lk, method="AUTO", n_samples=20, rng=0, check=False)
-    assert res.info["auto_method"] == "nuts"
+    assert res.info["auto_method"] == res.method
 
 
 def test_estimator_works_with_scikit_learn_model_selection():

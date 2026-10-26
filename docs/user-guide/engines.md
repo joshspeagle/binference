@@ -26,7 +26,7 @@ lk = mock.likelihoods
 | `"auto"` | NUTS, or Laplace for very large inputs | | scripts that must scale |
 
 ```python
-res = binference.infer(lk, rng=1, n_samples=500, n_warmup=500)         # NUTS
+res = binference.infer(lk, method="nuts", rng=1, n_samples=500, n_warmup=500)
 gib = binference.infer(lk, method="gibbs", rng=1, n_samples=2000, check=False)
 est = binference.infer(lk, method="map")
 print(res.mean[:4].round(3), gib.mean[:4].round(3), est.rho[:4].round(3))

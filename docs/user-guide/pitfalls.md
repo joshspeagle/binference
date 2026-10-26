@@ -88,8 +88,10 @@ functionals of the fine posterior (`result.rebin`, `result.functional`).
 binference flags approximate results (`result.approximate`), and the summary
 says so.
 
-**Fix.** Use NUTS (the default) for error bars, or check an approximation
-against it on a subset.
+**Fix.** Use an exact engine (NUTS, or Gibbs where it mixes) for error bars,
+or check an approximation against it on a subset. `method="auto"`, the
+default, keeps the Laplace approximation only when its importance check
+passes.
 
 ## Too many bins for a flat Dirichlet
 

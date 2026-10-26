@@ -10,8 +10,8 @@ kernelspec:
 # Choosing an engine
 
 binference offers several ways to compute the same posterior. This tutorial runs
-all of them on one problem and compares accuracy, speed and diagnostics. The
-default, NUTS, serves as the reference.
+all of them on one problem and compares accuracy, speed and diagnostics. NUTS,
+exact for any prior, serves as the reference.
 
 ```{code-cell} python
 import time
@@ -141,7 +141,7 @@ The four chains have not mixed. Run longer, or use NUTS.
 
 | engine | exact | speed | use it for |
 |---|---|---|---|
-| NUTS | yes | moderate | the default, for any prior |
+| NUTS | yes | moderate | any prior; what `method="auto"` falls back to |
 | Gibbs | yes | fast per draw | conjugate priors with narrow likelihoods; joint labels |
 | MAP / EM | point estimate | very fast | quick looks, huge problems |
 | Laplace | approximately | fast | large problems with few bins; check $\hat k$ |

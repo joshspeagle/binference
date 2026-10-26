@@ -174,7 +174,9 @@ def test_squarem_rejects_an_extrapolation_that_makes_an_object_impossible():
 
 def test_results_saved_with_the_old_log_density_name_still_load(tmp_path):
     mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 4), rng=6)
-    res = binference.infer(mock.likelihoods, n_samples=50, n_warmup=50, rng=0, check=False)
+    res = binference.infer(
+        mock.likelihoods, method="nuts", n_samples=50, n_warmup=50, rng=0, check=False
+    )
     path = tmp_path / "r.npz"
     res.save(str(path))
     data = dict(np.load(path, allow_pickle=True))
