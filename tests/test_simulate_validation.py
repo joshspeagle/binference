@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from scipy import stats
 
 import binference
 from binference import Bins, Likelihoods
@@ -161,8 +162,92 @@ def test_sbc_and_coverage_smoke():
     assert cov.rates().shape == (2, 4)
     assert cov.average().shape == (2,)
     assert cov.stderr().shape == (2, 1)
-    with pytest.raises(ValueError):
-        binference.simulate.prior_predictive(P.GammaRates(), bins)
+    with pytest.raises(ValueError, match="informative"):
+        binference.simulate.prior_predictive(P.GammaRates(), bins)(np.random.default_rng(0))
+    # the limit is a tunable; a prior expecting almost no objects fails instead of spinning
+    with pytest.raises(ValueError, match="above max_objects"):  # about 4000
+        binference.simulate.prior_predictive(P.GammaRates(1e4, 10.0), bins, max_objects=3e3)(
+            np.random.default_rng(0)
+        )
+    with pytest.raises(ValueError, match="1000 populations"):
+        binference.simulate.prior_predictive(P.GammaRates(1e4, 1e12), bins)(
+            np.random.default_rng(0)
+        )
+
+
+DETECT = np.array([1.0, 0.6, 0.35, 0.2])
+
+
+@pytest.mark.parametrize("mode", ["on_truth", "on_measurement"])
+def test_prior_predictive_keeps_objects_in_proportion_to_the_selection(mode):
+    # a near-uniform population measured almost exactly: the measured bin is the true
+    # bin, so the observed counts are multinomial with p_k proportional to S_k
+    bins, n = Bins.linear(0, 1, 4), 4000
+    sim = binference.simulate.prior_predictive(
+        P.Dirichlet(1e6), bins, n, noise=1e-4, selection=DETECT, selection_mode=mode
+    )
+    lk, rho = sim(np.random.default_rng(3))
+    np.testing.assert_allclose(rho, 0.25, atol=0.002)
+    assert lk.selection.mode == mode
+    np.testing.assert_allclose(lk.selection.values, DETECT, atol=1e-3)
+    counts = np.bincount(lk.toarray().argmax(axis=1), minlength=4)
+    p = DETECT / DETECT.sum()
+    assert np.all(np.abs(counts - n * p) < 4 * np.sqrt(n * p * (1 - p))), counts
+
+
+def test_prior_predictive_selection_on_measurement_is_the_bin_average_keep_probability():
+    # S_k = P(kept | true bin k): the measured value's bin (end bins extended) decides,
+    # averaged over z uniform in the bin and sigma ~ U(0.05, 0.3); checked by Monte Carlo
+    bins, noise = Bins.linear(0, 1, 4), (0.05, 0.3)
+    sim = binference.simulate.prior_predictive(
+        P.Dirichlet(1.0), bins, 10, noise=noise, selection=DETECT, selection_mode="on_measurement"
+    )
+    S = sim(np.random.default_rng(0))[0].selection.values
+    rng, m = np.random.default_rng(1), 200_000
+    for k in range(4):
+        z = 0.25 * (k + rng.random(m))
+        d = z + rng.uniform(*noise, m) * rng.standard_normal(m)
+        kept = DETECT[np.clip(np.floor(d / 0.25).astype(int), 0, 3)]
+        assert abs(kept.mean() - S[k]) < 4 * kept.std() / np.sqrt(m), (k, kept.mean(), S[k])
+
+
+def test_prior_predictive_draws_a_poisson_number_of_objects_for_rates():
+    # rates fixed near 100 per bin by a tight Gamma prior; N ~ Poisson(S . lambda)
+    bins, S = Bins.linear(0, 1, 4), np.array([1.5, 1.0, 0.6, 0.3])
+    sim = binference.simulate.prior_predictive(
+        P.GammaRates(1e6, 1e4), bins, noise=0.1, selection=S, selection_mode="on_truth"
+    )
+    rng = np.random.default_rng(4)
+    runs = [sim(rng) for _ in range(300)]
+    n = np.array([lk.N for lk, _ in runs])
+    lam = np.array([truth for _, truth in runs])
+    np.testing.assert_allclose(lam, 100.0, rtol=0.005)  # the true rates, not fractions
+    mean = float(S @ lam.mean(axis=0))
+    assert abs(n.mean() - mean) < 4 * np.sqrt(mean / n.size)
+    assert abs(n.var(ddof=1) / mean - 1) < 4 * np.sqrt(2 / (n.size - 1))  # Poisson dispersion
+    lk = runs[0][0]
+    assert lk.selection.scale == "exposure" and lk.selection.mode == "on_truth"
+    np.testing.assert_array_equal(lk.selection.values, S)
+
+
+def test_prior_predictive_validates_its_inputs():
+    bins, pp = Bins.linear(0, 1, 4), binference.simulate.prior_predictive
+    with pytest.raises(ValueError, match="selection_mode"):
+        pp(P.Dirichlet(1.0), bins, selection=DETECT)
+    with pytest.raises(ValueError, match="selection_mode"):
+        pp(P.Dirichlet(1.0), bins, selection=DETECT, selection_mode="true")
+    with pytest.raises(ValueError, match="without a selection"):
+        pp(P.Dirichlet(1.0), bins, selection_mode="on_truth")
+    with pytest.raises(ValueError, match="one value per bin"):
+        pp(P.Dirichlet(1.0), bins, selection=[0.5, 0.5], selection_mode="on_truth")
+    with pytest.raises(ValueError, match="must not exceed one"):
+        pp(P.Dirichlet(1.0), bins, selection=[2.0, 1, 1, 1], selection_mode="on_truth")
+    with pytest.raises(ValueError, match="n_objects must not be given"):
+        pp(P.GammaRates(1.0, 1.0), bins, 50)
+    with pytest.raises(ValueError, match="n_objects must be a positive integer"):
+        pp(P.Dirichlet(1.0), bins, 0)
+    with pytest.raises(ValueError, match="one-dimensional"):
+        pp(P.Dirichlet(1.0), Bins.categories(3))
 
 
 def test_sbc_p_values_of_uniform_ranks_reject_at_the_nominal_rate():
@@ -175,6 +260,32 @@ def test_sbc_p_values_of_uniform_ranks_reject_at_the_nominal_rate():
     ]
     # 1000 replicates: the rejection rate has a Monte Carlo SD of about 0.003 at 1%
     assert np.mean(np.array(p) <= 0.01) < 0.025
+
+
+def test_sbc_ecdf_p_value_is_the_null_probability_of_a_smaller_band_statistic():
+    # the exact recursion against Monte Carlo of the statistic for uniform ranks
+    rng = np.random.default_rng(3)
+    S, M, R = 60, 9, 20000
+    F = np.arange(1, M + 1) / (M + 1)
+    c = np.arange(S + 1)
+    tail = 2 * np.minimum(stats.binom.cdf(c, S, F[:, None]), stats.binom.sf(c - 1, S, F[:, None]))
+    C_null = rng.multinomial(S, np.full(M + 1, 1 / (M + 1)), size=R).cumsum(1)[:, :-1]
+    g_null = tail[np.arange(M), C_null].min(1)
+    for a in (0.7, 1.0, 1.5):  # U-shaped, uniform and humped ranks
+        ranks = rng.binomial(M, rng.beta(a, a, size=(S, 1)))
+        p = binference.validation.SBCResult(ranks, M, ["x"]).pvalues(method="ecdf")[0]
+        g = tail[np.arange(M), np.bincount(ranks[:, 0], minlength=M + 1).cumsum()[:-1]].min()
+        p_mc = np.mean(g_null <= g)
+        assert abs(p - p_mc) < 4 * np.sqrt(max(p * (1 - p), 1e-3) / R), (a, p, p_mc)
+    # badly skewed ranks return the Bonferroni bound at once (the full recursion took 26 s)
+    skewed = np.minimum(rng.geometric(0.3, size=(4000, 1)) - 1, 99)
+    p = binference.validation.SBCResult(skewed, 99, ["x"]).pvalues(method="ecdf")[0]
+    assert 0 <= p < 1e-12
+    res = binference.validation.SBCResult(ranks, M, ["x"])
+    with pytest.raises(ValueError, match="n_bins"):
+        res.pvalues(5, method="ecdf")
+    with pytest.raises(ValueError, match="method"):
+        res.passed(method="ks")
 
 
 @pytest.mark.parametrize("alpha", [1.0, 0.5, 0.2])

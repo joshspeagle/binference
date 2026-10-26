@@ -5,7 +5,8 @@
 * :func:`sbc` runs simulation-based calibration (Talts et al. 2018): if the
   inference is calibrated, the rank of the true value among posterior draws is
   uniform. Ranks are computed for every bin fraction and for the joint
-  log-likelihood (Modrak et al. 2023).
+  log-likelihood (Modrak et al. 2023), and their uniformity is tested by a
+  rank-histogram chi-square or the ECDF test of Säilynoja et al. (2022).
 * :func:`coverage` measures the empirical coverage of credible intervals for
   bin fractions and user-defined functionals.
 """
@@ -189,21 +190,82 @@ class SBCResult:
         n = self.ranks.shape[0]
         return int(max(2, min(20, n // 5, self.n_draws + 1)))
 
-    def pvalues(self, n_bins: int | None = None) -> np.ndarray:
-        """Chi-square p-values of rank uniformity per quantity."""
+    def pvalues(self, n_bins: int | None = None, *, method: str = "chisquare") -> np.ndarray:
+        r"""P-values of rank uniformity, one per quantity.
+
+        Parameters
+        ----------
+        n_bins : int, optional
+            Histogram bins for ``method="chisquare"`` (default
+            ``min(20, n_simulations // 5, n_draws + 1)``, at least 2).
+        method : {"chisquare", "ecdf"}
+            ``"chisquare"``: Pearson's chi-square test of the rank histogram.
+            ``"ecdf"``: the ECDF test of Säilynoja, Bürkner & Vehtari (2022).
+            With :math:`S` simulations and :math:`M` = ``n_draws``, the count
+            :math:`C_j` of ranks at most :math:`j` is
+            :math:`\mathrm{Binomial}(S, (j+1)/(M+1))` under uniformity. The
+            statistic is the smallest two-sided binomial tail probability
+            :math:`\hat\gamma = \min_j 2\min\{P(C \le C_j), P(C \ge C_j)\}`
+            over :math:`j = 0, \dots, M-1`, and the p-value is
+            :math:`P(\gamma \le \hat\gamma)` for uniform ranks, computed
+            exactly from the joint (multinomial) law of the counts: the smallest
+            :math:`\alpha` for which the rank ECDF leaves the simultaneous
+            :math:`1 - \alpha` band. It takes no ``n_bins``.
+
+        Returns
+        -------
+        (n_quantities,) array
+        """
+        if method == "ecdf":
+            if n_bins is not None:
+                raise ValueError('n_bins applies to method="chisquare" only.')
+            return np.array([_ecdf_pvalue(r, self.n_draws) for r in self.ranks.T])
+        if method != "chisquare":
+            raise ValueError(f'method must be "chisquare" or "ecdf"; got {method!r}.')
         H = self.histogram(n_bins)
         e = self.expected(n_bins)
         return np.array([stats.chisquare(h, f_exp=e).pvalue for h in H])
 
-    def passed(self, alpha: float = 0.01, n_bins: int | None = None) -> bool:
-        """True if no quantity rejects uniformity at Bonferroni-corrected level ``alpha``."""
-        p = self.pvalues(n_bins)
+    def passed(
+        self, alpha: float = 0.01, n_bins: int | None = None, *, method: str = "chisquare"
+    ) -> bool:
+        """True if no quantity rejects uniformity at Bonferroni-corrected level ``alpha``
+        (each p-value from :meth:`pvalues` above ``alpha / n_quantities``)."""
+        p = self.pvalues(n_bins, method=method)
         return bool(np.all(p > alpha / p.size))
 
     def plot(self, **kwargs: Any):
         from .plotting import plot_sbc
 
         return plot_sbc(self, **kwargs)
+
+
+def _ecdf_pvalue(ranks: np.ndarray, n_draws: int) -> float:
+    """P-value of the ECDF test of :meth:`SBCResult.pvalues` for one quantity."""
+    S, L = ranks.size, n_draws + 1
+    F = np.arange(1, L) / L
+    c = np.arange(S + 1)
+    # two-sided binomial tail probability of every count c at every rank j < n_draws
+    tail = 2 * np.minimum(stats.binom.cdf(c, S, F[:, None]), stats.binom.sf(c - 1, S, F[:, None]))
+    C = np.cumsum(np.bincount(ranks, minlength=L))[:-1]
+    g = tail[np.arange(L - 1), C].min()
+    if g >= 1.0:
+        return 1.0
+    # each tail is a p-value, so p <= (L - 1) g; below 1e-12 that bound is returned, which
+    # spares the recursion its widest bands (S x S work per step for badly skewed ranks)
+    if (L - 1) * g < 1e-12:
+        return float((L - 1) * g)
+    # P(every C_j has tail > g): C_j - C_{j-1} | C_{j-1} ~ Binomial(S - C_{j-1}, 1/(L - j))
+    lo_prev, prob = 0, np.ones(1)
+    for j in range(L - 1):
+        inside = np.flatnonzero(tail[j] > g)  # an interval: the binomial is unimodal
+        if inside.size == 0:
+            return 1.0
+        prev = lo_prev + np.arange(prob.size)
+        new = np.arange(inside[0], inside[-1] + 1)
+        prob = prob @ stats.binom.pmf(new - prev[:, None], S - prev[:, None], 1.0 / (L - j))
+        lo_prev = inside[0]
+    return float(min(1.0, max(0.0, 1.0 - prob.sum())))
 
 
 def _symbol(res: PopulationResult) -> str:

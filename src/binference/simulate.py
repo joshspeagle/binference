@@ -277,9 +277,23 @@ def mock_1d(
     return mock
 
 
-def _gaussian_mock(bins, density, n_objects, noise, on_truth, measured_range, outliers, gen):
+def _gaussian_mock(
+    bins,
+    density,
+    n_objects,
+    noise,
+    on_truth,
+    measured_range,
+    outliers,
+    gen,
+    *,
+    measured_keep=None,
+    selection=None,
+):
     # draw objects until n_objects pass the selection, measure them, and build the mock
-    # with the Selection that describes how they were selected (DECISIONS #48)
+    # with the Selection that describes how they were selected (DECISIONS #48);
+    # measured_keep thins on the bin of the measured value (the end bins extended
+    # outward) and `selection` replaces the Selection attached to the likelihoods
     sel = None if on_truth is None else Selection(on_truth, "on_truth")
     if measured_range is not None:
         if len(measured_range) != 2:
@@ -315,6 +329,9 @@ def _gaussian_mock(bins, density, n_objects, noise, on_truth, measured_range, ou
             keep &= gen.random(batch) < S[np.maximum(lab, 0)]
         if measured_range is not None:
             keep &= (obs >= lo) & (obs <= hi)
+        if measured_keep is not None:
+            j = np.clip(np.searchsorted(bins.edges[0], obs, side="right") - 1, 0, bins.K - 1)
+            keep &= gen.random(batch) < measured_keep[j]
         idx = np.flatnonzero(keep)[:need]
         # count only the draws needed to reach n_objects observed objects
         n_drawn += batch if idx.size < need else int(idx[-1]) + 1
@@ -325,7 +342,7 @@ def _gaussian_mock(bins, density, n_objects, noise, on_truth, measured_range, ou
         obs,
         sigma,
         bins,
-        selection=sel,
+        selection=sel if selection is None else selection,
         warn_outside=False,  # observations near the edges spill past them by construction
     )
     counts = np.bincount(labels, minlength=bins.K).astype(float)
@@ -507,26 +524,156 @@ def mock_unfolding(
 def prior_predictive(
     prior: PopulationPrior,
     bins: Bins,
-    n_objects: int = 200,
+    n_objects: int | None = None,
     *,
     noise: Any = (0.05, 0.2),
+    selection: Any = None,
+    selection_mode: str | None = None,
+    max_objects: float = 1e6,
 ) -> Callable[[np.random.Generator], tuple[Likelihoods, np.ndarray]]:
-    """A simulator ``simulate(rng) -> (likelihoods, rho_true)`` drawing populations from a prior.
+    r"""A simulator ``simulate(rng) -> (likelihoods, truth)`` drawing populations from a prior.
 
-    Fractions are drawn from ``prior``, objects uniformly within bins from those
-    fractions, and Gaussian measurements with the given ``noise`` (in units of
-    the bin coordinate). Intended for :func:`binference.validation.sbc` and
+    Each call draws a population from ``prior``, objects uniformly within bins
+    from it, and Gaussian measurements with the given ``noise`` (in units of the
+    bin coordinate), and returns the likelihoods with the selection attached and
+    the true fractions :math:`\rho` (or rates :math:`\lambda` for a rate
+    prior). Intended for :func:`binference.validation.sbc` and
     :func:`binference.validation.coverage`. One-dimensional bins only.
+
+    Parameters
+    ----------
+    prior : PopulationPrior
+        Prior on fractions, or on rates (e.g.
+        :class:`~binference.priors.GammaRates`, which then needs an informative
+        ``rate``).
+    bins : Bins
+        One-dimensional bins.
+    n_objects : int, optional
+        Number of observed objects (after selection), for priors on fractions
+        (default 200). For rates the number is drawn: :math:`N \sim
+        \mathrm{Poisson}(S\cdot\lambda)`, i.e. :math:`\Lambda\,S\cdot\rho`, so
+        ``n_objects`` must not be given. A draw with no object is discarded and
+        the population drawn again, which conditions the joint draw on
+        :math:`N \ge 1` and leaves the ranks of SBC uniform.
+    noise : float or (lo, hi)
+        Measurement standard deviation, fixed or drawn uniformly per object.
+    selection : array_like (K,), optional
+        Selection per bin: detection probabilities in (0, 1] for fractions,
+        exposures (any positive values) for rates. Without it, every object is
+        observed (unit exposure for rates).
+    selection_mode : {"on_truth", "on_measurement"}
+        Required with ``selection``. ``"on_truth"``: an object is kept with a
+        probability proportional to ``selection`` of its *true* bin, and the
+        likelihoods carry ``Selection(selection, "on_truth")``.
+        ``"on_measurement"``: it is kept with a probability proportional to
+        ``selection`` of the bin its *measured* value falls in (values beyond
+        the range count in the end bins), and the likelihoods carry an
+        ``"on_measurement"`` selection whose :math:`S_k` is the bin average of
+        :math:`\sum_j T_j P(d \in j \mid z)` over the noise distribution, with
+        :math:`T` the given values.
+    max_objects : float
+        For rates, the largest expected number of objects :math:`S\cdot\lambda`
+        a draw may have; every object is simulated, so a draw beyond it raises
+        (as the vague default :class:`~binference.priors.GammaRates` does).
+
+    Returns
+    -------
+    callable
+        ``simulate(rng)`` returning ``(likelihoods, truth)``.
+
+    Notes
+    -----
+    Objects are kept with probability ``selection / max(selection)`` until
+    enough are observed; only the ratios matter for which objects are kept,
+    while the absolute values set the selection attached to the likelihoods
+    and, for rates, the expected number of objects.
     """
+    if not isinstance(bins, Bins) or bins.is_categorical or bins.ndim != 1:
+        raise ValueError("prior_predictive needs one-dimensional Bins.")
     bound = prior.bind(bins)
-    if bound.kind != "fractions":
-        raise ValueError("prior_predictive supports priors on fractions.")
+    rates = bound.kind == "rates"
+    if bound.kind not in ("fractions", "rates"):
+        raise ValueError("prior_predictive supports priors on fractions or rates.")
+    if rates and n_objects is not None:
+        raise ValueError(
+            "n_objects must not be given for a rate prior: the number of objects is drawn "
+            "from Poisson(S . lambda)."
+        )
+    n = 200 if n_objects is None else n_objects
+    if not rates and (int(n) != n or n < 1):
+        raise ValueError(f"n_objects must be a positive integer; got {n_objects}.")
+    n = int(n)
+    if not max_objects > 0:
+        raise ValueError(f"max_objects must be positive; got {max_objects}.")
+    sel = keep_truth = keep_measured = None
+    S = np.ones(bins.K)
+    if selection is None:
+        if selection_mode is not None:
+            raise ValueError("selection_mode was given without a selection.")
+    else:
+        if selection_mode not in ("on_truth", "on_measurement"):
+            raise ValueError(
+                "selection_mode must be 'on_truth' or 'on_measurement' with a selection; "
+                f"got {selection_mode!r}."
+            )
+        scale = "exposure" if rates else "probability"
+        sel = Selection(selection, selection_mode, scale=scale)
+        T = sel.values
+        if T.size != bins.K:
+            raise ValueError(f"selection needs one value per bin ({bins.K}); got {T.size}.")
+        if selection_mode == "on_truth":
+            keep_truth = T / T.max()
+        else:
+            if bins.is_masked:
+                raise ValueError("selection_mode='on_measurement' needs unmasked bins.")
+            e = np.r_[-np.inf, bins.edges[0][1:-1], np.inf]
+            nz = np.asarray(noise, dtype=float)
+
+            def passes(z):
+                return sum(T[j] * _measured_pass(z, nz, e[j], e[j + 1]) for j in range(bins.K))
+
+            sel = Selection.from_function(passes, bins, selection_mode, scale=scale)
+            keep_measured = T / T.max()
+        S = sel.values
+
+    def draw(rng: np.random.Generator) -> tuple[np.ndarray, int]:
+        value = bound.sample(1, rng)[0]
+        if not rates:
+            return value, n
+        # N ~ Poisson(S . lambda)
+        mean = float(S @ value)
+        if not mean <= max_objects:
+            raise ValueError(
+                f"A rate drawn from the prior expects {mean:.3g} objects, above max_objects="
+                f"{max_objects:.3g}; give the rate prior an informative scale (e.g. "
+                "GammaRates(shape, rate) with a larger rate)."
+            )
+        return value, int(rng.poisson(mean))
 
     def simulate(rng: np.random.Generator) -> tuple[Likelihoods, np.ndarray]:
-        rho = bound.sample(1, rng)[0]
-        rho = np.maximum(rho, 0.0)
+        for _ in range(1000):  # condition on N >= 1 (rates only)
+            value, count = draw(rng)
+            if count:
+                break
+        else:
+            raise ValueError(
+                "1000 populations drawn from the rate prior in a row had no object; give "
+                "the rate prior an informative scale or the selection larger exposures."
+            )
+        rho = np.maximum(value, 0.0)
         rho = rho / rho.sum()
-        mock = mock_1d(n_objects, bins, density=rho, noise=noise, rng=rng)
-        return mock.likelihoods, rho
+        mock = _gaussian_mock(
+            bins,
+            density=rho,
+            n_objects=count,
+            noise=noise,
+            on_truth=keep_truth,
+            measured_range=None,
+            outliers=0.0,
+            gen=rng,
+            measured_keep=keep_measured,
+            selection=sel,
+        )
+        return mock.likelihoods, value if rates else rho
 
     return simulate

@@ -27,7 +27,7 @@ likelihoods, posteriors, samples, binned measurements or classifier outputs.
 
 Set-up, tests, lint (`pre-commit run --all-files`), docs and the snippet runner are in
 `CONTRIBUTING.md`; CI runs the same commands (`.github/workflows/ci.yml`). Fast tests take
-about 80 s, the slow suite about 10 min, a clean docs build about 9 min. Use
+about 80 s, the slow suite about 20 min on one thread, a clean docs build about 9 min. Use
 `OPENBLAS_NUM_THREADS=1` for timings in shared containers.
 
 ## Recording
