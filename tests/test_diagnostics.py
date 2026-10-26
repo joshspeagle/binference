@@ -104,3 +104,32 @@ def test_importance_ess_is_kish_and_ignores_the_normalisation():
     assert d.importance_ess(w) == pytest.approx(64.0 / 22.0)
     assert d.importance_ess(w / w.sum()) == pytest.approx(64.0 / 22.0)
     assert d.importance_ess(np.ones(7)) == pytest.approx(7.0)
+
+
+def test_psis_of_rows_is_psis_of_each_row(rng):
+    # rows with tails of different lengths, fitted in blocks of a few rows
+    for n in (5, 7, 300):
+        rows = [
+            rng.standard_t(3, n),
+            np.log(rng.pareto(1.0, n) + 1),
+            np.full(n, 2.0) + 1e-14 * np.arange(n),  # equal weights: k = -inf
+            np.r_[rng.normal(size=n - 2), -np.inf, np.nan],
+            np.round(rng.normal(size=n), 1),  # ties
+            np.repeat(rng.normal(size=n // 5 + 1), 5)[:n],
+        ]
+        lw, k = d._psis_rows(np.array(rows), block=300)
+        for row, lw_i, k_i in zip(rows, lw, k, strict=True):
+            lw_ref, k_ref = d.psis(row)
+            np.testing.assert_allclose(lw_i, lw_ref, rtol=1e-12, atol=1e-12)
+            np.testing.assert_allclose(k_i, k_ref, rtol=1e-12)
+    assert d._psis_rows(np.zeros((1, 5)))[1][0] == -np.inf
+
+
+def test_psis_fits_only_the_weights_above_the_cut():
+    # weights tied with the cut have no exceedance; with log(exp(cut)) < cut they entered
+    # the tail and the fit divided by zero
+    cut = next(c for c in -np.linspace(0.5, 0.6, 1000) if np.log(np.exp(c)) < c)
+    above = np.linspace(cut + 0.01, 0.0, 95)
+    lw = np.r_[above, np.full(60, cut), np.linspace(-3.0, cut - 0.01, 845)]
+    k_ref, _ = d._gpdfit(np.exp(above) - np.exp(cut))
+    assert d.psis(lw)[1] == pytest.approx(k_ref)

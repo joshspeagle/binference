@@ -159,7 +159,7 @@ def test_sbc_and_coverage_smoke():
         rng=2,
         functionals={"mean": lambda r: r @ bins.centers},
     )
-    assert cov.rates().shape == (2, 4)
+    assert cov.coverage_rates().shape == (2, 4)
     assert cov.average().shape == (2,)
     assert cov.stderr().shape == (2, 1)
     with pytest.raises(ValueError, match="informative"):

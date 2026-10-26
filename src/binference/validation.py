@@ -13,19 +13,20 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
 from scipy import special, stats
 
+from . import _utils
 from ._quadrature import MAX_ELEMENTS
-from ._utils import RNGLike, as_generator, chunk_slices, progress, spawn, warn
+from ._utils import RNGLike, as_generator, chunk_slices, spawn, warn
 from .likelihoods import Likelihoods
 from .model import PopulationModel
 from .priors import PopulationPrior
-from .results import PopulationResult
+from .results import _SYMBOL, PopulationResult, _central, _flat_draws
 from .warnings import ConvergenceWarning
 
 __all__ = ["CoverageResult", "ExactPosterior", "SBCResult", "coverage", "exact_posterior", "sbc"]
@@ -268,23 +269,22 @@ def _ecdf_pvalue(ranks: np.ndarray, n_draws: int) -> float:
     return float(min(1.0, max(0.0, 1.0 - prob.sum())))
 
 
-def _symbol(res: PopulationResult) -> str:
-    # component weights with a basis (as the prior draws them), else fractions or rates
-    return "w" if res.basis is not None else "lambda" if res.kind == "rates" else "rho"
+def _fits(
+    simulate: Simulator, fit: Fitter, n_simulations: int, rng: RNGLike, what: str, show: bool
+) -> Iterator[tuple[PopulationResult, np.ndarray]]:
+    # each fit to a simulated data set, and its true value
+    gen = as_generator(rng)
+    for _ in _utils.progress(range(n_simulations), n_simulations, what, show):
+        r_sim, r_fit = spawn(gen, 2)
+        lk, truth = simulate(r_sim)
+        yield fit(lk, r_fit), truth
 
 
-def _draws_of_value(res: PopulationResult) -> np.ndarray:
-    """Draws on the scale the model is parametrised in: rates for rate models, and the
-    component weights with a :class:`~binference.Basis` (as the prior draws them)."""
-    return res.component_draws.reshape(-1, res.component_draws.shape[-1])
-
-
-def _thin_draws(res: PopulationResult, n_draws: int) -> np.ndarray:
-    X = _draws_of_value(res)
-    if X.shape[0] < n_draws:
-        raise ValueError(f"Need at least {n_draws} posterior draws per fit; got {X.shape[0]}.")
-    idx = np.linspace(0, X.shape[0] - 1, n_draws).round().astype(int)
-    return X[idx]
+def _names(res: PopulationResult) -> list[str]:
+    """Names of the model's parameters: the component weights ``w`` with a
+    :class:`~binference.Basis` (as the prior draws them), else fractions or rates."""
+    symbol = "w" if res.basis is not None else _SYMBOL[res.kind]
+    return [f"{symbol}[{k}]" for k in range(res.component_draws.shape[-1])]
 
 
 def sbc(
@@ -295,7 +295,7 @@ def sbc(
     n_draws: int = 99,
     log_likelihood: bool = True,
     rng: RNGLike = None,
-    progress_bar: bool = False,
+    progress: bool = False,
 ) -> SBCResult:
     """Simulation-based calibration.
 
@@ -318,20 +318,21 @@ def sbc(
         autocorrelated draws make the rank histograms look over-dispersed).
     log_likelihood : bool
         Also rank the joint log-likelihood of the true population.
+    rng : int, Generator or None
+        Seed or generator of the simulations and fits.
+    progress : bool
+        Show a progress bar over the simulations.
     """
-    gen = as_generator(rng)
     ranks, ess_min = [], []
     names: list[str] = []
-    for _ in progress(range(n_simulations), n_simulations, "SBC", progress_bar):
-        r_sim, r_fit = spawn(gen, 2)
-        lk, truth = simulate(r_sim)
-        res = fit(lk, r_fit)
-        D = _thin_draws(res, n_draws)
+    for res, truth in _fits(simulate, fit, n_simulations, rng, "SBC", progress):
+        if res.n_draws < n_draws:
+            raise ValueError(
+                f"Need at least {n_draws} posterior draws per fit; got {res.n_draws}."
+            )
+        names = _names(res) + (["loglike"] if log_likelihood else [])
+        D = _flat_draws(res.component_draws, 1, n_draws)
         row = list((D < truth[None, :]).sum(axis=0))
-        if not names:
-            names = [f"{_symbol(res)}[{k}]" for k in range(D.shape[1])]
-            if log_likelihood:
-                names.append("loglike")
         if log_likelihood:
             m = res.model
             ll_true = m.log_likelihood(truth, absolute=False)
@@ -362,7 +363,7 @@ class CoverageResult:
     covered: np.ndarray  # (n_simulations, n_levels, n_quantities) bool
     names: list[str]
 
-    def rates(self) -> np.ndarray:
+    def coverage_rates(self) -> np.ndarray:
         """Coverage rate per level and quantity, ``(n_levels, n_quantities)``."""
         return self.covered.mean(axis=0)
 
@@ -373,7 +374,7 @@ class CoverageResult:
 
     def average(self) -> np.ndarray:
         """Coverage per level averaged over quantities, ``(n_levels,)``."""
-        return self.rates().mean(axis=1)
+        return self.coverage_rates().mean(axis=1)
 
 
 def coverage(
@@ -384,36 +385,27 @@ def coverage(
     levels: Sequence[float] = (0.5, 0.68, 0.9, 0.95),
     functionals: dict[str, Callable[[np.ndarray], float]] | None = None,
     rng: RNGLike = None,
-    progress_bar: bool = False,
+    progress: bool = False,
 ) -> CoverageResult:
     """Empirical coverage of central credible intervals over simulated data sets.
 
     ``functionals`` maps names to functions of the fractions, or of the rates
     for rate models (e.g. a mean
-    redshift); their intervals are checked alongside every bin fraction.
+    redshift); their intervals are checked alongside every bin fraction. ``simulate``,
+    ``fit``, ``rng`` and ``progress`` are as in :func:`sbc`.
     """
-    gen = as_generator(rng)
     levels_arr = np.asarray(levels, dtype=float)
     functionals = functionals or {}
     out = []
     names: list[str] = []
-    for _ in progress(range(n_simulations), n_simulations, "coverage", progress_bar):
-        r_sim, r_fit = spawn(gen, 2)
-        lk, truth = simulate(r_sim)
-        res = fit(lk, r_fit)
-        X = _draws_of_value(res)
-        Q = [X[:, k] for k in range(X.shape[1])]
-        tq = list(truth)
-        for f in functionals.values():
-            Q.append(np.array([f(r) for r in X]))
-            tq.append(f(truth))
-        if not names:
-            names = [f"{_symbol(res)}[{k}]" for k in range(X.shape[1])] + list(functionals)
-        Q = np.stack(Q, axis=1)
-        tq = np.asarray(tq)
+    for res, truth in _fits(simulate, fit, n_simulations, rng, "coverage", progress):
+        names = _names(res) + list(functionals)
+        X = _flat_draws(res.component_draws, 1, None)
+        Q = np.column_stack([X, *(np.array([f(r) for r in X]) for f in functionals.values())])
+        tq = np.array([*truth, *(f(truth) for f in functionals.values())])
         cov = np.empty((levels_arr.size, Q.shape[1]), dtype=bool)
         for j, lev in enumerate(levels_arr):
-            lo, hi = np.quantile(Q, [0.5 - lev / 2, 0.5 + lev / 2], axis=0)
+            lo, hi = _central(Q, lev)
             cov[j] = (tq >= lo) & (tq <= hi)
         out.append(cov)
     return CoverageResult(levels_arr, np.asarray(out), names)
