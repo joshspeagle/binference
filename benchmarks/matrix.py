@@ -25,24 +25,24 @@ os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 
-import argparse  # noqa: E402
-import json  # noqa: E402
-import platform  # noqa: E402
-import time  # noqa: E402
-import warnings  # noqa: E402
-import zlib  # noqa: E402
-from collections.abc import Callable  # noqa: E402
-from concurrent.futures import ProcessPoolExecutor  # noqa: E402
-from dataclasses import dataclass, field  # noqa: E402
-from pathlib import Path  # noqa: E402
+import argparse
+import json
+import platform
+import time
+import warnings
+import zlib
+from collections.abc import Callable
+from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass, field
+from pathlib import Path
 
-import numpy as np  # noqa: E402
-from scipy import stats  # noqa: E402
+import numpy as np
+from scipy import stats
 
-import binference  # noqa: E402
-from binference import Bins, Likelihoods, PopulationModel  # noqa: E402
-from binference import priors as P  # noqa: E402
-from binference.simulate import mock_1d, mock_2d, mock_categorical, population  # noqa: E402
+import binference
+from binference import Bins, Likelihoods, PopulationModel
+from binference import priors as P
+from binference.simulate import mock_1d, mock_2d, mock_categorical, population
 
 ENGINES = ("nuts", "gibbs", "laplace", "vb", "map", "bootstrap")
 REFERENCE = {"n_chains": 4, "n_warmup": 2000, "n_samples": 5000}
@@ -265,7 +265,7 @@ def run_cell(name: str, prior_name: str, quick: bool = False) -> list[dict]:
     est = binference.infer(model, method="map")
     try:
         base["missing_information"] = float(model.missing_information(est.rho))
-    except Exception:  # noqa: BLE001 - a feature, not a result
+    except Exception:  # a feature for the auto rules, not a result
         base["missing_information"] = float("nan")
     ref = _reference(model, quick, seed=1)
     rows = [{**base, "engine": "reference", **{k: ref[k] for k in ref if k not in _SUMS}}]
@@ -274,7 +274,7 @@ def run_cell(name: str, prior_name: str, quick: bool = False) -> list[dict]:
         try:
             kw = QUICK_ENGINE.get(engine, {}) if quick else {}
             res, seconds, names = _fit(model, engine, 2, **kw)
-        except Exception as exc:  # noqa: BLE001 - an engine that cannot run is a result
+        except Exception as exc:  # an engine that cannot run is a result
             rows.append({**row, "error": f"{type(exc).__name__}: {exc}"})
             continue
         row.update(seconds=seconds, warnings=names)
