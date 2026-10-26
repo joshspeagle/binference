@@ -74,6 +74,16 @@ def test_very_large_problems_keep_laplace_even_when_its_check_fails():
     assert "likelihood entries" in res.info["auto_reason"]
 
 
+def test_laplace_kept_without_passing_its_check_is_flagged_approximate():
+    # its k-hat passes (as in the PolyaTree test above), but no importance ESS reaches 1e9
+    lk = _lk(1.0, n=1000, K=20)
+    for kw in ({"nnz_limit": 1}, {"df": 4}):  # very large; the only candidate left
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", binference.ApproximationWarning)
+            res = binference.infer(lk, P.PolyaTree(), rng=0, target_ess=1e9, **kw)
+        assert res.method == "laplace" and res.approximate, kw
+
+
 def test_engine_options_rule_out_the_engines_that_do_not_take_them(short_nuts):
     lk = _lk(0.3)
     assert _plan(lk, n_warmup=100) == ["gibbs", "nuts"]

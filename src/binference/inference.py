@@ -63,8 +63,8 @@ class Auto(Engine):
        Gibbs is the only candidate it is kept, and the reason says it did not mix.
     3. Importance-corrected Laplace, kept when its Pareto :math:`\hat k` check passes
        and its importance ESS is at least ``target_ess``, or when the likelihoods have
-       more than ``nnz_limit`` stored entries (then flagged approximate), or when it is
-       the only candidate left.
+       more than ``nnz_limit`` stored entries, or when it is the only candidate left;
+       in those two cases a result that did not pass is flagged approximate.
     4. NUTS.
 
     The result records the choice and the reason in ``info["auto_method"]`` and
@@ -173,6 +173,7 @@ class Auto(Engine):
                 if result is None:
                     rejected.append(why)
                     continue
+                result.approximate = not self._passed(result)  # kept anyway: flagged
             else:
                 result = engine.run(n_samples or n_gibbs or _DEFAULT_SAMPLES[key])
                 # stored labels grow with the run: their length stays as asked
@@ -209,6 +210,10 @@ class Auto(Engine):
             # at most three times the draws so far, so a poor first projection costs less
             result = engine.run(min(need, 3 * done))
 
+    def _passed(self, res: PopulationResult) -> bool:
+        """Whether Laplace draws pass auto's check: Pareto k-hat and importance ESS."""
+        return not res.approximate and res.info.get("ess_importance", 0.0) >= self.target_ess
+
     def _try(self, engine: Laplace, n: int) -> tuple[PopulationResult | None, str]:
         """Laplace's result when it is kept (its warnings re-emitted), else None.
 
@@ -232,7 +237,7 @@ class Auto(Engine):
                 res = engine.run(n)
             except (ValueError, FloatingPointError, np.linalg.LinAlgError):
                 return None, "the Laplace approximation failed"
-        if not res.approximate and res.info.get("ess_importance", 0.0) >= self.target_ess:
+        if self._passed(res):
             reason = "the Laplace importance check passed"
         elif big:
             reason = f"more than {self.nnz_limit:.0e} likelihood entries"
