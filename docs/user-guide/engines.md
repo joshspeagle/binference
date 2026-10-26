@@ -46,8 +46,10 @@ the same draws.
 
 1. **Gibbs** where it mixes well, for a conjugate prior and integer weights:
    a selection (not a smoothed injection selection) or response inferred
-   jointly, or a fraction of missing information at the MAP that is low. It runs long enough for a target effective
-   sample size, from the autocorrelation time $(1+f)/(1-f)$.
+   jointly, or a fraction of missing information at the MAP that is low. It
+   runs long enough for a target effective sample size, from the
+   autocorrelation time $(1+f)/(1-f)$, and is extended until that size and
+   $\hat R$ pass; if that would take too many draws, auto moves on.
 2. **Laplace**, importance-corrected, kept when its Pareto $\hat k$ check
    passes with enough effective draws (and, flagged approximate, for very
    large inputs).
@@ -56,7 +58,7 @@ the same draws.
 The choice and its reason are in `result.info["auto_method"]` and
 `result.info["auto_reason"]`. {class}`binference.inference.Auto` states the
 exact rules; their thresholds (`target_ess`, `gibbs_max_missing`,
-`nnz_limit`) are options that go to `infer` like any other, e.g.
+`max_gibbs_draws`, `nnz_limit`) are options that go to `infer` like any other, e.g.
 `binference.infer(lk, target_ess=1000)`. Engine options rule out the engines
 that do not take them: `target_accept` or `n_jobs` leave only NUTS, `n_warmup`
 leaves Gibbs or NUTS, and options that no candidate takes raise an error. Pass
