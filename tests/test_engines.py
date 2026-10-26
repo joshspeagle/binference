@@ -430,9 +430,13 @@ def test_mixsqp_with_selection_solves_for_observed_fractions(mode):
     mock = binference.simulate.mock_1d(3000, Bins.linear(0, 3, 20), noise=(0.1, 0.3), rng=2)
     S = np.linspace(0.2, 1.0, 20) ** 2
     m = PopulationModel(mock.likelihoods, selection=Selection(3.0 * S, mode, scale="relative"))
-    sqp = MAP(m).run()
+    engine = MAP(m)
+    sqp = engine.run()
     assert sqp.info["algorithm"] == "mixsqp"
-    assert sqp.converged and sqp.n_iter < 50 and sqp.kkt_gap < 1e-7
+    assert sqp.converged and sqp.n_iter < 50
+    # mix-SQP bounds the gap of the observed fractions by tol (1e3 * tol once round-off
+    # stops it); the gap in rho is larger by up to max(S) / (S . rho)
+    assert sqp.kkt_gap < 1e3 * engine.tol * S.max() / (S @ sqp.rho)
     em = MAP(m, algorithm="em", max_iter=200000).run()
     np.testing.assert_allclose(sqp.rho, em.rho, atol=1e-4)
     assert sqp.log_posterior >= em.log_posterior - 1e-8
