@@ -156,7 +156,7 @@ class Laplace(Engine):
                 log_q = -0.5 * np.sum(Z**2, axis=1)
             else:
                 log_q = -0.5 * (self.df + d) * np.log1p(np.sum(Z**2, axis=1) / self.df)
-            log_p = m.log_density_unconstrained(X)
+            log_p = m._log_density_many(X)
             lw, k_hat = diag.psis(log_p - log_q)
             w = np.exp(lw)
             threshold = diag.psis_threshold(M)  # depends on the number of proposals (N-6)

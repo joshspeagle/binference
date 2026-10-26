@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 import hashlib
 from collections.abc import Callable, Sequence
 from functools import partial
@@ -297,7 +296,7 @@ class _IndividualMixin:
             return np.exp(lw, out=lw)
 
         out = _mean_responsibilities(_objects(L, model.N, idx), R, chunk, weigh)
-        bad = ~(k_hat < diag.psis_threshold(m))  # NaN (a degenerate tail) too
+        bad = k_hat >= diag.psis_threshold(m)
         if bad.any():
             warn(
                 f"{int(bad.sum())} of {rows.size} objects have Pareto k-hat >= "
@@ -1134,14 +1133,14 @@ class PopulationResult(_IndividualMixin):
                     "model (a GammaRates prior)."
                 )
             X = X / sums[..., None]
-        return cls(
-            model,
-            X,
-            method=method,
-            kind=model.kind,
-            approximate=approximate,
-            info=info,
-        )
+        if (
+            key in (info or {})
+            and np.shape(info[key])[:2] != (X[None] if X.ndim == 2 else X).shape[:2]
+        ):
+            raise ValueError(
+                f'info["{key}"] must have one draw per sample, (n_chains, n_draws, ...).'
+            )
+        return cls(model, X, method=method, approximate=approximate, info=info)
 
     @property
     def selection(self) -> Selection | None:
@@ -1182,6 +1181,7 @@ class PopulationResult(_IndividualMixin):
         """
         from .likelihoods import Likelihoods
         from .model import PopulationModel
+        from .selection import _rebuild as _rebuild_selection
 
         m, saved = likelihoods_or_model, self.selection
         # bare likelihoods get the default prior; a model counts as the fit's with its prior
@@ -1192,8 +1192,8 @@ class PopulationResult(_IndividualMixin):
             lk = m if isinstance(m, Likelihoods) else Likelihoods(m, self.basis or self.bins)
             sel = None if lk.selection is not None else saved
             if sel is not None and sel.basis is not None and _same_layout(lk.basis, sel.basis):
-                sel = copy.copy(sel)  # the same layout; its measure did not survive saving
-                object.__setattr__(sel, "basis", lk.basis)
+                # the same layout; its measure did not survive saving
+                sel = _rebuild_selection(*sel._parts()[:3], lk.basis, sel.injections)
             m = PopulationModel(lk, selection=sel)
         if m.selection_spec != saved:
             raise ValueError("The likelihoods (or model) carry another selection than this fit.")
@@ -1233,7 +1233,7 @@ class PopulationResult(_IndividualMixin):
     @property
     def samples(self) -> np.ndarray:
         """Population fractions, shape ``(n_draws, K)`` (chains concatenated)."""
-        return self.chains.reshape(-1, self.K)
+        return _flat_draws(self.chains, 1, None)
 
     @property
     def total(self) -> np.ndarray | None:
@@ -1263,7 +1263,7 @@ class PopulationResult(_IndividualMixin):
         fractions (see :attr:`total`), the sampled rates for rate models; ``None``
         when the total is not available."""
         if self.kind == "rates":
-            return self._draws.reshape(-1, self.K)
+            return _flat_draws(self._draws, 1, None)
         total = self.total
         return None if total is None else total[:, None] * self.samples
 
@@ -1309,7 +1309,7 @@ class PopulationResult(_IndividualMixin):
         # the mean of the unconstrained draws, else the image of the mean columns
         model = self._require_model()
         if self.x is not None and self.x.shape[-1] == model.dim:
-            return self.x.reshape(-1, model.dim).mean(axis=0)
+            return _flat_draws(self.x, 1, None).mean(axis=0)
         return model.from_value(_flat_draws(self._params, 1, None).mean(axis=0))
 
     @property

@@ -63,6 +63,13 @@ First development version.
   `"se"` kernel alias and the rename hints for the old selection modes are gone.
 - `Gibbs` and `MeanFieldVB` raise `ValueError` (was `TypeError`) for a model they cannot
   run, with the reason `Engine.unsupported(model)` gives.
+- `PopulationModel.stack()` is removed; `likelihoods.stack()` is the one stacking.
+- Engines declare `Engine.markov` (draws are Markov chains, checked by R-hat and ESS)
+  and `Engine.unsupported(model)`; `PopulationResult(kind=)` defaults to the model's
+  kind; `diagnostics.importance_ess(weights)` is Kish's effective sample size.
+- The chunked kernels work through 4096 objects at a time (was 65,536); Gibbs drew
+  labels as fast at either size (N = 2·10⁴ to 2·10⁵, K = 20 to 80) with 16 times less
+  memory per block.
 - Faster: Laplace's importance step evaluates its proposals in blocks (5.3 s, from
   28.4 s, for 8000 proposals at N = 10⁵, K = 50, one thread); EM computes `L·ρ` once per
   point; leave-one-out smooths all objects' weights together (3.1 s, from 7.4 s, at

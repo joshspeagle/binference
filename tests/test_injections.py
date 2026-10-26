@@ -307,3 +307,5 @@ def test_external_draws_of_a_joint_model_need_the_selection_draws():
     S = np.broadcast_to(sel.values, (1, 10, 4))
     res = PopulationResult.from_samples(m, rho, info={"selection_draws": S})
     assert res.total.shape == (10,)
+    with pytest.raises(ValueError, match="one draw per sample"):
+        PopulationResult.from_samples(m, rho, info={"selection_draws": S[:, :5]})

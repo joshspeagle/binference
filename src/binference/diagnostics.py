@@ -300,6 +300,7 @@ def _psis_rows(log_weights: np.ndarray, block: int = 2**22) -> tuple[np.ndarray,
             rows = same[sl]
             x = np.exp(srt[rows, -m:]) - exp_cut[rows, None]
             k[rows], sigma = _gpdfit(x)
+            k[rows] = np.where(np.isnan(k[rows]), np.inf, k[rows])  # a degenerate fit: no tail
             smoothed = np.log(_gpinv(probs, k[rows, None], sigma[:, None]) + exp_cut[rows, None])
             ok = np.isfinite(k[rows])
             lw[rows[ok, None], top[rows[ok], -m:]] = np.minimum(smoothed[ok], 0.0)

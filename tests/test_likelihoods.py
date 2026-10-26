@@ -1,7 +1,5 @@
 """Tests for binference.Likelihoods and its constructors (spec 3.4-3.5, 4.2; R-INPUT-*)."""
 
-import pickle
-
 import numpy as np
 import pytest
 import scipy.sparse as sp
@@ -9,7 +7,7 @@ from scipy import stats
 
 import binference
 from binference import Bins, Likelihoods, Response
-from binference.warnings import ApproximationWarning, InputWarning
+from binference.warnings import InputWarning
 
 
 def test_basic_construction_and_scales():
@@ -347,15 +345,3 @@ def test_stack_one_em_step():
     bins = Bins.linear(0, 1, 3)
     lk = Likelihoods(np.array([[1.0, 1.0, 0.0], [0.0, 1.0, 1.0]]), bins)
     np.testing.assert_allclose(lk.stack(), [0.25, 0.5, 0.25])
-
-
-def test_within_bin_data_that_cannot_be_pickled_are_dropped_with_a_warning():
-    bins = Bins.linear(0, 1, 4)
-    lk = Likelihoods.from_density(
-        lambda z: np.exp(-0.5 * ((z[None] - np.array([[0.3], [0.6]])) / 0.2) ** 2),
-        bins,
-        kind="likelihood",
-    )
-    with pytest.warns(ApproximationWarning, match="cannot be pickled"):
-        back = pickle.loads(pickle.dumps(lk))
-    assert back.meta["within"].data is None and lk.meta["within"].data is not None

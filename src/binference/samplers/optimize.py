@@ -469,7 +469,7 @@ def _objective(m: PopulationModel, v: np.ndarray) -> tuple[float, np.ndarray]:
     # clipped to zero are active constraints: the prior is evaluated at a tiny positive
     # value so the objective stays finite (and constant) for them
     s = kern.matvec(m._L, v)
-    ll = float(np.dot(m._w, np.log(s))) if kern.possible(s) else -np.inf
+    ll = kern.loglike_of_evidences(m._w, s)
     if not np.isfinite(ll):
         return -np.inf, s
     return ll + m._selection_term(v) + m.log_prior(np.maximum(v, _TINY)), s

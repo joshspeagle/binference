@@ -42,7 +42,7 @@ from scipy import linalg, special
 
 from . import _kernels as kern
 from ._simplex import helmert_basis, log_softmax, softmax
-from ._utils import RNGLike, as_generator, chunk_slices
+from ._utils import RNGLike, as_generator, check_nonnegative, chunk_slices
 from .bins import Bins
 from .likelihoods import Likelihoods, _scale_columns
 from .priors import Dirichlet, PopulationPrior
@@ -404,19 +404,18 @@ class PopulationModel:
             g = np.concatenate([g, g_r])
         return ll + lp, g
 
-    def log_density_unconstrained(self, x: np.ndarray, block: int = 256) -> float | np.ndarray:
-        """Log posterior density in the unconstrained coordinates ``x`` (with the Jacobian):
-        a float for one point ``(dim,)``, an array for points ``(n, dim)``.
+    def log_density_unconstrained(self, x: np.ndarray) -> float:
+        """Log posterior density in the unconstrained coordinates ``x`` (with the Jacobian).
 
-        See :meth:`log_density_unconstrained_and_grad`. Many points are evaluated
-        together, without gradients: the likelihood of ``block`` points per pass over the
-        objects (each point at a time when a selection or response is inferred).
+        See :meth:`log_density_unconstrained_and_grad`.
         """
-        X = np.asarray(x, dtype=float)
-        if X.ndim == 1:
-            return self.log_density_unconstrained_and_grad(X)[0]
+        return self.log_density_unconstrained_and_grad(x)[0]
+
+    def _log_density_many(self, X: np.ndarray) -> np.ndarray:
+        # log_density_unconstrained at each row of X (n, dim), without gradients: the
+        # prior point by point, the likelihood of many points per pass over the objects
         if self.joint:
-            return np.array([self.log_density_unconstrained_and_grad(x)[0] for x in X])
+            return np.array([self.log_density_unconstrained(x) for x in X])
         V = np.zeros((len(X), self.K))
         lp = np.full(len(X), -np.inf)
         zero = np.zeros(self.K)
@@ -426,9 +425,14 @@ class PopulationModel:
             if np.isfinite(value.sum()):  # else a zero row: an impossible point
                 V[j] = value
                 lp[j] = self.prior.log_prior_and_grad(x, cache, value, zero)[0]
-        ll = kern.loglike_many(self._L, self._w, V, block=block)
-        ll = ll + self._selection_term(V) + self._ll_const
+        ll = self._log_likelihood_many(V) + self._ll_const
         return np.where(np.isfinite(ll), ll + lp, -np.inf)
+
+    def _log_likelihood_many(self, V: np.ndarray) -> np.ndarray:
+        # log_likelihood(v, absolute=False) at each row of V (n, K), many per pass
+        if self.joint:
+            return np.array([self.log_likelihood(v, absolute=False) for v in V])
+        return kern.loglike_many(self._L, self._w, V) + self._selection_term(V)
 
     def _with_bound_prior(self, prior: BoundPrior) -> PopulationModel:
         """A shallow copy sharing the data but using another parametrisation of the prior."""
@@ -447,7 +451,7 @@ class PopulationModel:
         keep = w > 0
         lk = self.likelihoods if keep.all() else self.likelihoods.subset(np.flatnonzero(keep))
         new = copy.copy(self)
-        new._set_likelihoods(lk._reweighted(w[keep]))
+        new._set_likelihoods(lk._copy(weights=w[keep]))
         return new
 
     def _complete_counts(self, value: np.ndarray, nhat: np.ndarray) -> np.ndarray:
@@ -535,12 +539,8 @@ class PopulationModel:
         if response is not None:
             if self.response is None:
                 raise ValueError("response applies only to a response inferred from tallies.")
-            R = np.asarray(response, dtype=float)
-            if (
-                R.shape != self.response.matrix.shape
-                or np.any(R < 0)
-                or np.any(R.sum(axis=0) > 1.0 + 1e-6)
-            ):
+            R = check_nonnegative(response, "response")
+            if R.shape != self.response.matrix.shape or np.any(R.sum(axis=0) > 1.0 + 1e-6):
                 raise ValueError(
                     f"response must have shape {self.response.matrix.shape}, non-negative "
                     "columns that sum to at most one."

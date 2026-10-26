@@ -65,9 +65,9 @@ class MeanFieldVB(Engine):
 
     @classmethod
     def unsupported(cls, model: PopulationModel) -> str | None:
-        if model.prior.conjugate:
-            return super().unsupported(model)
-        return "Mean-field VB needs a conjugate prior; use NUTS or Laplace instead."
+        if not model.prior.conjugate:
+            return "Mean-field VB needs a conjugate prior; use NUTS or Laplace instead."
+        return super().unsupported(model)
 
     def fit(self):
         """Run coordinate ascent; returns ``(state, n_iter, converged)``."""

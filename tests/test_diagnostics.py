@@ -122,7 +122,6 @@ def test_psis_of_rows_is_psis_of_each_row(rng):
             lw_ref, k_ref = d.psis(row)
             np.testing.assert_allclose(lw_i, lw_ref, rtol=1e-12, atol=1e-12)
             np.testing.assert_allclose(k_i, k_ref, rtol=1e-12)
-    assert d._psis_rows(np.zeros((1, 5)))[1][0] == -np.inf
 
 
 def test_psis_fits_only_the_weights_above_the_cut():

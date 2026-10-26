@@ -336,7 +336,7 @@ def sbc(
         if log_likelihood:
             m = res.model
             ll_true = m.log_likelihood(truth, absolute=False)
-            ll_draws = np.array([m.log_likelihood(d, absolute=False) for d in D])
+            ll_draws = m._log_likelihood_many(D)
             row.append(int((ll_draws < ll_true).sum()))
         ranks.append(row)
         d = res.diagnostics

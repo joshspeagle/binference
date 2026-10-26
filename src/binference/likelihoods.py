@@ -578,10 +578,6 @@ class Likelihoods:
         """Copy with new object weights (``fractional_weights`` as for the constructor)."""
         return self._copy(weights=_check_weights(weights, self.N, fractional_weights))
 
-    def _reweighted(self, w: np.ndarray) -> Likelihoods:
-        # copy with validated weights, for internal resampling schemes
-        return self._copy(weights=w)
-
     def with_selection(self, selection: Any, selection_mode: str | None = None) -> Likelihoods:
         """Copy with a (new) selection function attached (``None`` removes it)."""
         sel = as_selection(selection, selection_mode, self._basis or self._bins)

@@ -30,8 +30,12 @@ __all__ = [
 ]
 
 #: objects per block of the chunked kernels: Gibbs labels were drawn as fast in blocks of
-#: 4096 as of 65536 objects (N = 2e4 to 2e5, K = 20 to 80), in blocks 16 times smaller
+#: 4096 as of 65536 objects (N = 2e4 to 2e5, K = 20 to 80)
 DEFAULT_CHUNK = 4096
+
+#: rows are normalised to a maximum of one, so an evidence below this (a log-likelihood
+#: below -575) is effectively impossible
+MIN_EVIDENCE = 1e-250
 
 #: below this fraction of non-zero entries, sparse storage is chosen: the largest fill at
 #: which it beat dense in every measured case (DECISIONS #77)
@@ -51,16 +55,19 @@ def rmatvec(L, y: np.ndarray) -> np.ndarray:
 def possible(s: np.ndarray) -> bool:
     """Whether every object's evidence ``s_i = L_i . rho`` is positive.
 
-    Rows are normalised to a maximum of one, so an evidence below 1e-250
-    (log-likelihood < -575) is effectively impossible; the one test used by the
+    Evidences below :data:`MIN_EVIDENCE` count as zero; the one test used by the
     log-likelihood, EM and the KKT gap (it also keeps ``w / s`` finite).
     """
-    return bool(s.min() > 1e-250)  # the comparison also catches NaN
+    return bool(s.min() > MIN_EVIDENCE)  # the comparison also catches NaN
 
 
 def loglike(L, w: np.ndarray, rho: np.ndarray) -> float:
     """``sum_i w_i log(L_i . rho)`` (``-inf`` if some object is impossible), one pass."""
-    s = matvec(L, rho)
+    return loglike_of_evidences(w, matvec(L, rho))
+
+
+def loglike_of_evidences(w: np.ndarray, s: np.ndarray) -> float:
+    """``sum_i w_i log s_i`` for the evidences ``s = L @ rho`` (``-inf`` if one is zero)."""
     return float(np.dot(w, np.log(s))) if possible(s) else -np.inf
 
 
@@ -79,7 +86,7 @@ def loglike_many(
             with np.errstate(divide="ignore", invalid="ignore"):
                 out[pts] += w[sl] @ np.log(s)
     # the test of possible() per point
-    return np.where((low > 1e-250) & np.isfinite(out), out, -np.inf)
+    return np.where((low > MIN_EVIDENCE) & np.isfinite(out), out, -np.inf)
 
 
 def loglike_and_counts(L, w: np.ndarray, rho: np.ndarray) -> tuple[float, np.ndarray, np.ndarray]:

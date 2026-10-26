@@ -203,7 +203,7 @@ def test_many_points_take_the_log_density_of_one_point_at_a_time(lk6, case):
     m = PopulationModel(lk, prior, **kw)
     X = np.random.default_rng(3).normal(0.0, 1.0, (40, m.dim))
     one = [m.log_density_unconstrained(x) for x in X]
-    np.testing.assert_allclose(m.log_density_unconstrained(X, block=7), one, rtol=1e-10)
+    np.testing.assert_allclose(m._log_density_many(X), one, rtol=1e-10)
 
 
 def test_the_batched_log_likelihood_is_minus_infinity_where_an_object_is_impossible():
