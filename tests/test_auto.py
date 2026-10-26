@@ -12,6 +12,8 @@ from binference import inference as inf
 from binference import priors as P
 from binference.samplers import NUTS
 
+from .test_injections import _problem
+
 
 def _lk(width, n=400, K=10, seed=1):
     # values drawn uniformly within bins, Gaussian errors `width` bins wide
@@ -150,8 +152,6 @@ def test_laplace_mode_and_covariance_are_copies_and_follow_the_step():
 
 def test_a_gibbs_run_is_extended_until_it_meets_the_target_ess_and_r_hat():
     # a selection inferred jointly mixes more slowly than the default 1000 draws allow
-    from .test_injections import _problem
-
     lk, sel = _problem()
     res = binference.infer(lk, selection=sel, rng=0, target_ess=600)
     d = res.diagnostics
@@ -161,12 +161,12 @@ def test_a_gibbs_run_is_extended_until_it_meets_the_target_ess_and_r_hat():
 
 
 def test_gibbs_gives_way_when_it_cannot_mix_within_its_draw_limit(short_nuts):
-    from .test_injections import _problem
-
     lk, sel = _problem()
     res = binference.infer(
         lk, selection=sel, rng=0, target_ess=600, max_gibbs_draws=1100, check=False
     )
     assert res.method != "gibbs" and res.info["auto_reason"].startswith("Gibbs mixed too slowly")
-    # and a run the formula already puts beyond the limit is not tried
+
+
+def test_gibbs_is_not_tried_when_its_run_would_pass_the_draw_limit():
     assert _plan(_lk(3.0), gibbs_max_missing=0.9999, max_gibbs_draws=1500)[0] == "laplace"

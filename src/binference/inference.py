@@ -54,7 +54,8 @@ class Auto(Engine):
 
        Without ``n_samples``, either Gibbs run is then extended until every bulk ESS
        (of the population, and of an inferred selection or response) reaches
-       :math:`t` and every :math:`\hat R` is at most 1.01. If that would take more
+       :math:`t` and the run passes the :math:`\hat R` and ESS limits of
+       :meth:`~binference.PopulationResult.check`. If that would take more
        than ``max_gibbs_draws`` draws per chain, its draws are discarded and the next
        candidate runs (a jointly inferred selection or response can mix much more
        slowly than :math:`f` predicts).
@@ -131,10 +132,12 @@ class Auto(Engine):
                     f = m.missing_information(MAP(m).run().value)  # component weights
                 if f <= self.gibbs_max_missing:
                     chains = kw.get("n_chains", _options(Gibbs)["n_chains"].default)
-                    n = self.target_ess * (1 + f) / (1 - f) / chains
+                    n = max(
+                        _DEFAULT_SAMPLES["gibbs"],
+                        ceil(self.target_ess * (1 + f) / (1 - f) / chains),
+                    )
                     if n <= self.max_gibbs_draws:
-                        reason = f"conjugate prior, missing information {f:.2f}"
-                        out.append(("gibbs", reason, max(_DEFAULT_SAMPLES["gibbs"], ceil(n))))
+                        out.append(("gibbs", f"conjugate prior, missing information {f:.2f}", n))
         out += [
             (key, "", None)
             for key, engine in (("laplace", Laplace), ("nuts", NUTS))
@@ -158,46 +161,44 @@ class Auto(Engine):
         rejected: list[str] = []  # why earlier candidates were not kept
         for i, (key, why, n_gibbs) in enumerate(plan):
             last = i == len(plan) - 1
-            if key == "laplace":
-                n = 4 * (n_samples or _DEFAULT_SAMPLES["nuts"])
-            else:
-                n = n_samples or n_gibbs or _DEFAULT_SAMPLES[key]
             engine = METHODS[key](
                 self.model, rng=self._rng_arg, progress=self.progress, **self.engine_kwargs
             )
-            if key == "laplace" and not last:
-                result, reason = self._try(engine, int(n))
+            if key == "laplace":
+                n = 4 * (n_samples or _DEFAULT_SAMPLES["nuts"])
+                result, why = (engine.run(n), "") if last else self._try(engine, n)
             else:
-                result = engine.run(int(n))
-                reason = why or ("" if rejected else "the only engine that takes these options")
+                result = engine.run(n_samples or n_gibbs or _DEFAULT_SAMPLES[key])
                 if key == "gibbs" and n_samples is None:
-                    result, mixed = self._extend(engine, result)
-                    if not (mixed or last):
-                        result, reason = None, "Gibbs mixed too slowly"
-            del engine
+                    result = self._extend(engine, result)
+                    if result is None and last:  # nothing else to run: keep the longest
+                        result = engine.result
+                    why = why if result is not None else "Gibbs mixed too slowly"
             if result is None:
-                rejected.append(reason)
+                rejected.append(why)
                 continue
+            reasons = [*rejected, why] if why else rejected
             result.info["auto_method"] = key
-            result.info["auto_reason"] = "; ".join(r for r in [*rejected, reason] if r)
+            result.info["auto_reason"] = (
+                "; ".join(reasons) or "the only engine that takes these options"
+            )
             return result
-        raise AssertionError("unreachable: NUTS or Laplace is always last")  # pragma: no cover
+        raise AssertionError("unreachable: the last candidate always returns")  # pragma: no cover
 
-    def _extend(self, engine: Gibbs, result: PopulationResult) -> tuple[PopulationResult, bool]:
-        """The Gibbs run extended until every bulk ESS reaches ``target_ess`` and every
-        R-hat is at most 1.01, and whether it got there within ``max_gibbs_draws`` draws
-        per chain (and four extensions)."""
+    def _extend(self, engine: Gibbs, result: PopulationResult) -> PopulationResult | None:
+        """The Gibbs run extended (at most four times) until it passes ``check()``'s R-hat
+        and ESS limits and its bulk ESS reaches ``target_ess``, or None if that would take
+        more than ``max_gibbs_draws`` draws per chain."""
         for extension in range(5):
             d = result.diagnostics
-            ess = min(float(np.min(v)) for k, v in d.items() if k.startswith("ess_bulk"))
-            rhat = max(float(np.nanmax(v)) for k, v in d.items() if k.startswith("rhat"))
-            if ess >= self.target_ess and rhat <= 1.01:  # what check() asks of R-hat
-                return result, True
+            ess = min(np.nanmin(v) for k, v in d.items() if k.startswith("ess_bulk"))
+            if ess >= self.target_ess and not result._mixing_problems():
+                return result
             done = result.chains.shape[1]
             # enough for the target ESS, and at least half again while R-hat is high
-            more = int(np.ceil(done * max(1.2 * self.target_ess / max(ess, 1.0) - 1.0, 0.5)))
+            more = ceil(done * max(1.2 * self.target_ess / max(ess, 1.0) - 1.0, 0.5))
             if extension == 4 or done + more > self.max_gibbs_draws:
-                return result, False
+                return None
             result = engine.run(more)
         raise AssertionError("unreachable")  # pragma: no cover
 
