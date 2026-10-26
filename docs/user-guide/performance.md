@@ -72,8 +72,13 @@ The engines spend these differently:
 
 A dense float64 likelihood matrix takes $8NK$ bytes: 160 MB for
 $N=10^6$ and $K=20$. Sparse storage keeps 12 bytes per non-zero entry. The
-per-object methods (`assignment_probabilities`, `predict_proba`) work in
-chunks, so their memory use does not grow with $N$.
+per-object methods `assignment_probabilities` and `predict_proba` work through
+the objects `chunk` at a time (4096 by default), so beyond their $(N, K)$
+output they hold only one chunk's dense rows. `log_predictive` (and
+`PopulationEstimator.score`, which calls it) is not chunked: it holds an
+$(N, n_\text{draws})$ matrix of $L_i\cdot\rho_s$, $8\,N\,n_\text{draws}$ bytes,
+4 GB for $N=10^6$ at the default 500 draws; pass a smaller `n_draws` or score
+the objects in batches.
 
 ## Roadmap
 

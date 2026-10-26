@@ -71,6 +71,12 @@ print("uniformity p-values:", {n: round(float(v), 3) for n, v in zip(result.name
 fig = result.plot()
 ```
 
+```{code-cell} python
+:tags: [remove-cell]
+
+assert result.pvalues(10).min() > 0.01
+```
+
 The rank histograms sit inside the band expected for uniform ranks. The last
 panel ranks the joint log-likelihood of the true population, which is
 sensitive to errors in the correlations between bins that per-bin ranks can
@@ -90,6 +96,12 @@ def fit_vb(lk, rng):
 bad = sbc(simulate, fit_vb, n_simulations=150, n_draws=49, rng=0)
 print("uniformity p-values:", {n: round(float(v), 4) for n, v in zip(bad.names, bad.pvalues(10))})
 fig = bad.plot()
+```
+
+```{code-cell} python
+:tags: [remove-cell]
+
+assert bad.pvalues(10).max() < 1e-3
 ```
 
 ## Coverage

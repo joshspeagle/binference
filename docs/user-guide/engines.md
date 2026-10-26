@@ -157,7 +157,8 @@ autocorrelation time is roughly $(1+f)/(1-f)$ iterations. Use NUTS. When a
 Gibbs run fails its checks, {meth}`~binference.PopulationResult.check` reports
 this number in its hint. `store_labels=True` keeps the latent labels for joint inference on
 individual objects, although {meth}`~binference.PopulationResult.sample_assignments`
-gives exact joint draws from any engine's output.
+gives joint draws from any engine's output: exact given exact draws of $\rho$, and
+as approximate as $\rho$'s draws otherwise.
 
 ## Point estimates
 
@@ -172,14 +173,18 @@ gives exact joint draws from any engine's output.
   *observed* population, $\phi_k\propto S_k\rho_k$, in which the likelihood
   is concave, and maps the mode back. `GammaRates` with shapes of at least
   one use it too, once the total rate is profiled out.
-- **Other conjugate priors** (small concentrations, trees, `GammaRates` with
-  shapes below one, informative priors with selection) use SQUAREM-accelerated EM on the
-  simplex. EM is "iterated stacking", and its fixed point is the
+- **Other conjugate priors whose density is bounded on the simplex** (for
+  example a generalised Dirichlet with parameters of at least one, or a
+  Dirichlet other than the flat one under a selection) use SQUAREM-accelerated
+  EM on the simplex. EM is "iterated stacking", and its fixed point is the
   maximum-likelihood or MAP population. If it stops before converging, the
   warning reports the fraction of missing information, which sets its speed.
 - **Priors whose density is unbounded at the edge of the simplex**
-  (concentrations below one, Pólya trees) and all non-conjugate priors use
-  L-BFGS in unconstrained coordinates, which keeps the mode in the interior.
+  (Dirichlet concentrations or `GammaRates` shapes below one, and tree priors
+  with a negative exponent in their log-density, such as Pólya trees and
+  Dirichlet trees with unit concentrations), all non-conjugate priors, and a
+  selection or response inferred with the population use L-BFGS in
+  unconstrained coordinates, which keeps the mode in the interior.
 - **The certificate** is the KKT optimality gap, which should be about zero.
   `MAP(tol=1e-8)` bounds it for EM, bounds the same gap of the problem mix-SQP
   solves (the observed fractions under selection, the composition for rates),

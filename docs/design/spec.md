@@ -2,7 +2,7 @@
 
 *Population and hierarchical inference with PDFs*
 
-**Status:** draft for review, 2026-10-22.
+**Status:** draft for review, 2026-10-22. Sections 3 to 11 were brought up to date with the code on 2026-10-26 (issue #79): superseded statements were changed in place and cite the decisions (`notes/review/DECISIONS.md`, "DECISIONS #n") that changed them; the decision log in §13 is kept as written.
 
 **Inputs to this document:**
 - The landscape census in `reports/Population inference software landscape.md`, with the notes behind it in `research_notes/`.
@@ -141,7 +141,7 @@ $$L_{ik}\;\propto\;\frac{P_{ik}}{\Pi_k}.$$
 
 Feeding posteriors into (P) as if they were likelihoods double-counts the interim prior. The resulting bias in $\rho$ is in the direction of $\pi$.
 
-**R-INPUT-1 (must):** every constructor that accepts posteriors requires an explicit `interim_prior`. Valid values are bin masses, a density callable, or the explicit string `"flat"`, meaning uniform density in the coordinate.
+**R-INPUT-1 (must):** every constructor that accepts posteriors requires an explicit `interim` prior. Valid values are anything `Density.coerce` accepts: a `Density`, an array over the bins (with `interim_representation` on bins of unequal volume), a density callable or SciPy distribution, or the explicit string `"flat"`, meaning uniform density in the bins' measure coordinate (DECISIONS #26, #63).
 
 ### 3.5 Bin volumes: masses versus densities
 
@@ -154,14 +154,15 @@ Conversions:
 - **Likelihoods.** $L_{ik} = \text{value}_{ik}$ for `"density"`, and $L_{ik} = \text{value}_{ik}/v_k$ for `"mass"`.
 - **Posteriors with an interim prior.** First convert both the posterior and the interim prior to masses; then $L_{ik}\propto P_{ik}/\Pi_k$. Equivalently, take the ratio of densities.
 
-With equal-volume bins the representation cannot change the inference, because it scales each row by a constant. With unequal bins it can, and mistakes here bias $\rho$ toward wide bins. (R-INPUT-2) The representation is a required, documented argument wherever it matters. Sanity warnings fire when values look inconsistent with the declared representation, e.g. declared posterior masses whose rows do not sum to 1.
+With equal-volume bins the representation cannot change the inference, because it scales each row by a constant. With unequal bins it can, and mistakes here bias $\rho$ toward wide bins. (R-INPUT-2) The representation is a documented argument wherever it matters: `from_table` defaults to `"density"` for likelihoods and `"mass"` for posteriors, and an array interim prior on unequal bins requires `interim_representation`. Sanity warnings fire when values look inconsistent with the declared representation, e.g. declared posterior masses whose rows do not sum to 1.
 
 ### 3.6 Selection effects
 
-Let $S_k\in(0,1]$ be the probability that an object whose true value lies in bin $k$ is detected (bin-averaged). How $S$ enters depends on what the selection acts on, so the API requires an explicit **selection mode**:
+Let $S_k\in(0,1]$ be the probability that an object whose true value lies in bin $k$ is detected (bin-averaged). `Selection(values, mode, scale=...)` takes detection probabilities by default; `scale="relative"` declares values known only up to a constant (enough for fractions, refused for rates) and `scale="exposure"` absolute values that may exceed one (DECISIONS #46). How $S$ enters depends on what the selection acts on, so the API requires an explicit **selection mode** (named `"observed"` and `"true"` until DECISIONS #7):
 
-- **`"observed"`**: selection acts on the *measured* data, e.g. a flux limit applied to measured fluxes, or a reconstruction efficiency. For a detected object the selection indicator is 1, so its likelihood row $L_i$ is the ordinary likelihood $p(d_i\mid z)$ at the observed data; it must **not** be renormalised over the detectable data space. Here $S_k=\int_{\rm det}p(d\mid z\in B_k)\,dd$.
-- **`"true"`**: selection acts on the *true* value, or independently of the measurement noise, e.g. a completeness map in the true parameter. Then $p(d_i,\mathrm{det}\mid z)=S(z)\,\ell_i(z)$, and the effective likelihood is $\tilde L_{ik}=S_kL_{ik}$, assuming $S$ is roughly constant within bins.
+- **`"on_measurement"`**: selection acts on the *measured* data, e.g. a flux limit applied to measured fluxes, or a reconstruction efficiency. For a detected object the selection indicator is 1, so its likelihood row $L_i$ is the ordinary likelihood $p(d_i\mid z)$ at the observed data; it must **not** be renormalised over the detectable data space. Here $S_k=\int_{\rm det}p(d\mid z\in B_k)\,dd$.
+- **`"on_truth"`**: selection acts on the *true* value, or independently of the measurement noise, e.g. a completeness map in the true parameter. Then $p(d_i,\mathrm{det}\mid z)=S(z)\,\ell_i(z)$, and the effective likelihood is $\tilde L_{ik}=S_kL_{ik}$, with $S_k$ the average of $S$ over the bin in its measure coordinate, where the population is flat.
+- Both together: `Selection.combined(on_truth, on_measurement)`. A selection may also be a function of the true value, averaged over each bin (`Selection.from_function`), or measured by injections and inferred jointly with the population (`Selection.from_injections`, DECISIONS #10, #79, #80).
 
 Write $\tilde L_{ik}=L_{ik}$ in the first case and $S_kL_{ik}$ in the second.
 
@@ -214,16 +215,21 @@ For example, a weak-lensing kernel depends on the realised redshifts of the lens
 
 | Constructor | Meaning |
 |---|---|
-| `Bins(edges)` | 1-D edges (monotone, at least two values) |
-| `Bins.linear(lo, hi, n)` / `Bins.log(lo, hi, n)` | convenience 1-D grids |
-| `Bins.grid(edges_x, edges_y, ...)` | N-D rectilinear grid; flattened in C order, `shape` kept |
+| `Bins(edges, measure=None, mask=None)` | 1-D edges (monotone, at least two values) |
+| `Bins.linear(lo, hi, n, mask=None)` / `Bins.log(lo, hi, n, mask=None)` | convenience 1-D grids (`Bins.log` has the log measure) |
+| `Bins.from_centers(centers, measure="linear")` | 1-D bins whose centres are midpoints in the measure coordinate |
+| `Bins.grid(edges_x, edges_y, ..., measure=None, mask=None)` | N-D rectilinear grid; flattened in C order, `shape` kept |
 | `Bins.categories(labels_or_K)` | unordered categories, $v_k=1$ |
+
+- **Measures** (DECISIONS #21): each axis has a `Measure`, the coordinate $u=T(z)$ in which the population is flat within a bin (linear, log, a transform with its inverse, or the cumulative integral of a positive density). Centres are midpoints in $u$.
+- **Masks** (DECISIONS #19): `mask=` removes cells from the support; `K` counts the active cells.
+- **Basis** (DECISIONS #4, #5, #47, #76): `binference.Basis(bins, order=0|1, resolution=r)` fits components on the bins refined `r` times, flat (`order=0`) or linear B-spline hats (`order=1`), and reports in the bins. Every constructor accepts a `Basis` for `bins`.
 
 Attributes and methods:
 - Sizes and geometry: `K`, `shape`, `ndim`, `ordered`, `edges` (tuple of arrays), `centers` (`(K,)` in 1-D, otherwise `(K, ndim)`), `volumes` `(K,)`, `labels`.
 - Lookup: `index(values) -> (n,) int` (−1 outside), `contains(values)`.
 - Array shaping: `unflatten(a)` and `flatten(a)` to move per-bin arrays between flat `(K,)` and grid shape.
-- Structure for priors: `neighbors()` (adjacency, used by GMRF priors), `coarsen(factor or groups)`, `__eq__`, `__repr__`.
+- Structure: `neighbors()` (adjacency), `coarsen(factor)` and `refine(factor)` for ordered grids (each returns the new bins and the map between them; categories are merged with `result.rebin(groups)` instead), `__eq__`, `__repr__`.
 
 R-BINS-1: smoothness priors require ordered grids and raise a clear error on categories.
 
@@ -232,13 +238,14 @@ R-BINS-1: smoothness priors require ordered grids and raise a clear error on cat
 `Likelihoods` is the container for the $N\times K$ bin-averaged likelihood matrix plus metadata.
 
 - **Storage.** A dense `float64` ndarray, or a `scipy.sparse` CSR matrix for localised PDFs.
-- **Row normalisation.** Each row is normalised for numerical stability: the row maximum is 1, and `log_scale[i]` is kept so absolute log-likelihoods can be recovered for evidence and cross-validation.
+- **Row normalisation.** Each row is normalised for numerical stability: the row maximum is 1, and `log_scale[i]` is kept so absolute log-likelihoods can be recovered for evidence and cross-validation. Stored arrays are read-only.
 - **Fields:**
   - `values`: the row-normalised matrix.
   - `log_scale`: the per-row log normalisation.
-  - `weights`: `(N,)`, default ones.
+  - `weights`: `(N,)`, default ones; integer multiplicities unless `fractional_weights=True`, which warns that the result is a pseudo-likelihood (DECISIONS #1, #65).
+  - `selection`: an optional `Selection` attached to the data.
   - `bins`.
-  - `meta`: a dict recording provenance, including the constructor used and any interim prior applied.
+  - `meta`: a dict recording provenance, including the constructor used, any interim prior applied and each object's likelihood mass outside the bins (`outside_fraction`, DECISIONS #18).
 
 **R-INPUT-3 (validation):** non-finite values and negative entries raise. All-zero rows raise, or are dropped with a warning if `drop_empty=True`. Rows with support in a single bin are allowed. Zero-volume bins raise.
 
@@ -246,20 +253,22 @@ R-BINS-1: smoothness priors require ordered grids and raise a clear error on cat
 
 | Constructor | Input | Conversion |
 |---|---|---|
-| `Likelihoods(values, bins=None, representation="density", weights=None, fractional_weights=False)` | low-level: likelihoods (bin-averaged values, or masses); integer weights unless `fractional_weights` | §3.5; `bins=None` gives `Bins.categories(K)` |
+| `Likelihoods(values, bins=None, representation="density", weights=None, selection=None, selection_mode=None, drop_empty=False, log=False, fractional_weights=False)` | low-level: likelihoods (bin-averaged values, or masses); integer weights unless `fractional_weights` | §3.5; `bins=None` gives `Bins.categories(K)` |
 | `Likelihoods.from_log(log_values, ...)` | log-likelihoods | stable exponentiation |
 | `Likelihoods.from_table(values, bins, kind="likelihood" \| interim=..., representation=None, interim_representation=None)` | a table of likelihoods or of posteriors (one of `kind`, `interim`) | $L\propto P/\Pi$ for posteriors (§3.4–3.5) |
-| `Likelihoods.from_samples(samples, bins, interim, sample_weights=None)` (no default interim prior, per R-INPUT-1) | per-object posterior samples (list of arrays, or `(N, S[, ndim])`) | histogram masses divided by interim masses; out-of-range mass reported; per-object effective sample counts stored in `meta` |
-| `Likelihoods.from_gaussian(mean, sigma, bins, tol=1e-3)` | Gaussian measurement model, 1-D or N-D with diagonal $\sigma$ | exact CDF differences on linear axes, adaptive quadrature in $u$ otherwise |
+| `Likelihoods.from_samples(samples, bins, interim, sample_weights=None, min_samples=20, floor=0.0, keep_samples=True)` (no default interim prior, per R-INPUT-1) | per-object posterior samples (list of arrays, or `(N, S[, ndim])`) | per-sample weights $T'(z)/\pi(z)$ summed per bin (DECISIONS #31, #67); out-of-range mass reported; per-object effective sample counts in `meta["n_eff"]`, with a warning below `min_samples`; sparse storage below 10% non-zero entries (DECISIONS #77) |
+| `Likelihoods.from_gaussian(mean, sigma=None, bins, cov=None, tol=1e-3, max_depth=12)` | Gaussian measurement model, 1-D or N-D with diagonal $\sigma$ or full per-object covariances `cov` (DECISIONS #2, #25, #66) | exact CDF differences on linear axes, adaptive quadrature in $u$ otherwise, adaptive cubature for `cov` |
 | `Likelihoods.from_density(f, bins, kind="likelihood" \| interim=..., tol=1e-3, max_depth=12, n_sub=None)` | a vectorised function or distribution objects | exact log-CDF masses where valid, else adaptive quadrature (DECISIONS #23, #64) |
-| `Likelihoods.from_binned(response, counts=None, values=None)` | binned measurements: counts $c_j$ (or values) in measured bins and a `Response` $R_{jk}=P(\text{measured }j,\text{ observed}\mid\text{true }k)$ from a matrix, simulated events or a labelled validation set (DECISIONS #27, #29) | rows $R_{j\cdot}$ with weights $c_j$ on the response's truth bins; efficiency becomes an `"observed"` selection |
+| `Likelihoods.from_binned(response, counts=None, values=None)` | binned measurements: counts $c_j$ (or values) in measured bins and a `Response` $R_{jk}=P(\text{measured }j,\text{ observed}\mid\text{true }k)$ from a matrix, simulated events or a labelled validation set (DECISIONS #27, #29) | rows $R_{j\cdot}$ with weights $c_j$ on the response's truth bins; efficiency becomes an `"on_measurement"` selection; a response tallied from events is inferred with the population (DECISIONS #28, #81) |
 
 Methods:
 - `compress(decimals=None)`: merge identical rows into integer weights (sparse stays sparse).
-- Views and copies: `subset(idx)`, `to_dense()`, `to_sparse(rtol=…)`.
-- `with_weights(w)`.
-- `rebin(groups)`: only where valid. Merging bins requires the within-bin population shape, so the documentation recommends inferring on fine bins and summarising functionals.
-- `__len__`, `N`, `K`, `nnz`.
+- Views and copies: `subset(idx)` (also `lk[idx]`), `to_dense()`, `to_sparse(rtol=…)`, `toarray()`.
+- `with_weights(w, fractional=False)`, `with_selection(selection, selection_mode=None)`, `on_basis(basis)`.
+- `stack(interim=None)`: the stacked estimate, one EM step from the interim prior (DECISIONS #11).
+- `sample_variance(rho)`: the Monte Carlo variance of likelihoods from samples.
+- `__len__`, `N`, `K`, `W`, `shape`, `nnz`.
+- There is no `rebin` of likelihoods: merging bins requires the within-bin population shape, so the documentation recommends inferring on fine bins and aggregating the result (`result.rebin(groups)`).
 
 **R-INPUT-4:** `infer` and the models also accept a raw `(N, K)` array, treated as `Likelihoods(array)` with categorical bins, plus an optional `bins=` keyword.
 
@@ -267,20 +276,21 @@ Methods:
 
 ## 5. Priors
 
-All priors share one interface:
-- `log_prob(rho)` (density on the simplex) and `sample(n, rng)`.
-- An unconstrained parametrisation, used by gradient-based engines.
-- Where applicable, `conjugate_update(counts)` (Gibbs, VB) and `map_update(expected_counts)` (EM).
+A prior is a `PopulationPrior` that holds its arguments; `bind(bins)` returns the internal bound prior the engines use. Bound priors share one interface:
+- `sample(n, rng)`, and `log_density(value)` and `grad_log_density(value)` on the simplex (or the positive orthant) where the density has a closed form (`has_density`); `unbounded_density()` says whether it is unbounded at the boundary.
+- An unconstrained parametrisation, used by gradient-based engines: `forward(x)`, `log_prior_and_grad(...)`, and `init_from_value(value)`, an exact inverse for the Dirichlet family and rates and a ridge-shrunk starting point for the logistic priors.
+- `prior_transform(u)` where available (`has_prior_transform`).
+- For conjugate priors: `posterior_sample(counts, rng)` (Gibbs), `map_from_counts(counts)` (EM) and the `vb_*` updates (VB).
 - Flags `conjugate` and `kind` (`"fractions"` or `"rates"`).
 
 ### 5.1 The conjugate simplex family (must)
 
 | Prior | Parameters | Notes |
 |---|---|---|
-| `Dirichlet(alpha=1.0)` | scalar or `(K,)` | default prior; `Dirichlet.reference(K)` gives $\alpha=1/K$ (Berger, Bernardo & Sun 2015); `Dirichlet.from_counts(m, strength=1, base=…)` builds a reference-sample prior; `Dirichlet.from_base_measure(volumes, concentration)` gives $\alpha_k\propto v_k$, which keeps the prior consistent when bins are merged |
-| `GeneralizedDirichlet(a, b)` | `(K-1,)` Beta pairs, stick-breaking order = bin order or `order=` | Connor–Mosimann; allows positive correlations |
-| `DirichletTree(tree, alphas)` | nested partition plus node Dirichlet parameters | Gibbs, EM and VB stay closed-form |
-| `PolyaTree(bins, c=1.0, power=2, base=None)` | dyadic tree over an ordered grid | $\alpha$ at depth $d$ is $c\,d^{\,\text{power}}$, centred on a base measure; multi-scale and conjugate |
+| `Dirichlet(alpha=1.0)` | scalar or `(K,)` | default prior; `Dirichlet.reference(K=None)` gives $\alpha=1/K$ (Berger, Bernardo & Sun 2015); `Dirichlet.from_counts(m, strength=1, base=1)` builds a reference-sample prior; `Dirichlet.from_base_measure(concentration=1, base="flat")` gives $\alpha_k$ = concentration × the normalised base-measure mass of bin $k$ (∝ $v_k$ for the flat base on linear bins), which keeps the prior consistent when bins are merged |
+| `GeneralizedDirichlet(a=1.0, b=None, order=None)` | `(K-1,)` Beta pairs, stick-breaking order = bin order or `order=` | Connor–Mosimann; allows positive correlations |
+| `DirichletTree(tree, alpha=1.0)` | nested partition plus one concentration or one array per internal node | Gibbs, EM and VB stay closed-form |
+| `PolyaTree(c=1.0, power=2.0, base="flat")` | balanced binary tree over an ordered 1-D grid | a split at level $m$ (root = 1) has Beta concentrations $c\,m^{\text{power}}\cdot2G_0(\text{child})/G_0(\text{parent})$, so the prior mean is the base measure $G_0$; multi-scale and conjugate |
 
 Facts the implementation relies on, all verified numerically:
 - Dirichlet ⊂ GD ⊂ Dirichlet-tree. A finite Pólya tree is a binary Dirichlet-tree.
@@ -297,19 +307,19 @@ so that hyperparameters $\theta$ can be sampled jointly by NUTS. The softmax shi
 
 | Prior | Basis $B$ | Scales $s(\theta)$ | Hyperparameters |
 |---|---|---|---|
-| `LogisticNormal(mean, cov)` | Cholesky of `cov` | 1 | none (fixed) |
-| `LogisticRandomWalk(order=1\|2, scale=HalfNormal(1.0))` | eigenvectors of the RW/ICAR precision on `bins.neighbors()` (1-D and N-D) | $\tau\,\lambda_j^{-1/2}$ | scale $\tau$ (fixed or prior); null-space trend modes get a broad Gaussian |
-| `LogisticGP(kernel="matern32"\|"rbf", amplitude=…, length_scale=…)` | Hilbert-space GP basis (Solin & Särkkä 2020) on 1-D/2-D grids | spectral density at $\sqrt{\lambda_j}$ | amplitude and length scale (fixed or prior) |
+| `LogisticNormal(mean=None, cov=None, scale=None)` | Helmert basis (i.i.d. components) or the eigenvectors of `cov` on zero-sum vectors | `scale` times the standard deviations | `scale`: `HalfNormal(2.0)` without `cov`, `Fixed(1.0)` with it |
+| `LogisticRandomWalk(order=1\|2\|3, scale=HalfNormal(1.0), mean=None, trend_scale=3.0)` | per-axis eigenvectors of the difference precision $D_r^\top D_r$, combined as a Kronecker sum (ICAR-type) on N-D grids | $\tau\,\lambda_j^{-1/2}$ | scale $\tau$ (fixed or prior); the unpenalised polynomial modes (products of each axis's on N-D grids) get a Gaussian whose root-mean-square size across the grid has s.d. `trend_scale` (DECISIONS #72) |
+| `LogisticGP(kernel="matern32"\|"matern52"\|"matern12"\|"rbf", amplitude=HalfNormal(2.0), length_scale=…, mean=None, n_basis=None, boundary_factor=3.0)` | Hilbert-space GP basis (Solin & Särkkä 2020) on 1-D or N-D grids, stationary in the measure coordinate (DECISIONS #73) | spectral density at $\sqrt{\lambda_j}$ | amplitude and one length scale per axis (fixed or prior) |
 
 - `mean` defaults to the log bin volumes, a flat density (D16). It may instead be the log of a **reference distribution**, such as a calibration-sample histogram. The amplitude then controls how far the population may depart from it. This is the coherent version of frankenz's "flexible reference" (Appendix B).
-- Hyperpriors are small classes with log-density and gradient in log space: `HalfNormal`, `LogNormal`, `InverseGamma`, and `Fixed(value)`.
+- Hyperpriors are small classes with log-density and gradient in log space: `HalfNormal`, `LogNormal`, `InverseGamma`, `Gamma`, and `Fixed(value)`.
 
 ### 5.3 Rates (must: conjugate; should: logistic)
 
-- **Must:** `GammaRates(shape=…, rate=…)` gives conjugate rates (Gibbs, EM, NUTS on $\log\lambda$). Results expose `rates` and `fractions`.
-- **Should:** a logistic-normal family with `rates=True` adds a level parameter, giving log-Gaussian-process rates as in LVK's binned GP models.
+- **Must:** `GammaRates(shape=1.0, rate=1e-6)` gives conjugate rates (Gibbs, EM or mix-SQP, NUTS on $\log\lambda$). Results expose `rates` and the fractions `samples`. Every fractions result also has `total` (draws of $\Lambda\sim\mathrm{Gamma}(W,S\cdot\rho)$) and `rates` $=\Lambda\rho$, given an absolute selection or none (DECISIONS #9, #78).
+- **Should (not in v0.1):** a logistic-normal family with `rates=True` adds a level parameter, giving log-Gaussian-process rates as in LVK's binned GP models.
 
-### 5.4 Hierarchical Dirichlet (should)
+### 5.4 Hierarchical Dirichlet (should; not in v0.1)
 
 $\rho\sim\mathrm{Dir}(a\,m)$, where $a\sim p(a)$ and $m$ is either fixed or itself uncertain, $m\sim\mathrm{Dir}(\beta+\text{reference counts})$. Sampled by NUTS. This replaces frankenz's ad hoc reference step with a coherent joint model.
 
@@ -326,7 +336,7 @@ $\rho\sim\mathrm{Dir}(a\,m)$, where $a\sim p(a)$ and $m$ is either fixed or itse
 
 ## 6. Inference engines
 
-All engines take a `PopulationModel`, accept `rng` (SPEC 7: an int seed, `numpy.random.Generator` or `None`), and return a `PopulationResult` (or a `PointEstimate` for MAP).
+All engines take a `PopulationModel`, accept `rng` (SPEC 7: an int seed, `numpy.random.Generator` or `None`), and return a `PopulationResult` (or a `PointEstimate` for MAP). A selection from injections or a tallied response adds its own coordinates and is inferred with the population by Gibbs, NUTS, Laplace and unconstrained MAP; VB and the bootstrap refuse it and name the engines that can (DECISIONS #79–#81).
 
 ### 6.1 Parametrisations
 
@@ -341,16 +351,17 @@ All engines take a `PopulationModel`, accept `rng` (SPEC 7: an int seed, `numpy.
   - Rates: $\partial\ell/\partial\log\lambda_k=\hat n_k-S_k\lambda_k$.
 - **Cost:** one gradient costs $O(\mathrm{nnz}(L))$.
 
-### 6.2 NUTS (default, must)
+### 6.2 NUTS (must; the fallback of `method="auto"`)
 
-- **Algorithm:** multinomial NUTS with Stan's generalised and extra U-turn checks, dual-averaging step size and Stan-style windowed **diagonal** metric adaptation. `metric="dense"` is optional. The prototype was verified on Gaussians, Dirichlet targets and the exact K=3 posterior.
-- **Defaults:** 4 chains, 1000 warm-up and 1000 draws each, `target_accept=0.8`, `max_depth=10`, initialised near the MAP with jitter.
-- **Reported:** divergences, tree depths, step sizes, R̂ and ESS.
-- **Behaviour:** chains run round-robin, so a generator interface and progress reporting work. `run` can be called again to extend the chains (resumable).
+- **Algorithm:** multinomial NUTS with Stan's generalised and extra U-turn checks, dual-averaging step size and Stan-style windowed metric adaptation; the initial step size of each window follows Hoffman & Gelman's heuristic. `metric="auto"` (default) is dense for logistic priors with at most 200 unconstrained dimensions and diagonal otherwise; `"diag"` and `"dense"` choose. The prototype was verified on Gaussians, Dirichlet targets and the exact K=3 posterior.
+- **Logistic priors** (D12, DECISIONS #74): after $\min(25,\text{first window start})$ warm-up iterations (none below 20 warm-up iterations) the prior is partially centred and, up to 500 dimensions, the metric starts from the finite-difference curvature; each later window shrinks its estimate toward the previous window's metric. Results are reported in the model's own coordinates.
+- **Defaults:** 4 chains, 1000 warm-up and 1000 draws each, `target_accept=0.8` (0.9 for logistic priors), `max_depth=10`, initialised at the posterior mode with jitter 0.1 (a user `init` of one point is jittered per chain; every start must have a finite log density).
+- **Reported:** divergences, tree depths, step sizes, energies and E-BFMI, R̂ and ESS.
+- **Behaviour:** chains run round-robin, so a generator interface and progress reporting work. `run` can be called again to extend the chains (resumable). `n_jobs` runs the chains in worker processes with the same random streams (D14).
 
 ### 6.3 Gibbs (must)
 
-- **When it applies:** conjugate priors (§5.1, §5.3), with or without selection.
+- **When it applies:** conjugate priors (§5.1, §5.3), with or without selection, and with a selection or response inferred jointly (DECISIONS #79–#81).
 - **Restriction:** integer weights only; it raises otherwise.
 - **Speed:** label sampling is vectorised by inverse CDF (dense) or by CSR row-segment search (sparse), in chunks to bound memory. Duplicate rows with multiplicity $m$ are drawn as $\mathrm{Mult}(m, r_i)$.
 - **Optional outputs:** stored labels (all, or a subset of objects) and realised counts.
@@ -358,47 +369,54 @@ All engines take a `PopulationModel`, accept `rng` (SPEC 7: an int seed, `numpy.
 
 ### 6.4 MAP / EM (must)
 
-- **Algorithm:** mix-SQP for Dirichlet priors with $\alpha_k\ge1$, with selection for the flat prior through the observed-population fractions $\phi_k\propto S_k\rho_k$ (D15). SQUAREM-accelerated EM for the other conjugate priors. L-BFGS in unconstrained coordinates for logistic priors (MAP of $\xi$ with hyperparameters fixed, or optimised, giving type-II MAP) and for densities unbounded at the boundary.
-- **Returns:** a `PointEstimate` with the optimality certificate (§3.9), the log posterior, the iteration count and `laplace()` to obtain a Laplace approximation.
+- **Algorithm:** mix-SQP for Dirichlet priors with $\alpha_k\ge1$, with selection for the flat prior through the observed-population fractions $\phi_k\propto S_k\rho_k$ (D15), and for `GammaRates` with shapes $\ge1$ with the total rate profiled out (DECISIONS #71). SQUAREM-accelerated EM for the other conjugate priors whose density is bounded on the simplex (`method="em"` forces EM where mix-SQP would apply). L-BFGS in unconstrained coordinates for logistic priors (the joint mode of the field and the log-hyperparameters), for densities unbounded at the boundary, and for a selection or response inferred jointly.
+- **Convergence:** `tol=1e-8` bounds the KKT gap for EM, the same gap of the problem mix-SQP solves, and the largest gradient over $\max(1,W)$ for L-BFGS; a run whose objective stops improving is accepted below `1e3 * tol` (DECISIONS #71).
+- **Returns:** a `PointEstimate` with the optimality certificate (§3.9), the log posterior (always the density of the fractions or rates), the iteration count, `check()` and `laplace()` to obtain a Laplace approximation.
 
 ### 6.5 Laplace (must)
 
-- **Approximation:** a Gaussian in unconstrained coordinates at the mode, using the exact Hessian. For softmax models, $H_x=\mathrm{diag}(\hat n)-R^\top\mathrm{diag}(w)R-(A+W)(\mathrm{diag}\rho-\rho\rho^\top)$ plus the prior Hessian, at $O(NK^2)$ cost; finite-differenced gradients are used for large $K$.
-- **Optional importance correction (`importance=True`, default):** Pareto-smoothed importance resampling against the exact posterior, reporting $\hat k$ and an approximate-results warning when $\hat k > 0.7$.
+- **Approximation:** a Gaussian in unconstrained coordinates at the L-BFGS mode, with the Hessian from central differences of the exact gradient (`step=1e-5`, relative). Negative curvature is clipped to a wide positive variance. The mode and curvature are found once per engine. (The analytic softmax Hessian $H_x=\mathrm{diag}(\hat n)-R^\top\mathrm{diag}(w)R-(A+W)(\mathrm{diag}\rho-\rho\rho^\top)$ of the original plan was not implemented.)
+- **Optional importance correction (`importance=True`, default):** Pareto-smoothed importance resampling against the exact posterior from a multivariate Student-t proposal (`df=5`, D10) with `n_proposals` (default twice the draws asked for), reporting $\hat k$; the result is flagged approximate, with a warning, when $\hat k\ge\min(1-1/\log_{10}S,\,0.7)$ for $S$ proposals (DECISIONS #74).
 - **Accuracy:**
   - The prototype matched NUTS to ≲3% in s.d. for well-populated bins.
   - It overestimated s.d. by up to 2.3× for nearly empty bins, because log-space tails are not Gaussian.
 
 ### 6.6 Mean-field VB (must, flagged approximate)
 
-- **Model:** $q(\rho)=\mathrm{Dir}(\gamma)$ and $q(z_i)=\mathrm{Cat}(\phi_i)$, using coordinate-ascent updates (RAIL's `VarInfStack` is this algorithm).
+- **Model:** $q(\rho)=\mathrm{Dir}(\gamma)$ (or the conjugate family of the prior: trees, Gamma rates) and $q(z_i)=\mathrm{Cat}(\phi_i)$, using coordinate-ascent updates (RAIL's `VarInfStack` is this algorithm). With a selection the expected number of missed objects is plugged in at the current mean.
 - **Why it is flagged:** it underestimates posterior widths, by 2–20× in our prototype as PDFs broaden (§6.10; Wang & Titterington 2005; HSC Y3). It is useful for initialisation and quick looks.
 - **Warning:** results always carry `approximate=True` and raise an `ApproximationWarning`.
 
-### 6.7 Bootstrap (should)
+### 6.7 Bootstrap (should; in v0.1)
 
-- **Method:** non-parametric (multinomial-weight) or Bayesian (Dirichlet-weight) bootstrap of the MAP estimator. Integer weights are multiplicities, so objects (not rows) are resampled; rate models use Poisson (or Gamma) weights so that the total varies; replicates start from an interior point.
+- **Method:** non-parametric (`scheme="nonparametric"`, multinomial-weight) or Bayesian (`scheme="bayesian"`, Dirichlet-weight) bootstrap of the MAP estimator. Integer weights are multiplicities, so objects (not rows) are resampled; rate models use Poisson (or Gamma) weights so that the total varies; replicates start from an interior point.
 - **Purpose:** frequentist intervals and comparison with HEP/EB practice.
 - **Labelling:** results are flagged as a sampling distribution, not a posterior.
 
 ### 6.8 External samplers (must)
 
 `PopulationModel` exposes:
-- `log_prob(x)`, `log_prob_and_grad(x)`, `to_rho(x)` and `from_rho(rho)` in unconstrained coordinates (for emcee, BlackJAX, NumPyro and similar);
-- `prior_transform(u)` from the unit cube for priors that support it (Dirichlet via Beta stick-breaking quantiles; GD; trees), for dynesty, nautilus and UltraNest.
+- `log_density_unconstrained(x)` and `log_density_unconstrained_and_grad(x)` (named `log_prob` and `log_prob_and_grad` until DECISIONS #70), `to_value(x)` (fractions or rates), `to_rho(x)` and `from_value(value)` in unconstrained coordinates (for emcee, BlackJAX, NumPyro and similar), and `log_posterior(value)`, `log_likelihood(value)` and `log_prior(value)` on the fractions or rates;
+- `prior_transform(u)` from the unit cube for priors that support it (Dirichlet via Beta stick-breaking quantiles; GD; trees; `GammaRates`), for dynesty, nautilus and UltraNest.
 
 `PopulationResult.from_samples(model, rho_samples, ...)` wraps external draws, so all downstream tools work on them.
 
 ### 6.9 Choosing a method
 
-`method="nuts"` is the default. Documentation ranks the engines by when to use them:
-- NUTS: the exact default.
+`method="auto"` is the default of `infer` and `PopulationEstimator` (DECISIONS #14, #88; it was `method="nuts"` before). It is one engine, `binference.inference.Auto`, that takes the first of these that applies:
+1. Gibbs for a selection or response inferred jointly with a conjugate prior.
+2. Gibbs for a conjugate prior with integer weights when the fraction of missing information $f$ at the MAP is at most `gibbs_max_missing` (0.98), run for $\lceil t\,(1+f)/(1-f)/n_\text{chains}\rceil$ draws per chain (at least 1000) for a smallest bulk ESS of about $t$ = `target_ess` (400).
+3. Importance-corrected Laplace, kept when its $\hat k$ check passes and its importance ESS is at least `target_ess`; also kept, flagged approximate, above `nnz_limit` ($2\times10^7$) stored likelihood entries, or when it is the only candidate left.
+4. NUTS.
+
+Engine options passed to `infer` rule out the candidates that do not take them. The choice and its reason are in `result.info["auto_method"]` and `result.info["auto_reason"]`. The thresholds come from the benchmark matrix, `benchmarks/matrix.py` (DECISIONS #42), whose results are in `docs/user-guide/engines.md`.
+
+The documentation ranks the engines a user can choose by when to use them:
+- NUTS: exact for every prior; mixes well with broad likelihoods.
 - Gibbs: conjugate models, when joint labels are needed and PDFs are narrow relative to the bins.
 - Laplace: very large N; corrected by importance resampling.
-- MAP: quick looks and initialisation.
+- MAP (and `"em"`): quick looks and initialisation.
 - VB and bootstrap: approximations.
-
-`method="auto"` (should) picks NUTS unless the estimated cost of $\mathrm{nnz}(L)$ × expected gradient count exceeds a budget, then picks Laplace. The choice is logged on the result.
 
 ### 6.10 Prototype evidence behind these choices
 
@@ -409,6 +427,8 @@ All engines take a `PopulationModel`, accept `rng` (SPEC 7: an int seed, `numpy.
 | K=30, N=2×10⁴, σ = 0.2–0.4 | Gibbs max τ_int ≈ 430 (did not converge in 3,500 iterations); NUTS ≈ 4 min-ESS/s with ≈180 gradients per iteration; VB s.d. too small by ≈20× |
 | Selection, fractions model | Gibbs with negative-binomial augmentation = NUTS on (S) |
 
+These prototype figures informed D2. The engine choice of `method="auto"` (§6.9) rests instead on the benchmark matrix, `benchmarks/matrix.py` (DECISIONS #42, #88), whose measured results are in `docs/user-guide/engines.md` and `benchmarks/results/`.
+
 ---
 
 ## 7. Outputs
@@ -417,55 +437,65 @@ All engines take a `PopulationModel`, accept `rng` (SPEC 7: an int seed, `numpy.
 
 Raw draws and metadata:
 - `samples`: `(n_draws, K)` fractions, flattened over chains, with `chains` as `(n_chains, n_per_chain, K)`.
-- `rates`: `(n_draws, K)` or `None`.
-- `log_prob`: `(n_draws,)`.
-- `method`, `approximate` (bool), `model`, `bins`, `prior`, `info` (engine statistics).
+- `rates`: `(n_draws, K)`: sampled for rate models, and for fractions $\Lambda\rho$ with `total` (draws of $\Lambda$), given an absolute selection or none (DECISIONS #78).
+- `selected`: the selected population $S\odot\rho/S\cdot\rho$ (also `which="selected"`; DECISIONS #49).
+- `log_density_unconstrained`: `(n_draws,)` (was `log_prob`; DECISIONS #70).
+- `component_draws` when a `Basis` is finer than the bins; `info["selection_draws"]` or `info["response_draws"]` when either is inferred.
+- `method`, `approximate` (bool), `model`, `bins`, `selection`, `info` (engine statistics).
 
 Summaries:
 - `mean`, `median`, `std`, `cov()`, `corr()`.
 - `quantile(q)`, `interval(level=0.68, kind="central"|"hdi")`.
-- `summary(level=0.68)`: a table object with `__repr__`, `to_dict()` and `to_pandas()` (pandas optional).
+- `summary(level=0.68)`: a table object with `__repr__`, `to_dict()` and `to_pandas()` (pandas optional), including each bin's `support`.
+- Every summary, `functional`, `rebin`, `cov`, `corr` and the plots take `which="fractions"|"rates"|"density"|"selected"`; the singular spellings work too (DECISIONS #82).
 
 Densities and derived quantities:
-- `density(...)`: $\rho_k/v_k$ (per unit volume, for n(z) plots).
+- `density()`: $\rho_k/v_k$ (per unit volume, for n(z) plots).
 - `functional(f)`: the per-draw derived quantity, e.g. mean redshift `lambda r: r @ bins.centers`, or tail fractions.
 - `rebin(groups)`: aggregated fractions; exact for $\rho$.
+- `data_support` and `prior_information_ratio()`: how much of each bin the data determine (DECISIONS #83).
+- `binning_bias()`: refits on linear B-spline components over the same bins and reports each bin's shift in posterior s.d. (DECISIONS #6, #20, #86).
+- `best`: the MAP estimate, computed on first use; per-object outputs at it carry a `_best` suffix (DECISIONS #35, #51).
 
 Individual objects:
-- `assignment_probabilities(idx=None)`.
-- `sample_assignments(idx=None, n_draws=None, rng=None)`.
-- `realized_counts(n_draws=None, rng=None)`.
-- `sample_values(idx, ...)`: continuous values within the assigned bin, uniform by default or proportional to a user callable.
+- `assignment_probabilities(idx=None)`, and `assignment_probabilities_loo(idx=None)`, leave-one-out by Pareto-smoothed importance sampling with $\hat k$ per object (DECISIONS #52).
+- `sample_assignments(idx=None, n_draws=500, rng=None)`: joint draws of $(\rho, z)$, exact given exact draws of $\rho$.
+- `realized_counts(n_draws=500, rng=None, full=False)` (`full=True` adds the missed objects; DECISIONS #53).
+- `sample_values(idx=None, n_draws=500, rng=None, loglike=None)`: continuous values within the assigned bin from each input's within-bin information (DECISIONS #50, #84): exact truncated Gaussians for `from_gaussian` (Gibbs sweeps for correlated ones), the kept samples of `from_samples`, the density of `from_density` in 1-D bins, or a user `loglike`; other inputs fall back to flat in the bin's measure coordinate, with a warning naming the source.
 
 New objects and cross-validation:
 - `predict_proba(likelihoods_new)` and `log_predictive(likelihoods_new)`.
 
 Diagnostics, plotting and persistence:
-- `diagnostics`: a dict of R̂, bulk/tail ESS per bin, divergences, $\hat k$, KKT gap, as relevant.
-- `check(strict=False)`: emits warnings, or raises when `strict=True`.
-- `plot(...)`, `plot_corner(bins=...)`, `plot_trace()`.
-- `save(path)`, `PopulationResult.load(path)` (`.npz`; versioned schema).
+- `diagnostics`: a dict of R̂, bulk/tail ESS per bin, divergences, tree-depth saturation, E-BFMI, $\hat k$, missing information, as relevant.
+- `check(strict=False, rhat_max=1.01, ess_min=100, ...)`: emits warnings, or raises `DiagnosticsError` when `strict=True`. Sampler problems are `ConvergenceWarning`s; problems with the inputs (the Monte Carlo variance of sample likelihoods, binned counts the response does not describe) are `InputWarning`s.
+- `plot(...)`, `plot_corner(bins=...)`, `plot_trace()`, `plot_individual(i)`.
+- `save(path)`, `PopulationResult.load(path)` (`.npz`; versioned schema; keeps the selection, basis and mask), `attach(likelihoods_or_model)`.
 - `to_dict()`, `to_datatree()` (xarray optional; the ArviZ ≥ 1.0 format).
 
 ### 7.2 `PointEstimate`
 
 Fields:
-- `rho`, `rates`, `log_posterior`, `log_likelihood`, `kkt_gap`, `n_iter`, `converged`.
+- `rho`, `rates`, `total`, `log_posterior`, `log_likelihood`, `kkt_gap`, `n_iter`, `converged`, `info`.
 
 Methods:
 - `laplace(n_samples=…)` returns a `PopulationResult`.
-- `assignment_probabilities()`, `predict_proba()` and `log_predictive()`, plugging in $\hat\rho$.
+- `check(kkt_max=1e-4, strict=False)` flags a KKT gap above `kkt_max` and an unconverged optimiser.
+- `assignment_probabilities()`, `sample_assignments()`, `sample_values()`, `realized_counts()`, `predict_proba()` and `log_predictive()`, plugging in $\hat\rho$.
 
 ### 7.3 Diagnostics and warnings
 
-- **Warning classes:** `BinferenceWarning`, with subclasses `InputWarning`, `ConvergenceWarning` and `ApproximationWarning`.
-- **Default thresholds:**
-  - R̂ > 1.01;
-  - bulk ESS < 100 per chain;
+- **Warning classes:** `BinferenceWarning`, with subclasses `InputWarning`, `ConvergenceWarning` and `ApproximationWarning`; `check(strict=True)` raises `DiagnosticsError`.
+- **Default thresholds** (`PopulationResult.check`, `PointEstimate.check`):
+  - R̂ > 1.01 (Markov chains only);
+  - bulk or tail ESS < 100 per chain (Markov chains only);
   - any divergence;
-  - $\hat k$ > 0.7;
-  - KKT gap > 1e-6 relative.
-- **R-DIAG-1:** `binference.diagnostics` exposes `ess`, `rhat` (rank-normalised split, Vehtari et al. 2021), `autocorr_time` (emcee-style), `mcse`, `kkt_gap` and `missing_information(model, rho)`. The last predicts slow Gibbs and EM mixing and is reported by `infer` when relevant.
+  - E-BFMI < 0.3 in some chain;
+  - more than 5% of NUTS iterations at the maximum tree depth;
+  - $\hat k\ge\min(1-1/\log_{10}S,\,0.7)$ for $S$ importance weights;
+  - an optimiser that did not converge;
+  - for point estimates, a KKT gap (§3.9, per unit weight) above 1e-4.
+- **R-DIAG-1:** `binference.diagnostics` exposes `ess`, `rhat` (rank-normalised split, Vehtari et al. 2021), `autocorr_time` and `autocorr_function` (emcee-style), `mcse`, `psis` and `psis_threshold`, `kkt_gap` and `missing_information(model, rho)`. The last predicts slow Gibbs and EM mixing; `check()` reports it in its hint when a Gibbs run fails, and `method="auto"` uses it to choose Gibbs.
 
 ### 7.4 Plotting (optional dependency)
 
@@ -483,10 +513,10 @@ Also available: a corner plot over chosen bins or functionals, trace plots, and 
 
 ### 8.1 Layers
 
-1. **One call:** `res = binference.infer(likelihoods, prior=None, *, selection=None, method="nuts", n_samples=1000, rng=None, progress=False, **engine_kwargs)`.
-2. **scikit-learn style:** `binference.PopulationEstimator(prior=..., method=..., ...)`. `fit(X)` returns self, where `X` is a `Likelihoods` object or an array. It also provides `predict_proba(X)`, `score(X)` (mean log predictive density, for CV over binnings and priors), `sample(n)`, `get_params`/`set_params` and `result_`.
-3. **Model + engine objects:** `model = binference.PopulationModel(lk, prior, selection=...)`; `eng = binference.samplers.NUTS(model, n_chains=4, ...)`; `res = eng.run(n_samples, rng=...)`. Also `for draws in eng.sample(n): ...` (generator) and `eng.run(more)` to extend.
-4. **Raw densities:** `model.log_prob_and_grad`, `model.prior_transform`, `model.to_rho`.
+1. **One call:** `res = binference.infer(likelihoods, prior=None, *, bins=None, selection=None, selection_mode=None, method="auto", n_samples=None, rng=None, progress=False, check=True, **engine_kwargs)`. `n_samples=None` takes each engine's default (draws per chain for NUTS, Gibbs and `"auto"`).
+2. **scikit-learn style:** `binference.PopulationEstimator(prior=None, *, method="auto", ...)`. `fit(X)` returns self, where `X` is a `Likelihoods` object or an array. It also provides `predict_proba(X)`, `score(X)` (mean log predictive density, for CV over binnings and priors), `sample(n)`, `get_params`/`set_params` and `result_`.
+3. **Model + engine objects:** `model = binference.PopulationModel(lk, prior, selection=...)`; `eng = binference.samplers.NUTS(model, n_chains=4, rng=..., ...)`; `res = eng.run(n_samples)`. Also `for draws in eng.sample(n): ...` (generator) and `eng.run(more)` to extend.
+4. **Raw densities:** `model.log_density_unconstrained_and_grad`, `model.prior_transform`, `model.to_rho`.
 
 ### 8.2 Conventions
 
@@ -502,8 +532,8 @@ Also available: a corner plot over chosen bins or functionals, trace plots, and 
 import numpy as np, binference
 
 bins = binference.Bins.linear(0.0, 3.0, 30)
-lk = binference.Likelihoods.from_gaussian(mu, sigma, bins)   # or .from_posteriors(P, bins, interim_prior=pi)
-res = binference.infer(lk, rng=42)                           # Dirichlet(1) prior, NUTS, 4 chains
+lk = binference.Likelihoods.from_gaussian(mu, sigma, bins)   # or .from_table(P, bins, interim=pi)
+res = binference.infer(lk, rng=42)                           # Dirichlet(1) prior, method="auto"
 res.summary()
 res.plot()
 p_i = res.assignment_probabilities()                     # shrunk per-object posteriors
@@ -514,9 +544,10 @@ n_real = res.realized_counts()                           # histogram of these ob
 
 ## 9. Validation tools (user-facing, must)
 
-**`binference.simulate`** builds mock catalogues, returning `(Likelihoods, Truth)`. `Truth` holds `rho`, the labels, the true values and the realised counts. Functions:
-- `mock_1d`, `mock_2d` and `mock_categorical`;
-- `population(...)`.
+**`binference.simulate`** builds mock catalogues, returning a `Mock` with `likelihoods`, `bins`, `truth`, `measurements` and, where they apply, `posteriors`, `interim`, `samples` and `response`. `Truth` holds `rho`, the labels, the true values and the realised counts. Functions:
+- `mock_1d`, `mock_2d`, `mock_categorical` and `mock_unfolding`;
+- `population(...)`;
+- `prior_predictive(prior, bins, ...)`, a simulator that draws the population from the prior, for `sbc` and `coverage`.
 
 The mocks can include:
 - heteroscedastic Gaussian or skewed noise;
@@ -526,9 +557,9 @@ The mocks can include:
 - selection.
 
 **`binference.validation`:**
-- `sbc(simulate_fn, infer_fn, n_sims, ...)` runs simulation-based calibration. The ranks test the bin fractions and the joint log-likelihood. It returns an `SBCResult` with uniformity tests and a plot.
-- `coverage(...)` checks credible intervals for chosen functionals.
-- `exact_posterior(lk, prior, n_grid)` computes the K ≤ 3 quadrature reference used by the tests.
+- `sbc(simulate, fit, n_simulations=100, n_draws=99, ...)` runs simulation-based calibration and warns when a fit's smallest bulk ESS is below `n_draws`. The ranks test the bin fractions and the joint log-likelihood. It returns an `SBCResult` with uniformity tests and a plot.
+- `coverage(simulate, fit, n_simulations=100, levels=..., functionals=...)` checks credible intervals for chosen functionals.
+- `exact_posterior(model_or_lk, prior=None, n_grid=200)` computes the K ≤ 3 reference used by the tests, by stick-breaking Gauss–Legendre quadrature (DECISIONS #75).
 
 ---
 
@@ -542,7 +573,7 @@ The mocks can include:
 | MAP | < 1 s at N = 10⁵, K = 100 (mix-SQP: 0.9 s, 4 iterations, on an idle core; a few seconds with broader PDFs; SQUAREM-EM had not converged after 2000 iterations, 39 s) |
 | Laplace | < 30 s at N = 10⁶, K = 100 (dense float64 needs ~800 MB, so the documentation recommends sparse storage or compression) |
 
-All $N\times K$ temporaries are chunked (configurable `chunk_size`), so peak extra memory is $O(\text{chunk}\times K)$.
+The likelihood and its gradient are two matrix–vector products with no $N\times K$ temporaries. Gibbs label draws, responsibilities and the per-object outputs `assignment_probabilities` and `predict_proba` work through the objects in chunks (a `chunk` argument), so their extra memory is $O(\text{chunk}\times K)$ beyond their outputs. `log_predictive` is not chunked: it holds an $N\times n_\text{draws}$ matrix.
 
 ---
 
@@ -552,20 +583,22 @@ All $N\times K$ temporaries are chunked (configurable `chunk_size`), so peak ext
   - Layout: `pyproject.toml` (hatchling), `src/` layout, import name `binference`.
   - PyPI distribution and import name: `binference` (the package was developed as `pastry`; see §13, D5).
   - Licence: MIT (existing).
-- **Python:** ≥ 3.11 (CI 3.11–3.14).
+- **Python:** ≥ 3.13 (CI 3.13 and 3.14; DECISIONS #41, #61, superseding D6).
 - **Dependencies:**
-  - Core: `numpy>=1.25` and `scipy>=1.11`.
-  - Extras: `plot` (matplotlib), `xarray`, `docs`, `test` and `dev`.
+  - Core: `numpy>=2.1`, `scipy>=1.14.1` and `threadpoolctl>=3.1` (D14).
+  - Extras: `plot` (matplotlib), `xarray`, `docs`, `test`, `dev` and `all`.
 - **Quality tooling:** ruff (lint and format), pre-commit, type hints, and pytest with warnings as errors in CI.
 - **Tests:**
   - Two speed tiers: fast unit tests (< 2 min total) and `@pytest.mark.slow` statistical validation.
-  - Coverage of ≥ 90% lines on core modules.
+  - Coverage of ≥ 90% lines on core modules (a target: CI reports coverage but does not enforce it).
 - **Docs:** Sphinx + MyST-NB (tutorials stored as MyST Markdown notebooks and executed at build time), numpydoc and the pydata-sphinx-theme. Pages: Getting started, User guide, Theory, Tutorials, API reference, Design notes, Changelog and Contributing.
 - **CI (GitHub Actions):**
-  - lint;
-  - tests on a Linux and macOS × Python matrix;
-  - slow statistical tests on one job;
-  - a docs build that executes the tutorials.
+  - lint (the pre-commit hooks);
+  - fast tests on Linux, macOS and Windows × Python 3.13 and 3.14, with coverage reported on one job;
+  - fast tests at the lowest dependency versions `pyproject.toml` allows;
+  - slow statistical tests weekly, by hand, or on a pull request labelled `slow`;
+  - the code of the README, installation page and user guide (`docs/_scripts/run_snippets.py`), then a docs build with warnings as errors that executes the tutorials;
+  - a wheel and sdist build, imported from a clean environment.
 - **Repository files:** `CITATION.cff`, `CHANGELOG.md` and `CONTRIBUTING.md` (including the validation philosophy).
 
 ---

@@ -254,7 +254,7 @@ def infer(
     Returns
     -------
     PopulationResult or PointEstimate
-        Posterior draws (or the MAP estimate for ``method="map"``).
+        Posterior draws, or the MAP estimate for ``method="map"`` and ``"em"``.
 
     Examples
     --------

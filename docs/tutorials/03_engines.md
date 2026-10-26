@@ -85,6 +85,13 @@ print("VB approximate:", fits["vb"].approximate)
 print("MAP optimality gap:", f"{est.kkt_gap:.1e}")
 ```
 
+```{code-cell} python
+:tags: [remove-cell]
+
+assert np.median(fits["vb"].std / ref.std) < 0.5
+assert np.abs((fits["gibbs"].mean - ref.mean) / ref.std).max() < 0.5
+```
+
 ## Efficiency of the exact samplers
 
 Both NUTS and Gibbs are exact, so compare them by **effective** samples per
@@ -98,11 +105,17 @@ model = binference.PopulationModel(lk)
 print("fraction of missing information:", round(model.missing_information(est.rho), 3))
 ```
 
+```{code-cell} python
+:tags: [remove-cell]
+
+assert model.missing_information(est.rho) > 0.9
+```
+
 Gibbs alternates between each galaxy's bin and the population. When a
 galaxy's likelihood spans several bins, its bin is poorly determined, so the
 population moves slowly from one sweep to the next. The
-**fraction of missing information** (near one here) measures this, and Gibbs
-autocorrelation times grow like $1/(1-f)$. NUTS moves the population
+**fraction of missing information** $f$ (near one here) measures this, and the
+Gibbs autocorrelation time grows like $(1+f)/(1-f)$. NUTS moves the population
 directly and does not suffer from it.
 
 With **narrow** likelihoods the picture flips: every galaxy's bin is nearly
@@ -111,11 +124,19 @@ trajectory.
 
 ```{code-cell} python
 narrow = binference.simulate.mock_1d(1500, binference.Bins.linear(0, 3, 20), noise=(0.01, 0.03), rng=11)
+per_second = {}
 for m in ["nuts", "gibbs"]:
     t0 = time.perf_counter()
     r = binference.infer(narrow.likelihoods, method=m, rng=1, check=False)
     dt = time.perf_counter() - t0
-    print(f"{m:6s} {dt:5.1f} s, min ESS per second: {r.diagnostics['ess_bulk'].min() / dt:8.1f}")
+    per_second[m] = r.diagnostics["ess_bulk"].min() / dt
+    print(f"{m:6s} {dt:5.1f} s, min ESS per second: {per_second[m]:8.1f}")
+```
+
+```{code-cell} python
+:tags: [remove-cell]
+
+assert per_second["gibbs"] > per_second["nuts"]
 ```
 
 ## Diagnostics
@@ -133,6 +154,12 @@ print(caught[0].message if caught else "no warnings")
 
 ```{code-cell} python
 axes = short.plot_trace(idx=[8])
+```
+
+```{code-cell} python
+:tags: [remove-cell]
+
+assert caught and short.diagnostics["rhat"].max() > 1.1
 ```
 
 The four chains have not mixed. Run longer, or use NUTS.

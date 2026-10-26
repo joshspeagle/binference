@@ -1,8 +1,8 @@
 """Inference engines.
 
-* :class:`NUTS` -- No-U-Turn Sampler on the exact posterior (default).
+* :class:`NUTS` -- No-U-Turn Sampler on the exact posterior (any prior).
 * :class:`Gibbs` -- data-augmentation Gibbs sampler (conjugate priors; joint labels).
-* :class:`MAP` -- posterior mode / maximum likelihood (SQUAREM-EM or L-BFGS).
+* :class:`MAP` -- posterior mode / maximum likelihood (mix-SQP, SQUAREM-EM or L-BFGS).
 * :class:`Laplace` -- Gaussian approximation with PSIS importance correction.
 * :class:`MeanFieldVB` -- mean-field variational Bayes (approximate).
 * :class:`Bootstrap` -- bootstrap of the MAP estimator (approximate).

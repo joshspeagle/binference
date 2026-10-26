@@ -211,7 +211,11 @@ the wrong choice biases $\rho$ toward wide bins.
 ## Selection effects
 
 Let $S_k\in(0,1]$ be the probability that an object in bin $k$ makes it into
-the catalogue. The likelihood depends on what the selection acts on:
+the catalogue. For fractions only the ratios between the $S_k$ matter
+({eq}`eq-S` is unchanged when $S$ is multiplied by a constant), so $S$ is needed
+only up to a constant there. For rates its absolute value sets the total,
+and it may include an exposure that exceeds one (below).
+The likelihood depends on what the selection acts on:
 
 - **`selection_mode="on_measurement"`.** Selection acts on the *measured* data: a
   flux limit on measured fluxes, a reconstruction efficiency. A detected
@@ -260,8 +264,10 @@ $$
 
 Independent $\mathrm{Gamma}(a_k,b_k)$ priors are conjugate given the labels:
 $\lambda_k\mid z\sim\mathrm{Gamma}(a_k+n_k,\,b_k+S_k)$. Fractions and rates
-are not interchangeable priors: independent Gamma rates imply a Dirichlet on
-$\rho$ only without selection.
+are not interchangeable priors: independent $\mathrm{Gamma}(a_k,b)$ rates
+imply $\rho\sim\mathrm{Dir}(a)$ only when every bin has the same rate
+parameter $b$ and there is no selection. With different $b_k$ the fractions
+are not Dirichlet even without selection.
 
 ## Priors
 
@@ -411,7 +417,8 @@ as the likelihood itself.
 
 ## The engines
 
-- **NUTS** (Hoffman & Gelman 2014; Betancourt 2017), the default.
+- **NUTS** (Hoffman & Gelman 2014; Betancourt 2017), exact for every prior and
+  the fallback of the default `method="auto"`.
   - Multinomial trajectory sampling with the generalised U-turn criterion
     and Stan's extra checks across merged subtrees.
   - Dual-averaging step-size adaptation, with a target acceptance of 0.8, or
@@ -453,7 +460,7 @@ as the likelihood itself.
 - **NUTS health.** Divergences, saturated tree depth and E-BFMI.
 - **Monte Carlo error.** Standard errors for posterior means.
 
-`result.check()` turns these into warnings.
+`result.check()` turns problems with convergence and NUTS health into warnings.
 
 The validation module answers a different question: is the *whole pipeline*
 calibrated?
