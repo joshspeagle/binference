@@ -15,4 +15,7 @@ or less on a laptop.
 06_categories_unfolding
 07_validation
 08_two_dimensions
+09_empirical_bayes
+10_mixed_stocks
+11_populations_with_selection
 ```
