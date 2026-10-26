@@ -5,11 +5,10 @@
 Many objects are each measured with noise. For each one you have a likelihood,
 a posterior computed under some prior, posterior samples, counts in measured
 bins with a response, or a classifier's output. binference infers the
-distribution of the population the objects come from, with honest
-uncertainty, and the posterior of each object under that population. By
-default it chooses an engine from rules measured on a benchmark matrix,
-keeping an approximation only when its own check passes, so the error bars on
-every bin, derived quantity and object are calibrated.
+distribution of the population the objects come from, with calibrated error
+bars on every bin, derived quantity and object, and the posterior of each
+object under that population. By default it chooses an engine from rules
+measured on a benchmark matrix, and says which engine it chose and why.
 
 ![Population posteriors for a mock catalogue](https://raw.githubusercontent.com/joshspeagle/binference/main/docs/_static/quickstart.png)
 
@@ -39,7 +38,8 @@ The same model has been written down separately in several fields:
 | ecology | mixed-stock analysis | individuals with genotypes | source populations | [mixed stocks](https://joshspeagle.github.io/binference/tutorials/10_mixed_stocks.html) |
 
 Adding up the per-object posteriors computed under an interim prior, the usual
-shortcut, is exactly one EM step from that prior. binference runs the
+shortcut, is exactly one EM step from that prior
+([theory](https://joshspeagle.github.io/binference/theory.html#point-estimates-em-is-iterated-stacking)). binference runs the
 iteration to convergence and quantifies its uncertainty. The
 [background pages](https://joshspeagle.github.io/binference/background/index.html)
 describe each field's methods and software and how binference relates to them.

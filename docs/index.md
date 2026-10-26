@@ -5,12 +5,11 @@
 Many objects are each measured with noise. For each one you have a likelihood,
 a posterior computed under some prior, posterior samples, counts in measured
 bins with a response, or a classifier's output. binference infers the
-distribution of the population the objects come from, with honest
+distribution of the population the objects come from, with calibrated
 uncertainty, and the posterior of each object under that population. The same
-problem is called redshift-distribution inference in astronomy, unfolding in
-particle physics, empirical Bayes deconvolution in statistics, quantification
-in machine learning and mixed-stock analysis in ecology; binference solves it
-for all of them with one model ([why binference](vision.md)).
+problem appears under different names in several fields
+([background](background/index.md)); binference treats them as one model
+([why binference](vision.md)).
 
 ```{image} _static/quickstart.png
 :alt: Population posteriors for a mock catalogue under a flat Dirichlet prior and a Gaussian-process prior

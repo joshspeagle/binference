@@ -21,7 +21,7 @@ Requirements carry IDs (`R-…`) so that tests and code can point back to them. 
 
 `binference` turns **a catalogue of noisy, heteroscedastic, arbitrarily shaped per-object PDFs over a set of bins or categories** into **a posterior over the population distribution** (bin fractions or rates). It also returns **consistent posteriors for each individual object** under that population. Typical inputs are photo-z PDFs, positions on a colour–magnitude grid, classifier outputs over classes, or a detector response.
 
-**Vision** (DECISIONS #33). `binference` should be as easy to pick up as scikit-learn: a novice gets a correct, calibrated answer without understanding the internals, while an expert can tune every knob. It should be fast, and it should make doing the right thing so easy that not doing it is the harder path.
+**Vision** (DECISIONS #33): as easy to pick up as scikit-learn, with every part reachable by an expert; stated in `docs/vision.md`.
 
 The baseline model has been implemented at least four times in astronomy alone (Leistedt+2016, Leistedt & Hogg 2017, CHIPPR, `frankenz`). It reappears as iterative Bayesian unfolding in HEP, NPMLE/g-modelling in statistics, EMQ quantification in ML, and genetic stock identification in ecology. Every implementation the census found is one of the following:
 
@@ -32,19 +32,19 @@ The baseline model has been implemented at least four times in astronomy alone (
 
 None checks its own calibration. `binference`'s value is therefore **correct input conventions, calibrated uncertainty, built-in validation and speed**, plus what existing implementations leave out: inputs whose own uncertainty is propagated (selection functions from injections, responses from calibration sets), bases that remove the flat-within-bin approximation, and defaults chosen automatically from measured evidence.
 
-Guiding principles (DECISIONS #34; the user-facing version is `docs/vision.md`):
+Guiding principles (DECISIONS #34); their wording, and what the code does for each, is in `docs/vision.md`:
 
-1. **Correct by construction.** The API makes the user say what they are passing: likelihoods or posteriors, which interim prior, masses or densities, which measure. Silent convention mismatches are the most common real-world failure (stacking, interim priors, unequal bins), so the API refuses ambiguity.
-2. **Easy things are one line, hard things are possible.** There is a one-call API (`binference.infer`). Beneath it sit configurable model and engine objects, and beneath those, raw log-densities for external samplers. This mirrors emcee, dynesty, nautilus and sbi.
-3. **Exact inference by default; approximations are labelled**, including approximations of the model (flat within bins, Monte Carlo inputs) as well as of the sampler. Fast approximations (Laplace, mean-field VB, EM, bootstrap) carry a flag and a warning describing their known failure modes.
-4. **Self-validating.** Diagnostics, optimality certificates and input checks run automatically. Simulation-based calibration (SBC) and coverage tools ship in the package, and the test suite checks engines against exact references.
-5. **Lightweight core.** The core needs only NumPy, SciPy and threadpoolctl. Plotting, xarray export and future JAX or flow backends are optional extras.
-6. **One way to read a result.** Every engine that draws returns the same result type with the same methods: summaries, intervals, functionals, individual-object outputs, diagnostics, plots and serialisation; `result.best` gives the best fit with the same outputs (DECISIONS #85).
-7. **Everything exposed, with sensible defaults** (DECISIONS #16).
-8. **Adaptive, evidence-based defaults, reported to the user** (DECISIONS #14, #88).
-9. **The user's bins define the problem; internals adapt** (DECISIONS #17, #20, #21).
-10. **Every uncertain input is modelled jointly by default; fixing it is an explicit choice** (DECISIONS #10, #28, #30).
-11. **Fast.** Performance is a feature, measured by the benchmarks.
+1. Correct by construction.
+2. Easy things are one line, hard things are possible (as emcee, dynesty, nautilus and sbi).
+3. Exact inference by default; approximations are labelled.
+4. Self-validating.
+5. Lightweight core.
+6. One way to read a result (DECISIONS #85).
+7. Everything exposed, with sensible defaults (DECISIONS #16).
+8. Adaptive, evidence-based defaults, reported to the user (DECISIONS #14, #88).
+9. The user's bins define the problem; internals adapt (DECISIONS #17, #20, #21).
+10. Uncertain inputs are modelled jointly by default; fixing them is an explicit choice (DECISIONS #10, #28, #30).
+11. Fast, as measured by the benchmarks.
 
 ---
 
