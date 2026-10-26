@@ -77,10 +77,10 @@ install
 tutorials/index
 user-guide/index
 theory
+background/index
 api/index
 design/index
 changelog
 contributing
 citing
-background/index
 ```
