@@ -51,7 +51,7 @@ def test_gibbs_runs_long_enough_for_the_target_ess():
 def test_broad_likelihoods_leave_gibbs_and_a_failed_laplace_check_goes_to_nuts(short_nuts):
     lk = _lk(3.0)
     assert _plan(lk) == ["laplace", "nuts"]  # f > 0.98: Gibbs would mix too slowly
-    assert _plan(lk, gibbs_max_missing=0.99999)[0] == "gibbs"
+    assert _plan(lk, gibbs_max_missing=0.99999, max_gibbs_draws=10**7)[0] == "gibbs"
     res = binference.infer(lk, P.Dirichlet(0.1), rng=0, n_samples=50, check=False)
     assert (
         res.method == "nuts" and res.info["auto_reason"] == "the Laplace importance check failed"
@@ -146,3 +146,27 @@ def test_laplace_mode_and_covariance_are_copies_and_follow_the_step():
     engine.step = 1e-4
     engine.mode_and_covariance()
     assert engine._eigen[0] == 1e-4  # found again for the new step
+
+
+def test_a_gibbs_run_is_extended_until_it_meets_the_target_ess_and_r_hat():
+    # a selection inferred jointly mixes more slowly than the default 1000 draws allow
+    from .test_injections import _problem
+
+    lk, sel = _problem()
+    res = binference.infer(lk, selection=sel, rng=0, target_ess=600)
+    d = res.diagnostics
+    assert res.method == "gibbs" and res.chains.shape[1] > 1000
+    assert min(np.min(d["ess_bulk"]), np.min(d["ess_bulk_selection"])) >= 600
+    assert max(np.max(d["rhat"]), np.max(d["rhat_selection"])) <= 1.01
+
+
+def test_gibbs_gives_way_when_it_cannot_mix_within_its_draw_limit(short_nuts):
+    from .test_injections import _problem
+
+    lk, sel = _problem()
+    res = binference.infer(
+        lk, selection=sel, rng=0, target_ess=600, max_gibbs_draws=1100, check=False
+    )
+    assert res.method != "gibbs" and res.info["auto_reason"].startswith("Gibbs mixed too slowly")
+    # and a run the formula already puts beyond the limit is not tried
+    assert _plan(_lk(3.0), gibbs_max_missing=0.9999, max_gibbs_draws=1500)[0] == "laplace"

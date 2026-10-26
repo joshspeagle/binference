@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import warnings
+from math import ceil
 from typing import Any
 
 import numpy as np
@@ -45,10 +46,18 @@ class Auto(Engine):
 
     1. Gibbs for a selection or response inferred jointly with a conjugate prior.
     2. Gibbs for a conjugate prior with integer weights when the fraction of missing
-       information at the MAP, :math:`f`, is at most ``gibbs_max_missing``. It runs
+       information at the MAP, :math:`f`, is at most ``gibbs_max_missing``, and the
+       run it needs is at most ``max_gibbs_draws`` per chain. It runs
        :math:`\lceil t\,(1+f)/(1-f) / n_\mathrm{chains} \rceil` draws per chain (at
        least the usual 1000), for a smallest bulk ESS of about :math:`t` =
        ``target_ess``.
+
+       Without ``n_samples``, either Gibbs run is then extended until every bulk ESS
+       (of the population, and of an inferred selection or response) reaches
+       :math:`t` and every :math:`\hat R` is at most 1.01. If that would take more
+       than ``max_gibbs_draws`` draws per chain, its draws are discarded and the next
+       candidate runs (a jointly inferred selection or response can mix much more
+       slowly than :math:`f` predicts).
     3. Importance-corrected Laplace, kept when its Pareto :math:`\hat k` check passes
        and its importance ESS is at least ``target_ess``, or when the likelihoods have
        more than ``nnz_limit`` stored entries (then flagged approximate), or when it is
@@ -70,6 +79,9 @@ class Auto(Engine):
     nnz_limit : float
         Above this many stored likelihood entries Laplace is kept even when its check
         fails, rather than running NUTS.
+    max_gibbs_draws : int
+        Most draws per chain a Gibbs run may be extended to before it gives way to the
+        next candidate.
     rng, progress
         As for every engine.
     **engine_kwargs
@@ -86,6 +98,7 @@ class Auto(Engine):
         target_ess: float = 400.0,
         gibbs_max_missing: float = 0.98,
         nnz_limit: float = 2e7,
+        max_gibbs_draws: int = 25_000,
         rng: RNGLike = None,
         progress: bool = False,
         **engine_kwargs: Any,
@@ -96,6 +109,7 @@ class Auto(Engine):
             raise ValueError(f"gibbs_max_missing must be in [0, 1); got {gibbs_max_missing}.")
         self.gibbs_max_missing = float(gibbs_max_missing)
         self.nnz_limit = float(check_positive(nnz_limit, "nnz_limit"))
+        self.max_gibbs_draws = int(check_positive(max_gibbs_draws, "max_gibbs_draws"))
         self.engine_kwargs = engine_kwargs
         self._rng_arg = rng
 
@@ -117,9 +131,10 @@ class Auto(Engine):
                     f = m.missing_information(MAP(m).run().value)  # component weights
                 if f <= self.gibbs_max_missing:
                     chains = kw.get("n_chains", _options(Gibbs)["n_chains"].default)
-                    n = int(np.ceil(self.target_ess * (1 + f) / (1 - f) / chains))
-                    reason = f"conjugate prior, missing information {f:.2f}"
-                    out.append(("gibbs", reason, max(_DEFAULT_SAMPLES["gibbs"], n)))
+                    n = self.target_ess * (1 + f) / (1 - f) / chains
+                    if n <= self.max_gibbs_draws:
+                        reason = f"conjugate prior, missing information {f:.2f}"
+                        out.append(("gibbs", reason, max(_DEFAULT_SAMPLES["gibbs"], ceil(n))))
         out += [
             (key, "", None)
             for key, engine in (("laplace", Laplace), ("nuts", NUTS))
@@ -140,7 +155,9 @@ class Auto(Engine):
         total as NUTS's default four chains would (4000 by default).
         """
         plan = self.candidates()
+        rejected: list[str] = []  # why earlier candidates were not kept
         for i, (key, why, n_gibbs) in enumerate(plan):
+            last = i == len(plan) - 1
             if key == "laplace":
                 n = 4 * (n_samples or _DEFAULT_SAMPLES["nuts"])
             else:
@@ -148,18 +165,41 @@ class Auto(Engine):
             engine = METHODS[key](
                 self.model, rng=self._rng_arg, progress=self.progress, **self.engine_kwargs
             )
-            if key == "laplace" and i < len(plan) - 1:
+            if key == "laplace" and not last:
                 result, reason = self._try(engine, int(n))
-                if result is None:
-                    continue
             else:
                 result = engine.run(int(n))
-                reason = why or (reason if i else "the only engine that takes these options")
+                reason = why or ("" if rejected else "the only engine that takes these options")
+                if key == "gibbs" and n_samples is None:
+                    result, mixed = self._extend(engine, result)
+                    if not (mixed or last):
+                        result, reason = None, "Gibbs mixed too slowly"
             del engine
+            if result is None:
+                rejected.append(reason)
+                continue
             result.info["auto_method"] = key
-            result.info["auto_reason"] = reason
+            result.info["auto_reason"] = "; ".join(r for r in [*rejected, reason] if r)
             return result
         raise AssertionError("unreachable: NUTS or Laplace is always last")  # pragma: no cover
+
+    def _extend(self, engine: Gibbs, result: PopulationResult) -> tuple[PopulationResult, bool]:
+        """The Gibbs run extended until every bulk ESS reaches ``target_ess`` and every
+        R-hat is at most 1.01, and whether it got there within ``max_gibbs_draws`` draws
+        per chain (and four extensions)."""
+        for extension in range(5):
+            d = result.diagnostics
+            ess = min(float(np.min(v)) for k, v in d.items() if k.startswith("ess_bulk"))
+            rhat = max(float(np.nanmax(v)) for k, v in d.items() if k.startswith("rhat"))
+            if ess >= self.target_ess and rhat <= 1.01:  # what check() asks of R-hat
+                return result, True
+            done = result.chains.shape[1]
+            # enough for the target ESS, and at least half again while R-hat is high
+            more = int(np.ceil(done * max(1.2 * self.target_ess / max(ess, 1.0) - 1.0, 0.5)))
+            if extension == 4 or done + more > self.max_gibbs_draws:
+                return result, False
+            result = engine.run(more)
+        raise AssertionError("unreachable")  # pragma: no cover
 
     def _try(self, engine: Laplace, n: int) -> tuple[PopulationResult | None, str]:
         """Laplace's result when it is kept (its warnings re-emitted), else None.
