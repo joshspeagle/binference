@@ -142,6 +142,13 @@ print("confusion matrix, P(assigned row | true column):")
 print(response.matrix.round(2))
 ```
 
+```{code-cell} python
+:tags: [remove-cell]
+
+off = response.matrix - np.diag(np.diag(response.matrix))
+assert min(off[0, 1], off[1, 0]) > np.delete(off.ravel(), [1, K]).max()
+```
+
 A and B are confused with each other far more often than any other pair.
 The fit infers the 25 cells of the confusion matrix with the proportions.
 Gibbs mixes slowly for this joint model, because the classes overlap this
@@ -188,11 +195,13 @@ for k, s in enumerate(stocks):
 
 assert all(lo_c[k] <= rho_true[k] <= hi_c[k] for k in (0, 1))
 assert (hi_c - lo_c)[2:4].max() < (hi_c - lo_c)[:2].min()
+lo_f, hi_f = fit.interval(0.9)
+assert ((hi_c - lo_c)[:2] > (hi_f - lo_f)[:2]).all()
 ```
 
 With the confusion matrix inferred, the intervals for A and B widen to
 reflect how weakly the baseline separates them, and they cover the truth.
-The other stocks, which the baseline separates well, keep narrow
+Stocks C and D, which the baseline separates well, keep narrow
 intervals. The price is information: each mixture fish contributes only its
 assigned stock, not its full likelihood.
 

@@ -89,8 +89,7 @@ The interface follows patterns that users of other inference packages praise:
 - **ArviZ 1.x**: results that other tools read. `result.to_datatree()` returns an xarray
   `DataTree` in ArviZ's layout, and `result.samples` stays a plain array.
 - **SPEC 7**: one `rng` argument that accepts a seed or a `numpy.random.Generator`, with
-  a separate stream per chain; binference rejects legacy `RandomState` objects, as PyMC
-  does.
+  a separate stream per chain; binference rejects legacy `RandomState` objects.
 - **tinygp**: expose the model as functions that other samplers can call.
   {class}`~binference.PopulationModel` provides the log posterior and its gradient in
   unconstrained coordinates and a prior transform for nested samplers, and

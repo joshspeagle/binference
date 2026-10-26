@@ -135,9 +135,9 @@ binference:
   vectorised, as the `Gibbs` engine. Its mixing slows once the likelihoods are as wide
   as the bins: with a flat prior the median autocorrelation time grew from 7 to 74, 162
   and 180 sweeps as the likelihood width grew from 0.5 to 1, 2 and 4 bin widths, while
-  a simple HMC in log-ratio coordinates stayed at 1–14. binference therefore samples
-  with NUTS when the fraction of missing information is high
-  ({doc}`../user-guide/engines`).
+  a simple HMC in log-ratio coordinates stayed at 1–14. binference therefore leaves
+  Gibbs for an importance-corrected Laplace approximation or NUTS when the fraction of
+  missing information is high ({doc}`../user-guide/engines`).
 - **The population sampler is not a valid MCMC sampler.** Its proposal width depends on
   the current state, but the acceptance test omits the Hastings factor this requires,
   and the width is held fixed across three inner steps. A bin whose posterior reaches

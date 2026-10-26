@@ -191,7 +191,7 @@ assert eb < 0.5 * mse["raw estimate x"] and eb < 1.1 * mse["oracle Bayes"]
 Both empirical Bayes estimates more than halve the error of the raw
 estimates and come close to the oracle that knows $g$. The plot shows the
 shrinkage: estimates near zero are pulled to zero, those near the
-non-null component toward 2.5, and noisier units (lighter points) are
+non-null component toward 2.5, and noisier units (darker points) are
 moved further.
 
 ```{code-cell} python

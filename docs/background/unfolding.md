@@ -4,8 +4,8 @@ A particle detector smears every measured quantity and loses some events altoget
 *Unfolding* estimates the distribution of the true quantity, for example a
 cross-section in bins of jet momentum, from the histogram of the measured one. Binned
 unfolding is binference's model with one shared likelihood row per measured bin, and
-its most widely used algorithm is the EM algorithm that binference uses for point
-estimates.
+its most widely used algorithm is the EM algorithm, one of binference's solvers for
+point estimates.
 
 ## The problem in particle-physics terms
 
@@ -94,8 +94,8 @@ paired (true, measured) simulations.
 ## How binference relates
 
 **Shared.** The likelihood of binned unfolding with a Poisson or multinomial count
-model, the EM algorithm (`method="em"`; `method="map"` reaches the same maximum by
-mix-SQP for Dirichlet priors), and the posterior that FBU samples, with regularisation
+model, the EM algorithm (`method="em"`; `method="map"` chooses its solver,
+{doc}`../user-guide/engines`), and the posterior that FBU samples, with regularisation
 as a prior.
 
 **Added.** A maintained, pip-installable Bayesian unfolding: posterior draws of the

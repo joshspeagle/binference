@@ -69,7 +69,7 @@ Two differences follow from binning. First, a likelihood given on the bins carri
 Monte Carlo noise at all; only likelihoods built from samples do. Second, the
 binned Monte Carlo estimate is linear in $\rho$, so its variance is a cheap quadratic
 form in $\rho$: `lk.sample_variance(rho)` returns each object's relative variance
-$V_i(\rho)$, and `result.check()` warns when $\sum_iV_i>1$, the per-event part of the
+$V_i(\rho)$ (with its effective number of samples), and `result.check()` warns when $\sum_iV_i>1$, the per-event part of the
 LVK's variance criterion ({doc}`../user-guide/inputs`).
 
 ## Methods and software
@@ -134,9 +134,8 @@ that applies only when samples are used, and inputs on bins that need none.
 gppop's numbers of bins. It does not fit parametric population models such as power laws
 or mixtures in continuous parameters, does not reweight injections by their draw density
 within a bin, does not taper or cut the likelihood by its Monte Carlo variance during
-sampling (it warns afterwards; a selection from injections is inferred with the
-population instead of entering as a Monte Carlo estimate), and does not write popsummary
-files.
+sampling (it warns afterwards), does not infer a selection on the measurement from
+injections (it is a plug-in there), and does not write popsummary files.
 
 ## Pitfalls known in gravitational-wave population inference
 

@@ -154,14 +154,14 @@ joint fit's bands are wider there.
 
 ## Derived quantities
 
-The fraction of mergers lighter than 10 solar masses, and the total number
+The fraction of mergers in the four lightest bins (below 10.2 solar masses), and the total number
 of mergers including those never detected (`result.total`, see the [user
 guide](../user-guide/selection)), depend most on the lightest bins:
 
 ```{code-cell} python
-light = bins.centers < np.log(10.0)
+light = np.arange(bins.K) < 4                  # upper edge at 10.15 Msun
 frac = {name: res.functional(lambda rho: rho[light].sum()) for name, res in fits.items()}
-print(f"{'':20s} fraction below 10 Msun   total mergers")
+print(f"{'':20s} fraction below 10.2 Msun total mergers")
 for name, res in fits.items():
     f = frac[name]
     print(f"{name:20s} {f.mean():.3f} ± {f.std():.3f}            "
@@ -176,16 +176,16 @@ tot = {k: r.total for k, r in fits.items()}
 assert abs(tot["no selection"].mean() - detected.sum()) < 3 * tot["no selection"].std()
 assert tot["joint"].std() > tot["plug-in injections"].std()
 assert frac["joint"].std() > frac["plug-in injections"].std()
-assert all(tot[k].mean() < n_mergers for k in ("plug-in injections", "joint", "exact selection"))
+assert all(n_mergers - tot[k].mean() > 2 * tot[k].std() for k in ("plug-in injections", "joint"))
+assert abs(tot["exact selection"].mean() - n_mergers) < 3 * tot["exact selection"].std()
 ```
 
 Without a selection, `total` is just the number of detections. The joint
 fit's error bars are larger than the plug-in fit's, because they include
 the uncertainty of the detection probability from a finite number of
-injections; the plug-in fit treats that probability as exact. All three
-corrected totals fall below the truth, for two reasons. This injection set
-recovered more light signals than $p_{\rm det}$ predicts, which lowers the
-plug-in and joint totals only:
+injections; the plug-in fit treats that probability as exact. Both fall
+below the truth because this injection set recovered more light signals
+than $p_{\rm det}$ predicts, which the exact-selection fit does not share:
 
 ```{code-cell} python
 expected = injected * exact.values
@@ -199,10 +199,10 @@ print("expected from p_det:          ", expected[:5].round(1).tolist())
 assert recovered[:5].sum() > expected[:5].sum()
 ```
 
-And the default prior pulls a poorly determined total down, which lowers
-all three ([user guide](../user-guide/selection)); here the lightest bins
-hold few detections. Before quoting a total from such data, check its
-calibration on simulations ({doc}`07_validation`).
+A total this poorly determined also depends on the prior, which by default
+pulls it down ([user guide](../user-guide/selection)). Before quoting a
+total from such data, check its calibration on simulations
+({doc}`07_validation`).
 
 The joint fit also returns posterior draws of the detection probability
 (`info["selection_draws"]`). The catalogue informs only the ratios between
