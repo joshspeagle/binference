@@ -1644,6 +1644,8 @@ class PopulationResult(_IndividualMixin):
                 if name in self.info:
                     engine_kwargs.setdefault(name, self.info[name])
             n = self.n_draws // self.n_chains
+        elif key == "auto":  # its own defaults, as for a new fit
+            n = None
         else:
             n = self.n_draws
         ref = infer(

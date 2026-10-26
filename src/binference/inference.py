@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from ._utils import RNGLike, is_integer_array
+from ._utils import RNGLike, check_positive, is_integer_array
 from .bins import Bins
 from .model import PopulationModel
 from .priors import PopulationPrior
@@ -91,9 +91,11 @@ class Auto(Engine):
         **engine_kwargs: Any,
     ) -> None:
         super().__init__(model, rng=rng, progress=progress)
-        self.target_ess = float(target_ess)
+        self.target_ess = float(check_positive(target_ess, "target_ess"))
+        if not 0.0 <= gibbs_max_missing < 1.0:
+            raise ValueError(f"gibbs_max_missing must be in [0, 1); got {gibbs_max_missing}.")
         self.gibbs_max_missing = float(gibbs_max_missing)
-        self.nnz_limit = float(nnz_limit)
+        self.nnz_limit = float(check_positive(nnz_limit, "nnz_limit"))
         self.engine_kwargs = engine_kwargs
         self._rng_arg = rng
 
@@ -112,7 +114,7 @@ class Auto(Engine):
             else:
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore", BinferenceWarning)
-                    f = m.missing_information(MAP(m).run().rho)
+                    f = m.missing_information(MAP(m).run().value)  # component weights
                 if f <= self.gibbs_max_missing:
                     chains = kw.get("n_chains", _options(Gibbs)["n_chains"].default)
                     n = int(np.ceil(self.target_ess * (1 + f) / (1 - f) / chains))
@@ -125,17 +127,24 @@ class Auto(Engine):
         ]
         if not out:
             raise ValueError(
-                f"No engine that method='auto' chooses from takes all of {sorted(kw)}; "
-                "pass method= explicitly."
+                f"None of the engines method='auto' can use for this model (Laplace, NUTS, "
+                f"and Gibbs where it applies) takes all of {sorted(kw)}; pass method= "
+                "explicitly."
             )
         return out
 
     def run(self, n_samples: int | None = None) -> PopulationResult:
-        """Run the first candidate that applies (see the class docstring)."""
+        """Run the first candidate that applies (see the class docstring).
+
+        ``n_samples`` is the number of draws per chain; Laplace returns as many in
+        total as NUTS's default four chains would (4000 by default).
+        """
         plan = self.candidates()
-        reason = "the exact default"
         for i, (key, why, n_gibbs) in enumerate(plan):
-            n = n_samples if n_samples is not None else n_gibbs or _DEFAULT_SAMPLES[key]
+            if key == "laplace":
+                n = 4 * (n_samples or _DEFAULT_SAMPLES["nuts"])
+            else:
+                n = n_samples or n_gibbs or _DEFAULT_SAMPLES[key]
             engine = METHODS[key](
                 self.model, rng=self._rng_arg, progress=self.progress, **self.engine_kwargs
             )
@@ -146,6 +155,7 @@ class Auto(Engine):
             else:
                 result = engine.run(int(n))
                 reason = why or (reason if i else "the only engine that takes these options")
+            del engine
             result.info["auto_method"] = key
             result.info["auto_reason"] = reason
             return result
@@ -154,22 +164,23 @@ class Auto(Engine):
     def _try(self, engine: Laplace, n: int) -> tuple[PopulationResult | None, str]:
         """Laplace's result when it is kept (its warnings re-emitted), else None.
 
-        A first pass of 1000 proposals stops the trial early when the importance ESS
-        it projects for the full run is below half of ``target_ess``.
+        Laplace is only tried with no engine options, so it has its default 2n
+        proposals. A first pass of 1000 of them stops the trial early when the
+        importance ESS it projects for the full run is below half of ``target_ess``.
         """
         failed = None, "the Laplace importance check failed"
+        big = self.model.likelihoods.nnz > self.nnz_limit  # kept whatever its check
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             try:
-                full = engine.n_proposals or 2 * n
-                big = self.model.likelihoods.nnz > self.nnz_limit  # kept whatever its check
-                if engine.importance and engine.n_proposals is None and full > 1000 and not big:
-                    engine.n_proposals = 1000
-                    probe = engine.run(500)
-                    engine.n_proposals = None
-                    if probe.info["ess_importance"] * full / 1000 < self.target_ess / 2:
+                if not big and 2 * n > 1000:
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        engine.n_proposals = 1000
+                        probe = engine.run(500)
+                        engine.n_proposals = None
+                    if probe.info["ess_importance"] * 2 * n / 1000 < self.target_ess / 2:
                         return failed
-                    caught.clear()
                 res = engine.run(n)
             except (ValueError, FloatingPointError, np.linalg.LinAlgError):
                 return None, "the Laplace approximation failed"

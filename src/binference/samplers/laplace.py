@@ -96,16 +96,18 @@ class Laplace(Engine):
         self._eigen: tuple | None = None  # the mode and curvature, found once per engine
 
     def _mode_and_eigen(self):
-        # the mode, the Hessian there, the eigen-decomposition of -H and the covariance (N-11)
-        if self._eigen is None:
-            self._eigen = self._find_mode_and_eigen()
-        *out, clipped = self._eigen
-        if clipped:
-            warn(
-                "The Hessian at the mode is not positive definite; clipping eigenvalues.",
-                ApproximationWarning,
-            )
-        return tuple(out)
+        # the mode, the Hessian there, the eigen-decomposition of -H and the covariance
+        # (N-11): found once per engine (and step), with the warnings that raised, which
+        # every run repeats
+        if self._eigen is None or self._eigen[0] != self.step:
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                found = self._find_mode_and_eigen()
+            self._eigen = (self.step, found, caught)
+        _, found, caught = self._eigen
+        for w in caught:
+            warnings.warn_explicit(w.message, w.category, w.filename, w.lineno)
+        return tuple(a.copy() for a in found)  # callers may modify what they get
 
     def _find_mode_and_eigen(self):
         m = self.model
@@ -117,10 +119,13 @@ class Laplace(Engine):
         if eig is None:
             raise ValueError("The Hessian at the mode is not finite (a non-finite gradient).")
         lam, U = eig
-        clipped = bool(np.any(lam <= 0))
-        if clipped:
+        if np.any(lam <= 0):
+            warn(
+                "The Hessian at the mode is not positive definite; clipping eigenvalues.",
+                ApproximationWarning,
+            )
             lam = np.maximum(lam, 1e-8 * max(1.0, lam.max()))
-        return x0, H, lam, U, (U / lam) @ U.T, clipped
+        return x0, H, lam, U, (U / lam) @ U.T
 
     def mode_and_covariance(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Mode, covariance and Hessian in unconstrained coordinates."""

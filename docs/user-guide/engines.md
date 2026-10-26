@@ -35,7 +35,8 @@ print(res.mean[:4].round(3), gib.mean[:4].round(3), est.rho[:4].round(3))
 
 Extra keyword arguments go to the engine, e.g. `n_chains`, `n_warmup`,
 `target_accept` or `n_jobs` for NUTS. `n_samples` is the number of draws
-**per chain** for NUTS and Gibbs, and the total for the other samplers.
+**per chain** for NUTS, Gibbs and `"auto"` (whose Laplace draws as many as
+four chains would), and the total for the other samplers.
 `rng` accepts a seed or a `numpy.random.Generator`, and the same seed gives
 the same draws.
 

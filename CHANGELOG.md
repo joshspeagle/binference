@@ -41,8 +41,12 @@ First development version.
   joint conjugate models and for conjugate priors with at most 0.98 missing
   information (run long enough for a bulk ESS of about 400), else Laplace when its
   importance check passes with an ESS of at least 400, else NUTS. The choice and
-  reason are in `result.info["auto_method"]` and `["auto_reason"]`. Pass
-  `method="nuts"` for the previous behaviour.
+  reason are in `result.info["auto_method"]` and `["auto_reason"]`. The rules are one
+  engine, `binference.inference.Auto`, whose thresholds (`target_ess`,
+  `gibbs_max_missing`, `nnz_limit`) are options; `PopulationEstimator` defaults to it
+  too. Pass `method="nuts"` for the previous behaviour.
+- `Laplace` finds its mode and curvature once per engine (and `step`), not on every
+  `run`.
 
 ### Added
 

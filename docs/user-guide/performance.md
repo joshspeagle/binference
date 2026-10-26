@@ -59,9 +59,11 @@ The engines spend these differently:
    you need, shorten the run: `n_samples=500, n_warmup=500` often suffices for
    well-behaved problems. Always check the diagnostics afterwards.
 6. **Scale up gracefully.** For very large problems, `method="map"` gives the
-   estimate in seconds, `method="laplace"` adds approximate error bars, and
-   `method="auto"` switches from NUTS to Laplace above $2\times10^7$ non-zero
-   likelihood values.
+   estimate in seconds, and `method="laplace"` adds approximate error bars. The
+   default, `method="auto"`, uses Gibbs or Laplace where the benchmark matrix
+   showed them accurate and faster than NUTS, and keeps Laplace (flagged
+   approximate) instead of NUTS above $2\times10^7$ stored likelihood values
+   ([engines](engines.md)).
 7. **Threads.** NumPy's BLAS may use several threads for the matrix–vector
    products. For many small fits, set `OMP_NUM_THREADS=1` and run the fits in
    parallel instead.
