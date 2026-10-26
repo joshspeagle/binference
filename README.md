@@ -2,12 +2,13 @@
 
 **Population and hierarchical inference with PDFs.**
 
-binference infers the distribution of a population, and the posteriors of the
-individual objects in it, from noisy per-object information over a set of
-bins: likelihoods, posteriors computed under an interim prior, posterior
-samples, response matrices or classifier outputs. It samples the exact
-hierarchical posterior by default, so the error bars on every bin, every
-derived quantity and every object are honest.
+Many objects are each measured with noise. For each one you have a likelihood,
+a posterior computed under some prior, posterior samples, counts in measured
+bins with a response, or a classifier's output. binference infers the
+distribution of the population the objects come from, with calibrated error
+bars on every bin, derived quantity and object, and the posterior of each
+object under that population. By default it chooses an engine from rules
+measured on a benchmark matrix, and says which engine it chose and why.
 
 ![Population posteriors for a mock catalogue](https://raw.githubusercontent.com/joshspeagle/binference/main/docs/_static/quickstart.png)
 
@@ -18,7 +19,7 @@ poorly the data pin down individual bins, since neighbours trade off against
 each other. A Gaussian-process prior on the log-density (right) shares
 strength between bins.*
 
-## The model
+## One model, many fields
 
 For objects $i = 1..N$ with data $d_i$ and bins $k = 1..K$, let
 $L_{ik}$ be object $i$'s likelihood averaged over bin $k$ and $\rho$ the
@@ -26,13 +27,22 @@ population fractions. Then
 
 $$p(\rho \mid \{d_i\}) \propto p(\rho)\prod_{i=1}^{N}\Big(\sum_{k=1}^{K} L_{ik}\,\rho_k\Big)^{w_i}.$$
 
-This is the hierarchical model behind photometric-redshift $n(z)$ inference
-(Leistedt, Mortlock & Peiris 2016) and Gaia colour–magnitude diagrams (Leistedt & Hogg 2017). The same
-model appears elsewhere as iterative Bayesian unfolding in particle physics,
-the NPMLE / $g$-modelling of empirical Bayes, EM quantification in machine
-learning, and mixed-stock analysis in genetics. Stacking the per-object
-posteriors computed under an interim prior is exactly one EM step from that
-prior. binference runs the iteration to convergence and quantifies its uncertainty.
+The same model has been written down separately in several fields:
+
+| field | name there | objects | bins | tutorial |
+|---|---|---|---|---|
+| astronomy | redshift distributions $n(z)$, population inference with selection | galaxies, stars, black holes | redshift, colour–magnitude cells, mass | [quick start](https://joshspeagle.github.io/binference/tutorials/01_quickstart.html), [populations with selection](https://joshspeagle.github.io/binference/tutorials/11_populations_with_selection.html) |
+| particle physics | unfolding | events | bins of the true spectrum | [categories and unfolding](https://joshspeagle.github.io/binference/tutorials/06_categories_unfolding.html) |
+| statistics | empirical Bayes deconvolution, $g$-modelling, NPMLE | units with noisy estimates | a grid of effect sizes | [empirical Bayes](https://joshspeagle.github.io/binference/tutorials/09_empirical_bayes.html) |
+| machine learning | quantification under label shift | items with classifier scores | classes | [categories and unfolding](https://joshspeagle.github.io/binference/tutorials/06_categories_unfolding.html) |
+| ecology | mixed-stock analysis | individuals with genotypes | source populations | [mixed stocks](https://joshspeagle.github.io/binference/tutorials/10_mixed_stocks.html) |
+
+Adding up the per-object posteriors computed under an interim prior, the usual
+shortcut, is exactly one EM step from that prior
+([theory](https://joshspeagle.github.io/binference/theory.html#point-estimates-em-is-iterated-stacking)). binference runs the
+iteration to convergence and quantifies its uncertainty. The
+[background pages](https://joshspeagle.github.io/binference/background/index.html)
+describe each field's methods and software and how binference relates to them.
 
 ## Installation
 

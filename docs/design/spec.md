@@ -21,6 +21,8 @@ Requirements carry IDs (`R-…`) so that tests and code can point back to them. 
 
 `binference` turns **a catalogue of noisy, heteroscedastic, arbitrarily shaped per-object PDFs over a set of bins or categories** into **a posterior over the population distribution** (bin fractions or rates). It also returns **consistent posteriors for each individual object** under that population. Typical inputs are photo-z PDFs, positions on a colour–magnitude grid, classifier outputs over classes, or a detector response.
 
+**Vision** (DECISIONS #33): as easy to pick up as scikit-learn, with every part reachable by an expert; stated in `docs/vision.md`.
+
 The baseline model has been implemented at least four times in astronomy alone (Leistedt+2016, Leistedt & Hogg 2017, CHIPPR, `frankenz`). It reappears as iterative Bayesian unfolding in HEP, NPMLE/g-modelling in statistics, EMQ quantification in ML, and genetic stock identification in ecology. Every implementation the census found is one of the following:
 
 - stale paper code;
@@ -28,16 +30,21 @@ The baseline model has been implemented at least four times in astronomy alone (
 - missing uncertainty quantification;
 - quantifying uncertainty with approximations known to under-cover, such as mean-field VB.
 
-None checks its own calibration. `binference`'s value is therefore **usability, correct input conventions, calibrated uncertainty, validation and speed**, not a new model.
+None checks its own calibration. `binference`'s value is therefore **correct input conventions, calibrated uncertainty, built-in validation and speed**, plus what existing implementations leave out: inputs whose own uncertainty is propagated (selection functions from injections, responses from calibration sets), bases that relax the flat-within-bin approximation, and defaults chosen automatically from measured evidence.
 
-Guiding principles:
+Guiding principles (DECISIONS #34); their wording, and what the code does for each, is in `docs/vision.md`:
 
-1. **Correct by construction.** The API makes the user say what they are passing: likelihoods or posteriors, which interim prior, and masses or densities. Silent convention mismatches are the most common real-world failure (stacking, interim priors, unequal bins), so the API is designed against them.
-2. **Easy things are one line, hard things are possible.** There is a one-call API (`binference.infer`). Beneath it sit configurable model and sampler objects, and beneath those, raw log-densities for external samplers. This mirrors emcee, dynesty, nautilus and sbi.
-3. **Exact inference by default; approximations are labelled.** The default sampler targets the exact posterior. Fast approximations (Laplace, mean-field VB, EM, bootstrap) are available, but their results carry a flag and a warning describing their known failure modes.
-4. **Self-validating.** Diagnostics are computed automatically. Simulation-based calibration (SBC) and coverage tools ship in the package, and the test suite checks samplers against exact references.
-5. **Lightweight core.** The core needs only NumPy and SciPy. Plotting, xarray export and future JAX or flow backends are optional extras.
-6. **One result object.** Every engine returns the same result type with the same methods: summaries, intervals, functionals, individual-object outputs, diagnostics, plots and serialisation.
+1. Correct by construction.
+2. Easy things are one line, hard things are possible (as emcee, dynesty, nautilus and sbi).
+3. Exact inference by default; approximations are labelled.
+4. Self-validating.
+5. Lightweight core.
+6. One way to read a result (DECISIONS #85).
+7. Everything exposed, with sensible defaults (DECISIONS #16).
+8. Adaptive, evidence-based defaults, reported to the user (DECISIONS #14, #88).
+9. The user's bins define the problem; internals adapt (DECISIONS #17, #20, #21).
+10. Uncertain inputs are modelled jointly by default; fixing them is an explicit choice (DECISIONS #10, #28, #30).
+11. Fast, as measured by the benchmarks.
 
 ---
 
@@ -64,22 +71,22 @@ The goal is the **population distribution** $\rho \in \Delta^{K-1}$ (the fractio
 
 ### 2.3 Scope
 
-**In scope for v0.1 (must):**
-- **Input conversion:** discrete and binned populations on 1-D grids, N-D grids and unordered categories, with converters from posteriors with interim priors, samples, analytic distributions, response matrices and classifier outputs.
-- **Priors:** the conjugate simplex family (Dirichlet, generalised Dirichlet, Dirichlet-tree and Pólya tree) and the smooth logistic-normal family (fixed covariance, random-walk/GMRF, Gaussian process) with hyperparameter inference.
-- **Selection effects:** for fractions and for rates.
-- **Inference engines:** NUTS (default), Gibbs, MAP/EM, Laplace with optional importance correction, mean-field VB and bootstrap.
-- **Outputs:** population posteriors, realised-sample histograms and individual-object posteriors and draws, diagnostics, SBC/coverage tools, simulation utilities, plotting and serialisation.
-- **Documentation:** a theory page in clean notation, executed tutorials and an API reference.
+**In scope (implemented):**
+- **Input conversion:** discrete and binned populations on 1-D grids, N-D grids and unordered categories, with converters from likelihoods, posteriors with interim priors, samples, functions and distributions, binned measurements with a response matrix, and classifier outputs.
+- **Bases:** B-spline bases over the bins (`Basis`; order 1 or higher relaxes the flat-within-bin approximation), and a binning-bias check for that approximation (DECISIONS #47, #86).
+- **Priors:** the conjugate simplex family (Dirichlet, generalised Dirichlet, Dirichlet-tree and Pólya tree), the smooth logistic-normal family (fixed covariance, random-walk/GMRF, Gaussian process) with hyperparameter inference, and Gamma rates.
+- **Selection effects** for fractions and for rates, including selection functions learned from injection campaigns and inferred jointly with the population (DECISIONS #36, #80).
+- **Responses** tallied from labelled calibration sets, inferred jointly with the population (DECISIONS #28, #81).
+- **Rates:** derived for every fractions fit, and modelled directly with `GammaRates` (DECISIONS #9, #78).
+- **Inference engines:** `method="auto"` (default, DECISIONS #88), NUTS, Gibbs, MAP/EM, Laplace with optional importance correction, mean-field VB and bootstrap.
+- **Outputs:** population posteriors, best fits, realised-sample histograms, individual-object posteriors and draws (including values within bins), leave-one-out posteriors, diagnostics, SBC/coverage tools, simulation utilities, plotting and serialisation.
+- **Documentation:** a theory page in clean notation, executed tutorials per field, background pages on each field's methods, and an API reference.
 
-**Should, in v0.1 if time allows, otherwise v0.2:**
+**Later (see `notes/review/post-v1.md` and the deferred issues):**
 - A hierarchical Dirichlet model with uncertain concentration and an uncertain reference sample (the coherent replacement for frankenz's "flexible reference").
 - Rates with logistic-normal priors.
 - Evidence estimates.
-- A cross-validation helper for choosing binnings and priors.
-
-**Roadmap (v0.2 and later):**
-- Continuous population densities: smooth parametric maps and normalising flows / flow matching trained via exact-grid, Monte Carlo/IWAE or joint hierarchical objectives, behind an optional JAX extra.
+- Continuous population densities: smooth parametric maps and normalising flows / flow matching, behind an optional JAX extra.
 - Sample-variance (overdispersion) models.
 - A JAX/GPU backend.
 - Minibatch methods for $N \gtrsim 10^8$.
@@ -87,8 +94,7 @@ The goal is the **population distribution** $\rho \in \Delta^{K-1}$ (the fractio
 - Exporters to qp, SACC, CosmoSIS and RAIL.
 
 **Out of scope:**
-- Computing per-object likelihoods from raw data (photometry fitting, classifier training, detector simulation). `binference` starts where each object already has a PDF or likelihood.
-- Learning the selection function itself.
+- Computing per-object likelihoods from raw data (photometry fitting, classifier training, detector simulation). `binference` starts where each object already has a PDF, likelihood, samples or a measured bin.
 
 ---
 
