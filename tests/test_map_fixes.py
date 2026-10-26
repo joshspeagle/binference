@@ -8,6 +8,8 @@ from binference import Bins, ConvergenceWarning, PopulationModel, Selection
 from binference import priors as P
 from binference.samplers import MAP
 
+GAP = 1e3 * 1e-8  # MAP's guarantee: tol = 1e-8, or 1e3 * tol once round-off stops it
+
 
 def _mock(n=2000, K=12, noise=0.15, seed=1):
     return binference.simulate.mock_1d(n, Bins.linear(0, 3, K), noise=noise, rng=seed)
@@ -31,7 +33,7 @@ def test_gamma_rates_use_mixsqp_and_reach_the_mode(shape, rate, selection):
     m = PopulationModel(_mock().likelihoods, P.GammaRates(shape, rate), selection=sel)
     sqp = MAP(m).run()
     assert sqp.info["algorithm"] == "mixsqp" and sqp.converged and sqp.n_iter < 100
-    assert sqp.kkt_gap < 1e-6
+    assert sqp.kkt_gap <= GAP
     # the total is profiled out exactly: Lambda = W + sum(shape - 1) over the exposure
     e = m._S + rate
     np.testing.assert_allclose(sqp.value @ e, m.W + m.K * (shape - 1.0), rtol=1e-10)
@@ -104,7 +106,7 @@ def test_a_zero_rate_under_a_gamma_prior_is_no_kkt_violation(seed):
     sel = Selection(np.linspace(2.0, 0.5, 12), "on_truth", scale="exposure")
     m = PopulationModel(_mock(seed=seed).likelihoods, P.GammaRates(1.0, 0.5), selection=sel)
     est = MAP(m).run()
-    assert est.converged and est.kkt_gap < 1e-6
+    assert est.converged and est.kkt_gap <= GAP
 
 
 def test_the_rates_gap_is_one_sided_at_a_rate_near_zero():
