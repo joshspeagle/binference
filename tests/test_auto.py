@@ -83,3 +83,27 @@ def test_engine_options_rule_out_the_engines_that_do_not_take_them(short_nuts):
     assert res.info["auto_reason"] == "the only engine that takes these options"
     with pytest.raises(ValueError, match="No engine"):
         binference.infer(lk, df=4, target_accept=0.9)
+
+
+def test_a_hopeless_laplace_trial_stops_after_its_first_thousand_proposals(monkeypatch):
+    from binference.samplers import Laplace
+
+    calls = []
+    run = Laplace.run
+    monkeypatch.setattr(
+        Laplace, "run", lambda self, n: calls.append(self.n_proposals) or run(self, n)
+    )
+    model = binference.PopulationModel(_lk(3.0), P.Dirichlet(0.1))
+    res, reason = inf.Auto(model)._try(Laplace(model, rng=0), 4000)
+    assert res is None and reason == "the Laplace importance check failed"
+    assert calls == [1000]
+
+
+@pytest.mark.filterwarnings("ignore::binference.ApproximationWarning")
+def test_laplace_finds_its_mode_once_per_engine(monkeypatch):
+    from binference.samplers import Laplace
+
+    engine = Laplace(binference.PopulationModel(_lk(1.0)), rng=0)
+    first = engine.run(100)
+    monkeypatch.setattr(Laplace, "_find_mode_and_eigen", lambda self: pytest.fail("refound"))
+    assert np.array_equal(engine.run(100).info["mode"], first.info["mode"])

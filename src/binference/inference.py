@@ -152,19 +152,33 @@ class Auto(Engine):
         raise AssertionError("unreachable: NUTS or Laplace is always last")  # pragma: no cover
 
     def _try(self, engine: Laplace, n: int) -> tuple[PopulationResult | None, str]:
-        """Laplace's result when it is kept (its warnings re-emitted), else None."""
+        """Laplace's result when it is kept (its warnings re-emitted), else None.
+
+        A first pass of 1000 proposals stops the trial early when the importance ESS
+        it projects for the full run is below half of ``target_ess``.
+        """
+        failed = None, "the Laplace importance check failed"
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             try:
+                full = engine.n_proposals or 2 * n
+                big = self.model.likelihoods.nnz > self.nnz_limit  # kept whatever its check
+                if engine.importance and engine.n_proposals is None and full > 1000 and not big:
+                    engine.n_proposals = 1000
+                    probe = engine.run(500)
+                    engine.n_proposals = None
+                    if probe.info["ess_importance"] * full / 1000 < self.target_ess / 2:
+                        return failed
+                    caught.clear()
                 res = engine.run(n)
             except (ValueError, FloatingPointError, np.linalg.LinAlgError):
                 return None, "the Laplace approximation failed"
         if not res.approximate and res.info.get("ess_importance", 0.0) >= self.target_ess:
             reason = "the Laplace importance check passed"
-        elif self.model.likelihoods.nnz > self.nnz_limit:
+        elif big:
             reason = f"more than {self.nnz_limit:.0e} likelihood entries"
         else:
-            return None, "the Laplace importance check failed"
+            return failed
         for w in caught:
             warnings.warn_explicit(w.message, w.category, w.filename, w.lineno)
         return res, reason

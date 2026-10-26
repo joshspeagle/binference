@@ -51,7 +51,12 @@ def _mcse(res):
 
 @pytest.mark.parametrize(
     ("cell", "engine"),
-    [(cell, e) for cell, (engines, _) in ENGINES.items() for e in ("auto", *engines)],
+    # "auto" covers the engine it picks
+    [
+        (cell, e)
+        for cell, (engines, pick) in ENGINES.items()
+        for e in ("auto", *(e for e in engines if e != pick))
+    ],
 )
 def test_engines_reproduce_the_reference_posterior_of_a_matrix_cell(matrix, cell, engine):
     name, prior_name = cell

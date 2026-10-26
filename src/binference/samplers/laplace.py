@@ -93,9 +93,21 @@ class Laplace(Engine):
         self.df = None if df is None else float(df)
         self.inflate = float(check_positive(inflate, "inflate"))
         self.step = float(check_positive(step, "step"))
+        self._eigen: tuple | None = None  # the mode and curvature, found once per engine
 
     def _mode_and_eigen(self):
         # the mode, the Hessian there, the eigen-decomposition of -H and the covariance (N-11)
+        if self._eigen is None:
+            self._eigen = self._find_mode_and_eigen()
+        *out, clipped = self._eigen
+        if clipped:
+            warn(
+                "The Hessian at the mode is not positive definite; clipping eigenvalues.",
+                ApproximationWarning,
+            )
+        return tuple(out)
+
+    def _find_mode_and_eigen(self):
         m = self.model
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", ConvergenceWarning)
@@ -105,13 +117,10 @@ class Laplace(Engine):
         if eig is None:
             raise ValueError("The Hessian at the mode is not finite (a non-finite gradient).")
         lam, U = eig
-        if np.any(lam <= 0):
-            warn(
-                "The Hessian at the mode is not positive definite; clipping eigenvalues.",
-                ApproximationWarning,
-            )
+        clipped = bool(np.any(lam <= 0))
+        if clipped:
             lam = np.maximum(lam, 1e-8 * max(1.0, lam.max()))
-        return x0, H, lam, U, (U / lam) @ U.T
+        return x0, H, lam, U, (U / lam) @ U.T, clipped
 
     def mode_and_covariance(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Mode, covariance and Hessian in unconstrained coordinates."""
