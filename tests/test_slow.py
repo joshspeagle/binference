@@ -35,31 +35,81 @@ def _fit(method, **kw):
     return fit
 
 
+def _sbc(prior, fit, n_simulations, n_draws, rng):
+    sim = binference.simulate.prior_predictive(prior, BINS4, n_objects=40, noise=0.2)
+    return binference.validation.sbc(
+        sim, fit, n_simulations=n_simulations, n_draws=n_draws, rng=rng
+    )
+
+
+def _pvalues(res):
+    # the chi-square is the more sensitive to width errors, the ECDF test to bias
+    return {
+        m: res.pvalues(n_bins=10) if m == "chisquare" else res.pvalues(method=m)
+        for m in ("chisquare", "ecdf")
+    }
+
+
+def _assert_uniform_ranks(res, alpha=1e-3):
+    for method, p in _pvalues(res).items():
+        assert np.all(p > alpha / p.size), (method, dict(zip(res.names, p, strict=True)))
+
+
 @pytest.mark.parametrize(
-    ("method", "kw", "prior"),
-    [
-        ("nuts", {"n_chains": 2, "n_warmup": 300, "n_samples": 300}, P.Dirichlet(1.0)),
-        ("gibbs", {"n_chains": 4, "n_warmup": 100, "n_samples": 400}, P.Dirichlet(1.0)),
-        ("gibbs", {"n_chains": 4, "n_warmup": 100, "n_samples": 400}, P.GeneralizedDirichlet(2.0)),
-        (
-            "nuts",
-            {"n_chains": 2, "n_warmup": 300, "n_samples": 300},
-            P.LogisticRandomWalk(order=1, scale=0.8),
-        ),
-    ],
-    ids=["nuts-dirichlet", "gibbs-dirichlet", "gibbs-gdirichlet", "nuts-randomwalk"],
+    "prior",
+    [P.Dirichlet(1.0), P.LogisticRandomWalk(order=1, scale=0.8)],
+    ids=["dirichlet", "randomwalk"],
 )
 # low ESS over-disperses the ranks, which only makes the uniformity test stricter
 @pytest.mark.filterwarnings(
     "ignore:In .* fits the smallest bulk ESS:binference.ConvergenceWarning"
 )
-def test_sbc(method, kw, prior):
-    sim = binference.simulate.prior_predictive(prior, BINS4, n_objects=40, noise=0.2)
-    res = binference.validation.sbc(
-        sim, _fit(method, prior=prior, **kw), n_simulations=200, n_draws=99, rng=2026
-    )
-    p = res.pvalues(n_bins=10)
-    assert np.all(p > 1e-3 / p.size), dict(zip(res.names, p, strict=True))
+def test_sbc_nuts(prior):
+    fit = _fit("nuts", prior=prior, n_chains=2, n_warmup=300, n_samples=300)
+    _assert_uniform_ranks(_sbc(prior, fit, n_simulations=200, n_draws=99, rng=2026))
+
+
+# Gibbs at K = 4, N = 40 takes 0.14 s per fit with the Dirichlet prior, which affords 1000
+# simulations, and 0.24 s with the generalised Dirichlet, which gets 500 to bound the run
+# time. Ranking 19 draws per fit keeps them nearly independent: with these settings the
+# smallest bulk ESS of a fit was 34 in 3000 simulations for the Dirichlet prior and 45 in
+# 2000 for the generalised Dirichlet.
+GIBBS_DRAWS = 19
+GIBBS_DIRICHLET = {"n_chains": 4, "n_warmup": 100, "n_samples": 600}
+
+
+@pytest.mark.parametrize(
+    ("prior", "kw", "n_simulations"),
+    [
+        (P.Dirichlet(1.0), GIBBS_DIRICHLET, 1000),
+        (P.GeneralizedDirichlet(2.0), {"n_chains": 4, "n_warmup": 100, "n_samples": 400}, 500),
+    ],
+    ids=["dirichlet", "gdirichlet"],
+)
+def test_sbc_gibbs(prior, kw, n_simulations):
+    # unfiltered, sbc's ESS warning is an error: every fit has min_ess >= GIBBS_DRAWS
+    res = _sbc(prior, _fit("gibbs", prior=prior, **kw), n_simulations, GIBBS_DRAWS, 2026)
+    assert np.all(res.min_ess >= GIBBS_DRAWS)
+    _assert_uniform_ranks(res)
+
+
+@pytest.mark.filterwarnings(
+    "ignore:In .* fits the smallest bulk ESS:binference.ConvergenceWarning"
+)
+def test_sbc_gibbs_rejects_posteriors_about_18_percent_too_narrow():
+    """Negative control: counting half the objects twice narrows the posteriors by about
+    18% (sqrt(40/60) = 0.82). The Dirichlet Gibbs configuration rejects it with both tests
+    already at 300 simulations: in 10 of 10 seeds, every smallest p-value below 4e-10
+    against a threshold of 2e-4."""
+    prior = P.Dirichlet(1.0)
+    fit = _fit("gibbs", prior=prior, **GIBBS_DIRICHLET)
+
+    def fit_doubled(lk, rng):
+        return fit(lk.with_weights(np.repeat([1, 2], lk.N // 2)), rng)
+
+    res = _sbc(prior, fit_doubled, 300, GIBBS_DRAWS, rng=2027)
+    for method, p in _pvalues(res).items():
+        assert np.any(p <= 1e-3 / p.size), (method, dict(zip(res.names, p, strict=True)))
 
 
 @pytest.mark.xfail(strict=True, reason="mean-field VB is over-confident (documented)")
@@ -73,11 +123,13 @@ def test_sbc_fails_for_vb():
 
 
 def test_coverage_gibbs():
+    # 1000 simulations: the 95% tolerance is +-0.028, so posteriors 15% too narrow (95%
+    # coverage 0.904) fail in each quantity with probability 0.98 (0.79 with 300)
     sim = binference.simulate.prior_predictive(P.Dirichlet(1.0), BINS4, n_objects=60, noise=0.25)
     cov = binference.validation.coverage(
         sim,
         _fit("gibbs", n_samples=500, n_warmup=100),
-        n_simulations=300,
+        n_simulations=1000,
         levels=(0.68, 0.95),
         functionals={"mean": lambda r: r @ BINS4.centers},
         rng=99,
@@ -87,52 +139,60 @@ def test_coverage_gibbs():
     assert np.all(np.abs(rates - cov.levels[:, None]) < 4 * se), rates
 
 
-def _geweke_z_scores(selection, augment_missed=True):
-    """Marginal-conditional vs successive-conditional simulation of (rho, data).
+def _geweke_z_scores(selection, augment_missed=True, prior=None):
+    """Marginal-conditional vs successive-conditional simulation of (population, data).
 
-    Returns z-scores comparing the means of rho, rho**2 and the data histogram.
-    ``augment_missed=False`` deliberately breaks the Gibbs kernel under
+    Returns z-scores comparing the means of the population, its square and the data
+    histogram. ``prior`` defaults to a Dirichlet; for a rate prior the number of
+    objects is part of the data, ``N ~ Poisson(S . lambda)`` with ``selection`` the
+    exposure. ``augment_missed=False`` deliberately breaks the Gibbs kernel under
     selection (the missed objects are not imputed) as a negative control.
     """
     rng = np.random.default_rng(31)
     K, J, N = 3, 4, 12
     E = rng.dirichlet(np.full(J, 0.7), size=K)  # emission probabilities p(d | bin)
-    alpha = np.array([1.5, 1.0, 2.0])
-    prior = P.Dirichlet(alpha).bind(Bins.categories(K))
+    prior = P.Dirichlet([1.5, 1.0, 2.0]) if prior is None else prior
+    bound = prior.bind(Bins.categories(K))
+    rates = bound.kind == "rates"
     S = np.ones(K) if selection is None else np.asarray(selection)
+
+    def draw_objects(value, g):  # true bins of the observed objects
+        q = value * S
+        return g.choice(K, size=g.poisson(q.sum()) if rates else N, p=q / q.sum())
 
     def draw_data(z, g):
         u = g.random(z.size)[:, None]
         return (np.cumsum(E[z], axis=1) < u).sum(axis=1)
 
-    def stats_of(rho, d):
-        return np.r_[rho, rho**2, np.bincount(d, minlength=J) / N]
+    def stats_of(value, d):
+        return np.r_[value, value**2, np.bincount(d, minlength=J) / N]
 
     # marginal-conditional
     M = 20000
     mc = np.empty((M, 2 * K + J))
     for m in range(M):
-        rho = rng.dirichlet(alpha)
-        q = rho * S / (S @ rho)
-        z = rng.choice(K, size=N, p=q)
-        mc[m] = stats_of(rho, draw_data(z, rng))
-    # successive-conditional: Gibbs on (z, rho) | d, then d | z
+        value = bound.sample(1, rng)[0]
+        mc[m] = stats_of(value, draw_data(draw_objects(value, rng), rng))
+    # successive-conditional: Gibbs on (z, value) | d, then d | z (and, for rates,
+    # (z, d) | value, since the number of objects is data too)
     T = 60000
     sc = np.empty((T, 2 * K + J))
-    rho = rng.dirichlet(alpha)
-    z = rng.choice(K, size=N, p=rho * S / (S @ rho))
+    value = bound.sample(1, rng)[0]
+    z = draw_objects(value, rng)
     d = draw_data(z, rng)
     for t in range(T):
         L = E[:, d].T * S  # effective likelihoods (selection mode "on_truth")
-        counts, z = kern.sample_counts(L, np.ones(N), rho, rng, unit_weights=True)
-        if selection is not None and augment_missed:
-            n_missed = rng.negative_binomial(N, S @ rho)
+        counts, z = kern.sample_counts(L, np.ones(d.size), value, rng, unit_weights=True)
+        if selection is not None and augment_missed and not rates:
+            n_missed = rng.negative_binomial(N, S @ value)
             if n_missed:
-                qm = rho * (1 - S)
+                qm = value * (1 - S)
                 counts = counts + rng.multinomial(n_missed, qm / qm.sum())
-        rho = prior.posterior_sample(counts, rng)
+        value = bound.posterior_sample(counts, rng, exposure=S if rates else None)
+        if rates:
+            z = draw_objects(value, rng)
         d = draw_data(z, rng)
-        sc[t] = stats_of(rho, d)
+        sc[t] = stats_of(value, d)
     # compare means with batch-means standard errors for the autocorrelated chain
     nb = 60
     batches = sc[: (T // nb) * nb].reshape(nb, -1, sc.shape[1]).mean(axis=1)
@@ -168,21 +228,39 @@ def test_gibbs_and_nuts_agree_on_larger_problem():
 # fractions), so the histogram model is exactly right. With a continuous density
 # and coarse bins the piecewise-constant model is misspecified and, for large N,
 # the resulting binning bias exceeds the statistical errors (see the docs).
+def _whitened_residuals(res, truth):
+    """Error of the posterior mean of the first K - 1 fractions, whitened by their posterior
+    covariance: independent N(0, 1) components if the posterior is calibrated and Gaussian."""
+    chol = np.linalg.cholesky(res.cov()[:-1, :-1])
+    return np.linalg.solve(chol, (res.mean - truth)[:-1])
+
+
+def _assert_unit_variance(y):
+    """Pooled mean square of whitened residuals within 4 chi-square standard errors of 1.
+
+    The mean square is 1/c**2 + b**2 for posteriors c times the true width with bias b
+    sd, so it catches width errors and biases alike. (The posterior mean's own
+    shrinkage toward the prior adds about 0.03 with selection.) With n = 300-400 the
+    tolerance is 0.28-0.33: posteriors 15% too narrow fail with probability 0.83-0.87
+    (chi-square power; the +-25% sd window this replaced had 0.08).
+    """
+    v = np.mean(y**2)
+    assert abs(v - 1) < 4 * np.sqrt(2 / y.size), v
+
+
 def test_recovery_with_interim_prior_posteriors():
-    """Posterior means vs true population over many mocks: standardised residuals ~ N(0, 1)."""
+    """Posterior means vs true population over 80 mocks: whitened residuals have unit variance."""
     bins = Bins.linear(0, 3, 6)
     rho_true = binference.simulate.population(bins, "gaussian")
-    zs = []
-    for s in range(40):
+    ys = []
+    for s in range(80):
         mock = binference.simulate.mock_1d(
             800, bins, density=rho_true, interim="gaussian", rng=1000 + s
         )
         lk = Likelihoods.from_table(mock.posteriors, bins, interim=mock.interim)
         res = binference.infer(lk, method="gibbs", rng=s, n_samples=500, check=False)
-        zs.append((res.mean - mock.truth.rho) / res.std)
-    zs = np.concatenate(zs)
-    assert abs(zs.mean()) < 0.2
-    assert 0.75 < zs.std() < 1.25
+        ys.append(_whitened_residuals(res, mock.truth.rho))
+    _assert_unit_variance(np.concatenate(ys))
 
 
 def test_interim_prior_regression():
@@ -209,16 +287,14 @@ def test_selection_recovery():
     bins = Bins.linear(0, 3, 4)
     S = np.array([0.95, 0.6, 0.35, 0.15])
     rho_true = binference.simulate.population(bins, "gaussian")
-    zs = []
-    for s in range(30):
+    ys = []
+    for s in range(100):
         mock = binference.simulate.mock_1d(
             600, bins, density=rho_true, noise=(0.2, 0.5), selection=S, rng=2000 + s
         )
         res = binference.infer(mock.likelihoods, method="gibbs", rng=s, n_samples=500, check=False)
-        zs.append((res.mean - mock.truth.rho) / res.std)
-    zs = np.concatenate(zs)
-    assert abs(zs.mean()) < 0.25
-    assert 0.7 < zs.std() < 1.3
+        ys.append(_whitened_residuals(res, mock.truth.rho))
+    _assert_unit_variance(np.concatenate(ys))
 
 
 def test_binning_bias_with_coarse_bins_is_real():

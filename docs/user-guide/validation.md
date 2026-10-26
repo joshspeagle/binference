@@ -54,20 +54,27 @@ fig = result.plot()
 ```
 
 - **`simulate(rng)`** returns `(likelihoods, true_rho)`.
-  `simulate.prior_predictive` builds one from a prior, and you can write your
-  own to include your real selection or noise model. For rate models, return
-  the true rates: ranks and coverage are then computed on the rates.
+  `simulate.prior_predictive` builds one from a prior, optionally with a known
+  selection in either mode (`selection=`, `selection_mode=`), and you can write
+  your own to include your real selection or noise model. For rate models,
+  return the true rates (as `prior_predictive` does, drawing the number of
+  objects from a Poisson): ranks and coverage are then computed on the rates.
 - **`fit(likelihoods, rng)`** returns a result. Use the settings you will use
   in production.
 - **`loglike`.** Besides each bin, SBC ranks the joint log-likelihood of the
   true population. This is sensitive to errors in the correlations between
   bins.
+- **Tests.** `result.pvalues()` and `result.passed()` test each quantity's
+  ranks with a chi-square on their histogram; `method="ecdf"` uses the ECDF
+  test with simultaneous bands of Säilynoja, Bürkner & Vehtari (2022)
+  instead, which is more sensitive to bias.
 - **Size.** A real check needs a few hundred simulations and roughly
   independent draws: keep `n_draws` below the effective sample size.
 
 binference's slow test suite runs SBC for NUTS and Gibbs, for the Dirichlet,
 generalised-Dirichlet and random-walk priors. It also shows that mean-field
-VB *fails* SBC, as expected.
+VB *fails* SBC, as expected, and that SBC rejects a Gibbs pipeline whose
+posteriors are 18% too narrow (half the objects counted twice).
 
 ## Coverage
 

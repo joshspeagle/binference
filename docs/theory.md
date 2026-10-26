@@ -460,7 +460,8 @@ calibrated?
 - `exact_posterior` integrates {eq}`eq-P` by quadrature for $K\le3$.
 - `sbc` runs simulation-based calibration (Talts et al. 2018): ranks of true
   parameters among posterior draws, including the joint log-likelihood as a
-  test quantity.
+  test quantity, tested for uniformity by a histogram chi-square or an ECDF
+  test (Säilynoja et al. 2022).
 - `coverage` measures the frequentist coverage of credible intervals, for
   bins and for any functional.
 
@@ -491,6 +492,7 @@ the same conclusion for unfolding.
 - Mandel, Farr & Gair (2019), *MNRAS* 486, 1086: selection effects.
 - Papaspiliopoulos, Roberts & Sköld (2007), *Statistical Science* 22, 59: non-centred parametrisations.
 - Saerens, Latinne & Decaestecker (2002), *Neural Computation* 14, 21: EM for priors under shift.
+- Säilynoja, Bürkner & Vehtari (2022), *Statistics and Computing* 32, 32: ECDF tests of rank uniformity.
 - Solin & Särkkä (2020), *Statistics and Computing* 30, 419: Hilbert-space GPs.
 - Stanley, Patil & Kuusela (2022), *JINST* 17, P10013: binning in unfolding.
 - Talts et al. (2018), arXiv:1804.06788: simulation-based calibration.
