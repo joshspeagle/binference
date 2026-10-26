@@ -1,4 +1,4 @@
-"""MAP / maximum-likelihood estimation: SQUAREM-accelerated EM and L-BFGS."""
+"""MAP / maximum-likelihood estimation: mix-SQP, SQUAREM-accelerated EM and L-BFGS."""
 
 from __future__ import annotations
 
@@ -149,8 +149,11 @@ class MAP(Engine):
         ``"simplex"`` maximises the density of the fractions (requires a
         conjugate prior); ``"unconstrained"`` the density in unconstrained
         coordinates (always interior); ``"auto"`` picks ``"simplex"`` unless
-        the prior density is unbounded at the boundary (concentrations below
-        one, Polya trees), where the simplex mode can have exact zeros.
+        the prior density is unbounded at the boundary (concentrations or
+        shapes below one, Polya trees; ``prior.unbounded_density()``), where the
+        simplex mode can have exact zeros, or a selection or response is
+        inferred jointly. The choice is in ``info["space"]`` and the solver in
+        ``info["algorithm"]``.
     tol : float
         Tolerance on first-order optimality: the KKT gap
         (:meth:`~binference.PopulationModel.kkt_gap`) for EM, and for mix-SQP

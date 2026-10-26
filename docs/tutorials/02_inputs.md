@@ -60,10 +60,16 @@ population is dragged toward where that prior is large. The error bars do
 not warn you: the wrong answer is just as confident.
 
 ```{code-cell} python
-z = (wrong.mean - mock.truth.rho) / wrong.std
-print("largest bias of the wrong fit:", np.abs(z).max().round(1), "posterior sd")
-z = (right.mean - mock.truth.rho) / right.std
-print("largest deviation of the right fit:", np.abs(z).max().round(1), "posterior sd")
+z_wrong = (wrong.mean - mock.truth.rho) / wrong.std
+print("largest bias of the wrong fit:", np.abs(z_wrong).max().round(1), "posterior sd")
+z_right = (right.mean - mock.truth.rho) / right.std
+print("largest deviation of the right fit:", np.abs(z_right).max().round(1), "posterior sd")
+```
+
+```{code-cell} python
+:tags: [remove-cell]
+
+assert np.abs(z_wrong).max() > 4 and np.abs(z_right).max() < 3
 ```
 
 ## Posterior samples
@@ -123,9 +129,17 @@ print("densities      ", as_densities.round(3))
 print("bin widths     ", ubins.volumes)
 ```
 
+```{code-cell} python
+:tags: [remove-cell]
+
+binomial_sd = np.sqrt(rho_true * (1 - rho_true) / umock.likelihoods.N)
+assert np.abs(as_masses - rho_true).max() < 3 * binomial_sd.max()
+assert as_densities[1] < rho_true[1] - 10 * binomial_sd[1]
+```
+
 Treating masses as densities distorts the population: here it moves mass
-from a narrow bin into its neighbours, by far more than the statistical
-error. `from_table` with an interim prior takes
+from the narrow second bin into its neighbours, by far more than the
+statistical error of 5000 objects. `from_table` with an interim prior takes
 `representation="mass"` by default; pass `representation="density"` for PDFs
 evaluated at bin centres. binference warns when the rows do not look like the
 representation you declared.

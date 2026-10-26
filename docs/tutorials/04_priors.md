@@ -55,6 +55,14 @@ for ax, (name, res) in zip(axes.flat, fits.items()):
 fig.supxlabel("z");
 ```
 
+```{code-cell} python
+:tags: [remove-cell]
+
+width = {name: np.median(res.std) for name, res in fits.items()}
+smooth_widths = [width["random walk (order 2)"], width["Gaussian process"]]
+assert max(smooth_widths) < min(width["Dirichlet(1)"], width["Pólya tree"])
+```
+
 - **`Dirichlet(1)`** adds one pseudo-count to each of the 40 bins, 40 in
   total against 400 objects. That props up the tails, and the bulk is noisy
   because neighbouring bins trade mass.

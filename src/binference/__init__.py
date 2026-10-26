@@ -20,7 +20,7 @@ Main entry points
   measurements and binned measurements.
 * :class:`Response` -- the response of a binned measurement (a detector, or a
   classifier's scores on a labelled validation set).
-* :func:`infer` -- one-call inference (NUTS by default).
+* :func:`infer` -- one-call inference (``method="auto"`` by default: Gibbs, Laplace or NUTS).
 * :mod:`binference.priors` -- Dirichlet family, smoothness priors, rates.
 * :mod:`binference.samplers` -- inference engines.
 * :class:`PopulationResult` -- draws, summaries, per-object outputs, plots.

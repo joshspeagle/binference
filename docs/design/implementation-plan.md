@@ -1,6 +1,6 @@
 # binference: implementation plan (v0.1)
 
-This document describes how to build what [`spec.md`](spec.md) specifies: the code layout, the internal interfaces, the milestones and the documentation. Tests are described in [`test-plan.md`](test-plan.md); every milestone ships with its tests.
+This document describes how to build what [`spec.md`](spec.md) specifies: the code layout, the internal interfaces, the milestones and the documentation. Tests are described in [`test-plan.md`](test-plan.md); every milestone ships with its tests. The milestones (§3) are the original plan; the layout, interfaces, conventions and CI (§1, §2, §4, §6) were brought up to date with the code on 2026-10-26 (issue #79).
 
 ## 1. Repository layout
 
@@ -10,7 +10,7 @@ binference/
 ├── README.md                 # pitch, install, 10-line quickstart, links
 ├── CHANGELOG.md  CONTRIBUTING.md  CITATION.cff  LICENSE
 ├── .pre-commit-config.yaml   # ruff (lint + format), end-of-file, trailing whitespace, check-yaml
-├── .github/workflows/ci.yml  # lint, test matrix, slow tests, docs, build
+├── .github/workflows/ci.yml  # lint, test matrix, minimum dependencies, slow tests, docs, build
 ├── src/binference/
 │   ├── __init__.py           # public API re-exports, __version__
 │   ├── _version.py
@@ -18,12 +18,18 @@ binference/
 │   ├── _utils.py             # rng handling (SPEC 7), array validation, chunking, progress
 │   ├── _simplex.py           # Helmert basis, softmax / log-softmax, ILR, CLR
 │   ├── _kernels.py           # dense/sparse matvecs, expected counts, log-likelihood, label sampling
-│   ├── bins.py               # Bins
+│   ├── _quadrature.py        # adaptive bin averages in the measure coordinate (DECISIONS #23)
+│   ├── measure.py            # Measure: the coordinate in which a bin is flat (DECISIONS #21)
+│   ├── bins.py               # Bins (measures, masks, coarsen/refine)
+│   ├── basis.py              # Basis: flat or hat components at a finer resolution (DECISIONS #76)
+│   ├── density.py            # Density: interim priors, base measures, simulation truth (DECISIONS #26)
+│   ├── selection.py          # Selection: modes, scales, functions, injections (DECISIONS #7, #46, #80)
+│   ├── response.py           # Response: binned measurements and tallied responses (DECISIONS #27, #81)
 │   ├── likelihoods.py        # Likelihoods + constructors
 │   ├── priors/
 │   │   ├── __init__.py
 │   │   ├── base.py           # Prior / bound-prior protocol
-│   │   ├── hyper.py          # HalfNormal, LogNormal, InverseGamma, Fixed (scalar hyperpriors)
+│   │   ├── hyper.py          # HalfNormal, LogNormal, InverseGamma, Gamma, Fixed (scalar hyperpriors)
 │   │   ├── dirichlet.py      # Dirichlet, GeneralizedDirichlet, DirichletTree, PolyaTree
 │   │   ├── logistic.py       # LogisticNormal, LogisticRandomWalk, LogisticGP
 │   │   └── rates.py          # GammaRates
@@ -32,22 +38,23 @@ binference/
 │   │   ├── __init__.py
 │   │   ├── base.py           # Engine base class, chain bookkeeping, result assembly
 │   │   ├── _nuts_core.py     # tree building, leapfrog, U-turn checks (pure functions)
+│   │   ├── _curvature.py     # finite-difference Hessians shared by NUTS and Laplace
 │   │   ├── nuts.py           # NUTS engine with adaptation, multi-chain, resumable
 │   │   ├── gibbs.py          # data-augmentation Gibbs (selection, conjugate priors)
-│   │   ├── optimize.py       # MAP: EM + SQUAREM; L-BFGS for non-conjugate priors
+│   │   ├── optimize.py       # MAP: mix-SQP, EM + SQUAREM, L-BFGS
 │   │   ├── laplace.py        # Laplace + PSIS importance resampling
 │   │   ├── vb.py             # mean-field VB
 │   │   └── bootstrap.py      # bootstrap over objects
 │   ├── results.py            # PopulationResult, PointEstimate, Summary
 │   ├── diagnostics.py        # ess, rhat, autocorr_time, mcse, psis, kkt_gap, missing_information
-│   ├── inference.py          # infer(), method registry
+│   ├── inference.py          # infer(), method registry, Auto (method="auto")
 │   ├── estimator.py          # PopulationEstimator (scikit-learn style)
 │   ├── simulate.py           # mock catalogues + Truth
 │   ├── validation.py         # exact_posterior, sbc, coverage
 │   ├── plotting.py           # matplotlib helpers (optional dependency)
 │   └── io.py                 # save/load (npz, versioned schema), to_datatree
 ├── tests/                    # see test-plan.md
-├── benchmarks/               # timing / ESS-per-second scripts (non-gating)
+├── benchmarks/               # kernel timings and the benchmark matrix (non-gating)
 └── docs/                     # Sphinx + MyST-NB (see §5)
 ```
 
@@ -78,14 +85,17 @@ forward(x) -> (eta, cache)       # softmax logits (fractions) or log-rates (rate
 log_prior_and_grad(x, cache, d_eta) -> (lp, grad_x)
                                  # lp includes the Jacobian to unconstrained space;
                                  # grad_x = J^T d_eta + grad lp (chain rule through forward)
-init_from_rho(rho) -> x          # starting point (least squares for logistic priors)
-sample(n, rng) -> rho            # prior draws on the simplex (or rates)
-log_density_simplex(rho)         # simplex priors only (for reporting / quadrature tests)
-prior_transform(u) -> rho        # where supported (nested sampling)
+has_density: bool ; has_prior_transform: bool
+init_from_value(value) -> x      # starting point (ridge-shrunk fit for logistic priors)
+sample(n, rng) -> value          # prior draws on the simplex (or rates)
+log_density(value), grad_log_density(value)   # where has_density
+unbounded_density() -> bool      # density unbounded at the boundary (MAP space choice)
+prior_transform(u) -> value      # where supported (nested sampling)
 # conjugate priors only:
 posterior_sample(counts, rng, exposure=None) -> rho or lambda
 map_from_counts(nhat, exposure=None) -> rho or lambda
-vb_update(nhat) -> state ; vb_expected_log(state) -> E[log rho]
+vb_update(nhat, exposure=None) -> state ; vb_expected_log(state) -> E[log rho]
+vb_sample(state, n, rng) ; vb_mean(state)
 ```
 
 The likelihood side always hands the prior a gradient with respect to `eta`. The prior applies the chain rule. This keeps `model.py` independent of the prior family.
@@ -93,16 +103,16 @@ The likelihood side always hands the prior a gradient with respect to `eta`. The
 ### 2.3 Model (`model.py`)
 
 ```text
-PopulationModel(likelihoods, prior=None, *, selection=None)
-  .K .N .W .dim .kind .bins .likelihoods .prior (bound) .selection
-  .log_prob(x) / .log_prob_and_grad(x)          # unconstrained, exact
-  .to_rho(x) / .to_rates(x) / .from_rho(rho)
-  .log_likelihood(rho_or_rates)                  # includes selection normaliser
-  .grad_eta(rho_or_rates) -> d_eta               # softmax: n̂ - Wρ S/(S·ρ); rates: n̂ - S λ
-  .log_prior(rho)                                # simplex priors
+PopulationModel(likelihoods, prior=None, *, selection=None, selection_mode=None, bins=None)
+  .K .N .W .dim .kind .bins .likelihoods .prior (bound) .selection .joint
+  .log_density_unconstrained(x) / .log_density_unconstrained_and_grad(x)   # exact, with Jacobian
+  .to_value(x) / .to_rho(x) / .from_value(value)
+  .log_likelihood(value)                         # includes the selection normaliser
+  .log_prior(value) / .log_posterior(value)      # densities of the fractions or rates
   .prior_transform(u)
-  .responsibilities(rho, idx=None)
-  .missing_information(rho)
+  .responsibilities(value, idx=None) / .expected_counts(value)
+  .kkt_gap(value) / .missing_information(value)
+  .selection_at(x) / .response_at(x)             # an inferred selection or response
 ```
 
 ### 2.4 Engines (`samplers/`)
@@ -117,19 +127,20 @@ Engine(model, *, rng=None, progress=False, **config)
 - **NUTS**
   - Round-robin over `n_chains`. Each chain carries its own position, step size, metric and adaptation state.
   - The tree-building core is pure functions taking `(logp_grad_fn, metric)`.
-  - Adaptation follows Stan's windows; metric `"diag"` or `"dense"`.
-  - Chains are initialised from the MAP plus jitter, or from a user-supplied `init`.
+  - Adaptation follows Stan's windows; metric `"auto"`, `"diag"` or `"dense"`. Logistic priors are partially centred and start a curvature-based metric early in warm-up (spec §6.2).
+  - Chains are initialised from the posterior mode plus jitter, or from a user-supplied `init`.
 - **Gibbs**
   - Requires `prior.conjugate`.
   - Each iteration: label step, then optional selection augmentation (negative binomial), then `posterior_sample`.
   - Optional stored labels (`store_labels=True` or an index array).
 - **MAP**
-  - Conjugate priors: SQUAREM-accelerated EM on ρ (or λ). The M-step uses `map_from_counts`; selection adds the expected number of missed objects.
-  - Otherwise: L-BFGS-B on `-log_prob` in unconstrained coordinates, with an analytic gradient.
+  - Dirichlet priors with α ≥ 1 (flat only with selection) and `GammaRates` with shapes ≥ 1: mix-SQP.
+  - Other conjugate priors with a bounded density: SQUAREM-accelerated EM on ρ (or λ). The M-step uses `map_from_counts`; selection adds the expected number of missed objects.
+  - Otherwise: L-BFGS-B on `-log_density_unconstrained` in unconstrained coordinates, with an analytic gradient.
   - Reports the KKT gap.
 - **Laplace**
   - Finds the mode in unconstrained coordinates by L-BFGS, warm-started from MAP/EM.
-  - The Hessian is analytic for the ILR Dirichlet; otherwise symmetrised central differences of the gradient.
+  - The Hessian is symmetrised central differences of the exact gradient (`samplers/_curvature.py`) for every prior.
   - Draws from the Gaussian, then optionally applies PSIS importance resampling and records k̂.
 - **VB**: CAVI over the conjugate prior's variational state.
 - **Bootstrap**: reweights objects (multinomial or Dirichlet weights) and calls MAP repeatedly.
@@ -138,7 +149,7 @@ Engine(model, *, rng=None, progress=False, **config)
 
 `PopulationResult` stores:
 - draws in unconstrained space, together with the transformed `samples` (fractions) and `rates`;
-- the chain layout, `log_prob`, `method`, `approximate` and `info`;
+- the chain layout, `log_density_unconstrained`, `method`, `approximate` and `info`;
 - a reference to the model, used for individual-object methods.
 
 Derived quantities are computed lazily and cached. `PointEstimate` holds the MAP outputs. Both use the `Summary` table class for `summary()`.
@@ -172,7 +183,7 @@ Derived quantities are computed lazily and cached. `PointEstimate` holds the MAP
 - **Errors and warnings**
   - Validate public inputs early with actionable messages.
   - Engines never swallow non-finite log-probabilities. They raise with the offending state summarised, except inside NUTS, where they count as divergences.
-- **Dependencies**: core `numpy>=1.25` and `scipy>=1.11`. matplotlib, xarray, pandas and tqdm are imported lazily inside the functions that need them.
+- **Dependencies**: core `numpy>=2.1`, `scipy>=1.14.1` and `threadpoolctl>=3.1`. matplotlib, xarray, pandas and tqdm are imported lazily inside the functions that need them; `binference.plotting` and `binference.io` load on first use.
 
 ## 5. Documentation plan
 
@@ -207,11 +218,12 @@ Derived quantities are computed lazily and cached. `PointEstimate` holds the MAP
 
 | Job | Contents |
 |---|---|
-| `lint` | `ruff check`, `ruff format --check` |
-| `test` | ubuntu and macOS × Python 3.11–3.14; `pip install -e .[test]`; `pytest -q` (fast tier); coverage report on one cell |
-| `slow` | ubuntu, Python 3.13: `pytest -m slow` |
-| `docs` | `pip install -e .[docs]`; `sphinx-build -W -b html docs docs/_build/html` (executes the tutorials) |
-| `build` | `python -m build`; install the wheel in a fresh virtualenv; `python -c "import binference"` |
+| `lint` | the pre-commit hooks (ruff check and format, file hygiene) |
+| `test` | ubuntu, macOS and Windows × Python 3.13 and 3.14; `pip install -e .[test]`; `pytest` (fast tier); coverage report on one cell |
+| `minimum-dependencies` | ubuntu, Python 3.13, the lowest versions `pyproject.toml` allows; `pytest` |
+| `slow` | ubuntu, Python 3.13, weekly, by hand or on a pull request labelled `slow`: `pytest -m slow` |
+| `docs` | the README, installation and user-guide code (`docs/_scripts/run_snippets.py`); `sphinx-build -W --keep-going` (executes the tutorials); published to GitHub Pages from `main` |
+| `dist` | `python -m build`; `twine check`; install the wheel in a fresh virtualenv and import it |
 
 ## 7. Risks and mitigations
 
