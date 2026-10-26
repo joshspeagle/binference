@@ -82,17 +82,16 @@ lk = binference.Likelihoods.from_gaussian(x_obs, sigma, bins)
 3000 signals are injected with masses drawn uniformly in $\ln m$, and each
 is recovered with probability $p_{\rm det}$. In the lightest bins only a
 few injections are recovered, so the detection probability there is known
-only roughly. `Selection.from_injections` tallies the injections and
-recoveries per bin and gives each bin's detection probability a Beta
-posterior.
+only roughly. `Selection.from_injections` tallies them per bin and gives
+each bin's detection probability a Beta posterior (see the
+[user guide](../user-guide/selection)); `sel.injections` holds the tallies.
 
 ```{code-cell} python
 n_inj = 3000
 m_inj = np.exp(rng.uniform(np.log(m_lo), np.log(m_hi), n_inj))
 found = rng.random(n_inj) < p_det(m_inj)
 sel = binference.Selection.from_injections(np.log(m_inj), found, bins, "on_truth")
-injected = np.bincount(bins.index(np.log(m_inj)), minlength=bins.K)
-recovered = np.bincount(bins.index(np.log(m_inj[found])), minlength=bins.K)
+injected, recovered, (a_prior, b_prior), _ = sel.injections
 print("recovered / injected, lightest five bins:",
       [f"{r}/{n}" for r, n in zip(recovered[:5], injected[:5])])
 ```
@@ -114,7 +113,7 @@ the lightest bins, where there are few detections.
 
 ```{code-cell} python
 exact = binference.Selection.from_function(lambda x: p_det(np.exp(x)), bins, "on_truth")
-kw = dict(method="nuts", rng=1)
+kw = dict(method="nuts", n_samples=500, n_warmup=500, rng=1)
 fits = {
     "no selection": binference.infer(lk, **kw),
     "plug-in injections": binference.infer(lk, selection=sel.at_mean(), **kw),
@@ -161,9 +160,10 @@ guide](../user-guide/selection)), depend most on the lightest bins:
 
 ```{code-cell} python
 light = bins.centers < np.log(10.0)
+frac = {name: res.functional(lambda rho: rho[light].sum()) for name, res in fits.items()}
 print(f"{'':20s} fraction below 10 Msun   total mergers")
 for name, res in fits.items():
-    f = res.functional(lambda rho: rho[light].sum())
+    f = frac[name]
     print(f"{name:20s} {f.mean():.3f} ± {f.std():.3f}            "
           f"{res.total.mean():6.0f} ± {res.total.std():4.0f}")
 print(f"{'truth':20s} {rho_true[light].sum():.3f}                    {n_mergers:6d}")
@@ -173,7 +173,6 @@ print(f"{'truth':20s} {rho_true[light].sum():.3f}                    {n_mergers:
 :tags: [remove-cell]
 
 tot = {k: r.total for k, r in fits.items()}
-frac = {k: r.functional(lambda rho: rho[light].sum()) for k, r in fits.items()}
 assert abs(tot["no selection"].mean() - detected.sum()) < 3 * tot["no selection"].std()
 assert tot["joint"].std() > tot["plug-in injections"].std()
 assert frac["joint"].std() > frac["plug-in injections"].std()
@@ -183,10 +182,10 @@ assert all(tot[k].mean() < n_mergers for k in ("plug-in injections", "joint", "e
 Without a selection, `total` is just the number of detections. The joint
 fit's error bars are larger than the plug-in fit's, because they include
 the uncertainty of the detection probability from a finite number of
-injections; the plug-in fit treats that probability as exact. Both fall
-below the truth because this injection set recovered more light signals
-than $p_{\rm det}$ predicts, which the exact-selection fit does not
-share:
+injections; the plug-in fit treats that probability as exact. All three
+corrected totals fall below the truth, for two reasons. This injection set
+recovered more light signals than $p_{\rm det}$ predicts, which lowers the
+plug-in and joint totals only:
 
 ```{code-cell} python
 expected = injected * exact.values
@@ -200,19 +199,10 @@ print("expected from p_det:          ", expected[:5].round(1).tolist())
 assert recovered[:5].sum() > expected[:5].sum()
 ```
 
-A finite injection set leaves the selection uncertain, and its errors
-propagate into the population. The joint fit carries that uncertainty;
-more injections in the light bins are the only way to reduce it.
-
-```{note}
-The total is the quantity most sensitive to the prior here. Under the
-scale-free prior on the total, the default flat Dirichlet on the fractions
-is a prior on the rates proportional to $\Lambda^{-K}$, which pulls the
-total down; that pull matters when the total is poorly determined, as it is
-when the lightest bins hold few detections. Even the exact-selection fit
-lies below the truth. Before quoting a total from such data, check its
+And the default prior pulls a poorly determined total down, which lowers
+all three ([user guide](../user-guide/selection)); here the lightest bins
+hold few detections. Before quoting a total from such data, check its
 calibration on simulations ({doc}`07_validation`).
-```
 
 The joint fit also returns posterior draws of the detection probability
 (`info["selection_draws"]`). The catalogue informs only the ratios between
@@ -221,15 +211,17 @@ bins, so its level comes from the injections:
 ```{code-cell} python
 S_draws = fits["joint"].info["selection_draws"].reshape(-1, bins.K)
 S_lo, S_hi = np.quantile(S_draws, [0.05, 0.95], axis=0)
-beta = stats.beta(1 + recovered, 1 + injected - recovered)
+beta = stats.beta(a_prior + recovered, b_prior + injected - recovered)
 fine = np.linspace(np.log(m_lo), np.log(m_hi), 400)
 
 fig, ax = plt.subplots(figsize=(7, 3.6))
 ax.plot(fine, p_det(np.exp(fine)), "k--", lw=1.2, label=r"true $p_{\rm det}$")
-ax.errorbar(bins.centers - 0.02, beta.mean(), yerr=[beta.mean() - beta.ppf(0.05), beta.ppf(0.95) - beta.mean()],
-            fmt="o", color="#eb6834", ms=4, capsize=2, label="injections alone (90%)")
-ax.errorbar(bins.centers + 0.02, S_draws.mean(axis=0), yerr=[S_draws.mean(axis=0) - S_lo, S_hi - S_draws.mean(axis=0)],
-            fmt="o", color="#1baf7a", ms=4, capsize=2, label="joint fit (90%)")
+for dx, mid, lo, hi, color, label in [
+    (-0.02, beta.mean(), beta.ppf(0.05), beta.ppf(0.95), "#eb6834", "injections alone (90%)"),
+    (0.02, S_draws.mean(axis=0), S_lo, S_hi, "#1baf7a", "joint fit (90%)"),
+]:
+    ax.errorbar(bins.centers + dx, mid, yerr=[mid - lo, hi - mid], fmt="o", color=color,
+                ms=4, capsize=2, label=label)
 ax.set(xlabel=r"$\ln(m / M_\odot)$", ylabel="detection probability", yscale="log")
 ax.spines[["top", "right"]].set_visible(False)
 ax.legend(frameon=False, fontsize=8);
@@ -237,16 +229,13 @@ ax.legend(frameon=False, fontsize=8);
 
 ## What to take away
 
-- A selection measured by injections goes in as
-  `Selection.from_injections(z, detected, bins, mode)`; each bin's detection
-  probability gets a Beta posterior from its injections.
-- Passing it to `infer` infers the selection jointly with the population.
-  `sel.at_mean()` fixes it at the injection estimate and ignores its
-  uncertainty.
-- Where few injections are recovered, the uncertainty of the selection is a
-  large part of the uncertainty of the population and of the total number
-  of systems; the joint fit includes it. The total also depends on the
-  prior when few objects are detected in some bins.
-- Ask what the selection acts on. Here detection depends only on the true
-  mass, so `"on_truth"` is exact; when detection and measurement share the
-  same noise, the selection acts on the measurement ({doc}`05_selection`).
+- `Selection.from_injections` passed to `infer` infers the selection jointly
+  with the population; `sel.at_mean()` is a plug-in that ignores the
+  selection's uncertainty, which is large where few injections are
+  recovered.
+- Ask what the selection acts on. Here detection is a coin flip that depends
+  only on the true mass, so `"on_truth"` is exact. In real detectors
+  detection and measurement share the same noise, and the selection acts on
+  the measurement ({doc}`05_selection`; the
+  [gravitational-wave background page](../background/gravitational-waves)
+  says what that means for injection-based selection).

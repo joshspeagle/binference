@@ -2,8 +2,8 @@
 
 This page compares the tools closest to binference's scope, across fields, and records
 what binference took from the design of other scientific Python packages. The field
-pages describe each tool in its context. Status, versions and dates are as recorded on
-22 October 2026.
+pages describe each tool in its context; the {doc}`index <index>` gives the date of the
+survey.
 
 ## Comparison
 
@@ -61,10 +61,9 @@ smoothness priors, and rates ({doc}`../user-guide/index`).
 - **Uncertainty is where the tools differ most.** Most engines converge to the same
   maximum; their error bars mean different things. Mean-field VB under-covers, convex
   NPMLE solvers return none, bootstrap regions measure an estimator's variability, and
-  Gibbs and NUTS sample the exact posterior. No published study compares the coverage of
-  these engines on this model as likelihoods broaden.
-- **Scale is limited by memory.** The dense likelihood matrix of 1.36 million Gaia stars
-  on a $100\times100$ grid took about 109 GB (Zhang et al. 2024). Collapsing identical
+  Gibbs and NUTS sample the exact posterior ({doc}`simplex-priors` compares the engines).
+- **Scale is limited by memory**, as for the dense likelihood matrix of 1.36 million Gaia
+  stars on a $100\times100$ grid ({doc}`empirical-bayes`). Collapsing identical
   rows (salmon's equivalence classes, Empirikos's multiplicities), sparse storage
   (npeb's log-probability threshold) and computing each object's likelihood once on
   fixed bins (Starlight) are the established remedies; binference offers the first two

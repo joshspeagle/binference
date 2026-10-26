@@ -154,7 +154,7 @@ binference:
   interim prior biased $\rho$ by up to 12.6 posterior standard deviations and cut the
   coverage of 68% and 95% intervals to 0.29 and 0.52; dividing out the interim prior
   removed the bias. Using the bin integral of each likelihood where the model needs the
-  bin average biased $\rho$ by up to 28 standard deviations on unequal bins. binference
+  bin average biased $\rho$ as well ({doc}`../user-guide/pitfalls`). binference
   requires the interim prior for posteriors and an explicit representation for tables.
 - **Software defects** (runs that never resumed, a `reset()` that left old samples,
   legacy random state, bins frozen at exactly zero, no input validation) are each
@@ -212,9 +212,8 @@ frankenz's hierarchical sampler, RAIL's `VarInfStackSummarizer` and PosteriorSta
 histogram mode, and its `Gibbs` engine is their sampler.
 
 **Added.** Explicit input types, with the interim prior required for posteriors and bin
-averages computed from Gaussians, densities and samples; exact sampling by default (or an
-importance-corrected Laplace approximation that passed its check), with VB and bootstrap
-results, and Laplace results that failed the check, flagged as approximate; the two selection modes, and
+averages computed from Gaussians, densities and samples; exact sampling by default, with
+approximations flagged as such ({doc}`../user-guide/engines`); the two selection modes, and
 completeness measured by injections and inferred with the population; smoothness priors;
 rates and totals; per-draw derived quantities (`result.functional`, `result.rebin`); a
 check of the within-bin flatness assumption (`result.binning_bias`); and

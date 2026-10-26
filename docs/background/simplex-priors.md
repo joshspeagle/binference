@@ -102,11 +102,8 @@ any library's default; `Gibbs` is the conjugate sampler; `MAP` uses mix-SQP or
 SQUAREM-accelerated EM and reports a KKT gap; `Laplace` corrects its Gaussian draws by
 Pareto-smoothed importance sampling and reports the Pareto $\hat k$; `MeanFieldVB` is
 the closed-form scheme above (the algorithm of RAIL's `VarInfStackSummarizer`), flagged
-as approximate. `method="auto"` estimates the
-fraction of missing information at the MAP (`binference.diagnostics.missing_information`)
-and, for conjugate priors, chooses Gibbs when it is low enough, by rules measured on the
-benchmark described in
-{doc}`../user-guide/engines`. binference has no stochastic-gradient samplers and computes
+as approximate. `method="auto"` chooses among them by rules measured on a benchmark
+({doc}`../user-guide/engines`). binference has no stochastic-gradient samplers and computes
 no evidences; held-out predictive densities (`result.log_predictive`) compare models
 instead.
 

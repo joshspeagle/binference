@@ -56,11 +56,8 @@ baseline = [rng.binomial(2, freq[k], size=(n_base, n_loci)) for k in range(K)]
 rho_true = np.array([0.55, 0.05, 0.25, 0.10, 0.05])
 origin = rng.choice(K, 1000, p=rho_true)
 mixture = rng.binomial(2, freq[origin])               # allele counts, 0 to 2 per locus
-print("stock shares of this mixture:", (np.bincount(origin, minlength=K) / origin.size).round(3))
+print("realised stock shares of this sample:", (np.bincount(origin, minlength=K) / origin.size).round(3))
 ```
-
-The mixture is a finite sample from the proportions `rho_true`; the second
-line gives its realised shares.
 
 ## Genotype likelihoods
 
@@ -181,16 +178,16 @@ ax.legend(frameon=False, fontsize=8);
 ```
 
 ```{code-cell} python
-lo, hi = fit_c.interval(0.9)
+lo_c, hi_c = fit_c.interval(0.9)
 for k, s in enumerate(stocks):
-    print(f"  {s}: {fit_c.mean[k]:.3f} [{lo[k]:.3f}, {hi[k]:.3f}]   truth {rho_true[k]:.2f}")
+    print(f"  {s}: {fit_c.mean[k]:.3f} [{lo_c[k]:.3f}, {hi_c[k]:.3f}]   truth {rho_true[k]:.2f}")
 ```
 
 ```{code-cell} python
 :tags: [remove-cell]
 
-assert all(lo[k] <= rho_true[k] <= hi[k] for k in (0, 1))
-assert (hi - lo)[2:4].max() < (hi - lo)[:2].min()
+assert all(lo_c[k] <= rho_true[k] <= hi_c[k] for k in (0, 1))
+assert (hi_c - lo_c)[2:4].max() < (hi_c - lo_c)[:2].min()
 ```
 
 With the confusion matrix inferred, the intervals for A and B widen to
@@ -204,13 +201,8 @@ assigned stock, not its full likelihood.
 - Stock proportions are a population over categorical bins
   (`Bins.categories`), and genotype likelihoods enter through
   `Likelihoods.from_table(..., kind="likelihood", log=True)`.
-- Classify and count is biased toward equal proportions; the mixture model
-  reduces that bias.
-- Likelihoods computed from estimated baseline frequencies are treated as
-  exact, so intervals can be too narrow for stocks that the baseline
-  separates poorly.
-- A confusion matrix tallied from the baseline with `Response.from_labelled`
-  is inferred jointly with the proportions and carries the baseline's
-  uncertainty in how well stocks are separated, at the cost of using only
-  each fish's assigned stock. binference does not infer the allele
-  frequencies themselves.
+- Likelihoods from estimated baseline frequencies are treated as exact, so
+  intervals can be too narrow for stocks the baseline separates poorly.
+- A confusion matrix tallied from the baseline (`Response.from_labelled`)
+  carries that uncertainty, at the cost of using only each fish's assigned
+  stock.

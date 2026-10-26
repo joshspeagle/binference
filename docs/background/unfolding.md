@@ -44,19 +44,12 @@ Expanding the histogram into objects, an event measured in bin $b$ has the likel
 row $L_{ik}=R_{b(i),k}$, and all events in the same measured bin share a row
 ([theory](../theory.md#objects-bins-and-likelihoods)).
 {meth}`Likelihoods.from_binned(response, counts=...) <binference.Likelihoods.from_binned>`
-builds these rows, one per measured bin weighted by its count, and attaches the
-efficiency $\epsilon_k=\sum_bR_{bk}$ as a selection function with
-`selection_mode="on_measurement"`, because the response already contains it
-({doc}`../user-guide/inputs`). The {class}`~binference.Response` comes from a known
-matrix, from tallied events (`Response.from_counts`), or from the simulated events
-themselves (`Response.from_simulation(true_values, measured_values, ...)`, where a
-measured value that is NaN or outside the measured bins marks a missed event, as
-RooUnfold's `Miss` does).
-
-A response tallied from a finite simulation is uncertain, and by default binference
-infers it with the spectrum: each column, with its lost share, has a Dirichlet
-posterior given the tallies, and the engines sample it together with $\rho$.
-`response.fixed()` treats the tallied matrix as exact instead. Regularisation is a
+builds these rows, one per measured bin weighted by its count, and accounts for the
+efficiency $\epsilon_k=\sum_bR_{bk}$. The {class}`~binference.Response` comes from a
+known matrix, from tallied events, or from the simulated events themselves, where a
+missed event plays the role of RooUnfold's `Miss`; a response tallied from a finite
+simulation is inferred with the spectrum ({doc}`../user-guide/inputs` gives the
+details). Regularisation is a
 prior, not an iteration count: `LogisticGP` or `LogisticRandomWalk` infer how smooth the
 spectrum is ({doc}`../user-guide/priors`). The total and the expected counts per true
 bin come from `result.total` and `result.rates`. When there are more measured bins than

@@ -95,7 +95,7 @@ measure of its own uncertainty. The default `method="auto"` samples the
 full posterior over $\rho$:
 
 ```{code-cell} python
-fit = binference.infer(lk, rng=1)
+fit = binference.infer(lk, n_samples=500, rng=1)
 print(fit.info["auto_method"], "-", fit.info["auto_reason"])
 ```
 
@@ -114,34 +114,33 @@ spreads the null mass over neighbouring bins. Sums over wider ranges are
 better determined than single bins:
 
 ```{code-cell} python
+near, mass = {}, {}
 for cut in (0.5, 1.25):
-    near0 = np.abs(bins.centers) < cut
-    mass = fit.functional(lambda rho: rho[near0].sum())
-    print(f"mass within {cut} of zero: posterior {mass.mean():.3f} ± {mass.std():.3f}, "
-          f"NPMLE {npmle.rho[near0].sum():.3f}, truth {g_true[near0].sum():.3f}")
-print(f"prior information ratio: {fit.prior_information_ratio():.2f}")
+    near[cut] = b = np.abs(bins.centers) < cut
+    mass[cut] = m = fit.functional(lambda rho: rho[b].sum())
+    print(f"mass within {cut} of zero: posterior {m.mean():.3f} ± {m.std():.3f}, "
+          f"NPMLE {npmle.rho[b].sum():.3f}, truth {g_true[b].sum():.3f}")
+ratio = fit.prior_information_ratio()
+print(f"prior information ratio: {ratio:.2f}")
 ```
 
 ```{code-cell} python
 :tags: [remove-cell]
 
-near = {cut: np.abs(bins.centers) < cut for cut in (0.5, 1.25)}
-m = {cut: fit.functional(lambda rho, b=b: rho[b].sum()) for cut, b in near.items()}
-assert abs(m[1.25].mean() - g_true[near[1.25]].sum()) < 3 * m[1.25].std()
-assert g_true[near[0.5]].sum() - m[0.5].mean() > 3 * m[0.5].std()
+assert abs(mass[1.25].mean() - g_true[near[1.25]].sum()) < 3 * mass[1.25].std()
+assert g_true[near[0.5]].sum() - mass[0.5].mean() > 3 * mass[0.5].std()
 assert abs(npmle.rho[near[0.5]].sum() - g_true[near[0.5]].sum()) < 0.05
-assert fit.prior_information_ratio() > 1
+assert ratio > 1
 ```
 
 Within 1.25 of zero, the posterior agrees with the truth. Within 0.5 it
-falls well short of it, while the NPMLE does not. The NPMLE sits on the
-boundary of the simplex, with empty bins beside the spike, and the
-likelihood changes little when mass moves from the spike into them; a
-posterior spread over that nearly flat direction must have its mean inside
-the simplex, with mass moved away from zero. The prior information ratio
-({meth}`~binference.PopulationResult.prior_information_ratio`) says the
-same: above one, the flat Dirichlet on 70 bins weighs more than the data in
-the fine structure of $g$. A question about the null fraction should be put
+falls well short of it, while the NPMLE does not: the likelihood changes
+little when mass moves from the spike into the empty bins beside it, and a
+posterior spread over that direction has its mean inside the simplex, away
+from the spike. A prior information ratio
+({meth}`~binference.PopulationResult.prior_information_ratio`) above one says
+that the flat Dirichlet on 70 bins weighs more than the data in this fine
+structure. A question about the null fraction should be put
 as a sum over a range the data can resolve, or answered with a prior that
 expects a spike.
 
@@ -152,18 +151,17 @@ Each unit's posterior under the estimated $g$ is
 NPMLE this is the usual plug-in empirical Bayes posterior; for the full fit
 it is averaged over the posterior draws of $\rho$, so the uncertainty in $g$
 is carried into each unit. Averaging the bin centres over it approximates
-the empirical Bayes posterior mean. `sample_values()` draws the units' true
-values within the bins from their own Gaussian likelihoods, which gives
-posterior means and intervals without the bin-centre approximation; the
-difference printed below also includes the Monte Carlo error of its 500
-draws per unit.
+the posterior mean; `sample_values()` draws the units' true values within
+the bins from their own likelihoods, which removes the bin-centre
+approximation.
 
 ```{code-cell} python
 eb_npmle = npmle.assignment_probabilities() @ bins.centers
 draws = fit.sample_values(rng=2)                  # (500 draws, units)
 eb_full = draws.mean(axis=0)
+eb_centres = fit.assignment_probabilities() @ bins.centers
 print("posterior mean from bin centres vs from sample_values, largest difference:",
-      f"{np.abs(fit.assignment_probabilities() @ bins.centers - eb_full).max():.3f}")
+      f"{np.abs(eb_centres - eb_full).max():.3f}")  # includes the draws' Monte Carlo error
 ```
 
 For comparison, the oracle Bayes rule uses the true $g$, by numerical
@@ -176,18 +174,18 @@ slab = 0.4 * stats.norm.pdf(grid, 2.5, 0.7)
 like = stats.norm.pdf(x[:, None], grid, s[:, None])
 oracle = (like @ (slab * grid)) * dx / ((like @ slab) * dx + 0.6 * stats.norm.pdf(x, 0, s))
 
-for name, est in [("raw estimate x", x), ("EB, NPMLE", eb_npmle),
-                  ("EB, full posterior", eb_full), ("oracle Bayes", oracle)]:
-    print(f"{name:19s} mean squared error {np.mean((est - theta) ** 2):.3f}")
+mse = {name: np.mean((est - theta) ** 2) for name, est in
+       [("raw estimate x", x), ("EB, NPMLE", eb_npmle),
+        ("EB, full posterior", eb_full), ("oracle Bayes", oracle)]}
+for name, v in mse.items():
+    print(f"{name:19s} mean squared error {v:.3f}")
 ```
 
 ```{code-cell} python
 :tags: [remove-cell]
 
-mse = {k: np.mean((v - theta) ** 2) for k, v in
-       [("raw", x), ("npmle", eb_npmle), ("full", eb_full), ("oracle", oracle)]}
-assert max(mse["npmle"], mse["full"]) < 0.5 * mse["raw"]
-assert max(mse["npmle"], mse["full"]) < 1.1 * mse["oracle"]
+eb = max(mse["EB, NPMLE"], mse["EB, full posterior"])
+assert eb < 0.5 * mse["raw estimate x"] and eb < 1.1 * mse["oracle Bayes"]
 ```
 
 Both empirical Bayes estimates more than halve the error of the raw
@@ -223,16 +221,13 @@ assert covered.mean() > 0.9 - 3 * np.sqrt(0.09 / n) and np.mean(hi - lo) < 2 * 1
 
 ## What to take away
 
-- Deconvolution with known standard errors is binference's model with
-  `Likelihoods.from_gaussian`; the grid is the bins.
-- `method="map"` with the default flat Dirichlet prior is the grid NPMLE,
-  computed by mix-SQP with an optimality certificate. It is discrete and
-  carries no uncertainty.
-- The full posterior over $g$ shows how little the data fix the fine
-  structure of $g$, and `prior_information_ratio()` says when the prior
-  weighs more than the data there. Sums over ranges the data resolve, and
-  the per-unit posterior means, are well determined.
-- `assignment_probabilities()` and `sample_values()` give each unit's
-  empirical Bayes posterior, averaged over the uncertainty in $g$.
+- Deconvolution with known standard errors is binference's model, with
+  `Likelihoods.from_gaussian` on a grid of bins.
+- `method="map"` with the default flat Dirichlet prior is the grid NPMLE;
+  the full posterior over $g$ shows how much of $g$ the data determine, and
+  `assignment_probabilities()` and `sample_values()` give each unit's
+  empirical Bayes posterior with that uncertainty included.
 - A smooth $g$, as in Efron's g-modelling, corresponds to a smoothness prior
-  such as `priors.LogisticGP()` ({doc}`04_priors`).
+  such as `priors.LogisticGP()` ({doc}`04_priors`). The
+  [empirical Bayes background page](../background/empirical-bayes) places
+  this tutorial among the packages of that field.

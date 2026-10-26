@@ -36,6 +36,9 @@ GP on about $8\times10^4$ bins in four dimensions.
 
 ## In binference's terms
 
+The {doc}`selection tutorial <../tutorials/11_populations_with_selection>` infers a
+mass distribution with a selection measured by injections.
+
 - **Per-event samples** become a likelihood matrix through
   `Likelihoods.from_samples(samples, bins, interim=...)`: each sample is histogrammed
   onto the bins with the PE prior divided out, which is the binned form of the
@@ -43,12 +46,12 @@ GP on about $8\times10^4$ bins in four dimensions.
   sample counts and importance weights are accepted, and each event's effective number
   of samples is stored ({doc}`../user-guide/inputs`).
 - **Selection** acts on the measured data, so it is `selection_mode="on_measurement"`:
-  each event's likelihood is used as is and the normalisation $(S\cdot\rho)^{-N}$ is
-  added, with $S_k$ the detection probability averaged over bin $k$
-  ([theory](../theory.md#selection-effects)). `Selection.from_injections(z, detected,
-  bins, mode)` counts injections and recoveries per bin; it does not reweight by the
-  injections' draw density within a bin. For a selection on the measurement the
-  injections give a plug-in estimate of $S$ ({doc}`../user-guide/selection`).
+  each event's likelihood is used as is and divided by the detectable fraction, with
+  $S_k$ the detection probability averaged over bin $k$
+  ([theory](../theory.md#selection-effects)). `Selection.from_injections` estimates
+  $S_k$ from injections counted per bin, without reweighting by their draw density
+  within a bin; for a selection on the measurement it is a plug-in, not inferred with
+  the population ({doc}`../user-guide/selection`).
 - **Rates.** A fit of fractions also gives the total number and the rates under the
   scale-free prior on the total (`result.total`, `result.rates`), and `GammaRates` puts
   priors on the rates directly; `scale="exposure"` declares a selection with absolute

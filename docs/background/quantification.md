@@ -41,24 +41,21 @@ and specificity.
 ## In binference's terms
 
 The {doc}`user guide <../user-guide/inputs>` describes two routes from a classifier to
-the population; `result.summary()` names the route in its title.
+the population, with the conditions under which each is exact.
 
 - **Route A: posteriors and the training prevalence.**
   `Likelihoods.from_table(probs, Bins.categories(classes), interim=train_prior)` divides
   the training prevalence out of each posterior, $L_{ik}\propto p(k\mid x_i)/
   \pi_{\text{train},k}$. Maximising the likelihood is then EMQ, and sampling the
-  posterior is BayesianMAPLS. The route is exact only if the posteriors are calibrated
-  and `train_prior` is the prevalence the classifier effectively learned.
+  posterior is BayesianMAPLS.
 - **Route C: scores and a labelled validation set.**
   `Likelihoods.from_binned(Response.from_labelled(val_scores, val_labels),
   values=scores)` bins the scores (or uses the predicted labels) and uses the
-  validation set's confusion matrix as a response, which binference infers together
-  with the proportions by default. This is BayesianCC; it needs neither calibration nor
-  the training prior, only label shift. When there are more score bins than classes,
-  `result.check()` reports a posterior predictive p-value that flags a violation of
-  label shift.
+  validation set's confusion matrix as a response, inferred together with the
+  proportions. This is BayesianCC.
 - **Genotype likelihoods** under each baseline population are a likelihood matrix on
-  `Bins.categories(populations)`: `Likelihoods(L, bins)`.
+  `Bins.categories(populations)`: `Likelihoods(L, bins)` ({doc}`mixed-stock tutorial
+  <../tutorials/10_mixed_stocks>`).
 - **PCC** is stacking, one EM step from the training prevalence (`lk.stack()`).
 - **Ordinal classes** are ordered bins, so the smoothness priors apply
   (`LogisticRandomWalk`), the Bayesian counterpart of the first- and second-difference

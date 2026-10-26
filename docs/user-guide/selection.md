@@ -174,6 +174,13 @@ must be declared `scale="relative"`, and then the total is not identified and
 both are `None`. With non-integer weights $W$ is their sum and the Gamma is a
 pseudo-posterior, like the fractions' (see {doc}`inputs`).
 
+The total inherits the prior on the fractions: with $p(\Lambda)\propto
+1/\Lambda$, the default flat Dirichlet on $\rho$ is a prior on the rates
+proportional to $\Lambda^{-K}$, which pulls the total down when it is poorly
+determined, for example when some bins hold few detections. Check a total's
+calibration on simulations ({doc}`/tutorials/07_validation`) before quoting it
+from such data.
+
 ```python
 fit = binference.infer(
     lk, method="gibbs", n_samples=300, rng=1, check=False,
