@@ -211,10 +211,9 @@ the wrong choice biases $\rho$ toward wide bins.
 ## Selection effects
 
 Let $S_k\in(0,1]$ be the probability that an object in bin $k$ makes it into
-the catalogue. For fractions only the ratios between the $S_k$ matter
-({eq}`eq-S` is unchanged when $S$ is multiplied by a constant), so $S$ is needed
-only up to a constant there. For rates its absolute value sets the total,
-and it may include an exposure that exceeds one (below).
+the catalogue. For fractions only the ratios of the $S_k$ matter
+({eq}`eq-S` is unchanged when $S$ is scaled). For rates the absolute $S$ sets
+the total, and with an exposure it may exceed one (below).
 The likelihood depends on what the selection acts on:
 
 - **`selection_mode="on_measurement"`.** Selection acts on the *measured* data: a
@@ -266,8 +265,7 @@ Independent $\mathrm{Gamma}(a_k,b_k)$ priors are conjugate given the labels:
 $\lambda_k\mid z\sim\mathrm{Gamma}(a_k+n_k,\,b_k+S_k)$. Fractions and rates
 are not interchangeable priors: independent $\mathrm{Gamma}(a_k,b)$ rates
 imply $\rho\sim\mathrm{Dir}(a)$ only when every bin has the same rate
-parameter $b$ and there is no selection. With different $b_k$ the fractions
-are not Dirichlet even without selection.
+parameter $b$ and there is no selection.
 
 ## Priors
 

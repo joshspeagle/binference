@@ -119,6 +119,8 @@ def test_predict_and_log_predictive(fitted, small_1d):
     np.testing.assert_allclose(p.sum(1), 1.0)
     lp = fitted.log_predictive(new, n_draws=50)
     assert lp.shape == (20,) and np.all(np.isfinite(lp))
+    # objects are scored a chunk at a time, with the same values
+    np.testing.assert_allclose(fitted.log_predictive(new, n_draws=50, chunk=7), lp, rtol=1e-12)
     # a deliberately wrong population scores worse on held-out data
     wrong = PopulationResult(
         fitted.model, np.tile(np.r_[np.ones(6), np.full(6, 1e-3)], (50, 1)), method="test"

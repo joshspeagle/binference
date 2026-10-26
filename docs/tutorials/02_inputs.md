@@ -60,17 +60,16 @@ population is dragged toward where that prior is large. The error bars do
 not warn you: the wrong answer is just as confident.
 
 ```{code-cell} python
-z = (wrong.mean - mock.truth.rho) / wrong.std
-print("largest bias of the wrong fit:", np.abs(z).max().round(1), "posterior sd")
-z = (right.mean - mock.truth.rho) / right.std
-print("largest deviation of the right fit:", np.abs(z).max().round(1), "posterior sd")
+z_wrong = (wrong.mean - mock.truth.rho) / wrong.std
+print("largest bias of the wrong fit:", np.abs(z_wrong).max().round(1), "posterior sd")
+z_right = (right.mean - mock.truth.rho) / right.std
+print("largest deviation of the right fit:", np.abs(z_right).max().round(1), "posterior sd")
 ```
 
 ```{code-cell} python
 :tags: [remove-cell]
 
-assert np.abs((wrong.mean - mock.truth.rho) / wrong.std).max() > 4
-assert np.abs((right.mean - mock.truth.rho) / right.std).max() < 3
+assert np.abs(z_wrong).max() > 4 and np.abs(z_right).max() < 3
 ```
 
 ## Posterior samples

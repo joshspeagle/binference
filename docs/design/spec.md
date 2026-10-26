@@ -2,7 +2,7 @@
 
 *Population and hierarchical inference with PDFs*
 
-**Status:** draft for review, 2026-10-22. Sections 3 to 11 were brought up to date with the code on 2026-10-26 (issue #79): superseded statements were changed in place and cite the decisions (`notes/review/DECISIONS.md`, "DECISIONS #n") that changed them; the decision log in §13 is kept as written.
+**Status:** draft for review, 2026-10-22. Sections 3–11 were updated to match the code on 2026-10-26 (issue #79). Changed statements cite the decision that changed them (DECISIONS #n, `notes/review/DECISIONS.md`). The decision log in §13 is unchanged.
 
 **Inputs to this document:**
 - The landscape census in `reports/Population inference software landscape.md`, with the notes behind it in `research_notes/`.
@@ -158,13 +158,13 @@ With equal-volume bins the representation cannot change the inference, because i
 
 ### 3.6 Selection effects
 
-Let $S_k\in(0,1]$ be the probability that an object whose true value lies in bin $k$ is detected (bin-averaged). `Selection(values, mode, scale=...)` takes detection probabilities by default; `scale="relative"` declares values known only up to a constant (enough for fractions, refused for rates) and `scale="exposure"` absolute values that may exceed one (DECISIONS #46). How $S$ enters depends on what the selection acts on, so the API requires an explicit **selection mode** (named `"observed"` and `"true"` until DECISIONS #7):
+Let $S_k\in(0,1]$ be the probability that an object whose true value lies in bin $k$ is detected (bin-averaged). How $S$ enters depends on what the selection acts on, so the API requires an explicit **selection mode** (DECISIONS #7):
 
 - **`"on_measurement"`**: selection acts on the *measured* data, e.g. a flux limit applied to measured fluxes, or a reconstruction efficiency. For a detected object the selection indicator is 1, so its likelihood row $L_i$ is the ordinary likelihood $p(d_i\mid z)$ at the observed data; it must **not** be renormalised over the detectable data space. Here $S_k=\int_{\rm det}p(d\mid z\in B_k)\,dd$.
 - **`"on_truth"`**: selection acts on the *true* value, or independently of the measurement noise, e.g. a completeness map in the true parameter. Then $p(d_i,\mathrm{det}\mid z)=S(z)\,\ell_i(z)$, and the effective likelihood is $\tilde L_{ik}=S_kL_{ik}$, with $S_k$ the average of $S$ over the bin in its measure coordinate, where the population is flat.
 - Both together: `Selection.combined(on_truth, on_measurement)`. A selection may also be a function of the true value, averaged over each bin (`Selection.from_function`), or measured by injections and inferred jointly with the population (`Selection.from_injections`, DECISIONS #10, #79, #80).
 
-Write $\tilde L_{ik}=L_{ik}$ in the first case and $S_kL_{ik}$ in the second.
+Write $\tilde L_{ik}=L_{ik}$ in the first case and $S_kL_{ik}$ in the second. `Selection(values, mode, scale=...)` reads the values as detection probabilities by default, as values known only up to a constant with `scale="relative"` (enough for fractions, refused for rates), or as absolute values that may exceed one with `scale="exposure"` (DECISIONS #46).
 
 - **Fractions.** Marginalising the unknown total number of objects $\Lambda$ under $p(\Lambda)\propto 1/\Lambda$ gives, for both modes,
   $$p(\rho\mid D)\propto p(\rho)\,\frac{\prod_i (\tilde L_i\cdot\rho)^{w_i}}{(S\cdot\rho)^{W}},\qquad W=\textstyle\sum_i w_i. \tag{S}$$
@@ -354,7 +354,7 @@ All engines take a `PopulationModel`, accept `rng` (SPEC 7: an int seed, `numpy.
 ### 6.2 NUTS (must; the fallback of `method="auto"`)
 
 - **Algorithm:** multinomial NUTS with Stan's generalised and extra U-turn checks, dual-averaging step size and Stan-style windowed metric adaptation; the initial step size of each window follows Hoffman & Gelman's heuristic. `metric="auto"` (default) is dense for logistic priors with at most 200 unconstrained dimensions and diagonal otherwise; `"diag"` and `"dense"` choose. The prototype was verified on Gaussians, Dirichlet targets and the exact K=3 posterior.
-- **Logistic priors** (D12, DECISIONS #74): after $\min(25,\text{first window start})$ warm-up iterations (none below 20 warm-up iterations) the prior is partially centred and, up to 500 dimensions, the metric starts from the finite-difference curvature; each later window shrinks its estimate toward the previous window's metric. Results are reported in the model's own coordinates.
+- **Logistic priors** (D12, DECISIONS #74): with at least 20 warm-up iterations, the prior is partially centred after $\min(25,\text{first window start})$ of them and, up to 500 dimensions, the metric starts from the finite-difference curvature; each later window shrinks its estimate toward the previous window's metric. Results are reported in the model's own coordinates.
 - **Defaults:** 4 chains, 1000 warm-up and 1000 draws each, `target_accept=0.8` (0.9 for logistic priors), `max_depth=10`, initialised at the posterior mode with jitter 0.1 (a user `init` of one point is jittered per chain; every start must have a finite log density).
 - **Reported:** divergences, tree depths, step sizes, energies and E-BFMI, R̂ and ESS.
 - **Behaviour:** chains run round-robin, so a generator interface and progress reporting work. `run` can be called again to extend the chains (resumable). `n_jobs` runs the chains in worker processes with the same random streams (D14).
@@ -375,7 +375,7 @@ All engines take a `PopulationModel`, accept `rng` (SPEC 7: an int seed, `numpy.
 
 ### 6.5 Laplace (must)
 
-- **Approximation:** a Gaussian in unconstrained coordinates at the L-BFGS mode, with the Hessian from central differences of the exact gradient (`step=1e-5`, relative). Negative curvature is clipped to a wide positive variance. The mode and curvature are found once per engine. (The analytic softmax Hessian $H_x=\mathrm{diag}(\hat n)-R^\top\mathrm{diag}(w)R-(A+W)(\mathrm{diag}\rho-\rho\rho^\top)$ of the original plan was not implemented.)
+- **Approximation:** a Gaussian in unconstrained coordinates at the L-BFGS mode, with the Hessian from central differences of the exact gradient (`step=1e-5`, relative). Negative curvature is clipped to a wide positive variance. The mode and curvature are found once per engine. An analytic Hessian was planned but not implemented.
 - **Optional importance correction (`importance=True`, default):** Pareto-smoothed importance resampling against the exact posterior from a multivariate Student-t proposal (`df=5`, D10) with `n_proposals` (default twice the draws asked for), reporting $\hat k$; the result is flagged approximate, with a warning, when $\hat k\ge\min(1-1/\log_{10}S,\,0.7)$ for $S$ proposals (DECISIONS #74).
 - **Accuracy:**
   - The prototype matched NUTS to ≲3% in s.d. for well-populated bins.
@@ -427,7 +427,7 @@ The documentation ranks the engines a user can choose by when to use them:
 | K=30, N=2×10⁴, σ = 0.2–0.4 | Gibbs max τ_int ≈ 430 (did not converge in 3,500 iterations); NUTS ≈ 4 min-ESS/s with ≈180 gradients per iteration; VB s.d. too small by ≈20× |
 | Selection, fractions model | Gibbs with negative-binomial augmentation = NUTS on (S) |
 
-These prototype figures informed D2. The engine choice of `method="auto"` (§6.9) rests instead on the benchmark matrix, `benchmarks/matrix.py` (DECISIONS #42, #88), whose measured results are in `docs/user-guide/engines.md` and `benchmarks/results/`.
+These figures informed D2; `method="auto"` (§6.9) rests on the benchmark matrix instead.
 
 ---
 
@@ -439,7 +439,7 @@ Raw draws and metadata:
 - `samples`: `(n_draws, K)` fractions, flattened over chains, with `chains` as `(n_chains, n_per_chain, K)`.
 - `rates`: `(n_draws, K)`: sampled for rate models, and for fractions $\Lambda\rho$ with `total` (draws of $\Lambda$), given an absolute selection or none (DECISIONS #78).
 - `selected`: the selected population $S\odot\rho/S\cdot\rho$ (also `which="selected"`; DECISIONS #49).
-- `log_density_unconstrained`: `(n_draws,)` (was `log_prob`; DECISIONS #70).
+- `log_density_unconstrained`: `(n_draws,)`.
 - `component_draws` when a `Basis` is finer than the bins; `info["selection_draws"]` or `info["response_draws"]` when either is inferred.
 - `method`, `approximate` (bool), `model`, `bins`, `selection`, `info` (engine statistics).
 
@@ -573,7 +573,7 @@ The mocks can include:
 | MAP | < 1 s at N = 10⁵, K = 100 (mix-SQP: 0.9 s, 4 iterations, on an idle core; a few seconds with broader PDFs; SQUAREM-EM had not converged after 2000 iterations, 39 s) |
 | Laplace | < 30 s at N = 10⁶, K = 100 (dense float64 needs ~800 MB, so the documentation recommends sparse storage or compression) |
 
-The likelihood and its gradient are two matrix–vector products with no $N\times K$ temporaries. Gibbs label draws, responsibilities and the per-object outputs `assignment_probabilities` and `predict_proba` work through the objects in chunks (a `chunk` argument), so their extra memory is $O(\text{chunk}\times K)$ beyond their outputs. `log_predictive` is not chunked: it holds an $N\times n_\text{draws}$ matrix.
+The likelihood and its gradient are two matrix–vector products with no $N\times K$ temporaries. Gibbs label draws, responsibilities and the per-object outputs `assignment_probabilities`, `predict_proba` and `log_predictive` work through the objects in chunks (a `chunk` argument), so their extra memory is $O(\text{chunk}\times\max(K, n_\text{draws}))$ beyond their outputs.
 
 ---
 

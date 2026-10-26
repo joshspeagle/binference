@@ -42,23 +42,21 @@ the same draws.
 
 ## How `method="auto"` chooses
 
-`method="auto"` takes the first of these that applies, and records its choice
-and the reason in `result.info["auto_method"]` and `result.info["auto_reason"]`:
+`method="auto"` tries, in order:
 
-1. **Gibbs** for a selection or response inferred jointly with a conjugate
-   prior (the only exact engine for these with a conjugate prior).
-2. **Gibbs** for a conjugate prior (the Dirichlet family or `GammaRates`) with
-   integer weights when the fraction of missing information $f$ at the MAP is
-   at most `gibbs_max_missing` (0.98). It runs enough draws per chain for a
-   smallest bulk ESS of about `target_ess` (400), from the autocorrelation time
-   $(1+f)/(1-f)$, and at least 1000.
-3. **Laplace**, importance-corrected, kept when its Pareto $\hat k$ check
-   passes and its importance ESS is at least `target_ess`.
-4. **NUTS** otherwise. Above `nnz_limit` ($2\times10^7$) stored likelihood
-   entries it keeps the Laplace draws instead, flagged approximate.
+1. **Gibbs** where it mixes well: a selection or response inferred jointly
+   with a conjugate prior, or a conjugate prior whose fraction of missing
+   information at the MAP is low. It runs long enough for a target effective
+   sample size, from the autocorrelation time $(1+f)/(1-f)$.
+2. **Laplace**, importance-corrected, kept when its Pareto $\hat k$ check
+   passes with enough effective draws (and, flagged approximate, for very
+   large inputs).
+3. **NUTS** otherwise.
 
-The three thresholds are options of the engine,
-{class}`binference.inference.Auto`, and go to `infer` like any other, e.g.
+The choice and its reason are in `result.info["auto_method"]` and
+`result.info["auto_reason"]`. {class}`binference.inference.Auto` states the
+exact rules; their thresholds (`target_ess`, `gibbs_max_missing`,
+`nnz_limit`) are options that go to `infer` like any other, e.g.
 `binference.infer(lk, target_ess=1000)`. Engine options rule out the engines
 that do not take them: `target_accept` or `n_jobs` leave only NUTS, `n_warmup`
 leaves Gibbs or NUTS, and options that no candidate takes raise an error. Pass
@@ -157,34 +155,30 @@ autocorrelation time is roughly $(1+f)/(1-f)$ iterations. Use NUTS. When a
 Gibbs run fails its checks, {meth}`~binference.PopulationResult.check` reports
 this number in its hint. `store_labels=True` keeps the latent labels for joint inference on
 individual objects, although {meth}`~binference.PopulationResult.sample_assignments`
-gives joint draws from any engine's output: exact given exact draws of $\rho$, and
-as approximate as $\rho$'s draws otherwise.
+gives joint draws from any engine's output, as exact as its draws of $\rho$.
 
 ## Point estimates
 
 `method="map"` returns a {class}`~binference.PointEstimate`.
 
-- **Dirichlet priors with concentrations of at least one** (including the
-  default flat prior, which gives the maximum-likelihood estimate) use
-  mix-SQP (Kim et al. 2020), a second-order method for mixture proportions.
-  It converges in a handful of iterations even when likelihoods are much
-  broader than the bins, where EM needs thousands. With a selection function
-  it applies to the flat prior only: it solves for the fractions of the
-  *observed* population, $\phi_k\propto S_k\rho_k$, in which the likelihood
-  is concave, and maps the mode back. `GammaRates` with shapes of at least
-  one use it too, once the total rate is profiled out.
-- **Other conjugate priors whose density is bounded on the simplex** (for
-  example a generalised Dirichlet with parameters of at least one, or a
-  Dirichlet other than the flat one under a selection) use SQUAREM-accelerated
-  EM on the simplex. EM is "iterated stacking", and its fixed point is the
-  maximum-likelihood or MAP population. If it stops before converging, the
+Three solvers share the work; {class}`~binference.samplers.MAP` gives the
+exact routing, and `est.info["algorithm"]` and `est.info["space"]` record the
+choice.
+
+- **mix-SQP** (Kim et al. 2020), a second-order method for mixture
+  proportions, wherever the problem is concave in its coordinates: Dirichlet
+  priors with concentrations of at least one, including the default flat
+  prior, which gives the maximum-likelihood estimate. It converges in a
+  handful of iterations even when likelihoods are much broader than the bins,
+  where EM needs thousands.
+- **SQUAREM-accelerated EM** for the other conjugate priors whose density is
+  bounded on the simplex. EM is "iterated stacking", and its fixed point is
+  the maximum-likelihood or MAP population. If it stops before converging, the
   warning reports the fraction of missing information, which sets its speed.
-- **Priors whose density is unbounded at the edge of the simplex**
-  (Dirichlet concentrations or `GammaRates` shapes below one, and tree priors
-  with a negative exponent in their log-density, such as Pólya trees and
-  Dirichlet trees with unit concentrations), all non-conjugate priors, and a
-  selection or response inferred with the population use L-BFGS in
-  unconstrained coordinates, which keeps the mode in the interior.
+- **L-BFGS in unconstrained coordinates** for priors whose density is
+  unbounded at the edge of the simplex (where the simplex mode can sit at an
+  exact zero), non-conjugate priors, and a selection or response inferred
+  with the population.
 - **The certificate** is the KKT optimality gap, which should be about zero.
   `MAP(tol=1e-8)` bounds it for EM, bounds the same gap of the problem mix-SQP
   solves (the observed fractions under selection, the composition for rates),

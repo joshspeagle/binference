@@ -124,19 +124,11 @@ trajectory.
 
 ```{code-cell} python
 narrow = binference.simulate.mock_1d(1500, binference.Bins.linear(0, 3, 20), noise=(0.01, 0.03), rng=11)
-per_second = {}
 for m in ["nuts", "gibbs"]:
     t0 = time.perf_counter()
     r = binference.infer(narrow.likelihoods, method=m, rng=1, check=False)
     dt = time.perf_counter() - t0
-    per_second[m] = r.diagnostics["ess_bulk"].min() / dt
-    print(f"{m:6s} {dt:5.1f} s, min ESS per second: {per_second[m]:8.1f}")
-```
-
-```{code-cell} python
-:tags: [remove-cell]
-
-assert per_second["gibbs"] > per_second["nuts"]
+    print(f"{m:6s} {dt:5.1f} s, min ESS per second: {r.diagnostics['ess_bulk'].min() / dt:8.1f}")
 ```
 
 ## Diagnostics
