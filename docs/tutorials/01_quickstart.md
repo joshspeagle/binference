@@ -158,7 +158,7 @@ Compare how well each fit predicts galaxies it has not seen:
 train, test = lk[:1500], lk[1500:]
 lp = {}
 for name, prior in [("Dirichlet", None), ("GP", binference.priors.LogisticGP())]:
-    fit = binference.infer(train, prior, rng=2)
+    fit = binference.infer(train, prior, rng=2, n_samples=500, n_warmup=500)  # shorter runs
     lp[name] = fit.log_predictive(test).sum()
 print({k: round(v, 1) for k, v in lp.items()})
 ```
