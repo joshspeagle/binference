@@ -15,6 +15,8 @@ from binference.warnings import ApproximationWarning, InputWarning
 
 from .conftest import assert_matches_reference, sd_mcse
 
+GAP = 1e3 * 1e-8  # MAP's guarantee: tol = 1e-8, or 1e3 * tol once round-off stops it
+
 
 @pytest.fixture(scope="module")
 def onehot():
@@ -342,7 +344,7 @@ def test_map_mle_matches_scipy(k3_problem):
     mock, _ = k3_problem
     lk = mock.likelihoods
     est = binference.infer(lk, method="map")
-    assert est.converged and est.kkt_gap < 1e-8
+    assert est.converged and est.kkt_gap <= GAP
     L = lk.toarray()
 
     def nll(eta):
@@ -403,7 +405,7 @@ def test_mixsqp_on_tall_dense_inputs_and_fallbacks():
     mock = binference.simulate.mock_1d(6000, Bins.linear(0, 3, 30), noise=(0.1, 0.3), rng=4)
     m = PopulationModel(mock.likelihoods)  # tall and dense
     est = MAP(m).run()
-    assert est.info["algorithm"] == "mixsqp" and est.kkt_gap < 1e-7
+    assert est.info["algorithm"] == "mixsqp" and est.kkt_gap <= GAP
     # informative priors with selection fall back to EM; asking for mix-SQP there is an error
     sel = PopulationModel(
         mock.likelihoods,
@@ -422,7 +424,7 @@ def test_mixsqp_stops_at_the_round_off_floor():
     # the KKT gap of this optimum cannot be pushed much below 1e-8 in floating point
     mock = binference.simulate.mock_1d(800, Bins.linear(0, 3, 15), rng=6)
     est = MAP(PopulationModel(mock.likelihoods)).run()  # warnings are errors here
-    assert est.converged and est.n_iter < 50 and est.kkt_gap < 1e-6
+    assert est.converged and est.n_iter < 50 and est.kkt_gap <= GAP
 
 
 @pytest.mark.parametrize("mode", ["on_truth", "on_measurement"])
@@ -432,7 +434,10 @@ def test_mixsqp_with_selection_solves_for_observed_fractions(mode):
     m = PopulationModel(mock.likelihoods, selection=Selection(3.0 * S, mode, scale="relative"))
     sqp = MAP(m).run()
     assert sqp.info["algorithm"] == "mixsqp"
-    assert sqp.converged and sqp.n_iter < 50 and sqp.kkt_gap < 1e-7
+    assert sqp.converged and sqp.n_iter < 50
+    # mix-SQP bounds the gap of the observed fractions by tol (1e3 * tol once round-off
+    # stops it); the gap in rho is larger by up to max(S) / (S . rho)
+    assert sqp.kkt_gap < GAP * S.max() / (S @ sqp.rho)
     em = MAP(m, algorithm="em", max_iter=200000).run()
     np.testing.assert_allclose(sqp.rho, em.rho, atol=1e-4)
     assert sqp.log_posterior >= em.log_posterior - 1e-8
@@ -452,7 +457,7 @@ def test_map_with_prior_and_selection(k3_selection_problem):
     # the reference used a flat prior; Dirichlet(2) adds sum(log rho) to its log density
     best = exact.points[np.argmax(exact.log_density + np.log(exact.points).sum(axis=1))]
     np.testing.assert_allclose(est.rho, best, atol=5e-3)
-    assert est.kkt_gap < 1e-7
+    assert est.kkt_gap <= GAP
 
 
 def test_map_tree_prior_matches_grid():
