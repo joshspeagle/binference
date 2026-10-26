@@ -67,7 +67,9 @@ fig = result.plot()
 - **Tests.** `result.pvalues()` and `result.passed()` test each quantity's
   ranks with a chi-square on their histogram; `method="ecdf"` uses the ECDF
   test with simultaneous bands of Säilynoja, Bürkner & Vehtari (2022)
-  instead, which is more sensitive to bias.
+  instead, which is more sensitive to bias. Neither test dominates the other:
+  to require both, call `result.passed(method="chisquare")` and
+  `result.passed(method="ecdf")`.
 - **Size.** A real check needs a few hundred simulations and roughly
   independent draws: keep `n_draws` below the effective sample size.
 

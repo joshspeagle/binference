@@ -251,6 +251,10 @@ def _ecdf_pvalue(ranks: np.ndarray, n_draws: int) -> float:
     g = tail[np.arange(L - 1), C].min()
     if g >= 1.0:
         return 1.0
+    # each tail is a p-value, so p <= (L - 1) g; below 1e-12 that bound is returned, which
+    # spares the recursion its widest bands (S x S work per step for badly skewed ranks)
+    if (L - 1) * g < 1e-12:
+        return float((L - 1) * g)
     # P(every C_j has tail > g): C_j - C_{j-1} | C_{j-1} ~ Binomial(S - C_{j-1}, 1/(L - j))
     lo_prev, prob = 0, np.ones(1)
     for j in range(L - 1):

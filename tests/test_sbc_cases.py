@@ -14,31 +14,15 @@
 import numpy as np
 import pytest
 
-import binference
-from binference import Bins
 from binference import priors as P
 
-from .test_slow import _fit, _geweke_z_scores
+from .test_slow import _assert_uniform_ranks, _fit, _geweke_z_scores, _sbc
 
 pytestmark = pytest.mark.slow
 
-BINS4 = Bins.linear(0.0, 1.0, 4)
 GIBBS = {"n_chains": 4, "n_warmup": 100, "n_samples": 400}
 GIBBS_SEL = {**GIBBS, "n_samples": 600}  # selection slows mixing (smallest ESS 22 at 400)
 DETECT = (1.0, 0.6, 0.35, 0.2)  # detection probabilities per bin
-
-
-def _sbc(prior, method, kw, *, n_simulations, n_draws, rng, n_objects=40, noise=0.2, **sim):
-    simulate = binference.simulate.prior_predictive(prior, BINS4, n_objects, noise=noise, **sim)
-    res = binference.validation.sbc(
-        simulate,
-        _fit(method, prior=prior, **kw),
-        n_simulations=n_simulations,
-        n_draws=n_draws,
-        rng=rng,
-    )
-    assert np.all(res.min_ess >= n_draws), np.sort(res.min_ess)[:5]
-    return res
 
 
 # (prior, method, engine settings, simulator settings, n_simulations, n_draws)
@@ -86,10 +70,10 @@ CASES = {
 @pytest.mark.parametrize("case", list(CASES))
 def test_sbc_ranks_are_uniform(case):
     prior, method, kw, sim, n_simulations, n_draws = CASES[case]
-    res = _sbc(prior, method, kw, n_simulations=n_simulations, n_draws=n_draws, rng=2026, **sim)
-    n_bins = 10 if n_simulations >= 150 else 5  # at least 10 expected ranks per bin
-    p = res.pvalues(n_bins=n_bins)
-    assert res.passed(n_bins=n_bins), dict(zip(res.names, p, strict=True))
+    res = _sbc(prior, _fit(method, prior=prior, **kw), n_simulations, n_draws, 2026, **sim)
+    assert np.all(res.min_ess >= n_draws), np.sort(res.min_ess)[:5]
+    # at least 10 expected ranks per histogram bin
+    _assert_uniform_ranks(res, n_bins=10 if n_simulations >= 150 else 5)
 
 
 @pytest.mark.parametrize(

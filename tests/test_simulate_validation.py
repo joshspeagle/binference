@@ -268,6 +268,10 @@ def test_sbc_ecdf_p_value_is_the_null_probability_of_a_smaller_band_statistic():
         g = tail[np.arange(M), np.bincount(ranks[:, 0], minlength=M + 1).cumsum()[:-1]].min()
         p_mc = np.mean(g_null <= g)
         assert abs(p - p_mc) < 4 * np.sqrt(max(p * (1 - p), 1e-3) / R), (a, p, p_mc)
+    # badly skewed ranks return the Bonferroni bound at once (the full recursion took 26 s)
+    skewed = np.minimum(rng.geometric(0.3, size=(4000, 1)) - 1, 99)
+    p = binference.validation.SBCResult(skewed, 99, ["x"]).pvalues(method="ecdf")[0]
+    assert 0 <= p < 1e-12
     res = binference.validation.SBCResult(ranks, M, ["x"])
     with pytest.raises(ValueError, match="n_bins"):
         res.pvalues(5, method="ecdf")

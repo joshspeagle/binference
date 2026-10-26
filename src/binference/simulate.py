@@ -610,11 +610,12 @@ def prior_predictive(
                 f"got {selection_mode!r}."
             )
         scale = "exposure" if rates else "probability"
-        T = Selection(selection, selection_mode, scale=scale).values
+        sel = Selection(selection, selection_mode, scale=scale)
+        T = sel.values
         if T.size != bins.K:
             raise ValueError(f"selection needs one value per bin ({bins.K}); got {T.size}.")
         if selection_mode == "on_truth":
-            S, keep_truth = T, T / T.max()
+            keep_truth = T / T.max()
         else:
             if bins.is_masked:
                 raise ValueError("selection_mode='on_measurement' needs unmasked bins.")
@@ -624,35 +625,39 @@ def prior_predictive(
             def passes(z):
                 return sum(T[j] * _measured_pass(z, nz, e[j], e[j + 1]) for j in range(bins.K))
 
-            S, keep_measured = _bin_average(passes, bins)[0], T / T.max()
-        sel = Selection(S, selection_mode, scale=scale)
+            sel = Selection.from_function(passes, bins, selection_mode, scale=scale)
+            keep_measured = T / T.max()
+        S = sel.values
+
+    def draw(rng: np.random.Generator) -> tuple[np.ndarray, int]:
+        value = bound.sample(1, rng)[0]
+        if not rates:
+            return value, n
+        # N ~ Poisson(S . lambda); every object is simulated, so refuse priors (such as
+        # the vague default GammaRates) whose draws would need millions of them
+        mean = float(S @ value)
+        if not mean <= 1e6:
+            raise ValueError(
+                f"A rate drawn from the prior expects {mean:.3g} objects; give the rate "
+                "prior an informative scale (e.g. GammaRates(shape, rate) with a larger rate)."
+            )
+        return value, int(rng.poisson(mean))
 
     def simulate(rng: np.random.Generator) -> tuple[Likelihoods, np.ndarray]:
-        value = bound.sample(1, rng)[0]
-        count = n
-        while rates:  # N ~ Poisson(S . lambda), redrawn while it is zero
-            mean = float(S @ value)
-            if not mean <= 1e6:
-                raise ValueError(
-                    f"A rate drawn from the prior expects {mean:.3g} objects; give the rate "
-                    "prior an informative scale (e.g. GammaRates(shape, rate) with a larger "
-                    "rate)."
-                )
-            count = int(rng.poisson(mean))
-            if count:
-                break
-            value = bound.sample(1, rng)[0]
+        value, count = draw(rng)
+        while count == 0:  # condition on N >= 1 (rates only)
+            value, count = draw(rng)
         rho = np.maximum(value, 0.0)
         rho = rho / rho.sum()
         mock = _gaussian_mock(
             bins,
-            rho,
-            count,
-            noise,
-            keep_truth,
-            None,
-            0.0,
-            rng,
+            density=rho,
+            n_objects=count,
+            noise=noise,
+            on_truth=keep_truth,
+            measured_range=None,
+            outliers=0.0,
+            gen=rng,
             measured_keep=keep_measured,
             selection=sel,
         )

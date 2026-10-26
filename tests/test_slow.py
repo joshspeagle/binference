@@ -35,24 +35,23 @@ def _fit(method, **kw):
     return fit
 
 
-def _sbc(prior, fit, n_simulations, n_draws, rng):
-    sim = binference.simulate.prior_predictive(prior, BINS4, n_objects=40, noise=0.2)
+def _sbc(prior, fit, n_simulations, n_draws, rng, *, n_objects=40, noise=0.2, **sim):
+    simulate = binference.simulate.prior_predictive(prior, BINS4, n_objects, noise=noise, **sim)
     return binference.validation.sbc(
-        sim, fit, n_simulations=n_simulations, n_draws=n_draws, rng=rng
+        simulate, fit, n_simulations=n_simulations, n_draws=n_draws, rng=rng
     )
 
 
-def _pvalues(res):
+def _pvalues(res, n_bins=10):
     # the chi-square is the more sensitive to width errors, the ECDF test to bias
-    return {
-        m: res.pvalues(n_bins=10) if m == "chisquare" else res.pvalues(method=m)
-        for m in ("chisquare", "ecdf")
-    }
+    return {"chisquare": res.pvalues(n_bins), "ecdf": res.pvalues(method="ecdf")}
 
 
-def _assert_uniform_ranks(res, alpha=1e-3):
-    for method, p in _pvalues(res).items():
-        assert np.all(p > alpha / p.size), (method, dict(zip(res.names, p, strict=True)))
+def _assert_uniform_ranks(res, alpha=1e-3, n_bins=10):
+    """Both tests pass at the Bonferroni-corrected level of SBCResult.passed (DECISIONS #87)."""
+    for method, p in _pvalues(res, n_bins).items():
+        nb = n_bins if method == "chisquare" else None
+        assert res.passed(alpha, nb, method=method), (method, dict(zip(res.names, p, strict=True)))
 
 
 @pytest.mark.parametrize(
