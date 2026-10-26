@@ -2,12 +2,15 @@
 
 **Population and hierarchical inference with PDFs.**
 
-binference infers the distribution of a population, and the posteriors of the
-individual objects in it, from noisy per-object information over a set of
-bins: likelihoods, posteriors computed under an interim prior, posterior
-samples, response matrices or classifier outputs. It samples the exact
-hierarchical posterior by default, so the error bars on every bin, every
-derived quantity and every object are honest.
+Many objects are each measured with noise. For each one you have a likelihood,
+a posterior computed under some prior, posterior samples, counts in measured
+bins with a response, or a classifier's output. binference infers the
+distribution of the population the objects come from, with honest
+uncertainty, and the posterior of each object under that population. The same
+problem is called redshift-distribution inference in astronomy, unfolding in
+particle physics, empirical Bayes deconvolution in statistics, quantification
+in machine learning and mixed-stock analysis in ecology; binference solves it
+for all of them with one model ([why binference](vision.md)).
 
 ```{image} _static/quickstart.png
 :alt: Population posteriors for a mock catalogue under a flat Dirichlet prior and a Gaussian-process prior
@@ -25,6 +28,12 @@ result.plot(truth=mock.truth.rho)
 
 ::::{grid} 1 2 2 3
 :gutter: 3
+
+:::{grid-item-card} Why binference
+:link: vision
+:link-type: doc
+What it does, for whom, and the principles behind its design.
+:::
 
 :::{grid-item-card} Getting started
 :link: install
@@ -67,6 +76,7 @@ Specification, test and implementation plans, and a survey of related software.
 :hidden:
 :maxdepth: 2
 
+vision
 install
 tutorials/index
 user-guide/index
