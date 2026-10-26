@@ -253,7 +253,7 @@ More result tests are in `tests/test_results_audit.py`, `tests/test_results_outp
 - A selection passed through `infer`; `method="em"` returns a `PointEstimate`, and `"auto"` records its choice.
 - **Not implemented:** with `progress=True` the run completes and prints nothing to stdout when tqdm is missing.
 
-`method="auto"` has its own file, `tests/test_auto.py`: one test per rule (DECISIONS #88).
+`method="auto"` has its own file, `tests/test_auto.py`: one test per rule, except the joint rule, tested with the joint models in `tests/test_injections.py` (DECISIONS #88).
 
 **`PopulationEstimator`**
 - `fit` returns self; `get_params` and `set_params` round-trip; `predict_proba` shapes; `score` returns a finite value.

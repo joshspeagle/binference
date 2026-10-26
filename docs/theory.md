@@ -458,7 +458,9 @@ as the likelihood itself.
 - **NUTS health.** Divergences, saturated tree depth and E-BFMI.
 - **Monte Carlo error.** Standard errors for posterior means.
 
-`result.check()` turns problems with convergence and NUTS health into warnings.
+`result.check()` turns these problems into warnings, together with an importance
+check's Pareto $\hat k$, an optimiser that did not converge, and problems with the
+inputs.
 
 The validation module answers a different question: is the *whole pipeline*
 calibrated?

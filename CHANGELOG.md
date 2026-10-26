@@ -47,6 +47,10 @@ First development version.
   too. Pass `method="nuts"` for the previous behaviour.
 - `Laplace` finds its mode and curvature once per engine (and `step`), not on every
   `run`.
+- `PopulationResult.log_predictive` works through the objects `chunk` at a time (a new
+  `chunk` argument, 4096 by default, as `predict_proba` and
+  `assignment_probabilities` already did), so its memory no longer grows with the
+  number of objects times the number of draws.
 
 ### Added
 

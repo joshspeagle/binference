@@ -591,8 +591,10 @@ class _IndividualMixin:
             rows = Rd[:, lk.meta["measured_bin"]]  # the response's own rows: scale one
             return rows, R, self._norms(R, None, n_draws), np.zeros(lk.N)
         _, R, S = self._object_draws(n_draws)
-        L = model.effective_likelihoods(lk) if S is None else lk.values
-        return L, R, self._norms(R, S, n_draws), lk.log_scale
+        norm = self._norms(R, S, n_draws)
+        if S is None and model.selection_row is not None:
+            R = R * model.selection_row  # L~ . rho = L . (S o rho): the rows are not copied
+        return lk.values, R, norm, lk.log_scale
 
     def _norms(self, R: np.ndarray, S: np.ndarray | None, n_draws: int | None):
         """Each draw's normaliser of a detected object's likelihood, :math:`S\\cdot\\rho`

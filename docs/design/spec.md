@@ -404,7 +404,7 @@ All engines take a `PopulationModel`, accept `rng` (SPEC 7: an int seed, `numpy.
 ### 6.9 Choosing a method
 
 `method="auto"` is the default of `infer` and `PopulationEstimator` (DECISIONS #14, #88; it was `method="nuts"` before). It is one engine, `binference.inference.Auto`, that takes the first of these that applies:
-1. Gibbs for a selection or response inferred jointly with a conjugate prior.
+1. Gibbs for a selection (not a smoothed injection selection) or response inferred jointly with a conjugate prior and integer weights.
 2. Gibbs for a conjugate prior with integer weights when the fraction of missing information $f$ at the MAP is at most `gibbs_max_missing` (0.98), run for $\lceil t\,(1+f)/(1-f)/n_\text{chains}\rceil$ draws per chain (at least 1000) for a smallest bulk ESS of about $t$ = `target_ess` (400).
 3. Importance-corrected Laplace, kept when its $\hat k$ check passes and its importance ESS is at least `target_ess`; also kept, flagged approximate, above `nnz_limit` ($2\times10^7$) stored likelihood entries, or when it is the only candidate left.
 4. NUTS.
@@ -469,7 +469,7 @@ New objects and cross-validation:
 Diagnostics, plotting and persistence:
 - `diagnostics`: a dict of R̂, bulk/tail ESS per bin, divergences, tree-depth saturation, E-BFMI, $\hat k$, missing information, as relevant.
 - `check(strict=False, rhat_max=1.01, ess_min=100, ...)`: emits warnings, or raises `DiagnosticsError` when `strict=True`. Sampler problems are `ConvergenceWarning`s; problems with the inputs (the Monte Carlo variance of sample likelihoods, binned counts the response does not describe) are `InputWarning`s.
-- `plot(...)`, `plot_corner(bins=...)`, `plot_trace()`, `plot_individual(i)`.
+- `plot(...)`, `plot_corner(idx=...)`, `plot_trace()`, `plot_individual(i)`.
 - `save(path)`, `PopulationResult.load(path)` (`.npz`; versioned schema; keeps the selection, basis and mask), `attach(likelihoods_or_model)`.
 - `to_dict()`, `to_datatree()` (xarray optional; the ArviZ ≥ 1.0 format).
 
@@ -573,7 +573,7 @@ The mocks can include:
 | MAP | < 1 s at N = 10⁵, K = 100 (mix-SQP: 0.9 s, 4 iterations, on an idle core; a few seconds with broader PDFs; SQUAREM-EM had not converged after 2000 iterations, 39 s) |
 | Laplace | < 30 s at N = 10⁶, K = 100 (dense float64 needs ~800 MB, so the documentation recommends sparse storage or compression) |
 
-The likelihood and its gradient are two matrix–vector products with no $N\times K$ temporaries. Gibbs label draws, responsibilities and the per-object outputs `assignment_probabilities`, `predict_proba` and `log_predictive` work through the objects in chunks (a `chunk` argument), so their extra memory is $O(\text{chunk}\times\max(K, n_\text{draws}))$ beyond their outputs.
+The likelihood and its gradient are two matrix–vector products with no $N\times K$ temporaries. Gibbs label draws, responsibilities and the per-object outputs `assignment_probabilities`, `predict_proba` and `log_predictive` work through the objects in chunks (a `chunk` argument), so their extra memory is $O(\text{chunk}\times\max(K, n_\text{draws}))$ beyond their outputs, except with a response inferred jointly, whose rows differ per draw ($n_\text{draws}\times N\times K$).
 
 ---
 

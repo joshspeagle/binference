@@ -44,9 +44,9 @@ the same draws.
 
 `method="auto"` tries, in order:
 
-1. **Gibbs** where it mixes well: a selection or response inferred jointly
-   with a conjugate prior, or a conjugate prior whose fraction of missing
-   information at the MAP is low. It runs long enough for a target effective
+1. **Gibbs** where it mixes well, for a conjugate prior and integer weights:
+   a selection (not a smoothed injection selection) or response inferred
+   jointly, or a fraction of missing information at the MAP that is low. It runs long enough for a target effective
    sample size, from the autocorrelation time $(1+f)/(1-f)$.
 2. **Laplace**, importance-corrected, kept when its Pareto $\hat k$ check
    passes with enough effective draws (and, flagged approximate, for very
@@ -168,7 +168,9 @@ choice.
 - **mix-SQP** (Kim et al. 2020), a second-order method for mixture
   proportions, wherever the problem is concave in its coordinates: Dirichlet
   priors with concentrations of at least one, including the default flat
-  prior, which gives the maximum-likelihood estimate. It converges in a
+  prior, which gives the maximum-likelihood estimate (with a selection, the
+  flat prior only), and `GammaRates` with shapes of at least one once the
+  total rate is profiled out. It converges in a
   handful of iterations even when likelihoods are much broader than the bins,
   where EM needs thousands.
 - **SQUAREM-accelerated EM** for the other conjugate priors whose density is

@@ -73,7 +73,8 @@ $N=10^6$ and $K=20$. Sparse storage keeps 12 bytes per non-zero entry. The
 per-object methods (`assignment_probabilities`, `predict_proba`,
 `log_predictive` and so `PopulationEstimator.score`) work through the objects
 `chunk` at a time (4096 by default), so beyond their output they hold only one
-chunk's rows.
+chunk's rows. The exception is a response inferred with the population, whose
+rows differ per draw: those methods hold one $N\times K$ block per draw used.
 
 ## Roadmap
 

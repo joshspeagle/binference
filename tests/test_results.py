@@ -129,6 +129,27 @@ def test_predict_and_log_predictive(fitted, small_1d):
     assert lp.sum() > wrong.log_predictive(new).sum()
 
 
+def test_new_objects_under_a_selection_on_the_truth_match_the_direct_formula():
+    # the selection enters through the column weights, a chunk of rows at a time
+    mock = binference.simulate.mock_1d(200, Bins.linear(0, 1, 5), noise=0.15, rng=3)
+    S = np.array([1.0, 0.8, 0.6, 0.4, 0.2])
+    res = binference.infer(
+        mock.likelihoods.with_selection(S, "on_truth"),
+        method="gibbs",
+        n_samples=50,
+        rng=0,
+        check=False,
+    )
+    new = mock.likelihoods.subset(np.arange(30)).to_sparse(1e-3)
+    R = res._select_draws(50, components=True)
+    Lt = new.toarray() * S  # the selected likelihoods
+    T = Lt @ R.T
+    p_direct = np.mean(Lt[:, None, :] * R[None] / T[:, :, None], axis=1)
+    lp_direct = np.log(np.mean(T / (R @ S)[None, :], axis=1)) + new.log_scale
+    np.testing.assert_allclose(res.predict_proba(new, n_draws=50, chunk=7), p_direct, rtol=1e-10)
+    np.testing.assert_allclose(res.log_predictive(new, n_draws=50, chunk=7), lp_direct, rtol=1e-10)
+
+
 def test_check_warns_on_stuck_chains(fitted):
     bad = fitted.chains.copy()
     bad[0] = bad[0] * 0.5 + 0.5 * np.eye(12)[0]
