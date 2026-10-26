@@ -81,7 +81,7 @@ class MeanFieldVB(Engine):
         draws = self.model.prior.vb_sample(state, int(n_samples), self.rng)
         warn(
             "Mean-field VB underestimates posterior uncertainty, especially for broad per-object "
-            "PDFs; use NUTS (the default) for error bars.",
+            "PDFs; use an exact engine (NUTS or Gibbs) for error bars.",
             ApproximationWarning,
         )
         info = {"n_iter": it, "converged": converged, "state": state}

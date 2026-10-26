@@ -99,8 +99,8 @@ axes[0].legend(frameon=False);
 ## Scaling up
 
 The cost of each likelihood evaluation grows with the number of objects
-times the number of cells. A few thousand objects on a few hundred cells take
-about a minute. For larger grids:
+times the number of cells (the number of stored entries for sparse
+likelihoods). For larger grids:
 
 - Store likelihoods sparsely (`lk.to_sparse(rtol)`): objects with small
   errors cover only a handful of cells.

@@ -76,6 +76,12 @@ acc_after = np.mean(recal.argmax(axis=1) == mock.truth.labels)
 print(f"accuracy with training-prior posteriors: {acc_before:.3f}, after recalibration: {acc_after:.3f}")
 ```
 
+```{code-cell} python
+:tags: [remove-cell]
+
+assert acc_after > acc_before
+```
+
 ### When the classifier is not calibrated
 
 Dividing out the training prior (route A) is exact only for calibrated
@@ -149,12 +155,19 @@ print(f"divergent: {d['n_divergent']} of {smooth.n_draws}, max R-hat {d['rhat'].
       f"min bulk ESS {d['ess_bulk'].min():.0f}")
 ```
 
+```{code-cell} python
+:tags: [remove-cell]
+
+assert d["n_divergent"] <= 0.001 * smooth.n_draws
+assert d["rhat"].max() < 1.01 and d["ess_bulk"].min() > 400
+```
+
 `check=False` stops `infer` from warning so that we can look at the
-diagnostics ourselves. One transition out of 4000 diverged, which `infer`
-would have flagged. The R-hat and effective sample sizes are fine, and an
-isolated divergence like this is usually harmless. Many divergences, or
-divergences that persist with a higher `target_accept`, would mean the
-sampler cannot explore part of the posterior ({doc}`/user-guide/pitfalls`).
+diagnostics ourselves. The R-hat and effective sample sizes are fine, and
+divergent transitions, if any, are rare. `infer` would flag even one; an
+isolated divergence is usually harmless. Many divergences, or divergences
+that persist with a higher `target_accept`, would mean the sampler cannot
+explore part of the posterior ({doc}`/user-guide/pitfalls`).
 
 ```{code-cell} python
 truth = mu.truth.rho
