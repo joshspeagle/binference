@@ -1,6 +1,6 @@
 # Walkthrough plan
 
-**Current position:** landing on `main` (see `landing-plan.md`): Phase C, C1–C11, C7b, C7c, C11b (derived rates, selection from injections and tallied responses inferred jointly) merged; C12 (results) merged; C13 (#72, #73) merged; C13b (#76: benchmark matrix, `method="auto"` default) merged; C14-1 (#82) and the Auto fix (#85) merged; C14-3 (#87) merged; #90 and C14-2 (#91) merged; C15 (#94: phase-wide review) merged; Phase C complete and the landing summary published; the walkthrough resumes at Phase 3 step 3.1 afterwards. Phase 1 done except 1.3's architecture decisions. Step 1.3's architecture decisions remain deferred until the relevant code has been read.
+**Current position:** landing on `main` (see `landing-plan.md`): Phase C, C1–C11, C7b, C7c, C11b (derived rates, selection from injections and tallied responses inferred jointly) merged; C12 (results) merged; C13 (#72, #73) merged; C13b (#76: benchmark matrix, `method="auto"` default) merged; C14-1 (#82) and the Auto fix (#85) merged; C14-3 (#87) merged; #90 and C14-2 (#91) merged; C15 (#94: phase-wide review) merged; Phase C complete and the landing summary published; the walkthrough has resumed at Phase 3: step 3.1 briefing published, discussion pending. Phase 1 done except 1.3's architecture decisions. Step 1.3's architecture decisions remain deferred until the relevant code has been read.
 
 ## How each step works
 
@@ -101,3 +101,4 @@ Seven auditor reports land in `audit/` (see `audit/README.md`). Per DECISIONS #1
 | 2.4 Selection (code) | L2–L3 | done (decisions #46–#49) | `briefings/2.4-selection.html` (+ .md) | |
 | 2.5 Population, sample, objects | L2 | done (decisions #50–#53) | `briefings/2.5-individuals.html` (+ .md) | |
 | 2.6 Model and kernels | L2–L3 | done (decisions #54–#57) | `briefings/2.6-model-core.html` (+ .md) | |
+| 3.1 Dirichlet family | L2–L3 | briefing published (2026-10-26); discussion pending | `briefings/3.1-dirichlet-family.html` (+ .md) | five questions in QUESTIONS |
