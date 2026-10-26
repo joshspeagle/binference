@@ -28,6 +28,9 @@ __all__ = ["PointEstimate", "PopulationResult", "Summary"]
 #: population draws the per-object methods use by default: their outputs grow with
 #: draws x objects (audit O-18)
 N_DRAWS = 500
+#: Default limits of :meth:`PopulationResult.check` on Markov chains.
+RHAT_MAX = 1.01
+ESS_MIN_PER_CHAIN = 100.0
 
 
 # ----------------------------------------------------------------------------
@@ -1408,7 +1411,9 @@ class PopulationResult(_IndividualMixin):
             self._cache.pop("diagnostics", None)
         return self.info.get("missing_information")
 
-    def _mixing_problems(self, rhat_max: float = 1.01, ess_min: float = 100.0) -> list[str]:
+    def _mixing_problems(
+        self, rhat_max: float = RHAT_MAX, ess_min: float = ESS_MIN_PER_CHAIN
+    ) -> list[str]:
         """R-hat above ``rhat_max`` and bulk or tail ESS below ``ess_min`` per chain, of
         the population and of an inferred selection or response, for Markov chains."""
         d, msgs = self.diagnostics, []
@@ -1434,8 +1439,8 @@ class PopulationResult(_IndividualMixin):
     def check(
         self,
         strict: bool = False,
-        rhat_max: float = 1.01,
-        ess_min: float = 100.0,
+        rhat_max: float = RHAT_MAX,
+        ess_min: float = ESS_MIN_PER_CHAIN,
         predictive_p_min: float = 1e-3,
         predictive_draws: int = 200,
         support_min: float | None = None,

@@ -55,10 +55,11 @@ class Auto(Engine):
        Without ``n_samples``, either Gibbs run is then extended until every bulk ESS
        (of the population, and of an inferred selection or response) reaches
        :math:`t` and the run passes the :math:`\hat R` and ESS limits of
-       :meth:`~binference.PopulationResult.check`. If that would take more
-       than ``max_gibbs_draws`` draws per chain, its draws are discarded and the next
-       candidate runs (a jointly inferred selection or response can mix much more
-       slowly than :math:`f` predicts).
+       :meth:`~binference.PopulationResult.check` (runs that store labels keep their
+       length). If that is projected to need more than ``max_gibbs_draws`` draws per
+       chain, its draws are discarded and the next candidate runs (a jointly inferred
+       selection or response can mix much more slowly than :math:`f` predicts); when
+       Gibbs is the only candidate it is kept, and the reason says it did not mix.
     3. Importance-corrected Laplace, kept when its Pareto :math:`\hat k` check passes
        and its importance ESS is at least ``target_ess``, or when the likelihoods have
        more than ``nnz_limit`` stored entries (then flagged approximate), or when it is
@@ -114,8 +115,9 @@ class Auto(Engine):
         self.engine_kwargs = engine_kwargs
         self._rng_arg = rng
 
-    def candidates(self) -> list[tuple[str, str, int | None]]:
-        """(engine, reason, Gibbs draws per chain) in the order they are tried."""
+    def candidates(self, n_samples: int | None = None) -> list[tuple[str, str, int | None]]:
+        """(engine, reason, Gibbs draws per chain) in the order they are tried, for runs
+        of ``n_samples`` draws per chain (None: the engines' own lengths)."""
         m, kw = self.model, self.engine_kwargs
         out: list[tuple[str, str, int | None]] = []
         if (
@@ -136,7 +138,7 @@ class Auto(Engine):
                         _DEFAULT_SAMPLES["gibbs"],
                         ceil(self.target_ess * (1 + f) / (1 - f) / chains),
                     )
-                    if n <= self.max_gibbs_draws:
+                    if n_samples is not None or n <= self.max_gibbs_draws:
                         out.append(("gibbs", f"conjugate prior, missing information {f:.2f}", n))
         out += [
             (key, "", None)
@@ -157,7 +159,7 @@ class Auto(Engine):
         ``n_samples`` is the number of draws per chain; Laplace returns as many in
         total as NUTS's default four chains would (4000 by default).
         """
-        plan = self.candidates()
+        plan = self.candidates(n_samples)
         rejected: list[str] = []  # why earlier candidates were not kept
         for i, (key, why, n_gibbs) in enumerate(plan):
             last = i == len(plan) - 1
@@ -167,16 +169,20 @@ class Auto(Engine):
             if key == "laplace":
                 n = 4 * (n_samples or _DEFAULT_SAMPLES["nuts"])
                 result, why = (engine.run(n), "") if last else self._try(engine, n)
+                if result is None:
+                    rejected.append(why)
+                    continue
             else:
                 result = engine.run(n_samples or n_gibbs or _DEFAULT_SAMPLES[key])
-                if key == "gibbs" and n_samples is None:
-                    result = self._extend(engine, result)
-                    if result is None and last:  # nothing else to run: keep the longest
-                        result = engine.result
-                    why = why if result is not None else "Gibbs mixed too slowly"
-            if result is None:
-                rejected.append(why)
-                continue
+                # stored labels grow with the run: their length stays as asked
+                extend = key == "gibbs" and n_samples is None and engine.label_index is None
+                if extend and not self._extend(engine, result):
+                    if not last:
+                        rejected.append("Gibbs mixed too slowly")
+                        continue
+                    why += f"; it did not mix within max_gibbs_draws={self.max_gibbs_draws}"
+                if extend:
+                    result = engine.result
             reasons = [*rejected, why] if why else rejected
             result.info["auto_method"] = key
             result.info["auto_reason"] = (
@@ -185,23 +191,22 @@ class Auto(Engine):
             return result
         raise AssertionError("unreachable: the last candidate always returns")  # pragma: no cover
 
-    def _extend(self, engine: Gibbs, result: PopulationResult) -> PopulationResult | None:
-        """The Gibbs run extended (at most four times) until it passes ``check()``'s R-hat
-        and ESS limits and its bulk ESS reaches ``target_ess``, or None if that would take
-        more than ``max_gibbs_draws`` draws per chain."""
-        for extension in range(5):
+    def _extend(self, engine: Gibbs, result: PopulationResult) -> bool:
+        """Extend the Gibbs run until its bulk ESS reaches ``target_ess`` and it passes the
+        limits of ``check()``; False once that is projected to need more than
+        ``max_gibbs_draws`` draws per chain."""
+        while True:
             d = result.diagnostics
-            ess = min(np.nanmin(v) for k, v in d.items() if k.startswith("ess_bulk"))
+            ess = np.concatenate([np.ravel(v) for k, v in d.items() if k.startswith("ess_bulk")])
+            ess = float(np.min(ess[np.isfinite(ess)], initial=np.inf))  # constant: no ESS
             if ess >= self.target_ess and not result._mixing_problems():
-                return result
+                return True
             done = result.chains.shape[1]
-            # enough for the target ESS, and at least half again while R-hat is high; at
-            # most three times as many, so a poor first projection wastes less if it fails
-            more = ceil(done * min(max(1.2 * self.target_ess / max(ess, 1.0) - 1.0, 0.5), 3))
-            if extension == 4 or done + more > self.max_gibbs_draws:
-                return None
-            result = engine.run(more)
-        raise AssertionError("unreachable")  # pragma: no cover
+            need = ceil(done * max(1.2 * self.target_ess / max(ess, 1.0) - 1.0, 0.5))
+            if done + need > self.max_gibbs_draws:
+                return False
+            # at most three times the draws so far, so a poor first projection costs less
+            result = engine.run(min(need, 3 * done))
 
     def _try(self, engine: Laplace, n: int) -> tuple[PopulationResult | None, str]:
         """Laplace's result when it is kept (its warnings re-emitted), else None.

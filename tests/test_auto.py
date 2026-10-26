@@ -170,3 +170,22 @@ def test_gibbs_gives_way_when_it_cannot_mix_within_its_draw_limit(short_nuts):
 
 def test_gibbs_is_not_tried_when_its_run_would_pass_the_draw_limit():
     assert _plan(_lk(3.0), gibbs_max_missing=0.9999, max_gibbs_draws=1500)[0] == "laplace"
+
+
+def test_gibbs_as_the_only_candidate_is_kept_and_says_it_did_not_mix():
+    lk, sel = _problem()
+    # chunk is a Gibbs option only, so Gibbs is the last candidate
+    res = binference.infer(
+        lk, selection=sel, rng=0, target_ess=600, max_gibbs_draws=1100, chunk=512, check=False
+    )
+    assert (
+        res.method == "gibbs" and "did not mix within max_gibbs_draws" in res.info["auto_reason"]
+    )
+
+
+def test_a_gibbs_run_that_stores_labels_keeps_its_length():
+    lk, sel = _problem()
+    res = binference.infer(
+        lk, selection=sel, rng=0, target_ess=600, store_labels=True, check=False
+    )
+    assert res.method == "gibbs" and res.chains.shape[1] == 1000
