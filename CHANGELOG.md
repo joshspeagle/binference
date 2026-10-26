@@ -44,7 +44,9 @@ First development version.
   reason are in `result.info["auto_method"]` and `["auto_reason"]`. The rules are one
   engine, `binference.inference.Auto`, whose thresholds (`target_ess`,
   `gibbs_max_missing`, `nnz_limit`) are options; `PopulationEstimator` defaults to it
-  too. Pass `method="nuts"` for the previous behaviour.
+  too. Pass `method="nuts"` for the previous behaviour. Without `n_samples`, a Gibbs run
+  chosen by auto is extended until its ESS and R-hat pass, or gives way to the next
+  engine beyond `max_gibbs_draws` (DECISIONS #89).
 - `Laplace` finds its mode and curvature once per engine (and `step`), not on every
   `run`.
 

@@ -51,7 +51,8 @@ and the reason in `result.info["auto_method"]` and `result.info["auto_reason"]`:
    integer weights when the fraction of missing information $f$ at the MAP is
    at most `gibbs_max_missing` (0.98). It runs enough draws per chain for a
    smallest bulk ESS of about `target_ess` (400), from the autocorrelation time
-   $(1+f)/(1-f)$, and at least 1000.
+   $(1+f)/(1-f)$, and at least 1000, and is extended until that ESS and $\hat R$
+   pass; beyond `max_gibbs_draws` auto moves on to the next engine.
 3. **Laplace**, importance-corrected, kept when its Pareto $\hat k$ check
    passes and its importance ESS is at least `target_ess`.
 4. **NUTS** otherwise. Above `nnz_limit` ($2\times10^7$) stored likelihood
