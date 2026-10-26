@@ -51,8 +51,9 @@ the same draws.
    autocorrelation time $(1+f)/(1-f)$, and is extended until that size and
    $\hat R$ pass; if that would take too many draws, auto moves on.
 2. **Laplace**, importance-corrected, kept when its Pareto $\hat k$ check
-   passes with enough effective draws (and, flagged approximate, for very
-   large inputs).
+   passes with enough effective draws. For very large inputs, or when no
+   other engine takes the options given, it is kept anyway, and flagged
+   approximate if it fails.
 3. **NUTS** otherwise.
 
 The choice and its reason are in `result.info["auto_method"]` and

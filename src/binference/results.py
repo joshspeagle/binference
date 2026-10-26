@@ -1000,7 +1000,9 @@ class PopulationResult(_IndividualMixin):
     method : str
         Engine that produced the draws.
     approximate : bool
-        True for approximations (VB, uncorrected Laplace, bootstrap).
+        True for approximations: VB, bootstrap, and Laplace draws that are
+        uncorrected, fail their Pareto k-hat check, or (under
+        ``method="auto"``) have an importance ESS below ``target_ess``.
     info : dict
         Engine statistics (e.g. NUTS tree depths, divergences, step sizes).
     """

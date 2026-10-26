@@ -46,7 +46,9 @@ First development version.
   `gibbs_max_missing`, `nnz_limit`) are options; `PopulationEstimator` defaults to it
   too. Pass `method="nuts"` for the previous behaviour. Without `n_samples`, a Gibbs run
   chosen by auto is extended until its ESS and R-hat pass, or gives way to the next
-  engine beyond `max_gibbs_draws` (DECISIONS #89).
+  engine beyond `max_gibbs_draws` (DECISIONS #89). Laplace draws that auto keeps
+  without passing its check (on very large inputs, or as the last candidate) are flagged
+  `approximate`.
 - `Laplace` finds its mode and curvature once per engine (and `step`), not on every
   `run`.
 - `PopulationResult.log_predictive` works through the objects `chunk` at a time (a new
