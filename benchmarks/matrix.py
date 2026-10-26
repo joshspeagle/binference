@@ -8,7 +8,7 @@ every engine is timed and compared with it. The results set the rules of
 
 Run from the repository root::
 
-    python benchmarks/matrix.py run --jobs 4               # the full matrix (about an hour)
+    python benchmarks/matrix.py run --jobs 4               # the full matrix (90 min)
     python benchmarks/matrix.py run --quick                # a two-cell smoke run (seconds)
     python benchmarks/matrix.py report benchmarks/results/matrix.json
 
@@ -246,11 +246,16 @@ def _compare(s: dict, ref: dict, truth: np.ndarray) -> dict:
     return out
 
 
+def catalogue(name: str, quick: bool = False) -> tuple[Likelihoods, np.ndarray]:
+    """The likelihoods and true fractions of a scenario, from its own seed."""
+    sc = (QUICK if quick else SCENARIOS)[name]
+    return sc.build(np.random.default_rng([sc.seed, zlib.crc32(name.encode())]))
+
+
 def run_cell(name: str, prior_name: str, quick: bool = False) -> list[dict]:
     """Every engine on one (scenario, prior), each compared with the reference run."""
     sc = (QUICK if quick else SCENARIOS)[name]
-    rng = np.random.default_rng([sc.seed, zlib.crc32(name.encode())])
-    lk, truth = sc.build(rng)
+    lk, truth = catalogue(name, quick)
     prior = sc.priors[prior_name]()
     model = PopulationModel(lk, prior)
     base = {
@@ -268,7 +273,7 @@ def run_cell(name: str, prior_name: str, quick: bool = False) -> list[dict]:
     except Exception:  # a feature for the auto rules, not a result
         base["missing_information"] = float("nan")
     ref = _reference(model, quick, seed=1)
-    rows = [{**base, "engine": "reference", **{k: ref[k] for k in ref if k not in _SUMS}}]
+    rows = [{**base, "engine": "reference", **ref}]
     for engine in ENGINES:
         row = {**base, "engine": engine}
         try:
@@ -296,9 +301,6 @@ def run_cell(name: str, prior_name: str, quick: bool = False) -> list[dict]:
             row["ess_per_s"] = row["ess"] / seconds
         rows.append(row)
     return rows
-
-
-_SUMS = ("mean", "sd", "q05", "q95")
 
 
 def _cells(only: str | None, quick: bool) -> list[tuple[str, str]]:
