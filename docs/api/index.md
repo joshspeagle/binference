@@ -105,6 +105,18 @@ fine control, generator-style sampling or resuming a run.
    Bootstrap
 ```
 
+`method="auto"`, the default, is an engine that picks one of these (DECISIONS #88):
+
+```{eval-rst}
+.. currentmodule:: binference.inference
+
+.. autosummary::
+   :toctree: generated
+   :nosignatures:
+
+   Auto
+```
+
 ## Diagnostics
 
 ```{eval-rst}

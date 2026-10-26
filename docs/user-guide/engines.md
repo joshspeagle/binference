@@ -47,18 +47,22 @@ and the reason in `result.info["auto_method"]` and `result.info["auto_reason"]`:
 1. **Gibbs** for a selection or response inferred jointly with a conjugate
    prior (the only exact engine for these with a conjugate prior).
 2. **Gibbs** for a conjugate prior (the Dirichlet family or `GammaRates`) with
-   integer weights when the fraction of missing information at the MAP is at
-   most 0.98. It runs enough draws per chain for a smallest bulk ESS of about
-   400, from the autocorrelation time $(1+f)/(1-f)$, and at least 1000.
-3. **Laplace**, importance-corrected, kept only when its Pareto $\hat k$ check
-   passes and its importance ESS is at least 400.
-4. **NUTS** otherwise. Above `binference.inference.AUTO_NNZ_LIMIT` ($2\times10^7$)
-   stored likelihood entries it keeps the Laplace draws instead, flagged
-   approximate.
+   integer weights when the fraction of missing information $f$ at the MAP is
+   at most `gibbs_max_missing` (0.98). It runs enough draws per chain for a
+   smallest bulk ESS of about `target_ess` (400), from the autocorrelation time
+   $(1+f)/(1-f)$, and at least 1000.
+3. **Laplace**, importance-corrected, kept when its Pareto $\hat k$ check
+   passes and its importance ESS is at least `target_ess`.
+4. **NUTS** otherwise. Above `nnz_limit` ($2\times10^7$) stored likelihood
+   entries it keeps the Laplace draws instead, flagged approximate.
 
-Engine options rule out the engines that do not take them: `target_accept`
-or `n_jobs` leave only NUTS, `n_warmup` leaves Gibbs or NUTS. Pass `method=`
-to choose yourself.
+The three thresholds are options of the engine,
+{class}`binference.inference.Auto`, and go to `infer` like any other, e.g.
+`binference.infer(lk, target_ess=1000)`. Engine options rule out the engines
+that do not take them: `target_accept` or `n_jobs` leave only NUTS, `n_warmup`
+leaves Gibbs or NUTS, and options that no candidate takes raise an error. Pass
+`method=` to choose yourself. {class}`~binference.PopulationEstimator` uses
+`method="auto"` too.
 
 The rules come from `benchmarks/matrix.py`: 18 mock catalogues, each varying
 one factor around a baseline (1-D, 20 bins, 1000 objects, Gaussian errors one

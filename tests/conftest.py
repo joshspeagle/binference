@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
+import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -12,6 +15,17 @@ from binference import diagnostics as diag
 
 # Optional seed sweeping for robustness checks: BINFERENCE_TEST_SEEDS="0,1,2" pytest ...
 _SEEDS = [int(s) for s in os.environ.get("BINFERENCE_TEST_SEEDS", "0").split(",")]
+
+
+@pytest.fixture(scope="session")
+def matrix():
+    """The benchmark-matrix script, ``benchmarks/matrix.py``, as a module."""
+    path = Path(__file__).parents[1] / "benchmarks" / "matrix.py"
+    spec = importlib.util.spec_from_file_location("matrix", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["matrix"] = module  # dataclasses look their module up
+    spec.loader.exec_module(module)
+    return module
 
 
 @pytest.fixture(params=_SEEDS)

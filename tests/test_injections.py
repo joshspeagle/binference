@@ -250,7 +250,7 @@ def test_a_smooth_selection_is_refused_where_it_does_not_apply():
     m = binference.PopulationModel(Likelihoods(np.ones((5, 6)), bins), selection=sel)
     with pytest.raises(TypeError, match="smooth"):
         Gibbs(m)
-    assert binference.inference._auto_method(m)[0] != "gibbs"
+    assert binference.inference.Auto(m).candidates()[0][0] != "gibbs"
     with pytest.raises(ValueError, match="smooth"):
         Selection.from_injections(z, detected, bins, "on_truth", smooth=0.0)
     for few in (Bins.grid([0, 1, 2], [0, 1, 2]), Bins.linear(0, 1, 2), Bins.categories(4)):
@@ -276,7 +276,7 @@ def test_nuts_centres_a_logistic_prior_beside_an_inferred_selection():
 def test_auto_and_exact_choose_what_they_can_infer():
     lk, sel = _problem()
     m = binference.PopulationModel(lk, binference.priors.LogisticRandomWalk(), selection=sel)
-    assert binference.inference._auto_method(m)[0] != "gibbs"
+    assert binference.inference.Auto(m).candidates()[0][0] != "gibbs"
     m = binference.PopulationModel(
         Likelihoods(lk.toarray()[:, :3], Bins.linear(0, 1, 3)),
         selection=Selection.from_injections([0.1, 0.5], [1, 1], Bins.linear(0, 1, 3), "on_truth"),

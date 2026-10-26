@@ -33,7 +33,7 @@ import warnings
 import zlib
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -41,6 +41,7 @@ from scipy import stats
 
 import binference
 from binference import Bins, Likelihoods, PopulationModel
+from binference import diagnostics as diag
 from binference import priors as P
 from binference.simulate import mock_1d, mock_2d, mock_categorical, population
 
@@ -58,7 +59,6 @@ class Scenario:
     priors: dict[str, Callable[[], object]]
     note: str = ""
     seed: int = 0
-    tags: dict[str, object] = field(default_factory=dict)
 
 
 # -- populations -------------------------------------------------------------------------
@@ -200,13 +200,22 @@ QUICK = {
 # -- one cell ----------------------------------------------------------------------------
 
 
-def _summaries(draws: np.ndarray) -> dict[str, list[float]]:
-    q05, q95 = np.quantile(draws, [0.05, 0.95], axis=0)
+def _summaries(res) -> dict[str, list[float]]:
+    q05, q95 = res.quantile([0.05, 0.95])
     return {
-        "mean": draws.mean(0).tolist(),
-        "sd": draws.std(0, ddof=1).tolist(),
+        "mean": res.mean.tolist(),
+        "sd": res.std.tolist(),
         "q05": q05.tolist(),
         "q95": q95.tolist(),
+    }
+
+
+def _mixing(res) -> dict:
+    d = res.diagnostics
+    return {
+        "ess": float(np.min(d["ess_bulk"])),
+        "rhat_max": float(np.nanmax(d["rhat"])),
+        "n_divergent": int(d.get("n_divergent", 0)),
     }
 
 
@@ -222,13 +231,17 @@ def _fit(model, engine, rng, **kw):
 
 def _reference(model, quick: bool, seed: int) -> dict:
     res, seconds, names = _fit(model, "nuts", seed, **(QUICK_REFERENCE if quick else REFERENCE))
-    d = res.diagnostics
+    C = res.chains
     return {
-        **_summaries(res.samples),
+        **_summaries(res),
+        **_mixing(res),
+        # Monte Carlo errors per bin, of the mean and of the s.d. (delta method)
+        "mcse_mean": [diag.mcse(C[..., k]) for k in range(res.K)],
+        "mcse_sd": [
+            diag.mcse((C[..., k] - C[..., k].mean()) ** 2) / (2 * C[..., k].std())
+            for k in range(res.K)
+        ],
         "seconds": seconds,
-        "ess": float(np.min(d["ess_bulk"])),
-        "rhat_max": float(np.nanmax(d["rhat"])),
-        "n_divergent": int(d.get("n_divergent", 0)),
         "warnings": names,
     }
 
@@ -286,12 +299,9 @@ def run_cell(name: str, prior_name: str, quick: bool = False) -> list[dict]:
         if engine == "map":
             row.update(_compare({"mean": res.rho}, ref, truth))
         else:
-            row.update(_compare(_summaries(res.samples), ref, truth))
-            d = res.diagnostics
+            row.update(_compare(_summaries(res), ref, truth))
             if engine in ("nuts", "gibbs"):
-                row["ess"] = float(np.min(d["ess_bulk"]))
-                row["rhat_max"] = float(np.nanmax(d["rhat"]))
-                row["n_divergent"] = int(d.get("n_divergent", 0))
+                row.update(_mixing(res))
             elif engine == "laplace":
                 row["ess"] = float(res.info.get("ess_importance", res.n_draws))
                 row["k_hat"] = float(res.info.get("k_hat", np.nan))
@@ -313,7 +323,7 @@ def _cells(only: str | None, quick: bool) -> list[tuple[str, str]]:
     ]
 
 
-def run(out: Path, only: str | None = None, jobs: int = 1, quick: bool = False) -> list[dict]:
+def run(out: Path, only: str | None = None, jobs: int = 1, quick: bool = False) -> None:
     cells = _cells(only, quick)
     out.parent.mkdir(parents=True, exist_ok=True)
     header = {
@@ -325,21 +335,17 @@ def run(out: Path, only: str | None = None, jobs: int = 1, quick: bool = False) 
         "jobs": jobs,
         "started": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
-    rows: list[dict] = []
-    with out.open("a") as f:
+    with out.open("a") as f, ProcessPoolExecutor(max(jobs, 1)) as pool:
         f.write(json.dumps(header) + "\n")
         if jobs == 1:
             results = (run_cell(n, p, quick) for n, p in cells)
         else:
-            pool = ProcessPoolExecutor(jobs)
             results = pool.map(run_cell, *zip(*cells, strict=True), [quick] * len(cells))
         for cell in results:
             for row in cell:
                 f.write(json.dumps(row) + "\n")
                 f.flush()
-            rows.extend(cell)
             print(f"{cell[0]['scenario']:>16} {cell[0]['prior']:<13} done", flush=True)
-    return rows
 
 
 # -- report ------------------------------------------------------------------------------
