@@ -97,3 +97,10 @@ def test_psis_of_equal_weights_has_no_tail():
     lw, k = d.psis(np.full(100, 3.0) + 1e-14 * np.arange(100))  # equal up to round-off
     np.testing.assert_allclose(np.exp(lw), 0.01)
     assert k == -np.inf
+
+
+def test_importance_ess_is_kish_and_ignores_the_normalisation():
+    w = np.array([1.0, 1.0, 2.0, 4.0])
+    assert d.importance_ess(w) == pytest.approx(64.0 / 22.0)
+    assert d.importance_ess(w / w.sum()) == pytest.approx(64.0 / 22.0)
+    assert d.importance_ess(np.ones(7)) == pytest.approx(7.0)

@@ -106,7 +106,6 @@ class Bootstrap(Engine):
             m,
             out[None],
             method="bootstrap",
-            kind=m.kind,
             approximate=True,
             info={
                 "scheme": self.scheme,

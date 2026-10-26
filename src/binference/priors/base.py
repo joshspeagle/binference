@@ -99,6 +99,11 @@ class BoundPrior:
     conjugate: bool = False
     has_density: bool = False
     has_prior_transform: bool = False
+    #: whether it has partial non-centring weights (``with_centering``; the logistic family)
+    has_centering: bool = False
+    #: counts its mode adds to the data's, ``alpha - 1`` (Dirichlet) or ``a - 1``
+    #: (GammaRates), as in EM's M-step; ``None`` for other priors
+    pseudocounts: np.ndarray | None = None
 
     def __init__(self, prior: PopulationPrior, bins: Bins) -> None:
         self.prior = prior

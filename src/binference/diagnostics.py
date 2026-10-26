@@ -20,6 +20,7 @@ __all__ = [
     "autocorr_function",
     "autocorr_time",
     "ess",
+    "importance_ess",
     "kkt_gap",
     "mcse",
     "missing_information",
@@ -304,3 +305,10 @@ def missing_information(model: Any, value: Any, **kwargs: Any) -> float:
     See :meth:`binference.PopulationModel.missing_information`.
     """
     return model.missing_information(np.asarray(value, dtype=float), **kwargs)
+
+
+def importance_ess(weights: Any) -> float:
+    r"""Kish's effective sample size of importance weights,
+    :math:`(\sum_s w_s)^2 / \sum_s w_s^2` (normalised or not)."""
+    w = np.asarray(weights, dtype=float)
+    return float(np.sum(w) ** 2 / np.sum(w**2))

@@ -58,6 +58,10 @@ class Laplace(Engine):
         Scale applied to the proposal's standard deviations.
     step : float
         Relative step for the finite-difference Hessian.
+    rng : int, numpy.random.Generator, or None
+        For the proposals and the resampling.
+    progress : bool
+        Accepted for a common signature; unused.
 
     Notes
     -----
@@ -152,13 +156,13 @@ class Laplace(Engine):
                 log_q = -0.5 * np.sum(Z**2, axis=1)
             else:
                 log_q = -0.5 * (self.df + d) * np.log1p(np.sum(Z**2, axis=1) / self.df)
-            log_p = np.array([m.log_density_unconstrained(x) for x in X])
+            log_p = m.log_density_unconstrained(X)
             lw, k_hat = diag.psis(log_p - log_q)
             w = np.exp(lw)
             threshold = diag.psis_threshold(M)  # depends on the number of proposals (N-6)
             info["k_hat"] = float(k_hat)
             info["k_hat_threshold"] = float(threshold)
-            info["ess_importance"] = float(1.0 / np.sum(w**2))
+            info["ess_importance"] = diag.importance_ess(w)
             idx = _systematic_resample(w, n_samples, self.rng)
             X = X[idx]
             approximate = not (k_hat < threshold)
@@ -178,7 +182,6 @@ class Laplace(Engine):
             m,
             vals[None],
             method="laplace",
-            kind=m.kind,
             x=X[None],
             approximate=approximate,
             info=info,

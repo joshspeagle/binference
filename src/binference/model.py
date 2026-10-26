@@ -42,12 +42,11 @@ from scipy import linalg, special
 
 from . import _kernels as kern
 from ._simplex import helmert_basis, log_softmax, softmax
-from ._utils import RNGLike, as_generator
+from ._utils import RNGLike, as_generator, chunk_slices
 from .bins import Bins
 from .likelihoods import Likelihoods, _scale_columns
 from .priors import Dirichlet, PopulationPrior
-from .priors.base import BoundPrior
-from .priors.dirichlet import _BoundDirichlet
+from .priors.base import _TINY, BoundPrior
 from .priors.rates import _gamma_draw
 from .selection import Selection, _logit_density, as_selection
 
@@ -187,6 +186,11 @@ class PopulationModel:
         return None if sel is not None and sel.scale == "relative" else self._S
 
     @property
+    def _exposure(self) -> np.ndarray | None:
+        """The exposure of a rate model's conjugate updates (``None`` for fractions)."""
+        return self._S if self.kind == "rates" else None
+
+    @property
     def joint(self) -> bool:
         """Whether a selection from injections or a tallied response is inferred with the
         population, as extra unconstrained coordinates (DECISIONS #80, #81)."""
@@ -320,12 +324,16 @@ class PopulationModel:
         return f"PopulationModel(N={self.N}, K={self.K}, prior={self.prior_spec!r}{sel})"
 
     # ------------------------------------------------- likelihood internals
-    def _selection_term(self, value: np.ndarray, S: np.ndarray | None = None) -> float:
-        # -S.lambda for rates, -W log(S.rho) for fractions with selection
+    def _selection_term(self, value: np.ndarray, S: np.ndarray | None = None):
+        # -S.lambda for rates, -W log(S.rho) for fractions with selection; one per row of
+        # value (..., K)
         S = self._S if S is None else S
         if self.kind == "rates":
-            return -float(S @ value)
-        return 0.0 if self.selection is None else -self.W * np.log(float(S @ value))
+            return -(value @ S)
+        if self.selection is None:
+            return 0.0
+        with np.errstate(divide="ignore"):
+            return -self.W * np.log(value @ S)
 
     def _rows(self, value: np.ndarray, S: np.ndarray | None = None):
         """The likelihood rows and the column weights for ``value``: the model's rows
@@ -396,12 +404,31 @@ class PopulationModel:
             g = np.concatenate([g, g_r])
         return ll + lp, g
 
-    def log_density_unconstrained(self, x: np.ndarray) -> float:
-        """Log posterior density in the unconstrained coordinates ``x`` (with the Jacobian).
+    def log_density_unconstrained(self, x: np.ndarray, block: int = 256) -> float | np.ndarray:
+        """Log posterior density in the unconstrained coordinates ``x`` (with the Jacobian):
+        a float for one point ``(dim,)``, an array for points ``(n, dim)``.
 
-        See :meth:`log_density_unconstrained_and_grad`.
+        See :meth:`log_density_unconstrained_and_grad`. Many points are evaluated
+        together, without gradients: the likelihood of ``block`` points per pass over the
+        objects (each point at a time when a selection or response is inferred).
         """
-        return self.log_density_unconstrained_and_grad(x)[0]
+        X = np.asarray(x, dtype=float)
+        if X.ndim == 1:
+            return self.log_density_unconstrained_and_grad(X)[0]
+        if self.joint:
+            return np.array([self.log_density_unconstrained_and_grad(x)[0] for x in X])
+        V = np.zeros((len(X), self.K))
+        lp = np.full(len(X), -np.inf)
+        zero = np.zeros(self.K)
+        for j, x in enumerate(X):  # the prior, point by point
+            eta, cache = self.prior.forward(x)
+            value = self._value(eta)
+            if np.isfinite(value.sum()):  # else a zero row: an impossible point
+                V[j] = value
+                lp[j] = self.prior.log_prior_and_grad(x, cache, value, zero)[0]
+        ll = kern.loglike_many(self._L, self._w, V, block=block)
+        ll = ll + self._selection_term(V) + self._ll_const
+        return np.where(np.isfinite(ll), ll + lp, -np.inf)
 
     def _with_bound_prior(self, prior: BoundPrior) -> PopulationModel:
         """A shallow copy sharing the data but using another parametrisation of the prior."""
@@ -455,7 +482,7 @@ class PopulationModel:
             return counts
         S = self._detect if S is None else S
         rho = value / value.sum()
-        n_missed = rng.negative_binomial(self.W, float(np.clip(S @ rho, 1e-300, 1.0)))
+        n_missed = rng.negative_binomial(self.W, float(np.clip(S @ rho, _TINY, 1.0)))
         if n_missed == 0:
             return counts
         q = rho * np.maximum(1.0 - S, 0.0)  # an efficiency may round to above one
@@ -573,15 +600,6 @@ class PopulationModel:
         """Unit-hypercube transform to prior draws (for nested samplers)."""
         return self.prior.prior_transform(np.asarray(u, dtype=float))
 
-    def stack(self) -> np.ndarray:
-        """Naive stacking: the mean of per-object posteriors; see :meth:`Likelihoods.stack`.
-
-        The posteriors use the interim prior the likelihoods were built with
-        (flat if none). This is one EM step from that prior; it is biased and
-        too broad when PDFs are broad, and is provided for comparison only.
-        """
-        return self.likelihoods.stack()
-
     # -------------------------------------------------------- diagnostics
     def kkt_gap(self, value: np.ndarray, include_prior: bool = True) -> float:
         r"""Violation of the first-order optimality conditions at ``value``.
@@ -607,10 +625,10 @@ class PopulationModel:
         elif self.selection is not None:
             G = G - self.W * self.selection / float(self.selection @ v)
         if include_prior and self.prior.has_density:
-            # at a zero, the gradient at 1e-300 (as in the MAP objective): -b for rates of
+            # at a zero, the gradient at _TINY (as in the MAP objective): -b for rates of
             # shape one, hugely negative where the density is unbounded there (no violation),
             # hugely positive where it vanishes (DECISIONS #71)
-            G = G + self.prior.grad_log_density(np.maximum(v, 1e-300))
+            G = G + self.prior.grad_log_density(np.maximum(v, _TINY))
         mu = float(v[pos] @ G[pos])
         if self.kind == "rates":
             # G <= 0 everywhere and lambda . G = 0 (the total), relative to the exposure so
@@ -626,6 +644,7 @@ class PopulationModel:
         max_objects: int = 20000,
         rng: RNGLike = 0,
         include_prior: bool = False,
+        chunk: int | None = kern.DEFAULT_CHUNK,
     ) -> float:
         """Largest fraction of missing information at ``value`` (0 to 1).
 
@@ -637,7 +656,8 @@ class PopulationModel:
         Gibbs impute them; ``include_prior`` adds a Dirichlet prior's term, as in
         the MAP EM (audit M-2; other priors add none; NaN where a prior with
         concentrations below one outweighs the data). Computed on the support
-        of ``value`` and on a random subset of at most ``max_objects`` objects.
+        of ``value`` and on a random subset of at most ``max_objects`` objects, ``chunk``
+        objects at a time.
         """
         v = np.asarray(value, dtype=float)
         N = self.N
@@ -652,9 +672,12 @@ class PopulationModel:
         on = v > 1e-9 * v.max()
         if on.sum() < 2:
             return 0.0
-        R = kern.responsibilities(L, v, chunk=None)[:, on]
-        nhat = w @ R
-        Im = np.diag(nhat) - (R * w[:, None]).T @ R
+        nhat, RwR = np.zeros(on.sum()), np.zeros((on.sum(), on.sum()))
+        for sl in chunk_slices(L.shape[0], chunk):
+            R = kern.responsibilities(L[sl], v, chunk=None)[:, on]
+            nhat += w[sl] @ R
+            RwR += (R * w[sl, None]).T @ R
+        Im = np.diag(nhat) - RwR
         if self.kind == "rates":  # Poisson thinning imputes nothing
             I_c = np.diag(nhat)
             I_obs = I_c - Im
@@ -662,11 +685,8 @@ class PopulationModel:
             rho = v[on] / v[on].sum()
             C = np.diag(rho) - np.outer(rho, rho)
             # a Dirichlet prior adds (A - K) to the complete-data count, as in the MAP EM
-            extra = (
-                float(np.sum(self.prior.alpha[on]) - on.sum())
-                if include_prior and isinstance(self.prior, _BoundDirichlet)
-                else 0.0
-            )
+            a = self.prior.pseudocounts if include_prior else None
+            extra = 0.0 if a is None else float(np.sum(a[on]))
             # complete data: the observed objects and, with selection, the imputed missed ones
             S = np.ones(on.sum()) if self.selection is None else self._detect[on]
             phi = S * rho / float(S @ rho)

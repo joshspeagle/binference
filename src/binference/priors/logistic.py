@@ -122,6 +122,7 @@ class _BoundLogistic(BoundPrior):
     kind = "fractions"
     conjugate = False
     has_density = False
+    has_centering = True
 
     def __init__(
         self,

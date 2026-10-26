@@ -7,6 +7,7 @@ import numpy as np
 from .. import _kernels as kern
 from .._utils import RNGLike, warn
 from ..model import PopulationModel
+from ..priors.base import _TINY
 from ..results import PopulationResult
 from ..warnings import ApproximationWarning, ConvergenceWarning
 from .base import Engine
@@ -31,6 +32,19 @@ class MeanFieldVB(Engine):
     No evidence lower bound is computed (with selection the plug-in update does
     not ascend one): iterations stop when the largest change of the mean is
     below ``tol`` times its largest value.
+
+    Parameters
+    ----------
+    model : PopulationModel
+        Must use a conjugate prior.
+    tol : float
+        Relative tolerance on the change of the mean.
+    max_iter : int
+        Maximum number of coordinate-ascent iterations.
+    rng : int, numpy.random.Generator, or None
+        For the draws from the variational posterior.
+    progress : bool
+        Accepted for a common signature; unused.
     """
 
     name = "vb"
@@ -46,16 +60,20 @@ class MeanFieldVB(Engine):
         progress: bool = False,
     ) -> None:
         super().__init__(model, rng=rng, progress=progress)
-        if not model.prior.conjugate:
-            raise TypeError("Mean-field VB needs a conjugate prior; use NUTS or Laplace instead.")
         self.tol = float(tol)
         self.max_iter = int(max_iter)
+
+    @classmethod
+    def unsupported(cls, model: PopulationModel) -> str | None:
+        if model.prior.conjugate:
+            return super().unsupported(model)
+        return "Mean-field VB needs a conjugate prior; use NUTS or Laplace instead."
 
     def fit(self):
         """Run coordinate ascent; returns ``(state, n_iter, converged)``."""
         m = self.model
         prior = m.prior
-        exposure = m._S if m.kind == "rates" else None
+        exposure = m._exposure
         state = prior.vb_update(np.full(m.K, m.W / m.K), exposure=exposure)
         mean_old = prior.vb_mean(state)
         converged = False
@@ -67,7 +85,7 @@ class MeanFieldVB(Engine):
             nhat = m._complete_counts(mean_old, nhat)
             state = prior.vb_update(nhat, exposure=exposure)
             mean = prior.vb_mean(state)
-            if np.max(np.abs(mean - mean_old)) <= self.tol * max(np.max(np.abs(mean)), 1e-300):
+            if np.max(np.abs(mean - mean_old)) <= self.tol * max(np.max(np.abs(mean)), _TINY):
                 converged = True
                 break
             mean_old = mean
@@ -89,7 +107,6 @@ class MeanFieldVB(Engine):
             self.model,
             draws[None],
             method="vb",
-            kind=self.model.kind,
             approximate=True,
             info=info,
         )

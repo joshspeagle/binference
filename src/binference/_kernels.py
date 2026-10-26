@@ -20,6 +20,7 @@ from ._utils import chunk_slices
 __all__ = [
     "loglike",
     "loglike_and_counts",
+    "loglike_many",
     "matvec",
     "possible",
     "responsibilities",
@@ -28,7 +29,9 @@ __all__ = [
     "sample_labels",
 ]
 
-DEFAULT_CHUNK = 65536
+#: objects per block of the chunked kernels: Gibbs labels were drawn as fast in blocks of
+#: 4096 as of 65536 objects (N = 2e4 to 2e5, K = 20 to 80), in blocks 16 times smaller
+DEFAULT_CHUNK = 4096
 
 #: below this fraction of non-zero entries, sparse storage is chosen: the largest fill at
 #: which it beat dense in every measured case (DECISIONS #77)
@@ -59,6 +62,24 @@ def loglike(L, w: np.ndarray, rho: np.ndarray) -> float:
     """``sum_i w_i log(L_i . rho)`` (``-inf`` if some object is impossible), one pass."""
     s = matvec(L, rho)
     return float(np.dot(w, np.log(s))) if possible(s) else -np.inf
+
+
+def loglike_many(
+    L, w: np.ndarray, V: np.ndarray, block: int = 256, chunk: int | None = DEFAULT_CHUNK
+) -> np.ndarray:
+    """:func:`loglike` at each row of ``V`` ``(n, K)``: ``block`` rows per pass over the
+    objects, ``chunk`` objects at a time (so at most ``block * chunk`` evidences held)."""
+    N, n = L.shape[0], V.shape[0]
+    out, low = np.zeros(n), np.full(n, np.inf)
+    for pts in chunk_slices(n, block):
+        Vt = V[pts].T
+        for sl in chunk_slices(N, chunk):
+            s = np.asarray((L if sl.stop - sl.start == N else L[sl]) @ Vt)
+            low[pts] = np.minimum(low[pts], s.min(axis=0))
+            with np.errstate(divide="ignore", invalid="ignore"):
+                out[pts] += w[sl] @ np.log(s)
+    # the test of possible() per point
+    return np.where((low > 1e-250) & np.isfinite(out), out, -np.inf)
 
 
 def loglike_and_counts(L, w: np.ndarray, rho: np.ndarray) -> tuple[float, np.ndarray, np.ndarray]:
@@ -115,8 +136,8 @@ def responsibilities(
 
 
 def _sample_labels_dense(Lc: np.ndarray, rho: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    P = Lc * rho
-    c = np.cumsum(P, axis=1)
+    c = Lc * rho
+    np.cumsum(c, axis=1, out=c)
     # u in (0, total]: the first index with c_k >= u always has P_k > 0
     u = (1.0 - rng.random(Lc.shape[0])) * c[:, -1]
     idx = np.sum(c < u[:, None], axis=1)
@@ -146,7 +167,7 @@ def sample_labels(L, rho: np.ndarray, rng: np.random.Generator, chunk: int | Non
     out = np.empty(N, dtype=np.int64)
     sparse = sp.issparse(L)
     for sl in chunk_slices(N, chunk):
-        block = L[sl]
+        block = L if sl.stop - sl.start == N else L[sl]  # one chunk: no copy
         if sparse:
             out[sl] = _sample_labels_csr(block, rho, rng)
         else:

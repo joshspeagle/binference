@@ -311,6 +311,7 @@ class NUTS(Engine):
 
     name = "nuts"
     joint = True
+    markov = True
 
     def __init__(
         self,
@@ -328,7 +329,7 @@ class NUTS(Engine):
         rng: RNGLike = None,
         progress: bool = False,
     ) -> None:
-        logistic = hasattr(model.prior, "with_centering")
+        logistic = model.prior.has_centering
         # results are in the non-centred form, so only engines ever hold a centred prior
         if logistic and np.any(model.prior.lam != 1.0):
             raise ValueError(
@@ -424,7 +425,7 @@ class NUTS(Engine):
         assert self._chains is not None
         base = self._base_model  # non-centred (see __init__)
         prior0 = base.prior
-        if not hasattr(prior0, "with_centering"):
+        if not prior0.has_centering:
             return
         chains = self._chains
         d = base.dim
@@ -543,7 +544,7 @@ class NUTS(Engine):
             return
         assert self._chains is not None
         windows = self._chains[0].windows
-        logistic = hasattr(self._base_model.prior, "with_centering")
+        logistic = self._base_model.prior.has_centering
         # adapt the geometry once the chains have left the mode for the typical set
         switch = min(self._geometry_iter, windows[0][0]) if (windows and logistic) else 0
         try:
@@ -651,7 +652,6 @@ class NUTS(Engine):
             base,
             vals,
             method="nuts",
-            kind=base.kind,
             x=X,
             log_density_unconstrained=LP,
             info=info,

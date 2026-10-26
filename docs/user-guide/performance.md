@@ -31,7 +31,10 @@ The engines spend these differently:
   iteration and thousands of iterations when likelihoods are broad compared
   with the bins.
 - **Laplace** costs a MAP fit plus a finite-difference Hessian ($2K$ gradient
-  evaluations), and **VB** costs about as much as EM.
+  evaluations), then, for its importance correction, the log density at each
+  proposal ($2\times$ the draws by default), 256 proposals per pass over $L$:
+  about 5 s for 8000 proposals with $N=10^5$ and $K=50$ on one core. **VB**
+  costs about as much as EM.
 
 ## Making it faster
 

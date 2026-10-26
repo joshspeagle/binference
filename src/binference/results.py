@@ -1019,7 +1019,7 @@ class PopulationResult(_IndividualMixin):
         draws: np.ndarray,
         *,
         method: str,
-        kind: str = "fractions",
+        kind: str | None = None,
         bins: Bins | None = None,
         x: np.ndarray | None = None,
         log_density_unconstrained: np.ndarray | None = None,
@@ -1044,7 +1044,7 @@ class PopulationResult(_IndividualMixin):
         self.basis = basis
         self._params = d  # the model's columns: component weights with a basis
         self._draws = self._to_bins(d)  # per bin (the same array without a basis)
-        self.kind = kind
+        self.kind = kind = kind or (model.kind if model is not None else "fractions")
         if kind == "rates":
             total = self._draws.sum(axis=-1)
         # for fractions, drawn on first use (see total)

@@ -162,13 +162,13 @@ def test_kkt_gap_and_missing_information(rng):
     assert m1.kkt_gap(np.array([0.7, 0.1, 0.1, 0.1])) > 1e-3
     broad = binference.simulate.mock_1d(500, bins, noise=2.0, rng=rng).likelihoods
     m2 = PopulationModel(broad)
-    assert m2.missing_information(m2.stack()) > 0.9
+    assert m2.missing_information(broad.stack()) > 0.9
 
 
 def test_stack_is_one_em_step(lk6):
     m = PopulationModel(lk6)
     flat = lk6.bins.volumes / lk6.bins.volumes.sum()
-    np.testing.assert_allclose(m.stack(), m.expected_counts(flat) / lk6.W, rtol=1e-12)
+    np.testing.assert_allclose(lk6.stack(), m.expected_counts(flat) / lk6.W, rtol=1e-12)
 
 
 def test_raw_array_and_bins_checks():
@@ -180,3 +180,49 @@ def test_raw_array_and_bins_checks():
         PopulationModel(np.ones((2, 2)), prior="dirichlet")
     assert "PopulationModel(N=2" in repr(m)
     assert sp.issparse(PopulationModel(Likelihoods(np.ones((2, 2))).to_sparse())._L)
+
+
+@pytest.mark.parametrize(
+    "case", ["fractions", "rates", "selection", "logistic", "sparse", "joint"]
+)
+def test_many_points_take_the_log_density_of_one_point_at_a_time(lk6, case):
+    from .test_injections import _problem
+
+    lk, prior, kw = lk6, None, {}
+    if case == "rates":
+        prior = P.GammaRates(1.5, 1e-2)
+    elif case == "selection":
+        kw = {"selection": np.linspace(0.3, 1.0, 6), "selection_mode": "on_truth"}
+    elif case == "logistic":
+        prior = P.LogisticRandomWalk()
+    elif case == "sparse":
+        lk = lk6.to_sparse()
+    elif case == "joint":
+        lk, sel = _problem()
+        kw = {"selection": sel}
+    m = PopulationModel(lk, prior, **kw)
+    X = np.random.default_rng(3).normal(0.0, 1.0, (40, m.dim))
+    one = [m.log_density_unconstrained(x) for x in X]
+    np.testing.assert_allclose(m.log_density_unconstrained(X, block=7), one, rtol=1e-10)
+
+
+def test_the_batched_log_likelihood_is_minus_infinity_where_an_object_is_impossible():
+    from binference import _kernels as kern
+
+    L = np.random.default_rng(0).random((30, 4))
+    L[5, 1:] = 0.0  # object 5 is only possible in bin 0
+    V = np.random.default_rng(1).dirichlet(np.ones(4), 10)
+    V[[2, 7], 0] = 0.0
+    w = np.arange(1.0, 31.0)
+    want = [kern.loglike(L, w, v) for v in V]
+    for M in (L, sp.csr_array(L)):
+        got = kern.loglike_many(M, w, V, block=3, chunk=7)
+        np.testing.assert_allclose(got, want, rtol=1e-12)
+    assert np.isneginf(got[[2, 7]]).all() and np.isfinite(np.delete(got, [2, 7])).all()
+
+
+def test_missing_information_is_the_same_in_chunks(lk6):
+    m = PopulationModel(lk6)
+    rho = m.expected_counts(np.full(6, 1 / 6)) / m.W
+    whole = m.missing_information(rho, chunk=None)
+    assert m.missing_information(rho, chunk=7) == pytest.approx(whole, rel=1e-10)

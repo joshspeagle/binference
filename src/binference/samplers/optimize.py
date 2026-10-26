@@ -7,11 +7,11 @@ from typing import Any
 import numpy as np
 from scipy import optimize
 
+from .. import _kernels as kern
 from .._utils import RNGLike, warn
 from ..likelihoods import _scale_columns
 from ..model import PopulationModel
-from ..priors.dirichlet import _BoundDirichlet
-from ..priors.rates import _BoundGammaRates
+from ..priors.base import _TINY
 from ..results import PointEstimate
 from ..warnings import ConvergenceWarning, InputWarning
 from .base import Engine, em_update, interior_start
@@ -88,12 +88,12 @@ def _mixsqp(
             H = (L.T @ (L.multiply(d2[:, None]))).toarray() / W
         if A > 0:
             H[pos, pos] += a[pos] / (W * x[pos] ** 2)  # only where a_k > 0 (audit T-4)
-        H[np.diag_indices(K)] += 1e-10 * max(np.trace(H) / K, 1e-300)
+        H[np.diag_indices(K)] += 1e-10 * max(np.trace(H) / K, _TINY)
         try:
             try:
                 Lc = np.linalg.cholesky(H)
             except np.linalg.LinAlgError:
-                H[np.diag_indices(K)] += 1e-6 * max(np.trace(H) / K, 1e-300)
+                H[np.diag_indices(K)] += 1e-6 * max(np.trace(H) / K, _TINY)
                 Lc = np.linalg.cholesky(H)
             b = -np.linalg.solve(Lc, g - H @ x)
             y, _ = optimize.nnls(Lc.T, b, maxiter=50 * K)
@@ -173,6 +173,8 @@ class MAP(Engine):
     init : array_like (K,), optional
         Starting fractions (or rates). By default mix-SQP starts after 10
         regularised EM steps from uniform, the other algorithms after up to 50.
+    rng, progress
+        Accepted for a common signature; unused.
     """
 
     name = "map"
@@ -279,22 +281,17 @@ class MAP(Engine):
         )
 
     def _mixsqp_applies(self) -> bool:
-        p = self.model.prior
-        if self.algorithm not in ("auto", "mixsqp"):
+        m = self.model
+        a = m.prior.pseudocounts  # Dirichlet or GammaRates
+        if self.algorithm not in ("auto", "mixsqp") or a is None or np.any(a < 0.0):
             return False
-        if isinstance(p, _BoundGammaRates):
-            return bool(np.all(p.a >= 1.0))
         # with selection the likelihood is concave in the observed fractions
         # phi = S rho / (S . rho); a flat prior keeps the mode under that map
-        return (
-            isinstance(p, _BoundDirichlet)
-            and bool(np.all(p.alpha >= 1.0))
-            and (self.model.selection is None or bool(np.all(p.alpha == 1.0)))
-        )
+        return m.kind == "rates" or m.selection is None or bool(np.all(a == 0.0))
 
     def _run_mixsqp(self, m: PopulationModel) -> PointEstimate:
         rates = m.kind == "rates"
-        a = (m.prior.a if rates else m.prior.alpha) - 1.0
+        a = m.prior.pseudocounts
         # the likelihood is sum_k (L_ik / e_k) psi_k in psi proportional to e * value: the
         # observed fractions (e = S) or, for rates lambda = Lambda psi / e, the composition
         # with e = S + b, whose total Lambda = W + sum(a) profiles out (audit M-6)
@@ -329,13 +326,13 @@ class MAP(Engine):
         if fractions:
             v = v / v.sum()
 
-        def F(x):
-            out = em_update(m, x)
+        def F(x, s):  # the EM update of x, given its evidences s = L @ x
+            out = em_update(m, x, s)
             if out is None:
                 return None
             return out / out.sum() if fractions else out
 
-        f_old = _objective(m, v)
+        f_old, s = _objective(m, v)
         if not np.isfinite(f_old):
             raise ValueError(
                 "init gives some object zero likelihood; pass an init that is positive "
@@ -345,10 +342,10 @@ class MAP(Engine):
         n_iter = 0
         for n_iter in range(1, self.max_iter + 1):
             if self.accelerate:
-                v_new, f_new = self._squarem_step(m, F, v, fractions)
+                v_new, f_new, s_new = self._squarem_step(m, F, v, s, fractions)
             else:
-                v_new = F(v)
-                f_new = -np.inf if v_new is None else _objective(m, v_new)
+                v_new = F(v, s)
+                f_new, s_new = (-np.inf, None) if v_new is None else _objective(m, v_new)
             if not np.isfinite(f_new):  # keep the last population where every object is possible
                 warn(
                     "EM reached a population under which an object has zero likelihood (a "
@@ -358,7 +355,7 @@ class MAP(Engine):
                 )
                 break
             df = (f_new - f_old) / (abs(f_new) + 1.0)  # EM never decreases the objective
-            v, f_old = v_new, f_new
+            v, s, f_old = v_new, s_new, f_new
             # once the objective has nearly stopped, check optimality every tenth step (two
             # passes over the data each), at a fixed point and at the last step (audit M-6)
             if df <= self.tol and (n_iter % 10 == 0 or df <= 0.0 or n_iter == self.max_iter):
@@ -383,38 +380,41 @@ class MAP(Engine):
         algorithm = "squarem" if self.accelerate else "em"
         return self._estimate(m, v, n_iter, converged, algorithm)
 
-    def _squarem_step(self, m, F, v, fractions):
-        # one SQUAREM step; (None, -inf) when the first plain EM step meets an impossible object
-        r1 = F(v)
-        f1 = -np.inf if r1 is None else _objective(m, r1)
+    def _squarem_step(self, m, F, v, s, fractions):
+        # one SQUAREM step from v with evidences s = L @ v: the new point, its objective
+        # and its evidences, so each point visited costs one product L @ x;
+        # (None, -inf, None) when the first plain EM step meets an impossible object
+        r1 = F(v, s)
+        f1, s1 = (-np.inf, None) if r1 is None else _objective(m, r1)
         if not np.isfinite(f1):
-            return None, -np.inf
-        r2 = F(r1)
-        f2 = -np.inf if r2 is None else _objective(m, r2)
+            return None, -np.inf, None
+        r2 = F(r1, s1)
+        f2, s2 = (-np.inf, None) if r2 is None else _objective(m, r2)
         if not np.isfinite(f2):
-            return r1, f1  # the next step stops there
+            return r1, f1, s1  # the next step stops there
         d1 = r1 - v
         d2 = r2 - 2.0 * r1 + v
         n2 = float(np.sqrt(np.sum(d2**2)))
         if n2 == 0.0:
-            return r2, f2
+            return r2, f2, s2
         step = min(-float(np.sqrt(np.sum(d1**2))) / n2, -1.0)
         for _ in range(30):
             cand = v - 2.0 * step * d1 + step**2 * d2
             if np.all(cand >= 0) and np.all(np.isfinite(cand)) and cand.sum() > 0:
                 if fractions:
                     cand = cand / cand.sum()
-                cand = F(cand)  # stabilisation step keeps EM's monotonicity guarantees
+                # stabilisation step keeps EM's monotonicity guarantees
+                cand = F(cand, kern.matvec(m._L, cand))
                 # an extrapolation that makes an object impossible is rejected
                 if cand is not None:
-                    fc = _objective(m, cand)
+                    fc, sc = _objective(m, cand)
                     if fc >= f2:  # monotone, so a fall in the objective means round-off
-                        return cand, fc
+                        return cand, fc, sc
             if step == -1.0:
                 break
             step = (step - 1.0) / 2.0
             step = min(step, -1.0)
-        return r2, f2
+        return r2, f2, s2
 
     # --------------------------------------------------------------- L-BFGS
     def _run_lbfgs(self, m: PopulationModel) -> PointEstimate:
@@ -463,8 +463,13 @@ class MAP(Engine):
         )
 
 
-def _objective(m: PopulationModel, v: np.ndarray) -> float:
-    # log posterior on the simplex (or orthant), up to the likelihoods' log-scales;
-    # components clipped to zero are active constraints: the prior is evaluated at a tiny
-    # positive value so the objective stays finite (and constant) for them
-    return m.log_likelihood(v, absolute=False) + m.log_prior(np.maximum(v, 1e-300))
+def _objective(m: PopulationModel, v: np.ndarray) -> tuple[float, np.ndarray]:
+    # log posterior on the simplex (or orthant), up to the likelihoods' log-scales, and the
+    # evidences L @ v it uses (m.log_likelihood(v, absolute=False) + the prior); components
+    # clipped to zero are active constraints: the prior is evaluated at a tiny positive
+    # value so the objective stays finite (and constant) for them
+    s = kern.matvec(m._L, v)
+    ll = float(np.dot(m._w, np.log(s))) if kern.possible(s) else -np.inf
+    if not np.isfinite(ll):
+        return -np.inf, s
+    return ll + m._selection_term(v) + m.log_prior(np.maximum(v, _TINY)), s

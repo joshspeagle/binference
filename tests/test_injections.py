@@ -248,7 +248,7 @@ def test_a_smooth_selection_is_refused_where_it_does_not_apply():
     with pytest.raises(ValueError, match="independent Betas"):
         sel.draw(3)
     m = binference.PopulationModel(Likelihoods(np.ones((5, 6)), bins), selection=sel)
-    with pytest.raises(TypeError, match="smooth"):
+    with pytest.raises(ValueError, match="smooth"):
         Gibbs(m)
     assert binference.inference.Auto(m).candidates()[0][0] != "gibbs"
     with pytest.raises(ValueError, match="smooth"):

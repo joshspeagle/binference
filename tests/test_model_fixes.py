@@ -161,15 +161,16 @@ def test_squarem_rejects_an_extrapolation_that_makes_an_object_impossible():
     target = np.array([0.2, 0.3, 0.5])
     calls = []
 
-    def F(x):  # an EM-like contraction; every extrapolated trial meets an impossible object
+    def F(x, s):  # an EM-like contraction; every extrapolated trial meets an impossible object
         calls.append(x)
         return None if len(calls) > 2 else 0.5 * (x + target)
 
     v = np.array([0.6, 0.3, 0.1])
-    new, f = MAP(m)._squarem_step(m, F, v, fractions=True)
+    new, f, s = MAP(m)._squarem_step(m, F, v, m._L @ v, fractions=True)
     r2 = 0.5 * (0.5 * (v + target) + target)  # the two plain EM steps
     np.testing.assert_allclose(new, r2)
     assert np.isfinite(f) and len(calls) > 3  # trials were made and rejected
+    np.testing.assert_allclose(s, m._L @ r2)  # the evidences at the point returned
 
 
 def test_results_saved_with_the_old_log_density_name_still_load(tmp_path):
