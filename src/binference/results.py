@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 from collections.abc import Callable, Sequence
 from functools import partial
@@ -1005,6 +1006,11 @@ class PopulationResult(_IndividualMixin):
         ``method="auto"``) have an importance ESS below ``target_ess``.
     info : dict
         Engine statistics (e.g. NUTS tree depths, divergences, step sizes).
+    labels : ndarray or None
+        Joint label draws stored by Gibbs, ``(chains, draws, objects)`` for the
+        objects in ``label_index``: bin indices, or basis-component indices when
+        the likelihoods use a :class:`~binference.Basis`;
+        :meth:`sample_assignments` returns bins either way.
     """
 
     def __init__(
@@ -1080,7 +1086,17 @@ class PopulationResult(_IndividualMixin):
         info: dict[str, Any] | None = None,
     ) -> PopulationResult:
         """Wrap draws from an external sampler, ``(n_chains, n_draws, K)`` or ``(n_draws, K)``:
-        fractions for a fractions model (rows summing to one), rates for a rate model."""
+        fractions for a fractions model (rows summing to one), rates for a rate model.
+
+        A model that infers its selection or response with the population needs their
+        draws too, as ``info["selection_draws"]`` or ``info["response_draws"]`` (the
+        layout the engines store)."""
+        key = "selection_draws" if model.selection_uncertain else "response_draws"
+        if (model.selection_uncertain or model.response is not None) and key not in (info or {}):
+            raise ValueError(
+                f"This model infers its {key.split('_')[0]} with the population: pass its "
+                f'draws as info["{key}"], or fix it (`.fixed()` or `.at_mean()`) first.'
+            )
         X = np.asarray(samples, dtype=float)
         if X.ndim not in (2, 3) or X.shape[-1] != model.K:
             raise ValueError(
@@ -1147,10 +1163,17 @@ class PopulationResult(_IndividualMixin):
         from .model import PopulationModel
 
         m, saved = likelihoods_or_model, self.selection
-        self._fit_model = isinstance(m, PopulationModel)  # bare likelihoods: default prior
+        # bare likelihoods get the default prior; a model counts as the fit's with its prior
+        self._fit_model = isinstance(m, PopulationModel) and (
+            self.prior_repr is None or repr(m.prior_spec) == self.prior_repr
+        )
         if not isinstance(m, PopulationModel):
             lk = m if isinstance(m, Likelihoods) else Likelihoods(m, self.basis or self.bins)
-            m = PopulationModel(lk, selection=None if lk.selection is not None else saved)
+            sel = None if lk.selection is not None else saved
+            if sel is not None and sel.basis is not None and _same_layout(lk.basis, sel.basis):
+                sel = copy.copy(sel)  # the same layout; its measure did not survive saving
+                object.__setattr__(sel, "basis", lk.basis)
+            m = PopulationModel(lk, selection=sel)
         if m.selection_spec != saved:
             raise ValueError("The likelihoods (or model) carry another selection than this fit.")
         if not _same_layout(m.likelihoods.basis, self.basis):
@@ -1391,7 +1414,8 @@ class PopulationResult(_IndividualMixin):
         out.update(self._mixing_of(self.kind))
         Sd = self._inferred_selection()  # a selection, or a response's efficiencies
         if Sd is not None:
-            out.update({f"{k}_selection": v for k, v in _mixing(Sd).items()})
+            name = "response" if "response_draws" in self.info else "selection"
+            out.update({f"{k}_{name}": v for k, v in _mixing(Sd).items()})
         for key in (
             "n_divergent",
             "k_hat",
@@ -1432,7 +1456,11 @@ class PopulationResult(_IndividualMixin):
         # independent draws have no chain for R-hat and ESS to describe
         if self.approximate or self.method in ("laplace", "vb", "bootstrap"):
             return msgs
-        for suffix, what in (("", ""), ("_selection", " of the selection")):
+        for suffix, what in (
+            ("", ""),
+            ("_selection", " of the selection"),
+            ("_response", " of the response's efficiencies"),
+        ):
             if "rhat" + suffix in d and np.nanmax(d["rhat" + suffix]) > rhat_max:
                 msgs.append(f"max R-hat{what} = {np.nanmax(d['rhat' + suffix]):.3f} > {rhat_max}")
             for kind in ("bulk", "tail"):

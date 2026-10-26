@@ -132,8 +132,7 @@ class PopulationModel:
         self.response = resp if resp is not None and resp.uncertain else None
         if self.response is not None:
             self._check_response(likelihoods, selection is None and selection_mode is None)
-            #: each row's measured bin, and the columns' Dirichlet parameters (J + 1, K)
-            self._mb = likelihoods.meta["measured_bin"]
+            #: the columns' Dirichlet parameters (J + 1, K)
             self._alpha = self.response._dirichlet()
         self.selection_spec: Selection | None = sel
         #: per-bin selection values (or ``None``)
@@ -174,6 +173,8 @@ class PopulationModel:
         self._w = likelihoods.weights
         self.W = float(self._w.sum())
         self._ll_const = float(np.dot(self._w, likelihoods.log_scale))
+        if self.response is not None:  # each row's measured bin
+            self._mb = likelihoods.meta["measured_bin"]
 
     # ----------------------------------------------------------- properties
     @property

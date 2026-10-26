@@ -141,7 +141,9 @@ def result_to_dict(result: PopulationResult) -> dict[str, Any]:
         out["total"] = total.reshape(result._draws.shape[:2])
     if result.log_density_unconstrained is not None:
         out["log_density_unconstrained"] = np.asarray(result.log_density_unconstrained)
-    if result.labels is not None:  # draws of the objects' bins, not the bins' labels
+    if result.x is not None:  # where prior_information_ratio evaluates, as before saving
+        out["x"] = np.asarray(result.x)
+    if result.labels is not None:  # draws of the objects' bins (or basis components)
         out["label_draws"] = np.asarray(result.labels)
         if result.label_index is not None:
             out["label_index"] = np.asarray(result.label_index)
@@ -199,6 +201,7 @@ def load_result(path: str) -> PopulationResult:
             method=meta["method"],
             kind=meta["kind"],
             bins=bins,
+            x=np.array(data["x"]) if "x" in data.files else None,
             log_density_unconstrained=next(
                 (
                     np.array(data[k])

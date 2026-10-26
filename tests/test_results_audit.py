@@ -351,3 +351,27 @@ def test_saturated_trees_suggest_gibbs_only_for_priors_with_unbounded_density():
         _nuts_result(binference.priors.Dirichlet(1.0), max_depth_fraction=0.2).check()
     assert "Hint" not in str(rec[0].message)
     assert _nuts_result(None, max_depth_fraction=0.05).check() == []  # 5% is tolerated
+
+
+def test_a_model_with_another_prior_attached_after_load_has_no_best_fit(tmp_path):
+    lk = binference.simulate.mock_1d(200, rng=3).likelihoods
+    prior = binference.priors.LogisticRandomWalk(scale=1.0)
+    res = binference.infer(lk, prior, method="laplace", rng=0)
+    res.save(str(tmp_path / "r.npz"))
+    back = binference.PopulationResult.load(str(tmp_path / "r.npz"))
+    with pytest.raises(ValueError, match="needs the fit's prior"):
+        _ = back.attach(binference.PopulationModel(lk)).best  # the default prior
+    back.attach(binference.PopulationModel(lk, prior))
+    np.testing.assert_allclose(back.best.rho, res.best.rho)
+
+
+def test_a_saved_result_keeps_its_unconstrained_draws(tmp_path):
+    # prior_information_ratio evaluates at the mean unconstrained draw, before and after
+    lk = binference.simulate.mock_1d(200, rng=3).likelihoods
+    prior = binference.priors.LogisticRandomWalk(scale=1.0)
+    res = binference.infer(lk, prior, method="laplace", rng=0)
+    res.save(str(tmp_path / "r.npz"))
+    back = binference.PopulationResult.load(str(tmp_path / "r.npz"))
+    back.attach(binference.PopulationModel(lk, prior))
+    np.testing.assert_array_equal(back.x, res.x)
+    assert back.prior_information_ratio() == res.prior_information_ratio()

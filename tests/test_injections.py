@@ -9,7 +9,7 @@ import pytest
 from scipy import special
 
 import binference
-from binference import Bins, Likelihoods, Selection
+from binference import Bins, Likelihoods, PopulationResult, Selection
 from binference.samplers import MAP, NUTS, Gibbs, Laplace, MeanFieldVB
 from binference.selection import _logit_density
 from binference.validation import SBCResult
@@ -287,3 +287,14 @@ def test_auto_and_exact_choose_what_they_can_infer():
         Selection.from_injections([0.1], [1], Bins.linear(0, 1, 3), "on_truth", prior=1.0)
     with pytest.raises(ValueError, match="z"):
         Selection.from_injections(np.ones((2, 2)), [1, 1], Bins.linear(0, 1, 3), "on_truth")
+
+
+def test_external_draws_of_a_joint_model_need_the_selection_draws():
+    lk, sel = _problem()
+    m = binference.PopulationModel(lk, selection=sel)
+    rho = np.full((10, 4), 0.25)
+    with pytest.raises(ValueError, match='info\\["selection_draws"\\]'):
+        PopulationResult.from_samples(m, rho)
+    S = np.broadcast_to(sel.values, (1, 10, 4))
+    res = PopulationResult.from_samples(m, rho, info={"selection_draws": S})
+    assert res.total.shape == (10,)

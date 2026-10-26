@@ -101,7 +101,7 @@ def test_per_object_methods_and_the_total_use_each_draws_response():
     eff = res.info["response_draws"].sum(axis=-2)  # (chain, draw, K), as the draws
     total = res.model.draw_total(res._params, _draws_rng(res._params), eff)
     np.testing.assert_allclose(res.total, total.ravel())
-    assert "ess_bulk_selection" in res.diagnostics  # the efficiencies'
+    assert "ess_bulk_response" in res.diagnostics  # the efficiencies'
     assert res.sample_assignments(n_draws=5, rng=1).shape == (5, lk.N)
     try:
         import xarray  # noqa: F401
@@ -135,7 +135,7 @@ def test_nuts_agrees_with_joint_gibbs_on_population_and_response():
         eff = r.info["response_draws"].sum(axis=-2).reshape(-1, 4)
         draws = np.concatenate([r.samples, eff], axis=1)
         d = r.diagnostics
-        ess = np.concatenate([d["ess_bulk"], d["ess_bulk_selection"]])
+        ess = np.concatenate([d["ess_bulk"], d["ess_bulk_response"]])
         stats.append((draws.mean(0), draws.std(0), ess))
     (m1, s1, e1), (m2, s2, e2) = stats
     # Monte Carlo errors: of a mean sd / sqrt(ESS), of an sd about sd / sqrt(2 ESS)
@@ -214,3 +214,15 @@ def test_new_binned_objects_take_each_draws_response():
         axis=0,
     )
     np.testing.assert_allclose(res.predict_proba(new, n_draws=None), probs)
+
+
+def test_dropping_rows_keeps_each_rows_measured_bin():
+    lk, _ = _unfolding()
+    m = binference.PopulationModel(lk)
+    w = m._w.copy()
+    w[0] = 0.0  # the first measured bin's row is dropped
+    new = m._with_weights(w)
+    assert new._mb.shape == (new.likelihoods.N,)
+    np.testing.assert_array_equal(new._mb, m._mb[1:])
+    x = new.from_value(np.full(m.K, 1 / m.K))
+    assert np.isfinite(new.log_density_unconstrained(x))
