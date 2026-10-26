@@ -15,7 +15,7 @@ from scipy import special
 
 from . import _kernels as kern
 from ._quadrature import bin_log_average
-from ._utils import check_positive_weights, frozen, is_integer_array, warn
+from ._utils import check_nonnegative, check_positive_weights, frozen, is_integer_array, warn
 from .basis import Basis
 from .bins import Bins
 from .density import (
@@ -33,7 +33,7 @@ from .density import (
 from .measure import Measure
 from .response import Response
 from .selection import Selection, _on_basis, as_selection
-from .warnings import InputWarning
+from .warnings import ApproximationWarning, InputWarning
 
 __all__ = ["Likelihoods"]
 
@@ -52,12 +52,6 @@ def _csr_row_max(L: sp.csr_array) -> np.ndarray:
         starts = L.indptr[:-1][nz]
         out[nz] = np.maximum.reduceat(L.data, starts)
     return out
-
-
-def _scale_csr_rows(L: sp.csr_array, factors: np.ndarray) -> sp.csr_array:
-    L = L.copy()
-    L.data = L.data * np.repeat(factors, np.diff(L.indptr))
-    return L
 
 
 def _scale_columns(values, factors: np.ndarray):
@@ -96,14 +90,14 @@ def _check_kind(kind: Any, interim: Any) -> bool:
     return interim is not None
 
 
-def _check_weights(weights: Any, n: int, fractional: bool) -> np.ndarray:
-    """Positive integer multiplicities, or any positive weights if ``fractional`` (#1)."""
+def _check_weights(weights: Any, n: int, fractional_weights: bool) -> np.ndarray:
+    """Positive integer multiplicities, or any positive weights if ``fractional_weights`` (#1)."""
     w = check_positive_weights(weights, n)
     if not is_integer_array(w):
-        if not fractional:
+        if not fractional_weights:
             raise ValueError(
                 "weights are integer multiplicities; pass fractional_weights=True "
-                "(or with_weights(..., fractional=True)) for a weighted pseudo-likelihood."
+                "for a weighted pseudo-likelihood."
             )
         warn(
             "Non-integer weights define a pseudo-likelihood: the posterior is not a proper "
@@ -241,7 +235,7 @@ def _log_gauss_rows(z: np.ndarray, r: np.ndarray, mu: np.ndarray, sig: np.ndarra
 OUTSIDE_THRESHOLD, OUTSIDE_SHARE = 0.9, 0.1
 
 
-def _record_outside(lk: Likelihoods, outside: np.ndarray, enabled: bool = True) -> None:
+def _record_outside(lk: Likelihoods, outside: np.ndarray, enabled: bool) -> None:
     """Store each object's mass fraction outside the active bins, and warn if many lose most."""
     _attach_per_object(lk, outside_fraction=outside)
     outside, threshold = lk.meta["outside_fraction"], OUTSIDE_THRESHOLD
@@ -446,14 +440,6 @@ class Likelihoods:
         for name in ("_values", "_log_scale", "_weights"):
             frozen(getattr(self, name))
 
-    @classmethod
-    def _from_parts(
-        cls, norm, log_scale, bins, weights, selection, meta, drop_empty=False, basis=None
-    ):
-        obj = cls.__new__(cls)
-        obj._init_from_parts(norm, log_scale, bins, weights, selection, meta, drop_empty, basis)
-        return obj
-
     def _copy(self, **changes: Any) -> Likelihoods:
         # a new object sharing every part not in ``changes``
         parts = {
@@ -465,7 +451,9 @@ class Likelihoods:
             "meta": self.meta,
             "basis": self._basis,
         }
-        return Likelihoods._from_parts(**{**parts, **changes})
+        obj = Likelihoods.__new__(Likelihoods)
+        obj._init_from_parts(**{**parts, **changes})
+        return obj
 
     # ------------------------------------------------------------ properties
     @property
@@ -586,9 +574,9 @@ class Likelihoods:
             meta=_slice_per_object({**self.meta, "subset_of": self.N}, rows),
         )
 
-    def with_weights(self, weights: Any, fractional: bool = False) -> Likelihoods:
-        """Copy with new object weights (``fractional`` as ``fractional_weights``)."""
-        return self._reweighted(_check_weights(weights, self.N, fractional))
+    def with_weights(self, weights: Any, fractional_weights: bool = False) -> Likelihoods:
+        """Copy with new object weights (``fractional_weights`` as for the constructor)."""
+        return self._copy(weights=_check_weights(weights, self.N, fractional_weights))
 
     def _reweighted(self, w: np.ndarray) -> Likelihoods:
         # copy with validated weights, for internal resampling schemes
@@ -1293,8 +1281,7 @@ class Likelihoods:
             c = np.asarray(counts, dtype=float).ravel()
             if c.shape != (J,):
                 raise ValueError(f"counts must have one entry per measured bin (J={J}).")
-            if not np.all(np.isfinite(c)) or np.any(c < 0):
-                raise ValueError("counts must be finite and non-negative.")
+            check_nonnegative(c, "counts")
             if not fractional_weights and not is_integer_array(c):
                 raise ValueError(
                     "counts must be integers; pass fractional_weights=True for weighted counts, "
@@ -1349,8 +1336,9 @@ def _slice_per_object(meta: dict[str, Any], rows: Any) -> dict[str, Any]:
 
 class _WithinBin:
     """Within-bin data for :meth:`PopulationResult.sample_values` (DECISIONS #50). They
-    pickle when they can; a function that cannot (a lambda density) pickles as empty,
-    so that a model can still be sent elsewhere, and its value draws fall back to flat."""
+    pickle when they can; a function that cannot (a lambda density) pickles as empty, with
+    a warning, so that a model can still be sent elsewhere, and its value draws fall back
+    to flat."""
 
     __slots__ = ("data",)
 
@@ -1362,6 +1350,11 @@ class _WithinBin:
             try:
                 pickle.dumps(self.data)
             except (pickle.PicklingError, AttributeError, TypeError):
+                warn(
+                    "The within-bin data cannot be pickled (e.g. a lambda density), so the "
+                    "copy's value draws are flat within bins.",
+                    ApproximationWarning,
+                )
                 return _WithinBin, ()
         return _WithinBin, (self.data,)
 
@@ -1411,8 +1404,7 @@ def _normalise_linear(values: Any):
     if sp.issparse(values):
         L = sp.csr_array(values, dtype=float, copy=True)  # do not modify the caller's matrix
         L.sum_duplicates()
-        if L.data.size and (not np.all(np.isfinite(L.data)) or np.any(L.data < 0)):
-            raise ValueError("Likelihood values must be finite and non-negative.")
+        check_nonnegative(L.data, "Likelihood values")
         L.eliminate_zeros()
         if L.ndim != 2:
             raise ValueError("values must be 2-D.")
@@ -1421,15 +1413,15 @@ def _normalise_linear(values: Any):
         rmax = _csr_row_max(L)
         with np.errstate(divide="ignore"):
             log_scale = np.log(rmax)
-        L = _scale_csr_rows(L, np.where(rmax > 0, 1.0 / np.where(rmax > 0, rmax, 1.0), 0.0))
+        # in place on the copy; rows without entries (rmax = 0) have nothing to scale
+        L.data *= np.repeat(1.0 / np.where(rmax > 0, rmax, 1.0), np.diff(L.indptr))
         return L, log_scale
     L = np.array(values, dtype=float)
     if L.ndim != 2:
         raise ValueError("values must be a 2-D array of shape (N, K).")
     if L.shape[1] < 2:
         raise ValueError("Need at least two bins (K >= 2).")
-    if not np.all(np.isfinite(L)) or np.any(L < 0):
-        raise ValueError("Likelihood values must be finite and non-negative.")
+    check_nonnegative(L, "Likelihood values")
     rmax = L.max(axis=1)
     with np.errstate(divide="ignore"):
         log_scale = np.log(rmax)
@@ -1449,11 +1441,11 @@ def _normalise_log(log_values: Any):
         raise ValueError("Need at least two bins (K >= 2).")
     if np.any(np.isnan(lv)) or np.any(lv == np.inf):
         raise ValueError("Log-likelihoods must not contain NaN or +inf.")
-    m = lv.max(axis=1)
-    finite = np.isfinite(m)
-    L = np.zeros_like(lv)
-    L[finite] = np.exp(lv[finite] - m[finite, None])
-    return L, np.where(finite, m, -np.inf)
+    m = lv.max(axis=1)  # finite, or -inf for a row of zeros
+    with np.errstate(invalid="ignore"):  # -inf - -inf in those rows, zeroed below
+        L = np.exp(np.subtract(lv, m[:, None], out=lv), out=lv)
+    L[np.isinf(m)] = 0.0
+    return L, m
 
 
 def _check_posterior_representation(P, vol: np.ndarray, representation: str) -> None:
@@ -1531,6 +1523,5 @@ def _bin_samples(samples: Any, bins: Bins, sample_weights: Any):
             if [len(s) for s in sws] != sizes.tolist():
                 raise ValueError("sample_weights must match the layout of samples.")
             sw = np.concatenate(sws)
-    if not np.all(np.isfinite(sw)) or np.any(sw < 0):
-        raise ValueError("sample_weights must be finite and non-negative.")
+    check_nonnegative(sw, "sample_weights")
     return flat, obj_ids, bins.index(flat), sw, n_obj

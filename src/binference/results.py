@@ -13,7 +13,7 @@ from scipy import special
 
 from . import _kernels as kern
 from . import diagnostics as diag
-from ._utils import RNGLike, as_generator, chunk_slices, is_integer_array, warn
+from ._utils import RNGLike, as_generator, check_nonnegative, chunk_slices, is_integer_array, warn
 from .bins import Bins
 from .measure import Measure
 from .warnings import ConvergenceWarning, DiagnosticsError, InputWarning
@@ -1125,8 +1125,7 @@ class PopulationResult(_IndividualMixin):
                 f"samples must have shape (n_chains, n_draws, {model.K}) or (n_draws, "
                 f"{model.K}); got {X.shape}."
             )
-        if not np.all(np.isfinite(X)) or np.any(X < 0):
-            raise ValueError("samples must be finite and non-negative.")
+        check_nonnegative(X, "samples")
         if model.kind == "fractions":
             sums = X.sum(axis=-1)
             if not np.allclose(sums, 1.0, atol=1e-6):

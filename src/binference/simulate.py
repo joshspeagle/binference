@@ -144,24 +144,13 @@ def _draw_values(bins: Bins, density: Any, n: int, rng: np.random.Generator):
         rho = population(bins, density)
         labels = rng.choice(bins.K, size=n, p=rho)
         return bins.sample_within(labels, rng), labels
-    # inverse-CDF sampling on a grid that splits every bin into 20 equal steps in u,
-    # so each fine cell lies inside one bin and inherits its mask
-    t = np.linspace(0.0, 1.0, 21)[:-1]
-    fine = [
-        m.inverse(np.append((u[:-1, None] + np.diff(u)[:, None] * t).ravel(), u[-1]))
-        for m, u in zip(bins.measures, bins.u_edges, strict=True)
-    ]
-    fb = Bins.grid(*fine, measure=bins.measures)
-    pts = fb.centers
-    dens = np.exp(np.asarray(f(pts), dtype=float).ravel()) * fb.volumes
-    if bins.is_masked:
-        dens[~bins.contains(pts)] = 0.0  # no objects in masked cells
+    # inverse-CDF sampling on every bin split into 20 equal steps in u (the mask repeated)
+    fb, coarse = bins.refine(20)
+    dens = np.exp(np.asarray(f(fb.centers), dtype=float).ravel()) * fb.volumes
     if not dens.sum() > 0:
         raise ValueError("density has no mass on the active bins.")
     cell = rng.choice(fb.K, size=n, p=dens / dens.sum())
-    values = fb.sample_within(cell, rng)
-    labels = bins.index(values)
-    return values, labels
+    return fb.sample_within(cell, rng), coarse[cell]
 
 
 def _noise(noise: Any, n: int, rng: np.random.Generator, shape=()) -> np.ndarray:
@@ -352,10 +341,7 @@ def _gaussian_mock(
 
 
 def _posterior_samples_1d(obs, sigma, bins, log_pi, pi_masses, n_samples, gen):
-    e = bins.edges[0]  # 50 steps per bin, so each step lies inside one bin
-    grid = np.append(
-        (e[:-1, None] + np.diff(e)[:, None] * np.linspace(0, 1, 51)[:-1]).ravel(), e[-1]
-    )
+    grid = bins.refine(50)[0].edges[0]  # 50 steps per bin, so each step lies inside one bin
     mid = 0.5 * (grid[1:] + grid[:-1])
     k = bins.index(mid)
     with np.errstate(divide="ignore"):
@@ -365,7 +351,8 @@ def _posterior_samples_1d(obs, sigma, bins, log_pi, pi_masses, n_samples, gen):
             log_prior = np.log(pi_masses[k] / bins.volumes[k])
         else:
             log_prior = np.zeros_like(mid)
-    log_prior = np.where(k >= 0, log_prior, -np.inf)  # no mass in masked bins
+    # the prior mass of each step (steps differ in width between bins); none in masked bins
+    log_prior = np.where(k >= 0, log_prior + np.log(np.diff(grid)), -np.inf)
     out = np.empty((obs.size, n_samples))
     for i in range(obs.size):
         logp = -0.5 * ((mid - obs[i]) / sigma[i]) ** 2 + log_prior
@@ -463,7 +450,7 @@ def mock_categorical(
 
 
 def mock_unfolding(
-    n_events: int = 5000,
+    n_objects: int = 5000,
     n_true: int = 20,
     n_reco: int = 25,
     *,
@@ -474,15 +461,15 @@ def mock_unfolding(
 ) -> Mock:
     """An unfolding problem: an exponential spectrum smeared by a detector.
 
-    ``n_events`` counts the events *before* detection, so the number observed
-    is random (``mock.truth.counts.sum()``), unlike the ``n_objects`` of the
-    other mocks. True values on [0, 1] follow ``exp(-slope * z)``; events are detected with
-    an efficiency rising linearly across the range, smeared with Gaussian
-    ``resolution`` and histogrammed in ``n_reco`` bins on [-0.1, 1.1]. The
-    response matrix is computed for a population uniform within each true bin,
-    ``mock.response`` is a :class:`Response` and ``mock.likelihoods`` is built
-    with :meth:`Likelihoods.from_binned` (its efficiency becomes the selection
-    function).
+    Unlike in the other mocks, ``n_objects`` counts the objects (events)
+    *before* detection, so the number observed is random
+    (``mock.truth.counts.sum()``). True values on [0, 1] follow
+    ``exp(-slope * z)``; events are detected with an efficiency rising linearly
+    across the range, smeared with Gaussian ``resolution`` and histogrammed in
+    ``n_reco`` bins on [-0.1, 1.1]. The response matrix is computed for a
+    population uniform within each true bin, ``mock.response`` is a
+    :class:`Response` and ``mock.likelihoods`` is built with
+    :meth:`Likelihoods.from_binned` (its efficiency becomes the selection function).
     """
     gen = as_generator(rng)
     tb = Bins.linear(0.0, 1.0, n_true)
@@ -500,9 +487,9 @@ def mock_unfolding(
         cdf = stats.norm.cdf((re[None, :] - zk[:, None]) / resolution)
         R[:, k] = (np.diff(cdf, axis=1) * (wk * eff(zk))[:, None]).sum(axis=0)
     # simulate events
-    z, _ = _draw_values(tb, density, n_events, gen)
-    det = gen.random(n_events) < eff(z)
-    reco = z + resolution * gen.standard_normal(n_events)
+    z, _ = _draw_values(tb, density, n_objects, gen)
+    det = gen.random(n_objects) < eff(z)
+    reco = z + resolution * gen.standard_normal(n_objects)
     observed = det & (reco >= re[0]) & (reco <= re[-1])
     response = Response(R, tb, Bins(re))
     lk = Likelihoods.from_binned(response, values=reco[observed])
@@ -513,7 +500,7 @@ def mock_unfolding(
         labels=true_lab,
         values=z[observed],
         counts=np.bincount(true_lab, minlength=n_true).astype(float),
-        n_drawn=n_events,
+        n_drawn=n_objects,
     )
     return Mock(tb, lk, truth, {"reco_counts": counts}, response=response)
 
@@ -611,13 +598,8 @@ def prior_predictive(
         if selection_mode is not None:
             raise ValueError("selection_mode was given without a selection.")
     else:
-        if selection_mode not in ("on_truth", "on_measurement"):
-            raise ValueError(
-                "selection_mode must be 'on_truth' or 'on_measurement' with a selection; "
-                f"got {selection_mode!r}."
-            )
         scale = "exposure" if rates else "probability"
-        sel = Selection(selection, selection_mode, scale=scale)
+        sel = Selection(selection, selection_mode, scale=scale)  # checks the mode
         T = sel.values
         if T.size != bins.K:
             raise ValueError(f"selection needs one value per bin ({bins.K}); got {T.size}.")

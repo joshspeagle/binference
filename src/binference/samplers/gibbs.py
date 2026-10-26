@@ -12,12 +12,10 @@ from .._utils import RNGLike, check_positive, is_integer_array, progress, spawn
 from ..model import PopulationModel
 from ..priors.dirichlet import _dirichlet_draw
 from ..results import PopulationResult
+from ..selection import _beta_posterior, _draw_beta
 from .base import Engine, interior_start
 
 __all__ = ["Gibbs"]
-
-#: smallest detection probability a chain holds (Beta draws can underflow to zero)
-S_FLOOR = 1e-12
 
 
 class Gibbs(Engine):
@@ -150,7 +148,7 @@ class Gibbs(Engine):
         self._state = [m.prior.posterior_sample(nhat, r, exposure=m._exposure) for r in self._rngs]
         # each chain starts from a draw given the injections or the tallies
         if m.selection_uncertain:
-            self._extra = [np.maximum(m.selection_spec.draw(1, r)[0], S_FLOOR) for r in self._rngs]
+            self._extra = [m.selection_spec.draw(1, r)[0] for r in self._rngs]  # floored
         elif m.response is not None:
             self._extra = [m.response.draw(1, r)[0] for r in self._rngs]
 
@@ -182,9 +180,8 @@ class Gibbs(Engine):
             unit_weights=self._unit,
         )
         missed = m._draw_missed(value, counts, rng, S=S) - counts  # with the absolute S
-        injected, recovered, (a, b), _ = m.selection_spec.injections
-        S = rng.beta(a + recovered + counts, b + injected - recovered + missed)
-        self._extra[c] = np.maximum(S, S_FLOOR)  # an underflow to zero would void its bin
+        s, f = _beta_posterior(m.selection_spec.injections)
+        self._extra[c] = _draw_beta(s + counts, f + missed, rng)  # floored
         self._state[c] = m.prior.posterior_sample(counts + missed, rng)
         return self._state[c], labels
 

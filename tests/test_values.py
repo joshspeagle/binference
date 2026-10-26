@@ -116,7 +116,8 @@ def test_workers_get_no_within_bin_data_and_unpicklable_data_pickle_as_empty():
     model = binference.PopulationModel(lk)
     assert "within" not in _worker_model(model).likelihoods.meta
     assert "within" in model.likelihoods.meta  # the caller's model keeps them
-    assert pickle.loads(pickle.dumps(model)).likelihoods.meta["within"].data is None
+    with pytest.warns(binference.ApproximationWarning, match="cannot be pickled"):
+        assert pickle.loads(pickle.dumps(model)).likelihoods.meta["within"].data is None
     samples = np.random.default_rng(0).normal(0.5, 0.1, (2, 50))
     kept = Likelihoods.from_samples(samples, BINS, interim="flat").meta["within"]
     assert pickle.loads(pickle.dumps(kept)).data is not None

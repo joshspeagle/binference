@@ -13,7 +13,7 @@ from typing import Any, Literal
 import numpy as np
 
 from ._quadrature import bin_log_average
-from ._utils import frozen
+from ._utils import check_nonnegative, frozen
 from .bins import Bins
 
 __all__ = ["Density"]
@@ -129,10 +129,8 @@ class Density:
         points per bin and axis (see :meth:`Likelihoods.from_density
         <binference.Likelihoods.from_density>`).
         """
-        m = self._bin_masses(bins, tol, max_depth, n_sub)
+        m = check_nonnegative(self._bin_masses(bins, tol, max_depth, n_sub), f"{self!r} masses")
         total = m.sum()
-        if not np.all(np.isfinite(m)) or np.any(m < 0):
-            raise ValueError(f"{self!r} must give finite, non-negative masses.")
         if total <= 0:
             raise ValueError(f"{self!r} has no mass on the bins.")
         return m / total
@@ -268,16 +266,11 @@ def log_interval_masses(
     return np.where(near | (hi > lo), out, -np.inf)
 
 
-def _log_nonneg(values: Any) -> np.ndarray:
-    v = np.asarray(values, dtype=float)
-    if not np.all(np.isfinite(v)) or np.any(v < 0):
-        raise ValueError("A density must take finite, non-negative values.")
+def _log_nonneg(values: Any, name: str = "The values of a density") -> np.ndarray:
+    v = check_nonnegative(values, name)
     with np.errstate(divide="ignore"):
         return np.log(v)
 
 
 def _nonneg(a: Any, name: str) -> np.ndarray:
-    arr = np.array(a, dtype=float).ravel()
-    if not np.all(np.isfinite(arr)) or np.any(arr < 0):
-        raise ValueError(f"{name} must be finite and non-negative.")
-    return frozen(arr)
+    return frozen(check_nonnegative(np.array(a, dtype=float).ravel(), name))

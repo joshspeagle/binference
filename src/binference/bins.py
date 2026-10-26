@@ -88,7 +88,6 @@ class Bins:
         "_labels",
         "_lookup",
         "_measures",
-        "_ordered",
         "_shape",
         "_u_edges",
         "_volumes",
@@ -138,7 +137,6 @@ class Bins:
                 lookup = frozen(lookup)
         self._edges = edges
         self._shape = shape
-        self._ordered = True
         self._labels = None
         self._measures = measures
         self._u_edges = u_edges
@@ -162,23 +160,9 @@ class Bins:
         self._centers = frozen(np.ascontiguousarray(centers, dtype=float))
 
     @classmethod
-    def _from_parts(cls, edges, labels, ordered, measure, mask=None) -> Bins:
+    def _from_grid(cls, edges: tuple[np.ndarray, ...], measure: Any, mask: Any) -> Bins:
         obj = cls.__new__(cls)
-        if edges is not None:
-            obj._set_grid(edges, measure, mask)
-        else:
-            K = len(labels)
-            obj._edges = None
-            obj._shape = (K,)
-            obj._ordered = ordered
-            obj._labels = tuple(labels)
-            obj._measures = None
-            obj._u_edges = None
-            obj._active = None
-            obj._lookup = None
-            obj._cell_index = (frozen(np.arange(K)),)
-            obj._volumes = frozen(np.ones(K))
-            obj._centers = frozen(np.arange(K, dtype=float))
+        obj._set_grid(edges, measure, mask)
         return obj
 
     # ------------------------------------------------------------ constructors
@@ -235,9 +219,7 @@ class Bins:
             raise ValueError("grid() needs one array of edges per axis.")
         if len(edges) == 1 and isinstance(edges[0], Sequence) and np.ndim(edges[0][0]) > 0:
             edges = tuple(edges[0])
-        obj = cls.__new__(cls)
-        obj._set_grid(tuple(_as_edges(e, i) for i, e in enumerate(edges)), measure, mask)
-        return obj
+        return cls._from_grid(tuple(_as_edges(e, i) for i, e in enumerate(edges)), measure, mask)
 
     @classmethod
     def categories(cls, labels: int | Sequence[Any]) -> Bins:
@@ -252,7 +234,15 @@ class Bins:
                 raise ValueError("Need at least two categories.")
             if len(set(labs)) != len(labs):
                 raise ValueError("Category labels must be unique.")
-        return cls._from_parts(None, labs, ordered=False, measure=None)
+        obj = cls.__new__(cls)
+        K = len(labs)
+        obj._edges = obj._measures = obj._u_edges = obj._active = obj._lookup = None
+        obj._shape = (K,)
+        obj._labels = labs
+        obj._cell_index = (frozen(np.arange(K)),)
+        obj._volumes = frozen(np.ones(K))
+        obj._centers = frozen(np.arange(K, dtype=float))
+        return obj
 
     # -------------------------------------------------------------- properties
     @property
@@ -273,7 +263,7 @@ class Bins:
     @property
     def ordered(self) -> bool:
         """Whether bins have a geometry (grids) as opposed to unordered categories."""
-        return self._ordered
+        return not self.is_categorical
 
     @property
     def is_categorical(self) -> bool:
@@ -409,7 +399,7 @@ class Bins:
             return (Bins.categories, (list(self._labels),))
         edges = tuple(np.array(e) for e in self._edges)
         mask = self.mask if self.is_masked else None
-        return (Bins._from_parts, (edges, None, True, self._measures, mask))
+        return (Bins._from_grid, (edges, self._measures, mask))
 
     def index(self, values: Any) -> np.ndarray:
         """Bin index of each value (``-1`` outside the support or in a masked cell).

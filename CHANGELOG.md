@@ -56,6 +56,40 @@ First development version.
   `assignment_probabilities` already did), so its memory no longer grows with the
   number of objects times the number of draws.
 
+- Names (DECISIONS #90): `sbc` and `coverage` take `progress=` (was `progress_bar=`);
+  `CoverageResult.coverage_rates()` (was `rates()`); `Likelihoods.with_weights(
+  fractional_weights=)` (was `fractional=`); `simulate.mock_unfolding(n_objects=)` (was
+  `n_events=`). Plots label rates `lambda[k]`, as SBC names them (was `rate[k]`). The
+  `"se"` kernel alias and the rename hints for the old selection modes are gone.
+- `Gibbs` and `MeanFieldVB` raise `ValueError` (was `TypeError`) for a model they cannot
+  run, with the reason `Engine.unsupported(model)` gives.
+- Faster: Laplace's importance step evaluates its proposals in blocks (5.3 s, from
+  28.4 s, for 8000 proposals at N = 10⁵, K = 50, one thread); EM computes `L·ρ` once per
+  point; leave-one-out smooths all objects' weights together (3.1 s, from 7.4 s, at
+  N = 2·10⁴ with 2000 draws); Gibbs draws labels in place (35 ms, from 47 ms, per draw
+  at N = 10⁵, K = 50). `method="auto"` keeps the MAP it computed as `result.best`.
+
+### Fixed (phase-wide review)
+
+- PSIS compared weights with the cut as `log(exp(cut))`, so a weight tied with the cut
+  could enter the tail with no exceedance; with duplicated draws (resampled Laplace) the
+  fit divided by zero. The cut is compared in logs, as ArviZ does; k-hat changes slightly
+  where the old comparison included the cut weight.
+- Leave-one-out flags a k-hat of NaN (a degenerate tail) as unreliable.
+- `attach` clears everything computed from the previous likelihoods (the total, the
+  missing information); a model with another prior than the fit's no longer stands in for
+  it in `best` and `binning_bias`; a saved selection on a basis re-attaches after load.
+- `save` keeps the unconstrained draws, so `prior_information_ratio` is the same after
+  `load`.
+- `PopulationResult.from_samples` refuses a model that infers its selection or response
+  unless their draws are given.
+- Diagnostics of a jointly inferred response are named `*_response` (were `*_selection`).
+- Posterior-sample mocks on unequal bins weighted every grid step alike, whatever its
+  width (with bins [0, 0.1, 3], half the samples fell in the narrow bin).
+- `Selection.draw` floors its Beta draws as Gibbs does, so none underflows to zero.
+- Pickling likelihoods whose within-bin data cannot be pickled warns (they were dropped
+  silently).
+
 ### Added
 
 - `benchmarks/matrix.py`: the benchmark matrix of scenario × prior × engine against

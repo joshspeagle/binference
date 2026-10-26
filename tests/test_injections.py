@@ -11,7 +11,7 @@ from scipy import special
 import binference
 from binference import Bins, Likelihoods, PopulationResult, Selection
 from binference.samplers import MAP, NUTS, Gibbs, Laplace, MeanFieldVB
-from binference.selection import _logit_density
+from binference.selection import S_FLOOR, _logit_density
 from binference.validation import SBCResult
 
 
@@ -35,6 +35,15 @@ def test_injections_give_a_beta_posterior_per_bin():
     np.testing.assert_array_equal(recovered, [1, 1, 2, 0])
     np.testing.assert_allclose(sel.values, (1 + recovered) / (3 + injected))
     assert sel.draw(5, rng=0).shape == (5, 4) and sel.at_mean().injections is None
+
+
+def test_draws_of_a_selection_never_underflow_to_zero():
+    # a bin with no recovered injections under a small prior a: Beta(a, b + n) draws
+    # underflow to exactly zero, which would void the bin (Gibbs floors them alike)
+    bins = Bins.linear(0, 1, 2)
+    z, detected = np.array([0.2] * 50 + [0.7] * 50), np.r_[np.zeros(50), np.ones(50)]
+    sel = Selection.from_injections(z, detected.astype(bool), bins, "on_truth", prior=(1e-3, 1))
+    assert sel.draw(1000, rng=0).min() >= S_FLOOR
 
 
 def test_injection_inputs_are_checked_by_name():

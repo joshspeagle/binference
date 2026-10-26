@@ -1,5 +1,7 @@
 """Tests for binference.Likelihoods and its constructors (spec 3.4-3.5, 4.2; R-INPUT-*)."""
 
+import pickle
+
 import numpy as np
 import pytest
 import scipy.sparse as sp
@@ -7,7 +9,7 @@ from scipy import stats
 
 import binference
 from binference import Bins, Likelihoods, Response
-from binference.warnings import InputWarning
+from binference.warnings import ApproximationWarning, InputWarning
 
 
 def test_basic_construction_and_scales():
@@ -57,6 +59,22 @@ def test_empty_rows_raise_or_drop():
         lk = Likelihoods(L, drop_empty=True)
     assert lk.N == 2
     np.testing.assert_array_equal(lk.meta["dropped"], [1])
+
+
+def test_dense_sparse_and_log_inputs_normalise_alike_around_an_empty_row():
+    L = np.array([[1.0, 0.0, 4.0], [0.0, 0.0, 0.0], [2.0, 2.0, 0.5]])
+    S = sp.csr_array(L)
+    with pytest.warns(InputWarning, match="Dropping"):
+        dense = Likelihoods(L, drop_empty=True)
+    with pytest.warns(InputWarning, match="Dropping"):
+        sparse = Likelihoods(S, drop_empty=True)
+    with pytest.warns(InputWarning, match="Dropping"), np.errstate(divide="ignore"):
+        logged = Likelihoods.from_log(np.log(L), drop_empty=True)
+    np.testing.assert_array_equal(S.toarray(), L)  # the caller's matrix is left alone
+    np.testing.assert_array_equal(dense.toarray(), [[0.25, 0.0, 1.0], [1.0, 1.0, 0.25]])
+    np.testing.assert_array_equal(sparse.toarray(), dense.toarray())
+    np.testing.assert_allclose(logged.toarray(), dense.toarray(), rtol=1e-15)
+    np.testing.assert_array_equal(sparse.log_scale, dense.log_scale)
 
 
 def test_weights_validation():
@@ -329,3 +347,15 @@ def test_stack_one_em_step():
     bins = Bins.linear(0, 1, 3)
     lk = Likelihoods(np.array([[1.0, 1.0, 0.0], [0.0, 1.0, 1.0]]), bins)
     np.testing.assert_allclose(lk.stack(), [0.25, 0.5, 0.25])
+
+
+def test_within_bin_data_that_cannot_be_pickled_are_dropped_with_a_warning():
+    bins = Bins.linear(0, 1, 4)
+    lk = Likelihoods.from_density(
+        lambda z: np.exp(-0.5 * ((z[None] - np.array([[0.3], [0.6]])) / 0.2) ** 2),
+        bins,
+        kind="likelihood",
+    )
+    with pytest.warns(ApproximationWarning, match="cannot be pickled"):
+        back = pickle.loads(pickle.dumps(lk))
+    assert back.meta["within"].data is None and lk.meta["within"].data is not None

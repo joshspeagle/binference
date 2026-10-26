@@ -301,7 +301,7 @@ def test_gibbs_validation_and_labels(onehot):
     with pytest.raises(ValueError, match="conjugate"):
         Gibbs(PopulationModel(lk, P.LogisticNormal()))
     with pytest.warns(InputWarning, match="pseudo-likelihood"):
-        half = lk.with_weights(np.full(lk.N, 0.5), fractional=True)
+        half = lk.with_weights(np.full(lk.N, 0.5), fractional_weights=True)
     with pytest.raises(ValueError, match="integer"):
         Gibbs(PopulationModel(half))
     g = Gibbs(PopulationModel(lk), n_chains=2, n_warmup=5, store_labels=[0, 3], rng=1)
