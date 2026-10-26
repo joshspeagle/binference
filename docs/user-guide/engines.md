@@ -1,9 +1,10 @@
 # Inference engines
 
 {func}`binference.infer` builds the model and runs an engine in one call. The
-default, NUTS, samples the exact posterior and works with every prior. The
-other engines trade generality or accuracy for speed, or answer a different
-question.
+default, `method="auto"`, picks the engine from rules measured on a benchmark
+matrix (below). NUTS samples the exact posterior and works with every prior;
+the other engines trade generality or accuracy for speed, or answer a
+different question.
 
 ```python
 import numpy as np
@@ -17,16 +18,16 @@ lk = mock.likelihoods
 
 | `method=` | what you get | exact? | use it when |
 |---|---|---|---|
-| `"nuts"` (default) | posterior draws | yes | always a good choice; mixes well even with broad likelihoods |
+| `"auto"` (default) | Gibbs, Laplace or NUTS | yes, or flagged | you have no reason to choose (below) |
+| `"nuts"` | posterior draws | yes | always a good choice; mixes well even with broad likelihoods |
 | `"gibbs"` | draws plus joint latent labels | yes | conjugate priors and narrow likelihoods; you want joint labels |
 | `"map"` / `"em"` | a point estimate with a certificate (`"em"`: by EM itself rather than mix-SQP) | n/a | quick looks, initialisation, very large problems |
 | `"laplace"` | importance-corrected Gaussian draws | approximately | very large $N$ with few bins; check the Pareto $\hat k$ |
 | `"vb"` | mean-field variational draws | no | speed when error bars do not matter (they are too narrow) |
 | `"bootstrap"` | sampling distribution of the MAP | no (frequentist) | comparison with frequentist intervals |
-| `"auto"` | NUTS, or Laplace for very large inputs | | scripts that must scale |
 
 ```python
-res = binference.infer(lk, rng=1, n_samples=500, n_warmup=500)         # NUTS
+res = binference.infer(lk, method="nuts", rng=1, n_samples=500, n_warmup=500)
 gib = binference.infer(lk, method="gibbs", rng=1, n_samples=2000, check=False)
 est = binference.infer(lk, method="map")
 print(res.mean[:4].round(3), gib.mean[:4].round(3), est.rho[:4].round(3))
@@ -34,9 +35,69 @@ print(res.mean[:4].round(3), gib.mean[:4].round(3), est.rho[:4].round(3))
 
 Extra keyword arguments go to the engine, e.g. `n_chains`, `n_warmup`,
 `target_accept` or `n_jobs` for NUTS. `n_samples` is the number of draws
-**per chain** for NUTS and Gibbs, and the total for the other samplers.
+**per chain** for NUTS, Gibbs and `"auto"` (whose Laplace draws as many as
+four chains would), and the total for the other samplers.
 `rng` accepts a seed or a `numpy.random.Generator`, and the same seed gives
 the same draws.
+
+## How `method="auto"` chooses
+
+`method="auto"` takes the first of these that applies, and records its choice
+and the reason in `result.info["auto_method"]` and `result.info["auto_reason"]`:
+
+1. **Gibbs** for a selection or response inferred jointly with a conjugate
+   prior (the only exact engine for these with a conjugate prior).
+2. **Gibbs** for a conjugate prior (the Dirichlet family or `GammaRates`) with
+   integer weights when the fraction of missing information $f$ at the MAP is
+   at most `gibbs_max_missing` (0.98). It runs enough draws per chain for a
+   smallest bulk ESS of about `target_ess` (400), from the autocorrelation time
+   $(1+f)/(1-f)$, and at least 1000.
+3. **Laplace**, importance-corrected, kept when its Pareto $\hat k$ check
+   passes and its importance ESS is at least `target_ess`.
+4. **NUTS** otherwise. Above `nnz_limit` ($2\times10^7$) stored likelihood
+   entries it keeps the Laplace draws instead, flagged approximate.
+
+The three thresholds are options of the engine,
+{class}`binference.inference.Auto`, and go to `infer` like any other, e.g.
+`binference.infer(lk, target_ess=1000)`. Engine options rule out the engines
+that do not take them: `target_accept` or `n_jobs` leave only NUTS, `n_warmup`
+leaves Gibbs or NUTS, and options that no candidate takes raise an error. Pass
+`method=` to choose yourself. {class}`~binference.PopulationEstimator` uses
+`method="auto"` too.
+
+The rules come from `benchmarks/matrix.py`: 18 mock catalogues, each varying
+one factor around a baseline (1-D, 20 bins, 1000 objects, Gaussian errors one
+bin wide): error widths of 0.3 and 3 bins, 100 and 10,000 objects, 10 and 50
+bins, sparse and spiky populations, selection on the truth and on the
+measurement, posteriors with a correct and a wrong interim prior, 20 and 200
+samples per object, an 8×8 grid, classifier outputs, and a photo-z-like set
+(30 bins, 5000 objects, aliased and outlying likelihoods). Each was fitted with
+the priors that apply (flat and $\alpha=0.1$ Dirichlet, random walk, GP, Pólya
+tree), 43 combinations in all, and each engine at its defaults was compared with
+a reference NUTS run of 20,000 draws. Measured on one thread per fit, four fits
+at a time (results in `benchmarks/results/`):
+
+| engine | largest mean error (reference s.d.) | s.d. ratio | smallest bulk ESS per second |
+|---|---|---|---|
+| NUTS | 0.08 | 0.69–1.19 | 0.1–339, median 80 |
+| Gibbs | 0.94 | 0.24–1.75 | 0.6–791, median 14 |
+| Laplace, check passed (4 of 43) | 0.05 | 0.96–1.04 | 1751–6607 |
+| Laplace, check failed (39 of 43) | 8.1 | 0.05–7.3 | |
+| VB | 2.6 | 0.00–1.05 | |
+
+- **NUTS** was within 0.08 s.d. of the reference in every mean. Its s.d. ratios
+  outside 0.9–1.1 are near-empty bins under the random-walk prior, whose
+  posteriors are heavy-tailed. It is slow with Dirichlet concentrations below
+  one (0.1: 2–5 ESS per second, 859 s on the photo-z set).
+- **Gibbs** beat NUTS in all 5 combinations where the missing information $f$
+  was at most 0.976 (103–791 ESS per second against NUTS's 2–336) and in 3 of
+  the 21 where it was 0.994 or more (0.6–67 against 0.1–339). The threshold 0.98 lies in that gap; the
+  run length then makes up for the autocorrelation.
+- **Laplace** passed its check only with the Pólya tree, and there agreed with
+  the reference to 0.05 s.d. in 0.6–1.1 s. Where the check failed its errors
+  reached 8 s.d.; the importance ESS requirement also rejects the two fits whose
+  $\hat k$ passed with fewer than 400 effective draws (one had quantiles 0.9
+  s.d. off).
 
 ## NUTS
 

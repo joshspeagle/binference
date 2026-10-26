@@ -59,7 +59,8 @@ gives no error bars. binference samples the full posterior instead:
 
 ```{code-cell} python
 stack = lk.stack()
-result = binference.infer(lk, rng=1)      # NUTS, 4 chains x 1000 draws
+result = binference.infer(lk, rng=1)      # method="auto" picks an exact engine here
+print(result.info["auto_reason"])
 result
 ```
 

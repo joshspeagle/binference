@@ -1612,10 +1612,10 @@ class PopulationResult(_IndividualMixin):
         if self.basis is not None or self.bins.is_categorical:
             raise ValueError("binning_bias compares a fit on grid bins with a basis over them.")
         key = str(self.method if method is None else method).lower()
-        if key not in ("nuts", "gibbs", "laplace", "vb", "bootstrap"):
+        if key not in ("auto", "nuts", "gibbs", "laplace", "vb", "bootstrap"):
             raise ValueError(
-                f"method must be an engine that draws ('nuts', 'gibbs', 'laplace', 'vb' or "
-                f"'bootstrap'); got {key!r}."
+                f"method must be an engine that draws ('auto', 'nuts', 'gibbs', 'laplace', "
+                f"'vb' or 'bootstrap'); got {key!r}."
             )
         basis = Basis(self.bins, order=order, resolution=resolution)
         if basis.is_identity:
@@ -1644,6 +1644,8 @@ class PopulationResult(_IndividualMixin):
                 if name in self.info:
                     engine_kwargs.setdefault(name, self.info[name])
             n = self.n_draws // self.n_chains
+        elif key == "auto":  # its own defaults, as for a new fit
+            n = None
         else:
             n = self.n_draws
         ref = infer(

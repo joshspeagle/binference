@@ -52,7 +52,7 @@ It needs Python ≥ 3.13, NumPy, SciPy and threadpoolctl; the `plot` extra adds 
 import binference
 
 mock = binference.simulate.mock_1d(2000, rng=42)   # likelihoods on 30 bins + the true population
-result = binference.infer(mock.likelihoods, rng=1)  # NUTS on the exact posterior (the default)
+result = binference.infer(mock.likelihoods, rng=1)  # method="auto" picks the engine
 
 print(result.summary())
 result.plot(truth=mock.truth.rho)
@@ -122,7 +122,8 @@ result.save("fit.npz"); result.to_datatree()       # round-trip to disk; ArviZ-c
 
 | `method=` | returns | use it for |
 |---|---|---|
-| `"nuts"` (default) | exact posterior draws | any prior; mixes well even when likelihoods are broader than the bins |
+| `"auto"` (default) | Gibbs, Laplace or NUTS, chosen by measured rules | when you have no reason to choose; `result.info["auto_reason"]` says why |
+| `"nuts"` | exact posterior draws | any prior; mixes well even when likelihoods are broader than the bins |
 | `"gibbs"` | exact draws and latent bin labels | conjugate priors; fast when likelihoods are narrow |
 | `"map"` / `"em"` | point estimate (maximum likelihood by default) with an optimality certificate | quick looks, initialisation; seconds for 10⁵ objects |
 | `"laplace"` | Gaussian approximation, importance-corrected (PSIS) | very large N, checked by Pareto k̂ |

@@ -53,7 +53,7 @@ class PopulationEstimator:
         self,
         prior: PopulationPrior | None = None,
         *,
-        method: str = "nuts",
+        method: str = "auto",
         selection: Any = None,
         selection_mode: str | None = None,
         bins: Bins | None = None,

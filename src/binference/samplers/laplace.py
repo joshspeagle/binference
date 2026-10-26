@@ -93,9 +93,23 @@ class Laplace(Engine):
         self.df = None if df is None else float(df)
         self.inflate = float(check_positive(inflate, "inflate"))
         self.step = float(check_positive(step, "step"))
+        self._eigen: tuple | None = None  # the mode and curvature, found once per engine
 
     def _mode_and_eigen(self):
-        # the mode, the Hessian there, the eigen-decomposition of -H and the covariance (N-11)
+        # the mode, the Hessian there, the eigen-decomposition of -H and the covariance
+        # (N-11): found once per engine (and step), with the warnings that raised, which
+        # every run repeats
+        if self._eigen is None or self._eigen[0] != self.step:
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                found = self._find_mode_and_eigen()
+            self._eigen = (self.step, found, caught)
+        _, found, caught = self._eigen
+        for w in caught:
+            warnings.warn_explicit(w.message, w.category, w.filename, w.lineno)
+        return tuple(a.copy() for a in found)  # callers may modify what they get
+
+    def _find_mode_and_eigen(self):
         m = self.model
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", ConvergenceWarning)

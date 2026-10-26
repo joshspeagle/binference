@@ -49,7 +49,7 @@ def test_infer_methods_and_errors(small_1d):
     res = binference.infer(
         lk, method="auto", rng=1, n_samples=30, n_warmup=30, n_chains=1, check=False
     )
-    assert res.info["auto_method"] == "nuts"
+    assert res.method == res.info["auto_method"] and res.info["auto_reason"]
     em = binference.infer(lk, method="em")
     assert em.method == "map"
 

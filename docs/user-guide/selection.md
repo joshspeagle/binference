@@ -154,7 +154,7 @@ of $\mathrm{logit}\,S$ per bin; a sharp edge needs independent bins or a larger 
 smooth = binference.Selection.from_injections(
     z_inj, recovered, mock.likelihoods.bins, "on_truth", smooth=1.0
 )
-fit = binference.infer(lk, selection=smooth, n_samples=300, rng=1, check=False)  # NUTS
+fit = binference.infer(lk, selection=smooth, method="nuts", n_samples=300, rng=1, check=False)
 print(fit.mean.round(3), fit.info["selection_draws"].mean(axis=(0, 1)).round(2))
 ```
 

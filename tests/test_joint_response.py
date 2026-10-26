@@ -66,7 +66,7 @@ def test_engines_refuse_or_infer_the_response_and_report_its_draws():
         binference.PopulationModel(lk, selection=np.ones(4), selection_mode="on_truth")
     with pytest.raises(ValueError, match="fractions only"):
         binference.PopulationModel(lk, binference.priors.GammaRates(1.0, 1e-3))
-    assert binference.inference._auto_method(m) == "gibbs"
+    assert binference.inference.Auto(m).candidates()[0][0] == "gibbs"
     est = MAP(m).run()
     R = est.info["response_draws"][0, 0]
     assert R.shape == (7, 4) and est.info["space"] == "unconstrained"

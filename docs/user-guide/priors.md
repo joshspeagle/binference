@@ -102,8 +102,8 @@ print(binference.infer(lk, gp, method="map").rho[:3].round(4))
   fraction of a reference population in each bin, centres the prior on that
   distribution; the amplitude or scale then says how far the population may
   depart from it.
-- **Engines.** Logistic priors are not conjugate. Use NUTS (the default),
-  MAP or Laplace; Gibbs and VB need conjugate priors.
+- **Engines.** Logistic priors are not conjugate. Use NUTS (which the default
+  `method="auto"` picks for them unless the Laplace check passes), MAP or Laplace; Gibbs and VB need conjugate priors.
 
 ```{tip}
 Which prior should I use? Start with the default. If the posterior is

@@ -49,7 +49,13 @@ def test_bin_without_likelihood_support_is_not_frozen(method):
 def test_nuts_matches_exact(k3_problem):
     mock, exact = k3_problem
     res = binference.infer(
-        mock.likelihoods, rng=1, n_chains=2, n_warmup=400, n_samples=1500, check=False
+        mock.likelihoods,
+        method="nuts",
+        rng=1,
+        n_chains=2,
+        n_warmup=400,
+        n_samples=1500,
+        check=False,
     )
     assert res.method == "nuts" and not res.approximate
     assert_matches_reference(res, exact.mean, exact.std)
