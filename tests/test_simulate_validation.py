@@ -164,6 +164,15 @@ def test_sbc_and_coverage_smoke():
     assert cov.stderr().shape == (2, 1)
     with pytest.raises(ValueError, match="informative"):
         binference.simulate.prior_predictive(P.GammaRates(), bins)(np.random.default_rng(0))
+    # the limit is a tunable; a prior expecting almost no objects fails instead of spinning
+    with pytest.raises(ValueError, match="above max_objects"):  # about 4000
+        binference.simulate.prior_predictive(P.GammaRates(1e4, 10.0), bins, max_objects=3e3)(
+            np.random.default_rng(0)
+        )
+    with pytest.raises(ValueError, match="1000 populations"):
+        binference.simulate.prior_predictive(P.GammaRates(1e4, 1e12), bins)(
+            np.random.default_rng(0)
+        )
 
 
 DETECT = np.array([1.0, 0.6, 0.35, 0.2])

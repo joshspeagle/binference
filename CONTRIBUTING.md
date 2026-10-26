@@ -19,7 +19,7 @@ pre-commit run --all-files  # the same checks as CI's lint job
 
 ```bash
 pytest                      # fast suite (about 80 s); warnings are errors
-pytest -m slow              # statistical validation: SBC, coverage, Geweke (about 10 min)
+pytest -m slow              # statistical validation: SBC, coverage, Geweke (about 20 min)
 pytest --cov=binference         # coverage report
 ```
 

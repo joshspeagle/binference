@@ -48,10 +48,9 @@ def _pvalues(res, n_bins=10):
 
 
 def _assert_uniform_ranks(res, alpha=1e-3, n_bins=10):
-    """Both tests pass at the Bonferroni-corrected level of SBCResult.passed (DECISIONS #87)."""
+    # both tests, each at the Bonferroni-corrected level of SBCResult.passed (DECISIONS #87)
     for method, p in _pvalues(res, n_bins).items():
-        nb = n_bins if method == "chisquare" else None
-        assert res.passed(alpha, nb, method=method), (method, dict(zip(res.names, p, strict=True)))
+        assert np.all(p > alpha / p.size), (method, dict(zip(res.names, p, strict=True)))
 
 
 @pytest.mark.parametrize(
@@ -87,9 +86,9 @@ GIBBS_DIRICHLET = {"n_chains": 4, "n_warmup": 100, "n_samples": 600}
 )
 def test_sbc_gibbs(prior, kw, n_simulations):
     # unfiltered, sbc's ESS warning is an error: every fit has min_ess >= GIBBS_DRAWS
-    res = _sbc(prior, _fit("gibbs", prior=prior, **kw), n_simulations, GIBBS_DRAWS, 2026)
-    assert np.all(res.min_ess >= GIBBS_DRAWS)
-    _assert_uniform_ranks(res)
+    _assert_uniform_ranks(
+        _sbc(prior, _fit("gibbs", prior=prior, **kw), n_simulations, GIBBS_DRAWS, 2026)
+    )
 
 
 @pytest.mark.filterwarnings(

@@ -529,6 +529,7 @@ def prior_predictive(
     noise: Any = (0.05, 0.2),
     selection: Any = None,
     selection_mode: str | None = None,
+    max_objects: float = 1e6,
 ) -> Callable[[np.random.Generator], tuple[Likelihoods, np.ndarray]]:
     r"""A simulator ``simulate(rng) -> (likelihoods, truth)`` drawing populations from a prior.
 
@@ -570,6 +571,10 @@ def prior_predictive(
         ``"on_measurement"`` selection whose :math:`S_k` is the bin average of
         :math:`\sum_j T_j P(d \in j \mid z)` over the noise distribution, with
         :math:`T` the given values.
+    max_objects : float
+        For rates, the largest expected number of objects :math:`S\cdot\lambda`
+        a draw may have; every object is simulated, so a draw beyond it raises
+        (as the vague default :class:`~binference.priors.GammaRates` does).
 
     Returns
     -------
@@ -598,6 +603,8 @@ def prior_predictive(
     if not rates and (int(n) != n or n < 1):
         raise ValueError(f"n_objects must be a positive integer; got {n_objects}.")
     n = int(n)
+    if not max_objects > 0:
+        raise ValueError(f"max_objects must be positive; got {max_objects}.")
     sel = keep_truth = keep_measured = None
     S = np.ones(bins.K)
     if selection is None:
@@ -633,20 +640,26 @@ def prior_predictive(
         value = bound.sample(1, rng)[0]
         if not rates:
             return value, n
-        # N ~ Poisson(S . lambda); every object is simulated, so refuse priors (such as
-        # the vague default GammaRates) whose draws would need millions of them
+        # N ~ Poisson(S . lambda)
         mean = float(S @ value)
-        if not mean <= 1e6:
+        if not mean <= max_objects:
             raise ValueError(
-                f"A rate drawn from the prior expects {mean:.3g} objects; give the rate "
-                "prior an informative scale (e.g. GammaRates(shape, rate) with a larger rate)."
+                f"A rate drawn from the prior expects {mean:.3g} objects, above max_objects="
+                f"{max_objects:.3g}; give the rate prior an informative scale (e.g. "
+                "GammaRates(shape, rate) with a larger rate)."
             )
         return value, int(rng.poisson(mean))
 
     def simulate(rng: np.random.Generator) -> tuple[Likelihoods, np.ndarray]:
-        value, count = draw(rng)
-        while count == 0:  # condition on N >= 1 (rates only)
+        for _ in range(1000):  # condition on N >= 1 (rates only)
             value, count = draw(rng)
+            if count:
+                break
+        else:
+            raise ValueError(
+                "1000 populations drawn from the rate prior in a row had no object; give "
+                "the rate prior an informative scale or the selection larger exposures."
+            )
         rho = np.maximum(value, 0.0)
         rho = rho / rho.sum()
         mock = _gaussian_mock(

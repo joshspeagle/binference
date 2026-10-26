@@ -73,8 +73,11 @@ fig = result.plot()
 - **Size.** A real check needs a few hundred simulations and roughly
   independent draws: keep `n_draws` below the effective sample size.
 
-binference's slow test suite runs SBC for NUTS and Gibbs, for the Dirichlet,
-generalised-Dirichlet and random-walk priors. It also shows that mean-field
+binference's slow test suite runs SBC for NUTS and Gibbs with the Dirichlet,
+generalised-Dirichlet and random-walk priors (the second-order walk with its
+scale inferred), for Gibbs with a known selection in both modes, with Gamma
+rates and an exposure, and with the Pólya tree, and for the Laplace
+approximation. It also shows that mean-field
 VB *fails* SBC, as expected, and that SBC rejects a Gibbs pipeline whose
 posteriors are 18% too narrow (half the objects counted twice).
 

@@ -4,7 +4,8 @@
   hyperparameters, Gibbs with a known selection in both modes, rates with an
   exposure, the Pólya tree and the Laplace approximation. Each case uses
   :func:`binference.simulate.prior_predictive` and :func:`binference.validation.sbc`
-  and asserts that every fit's smallest bulk ESS is at least ``n_draws``, so the
+  and requires every fit's smallest bulk ESS to be at least ``n_draws`` (sbc's
+  warning is an error under the test settings), so the
   thinned draws are effectively independent and autocorrelation cannot pass for
   miscalibration.
 * Geweke "getting it right" tests of the Gibbs conditionals of the generalised
@@ -70,8 +71,8 @@ CASES = {
 @pytest.mark.parametrize("case", list(CASES))
 def test_sbc_ranks_are_uniform(case):
     prior, method, kw, sim, n_simulations, n_draws = CASES[case]
+    # unfiltered, sbc's ESS warning is an error: every fit has min_ess >= n_draws
     res = _sbc(prior, _fit(method, prior=prior, **kw), n_simulations, n_draws, 2026, **sim)
-    assert np.all(res.min_ess >= n_draws), np.sort(res.min_ess)[:5]
     # at least 10 expected ranks per histogram bin
     _assert_uniform_ranks(res, n_bins=10 if n_simulations >= 150 else 5)
 
