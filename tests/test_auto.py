@@ -1,7 +1,6 @@
 """method="auto", the default of infer: one test per rule (DECISIONS #88)."""
 
 import functools
-import warnings
 
 import numpy as np
 import pytest
@@ -66,12 +65,21 @@ def test_laplace_is_kept_when_its_importance_check_passes():
     assert res.info["ess_importance"] >= 400
 
 
-def test_very_large_problems_keep_laplace_even_when_its_check_fails():
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", binference.ApproximationWarning)
-        res = binference.infer(_lk(3.0), P.Dirichlet(0.1), rng=0, nnz_limit=1)
-    assert res.method == "laplace" and res.approximate
-    assert "likelihood entries" in res.info["auto_reason"]
+def test_laplace_kept_without_passing_its_check_is_flagged_approximate():
+    # very large inputs, or the only candidate left (df is a Laplace option)
+    lk = _lk(1.0, n=1000, K=20)
+    for kw in ({"nnz_limit": 1}, {"df": 4}):
+        # k-hat passes (PolyaTree), but no importance ESS reaches 1e9: auto flags and warns
+        with pytest.warns(binference.ApproximationWarning, match="importance ESS") as rec:
+            res = binference.infer(lk, P.PolyaTree(), rng=0, target_ess=1e9, **kw)
+        assert len(rec) == 1 and res.method == "laplace" and res.approximate
+        assert "importance ESS is below" in res.info["auto_reason"]
+        # k-hat fails: Laplace flags and warns itself, and auto adds nothing
+        with pytest.warns(binference.ApproximationWarning) as rec:
+            res = binference.infer(lk, P.Dirichlet(0.1), rng=0, **kw)
+        assert len(rec) == 1 and res.method == "laplace" and res.approximate
+        if "nnz_limit" in kw:
+            assert "likelihood entries" in res.info["auto_reason"]
 
 
 def test_engine_options_rule_out_the_engines_that_do_not_take_them(short_nuts):

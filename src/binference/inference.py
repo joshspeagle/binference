@@ -9,14 +9,14 @@ from typing import Any
 
 import numpy as np
 
-from ._utils import RNGLike, check_positive, is_integer_array
+from ._utils import RNGLike, check_positive, is_integer_array, warn
 from .bins import Bins
 from .model import PopulationModel
 from .priors import PopulationPrior
 from .results import PointEstimate, PopulationResult
 from .samplers import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
 from .samplers.base import Engine
-from .warnings import BinferenceWarning
+from .warnings import ApproximationWarning, BinferenceWarning
 
 __all__ = ["METHODS", "Auto", "infer"]
 
@@ -63,8 +63,9 @@ class Auto(Engine):
        Gibbs is the only candidate it is kept, and the reason says it did not mix.
     3. Importance-corrected Laplace, kept when its Pareto :math:`\hat k` check passes
        and its importance ESS is at least ``target_ess``, or when the likelihoods have
-       more than ``nnz_limit`` stored entries (then flagged approximate), or when it is
-       the only candidate left.
+       more than ``nnz_limit`` stored entries, or when it is the only candidate left;
+       in those two cases a result that did not pass is flagged approximate (a short
+       importance ESS with a warning of its own).
     4. NUTS.
 
     The result records the choice and the reason in ``info["auto_method"]`` and
@@ -173,6 +174,15 @@ class Auto(Engine):
                 if result is None:
                     rejected.append(why)
                     continue
+                if not (result.approximate or self._passed(result)):
+                    # k-hat passed (else Laplace flagged and warned) but the ESS fell short
+                    result.approximate = True
+                    short = f"its importance ESS is below target_ess={self.target_ess:g}"
+                    why = "; ".join(filter(None, [why, short]))
+                    warn(
+                        f"auto kept Laplace draws although {short}; results are approximate.",
+                        ApproximationWarning,
+                    )
             else:
                 result = engine.run(n_samples or n_gibbs or _DEFAULT_SAMPLES[key])
                 # stored labels grow with the run: their length stays as asked
@@ -209,6 +219,10 @@ class Auto(Engine):
             # at most three times the draws so far, so a poor first projection costs less
             result = engine.run(min(need, 3 * done))
 
+    def _passed(self, res: PopulationResult) -> bool:
+        """Whether Laplace draws pass auto's check: Pareto k-hat and importance ESS."""
+        return not res.approximate and res.info.get("ess_importance", 0.0) >= self.target_ess
+
     def _try(self, engine: Laplace, n: int) -> tuple[PopulationResult | None, str]:
         """Laplace's result when it is kept (its warnings re-emitted), else None.
 
@@ -232,7 +246,7 @@ class Auto(Engine):
                 res = engine.run(n)
             except (ValueError, FloatingPointError, np.linalg.LinAlgError):
                 return None, "the Laplace approximation failed"
-        if not res.approximate and res.info.get("ess_importance", 0.0) >= self.target_ess:
+        if self._passed(res):
             reason = "the Laplace importance check passed"
         elif big:
             reason = f"more than {self.nnz_limit:.0e} likelihood entries"
