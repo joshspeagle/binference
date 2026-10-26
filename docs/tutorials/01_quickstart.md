@@ -79,6 +79,12 @@ corr = result.corr()
 print("correlation of bin 10 with bins 9, 10, 11:", corr[10, 9:12].round(2))
 ```
 
+```{code-cell} python
+:tags: [remove-cell]
+
+assert corr[10, 9] < -0.3 and corr[10, 11] < -0.3
+```
+
 The summary table gives per-bin numbers and convergence diagnostics:
 
 ```{code-cell} python
@@ -109,6 +115,12 @@ naive = np.sqrt(np.sum((result.std * centers) ** 2))
 print(f"error ignoring correlations: {naive:.3f}   vs   correct: {zbar.std():.3f}")
 ```
 
+```{code-cell} python
+:tags: [remove-cell]
+
+assert naive > 3 * zbar.std()
+```
+
 ## A smoothness prior
 
 If you expect $n(z)$ to be smooth on scales of a few bins, say so. A
@@ -132,6 +144,12 @@ for ax in axes:
     ax.set_xlabel("z")
 ```
 
+```{code-cell} python
+:tags: [remove-cell]
+
+assert np.median(smooth.std / result.std) < 0.5
+```
+
 The smooth posterior is far tighter per bin and still covers the truth.
 Which prior is better is a scientific question, but the data can weigh in.
 Compare how well each fit predicts galaxies it has not seen:
@@ -140,9 +158,15 @@ Compare how well each fit predicts galaxies it has not seen:
 train, test = lk[:1500], lk[1500:]
 lp = {}
 for name, prior in [("Dirichlet", None), ("GP", binference.priors.LogisticGP())]:
-    fit = binference.infer(train, prior, rng=2)
+    fit = binference.infer(train, prior, rng=2, n_samples=500, n_warmup=500)  # shorter runs
     lp[name] = fit.log_predictive(test).sum()
 print({k: round(v, 1) for k, v in lp.items()})
+```
+
+```{code-cell} python
+:tags: [remove-cell]
+
+assert lp["GP"] > lp["Dirichlet"]
 ```
 
 Higher is better. The smoothness prior predicts the held-out galaxies better.
@@ -170,13 +194,25 @@ redshifts.
 
 $\rho$ describes the population the 2000 galaxies were drawn from. The
 redshift histogram of *these* galaxies, which a lensing kernel would need, is
-a different quantity with its own (smaller) uncertainty:
+a different quantity with its own uncertainty:
 
 ```{code-cell} python
 counts = smooth.realized_counts(n_draws=500, rng=0)
 print("sd of realised counts per bin:", counts.std(axis=0)[8:12].round(1))
 print("sd of population counts per bin:", (smooth.samples * lk.W).std(axis=0)[8:12].round(1))
 ```
+
+```{code-cell} python
+:tags: [remove-cell]
+
+assert np.all(counts.std(axis=0)[8:12] > (smooth.samples * lk.W).std(axis=0)[8:12])
+```
+
+Here the histogram is the less certain of the two. The smoothness prior pins
+the population down, but with errors as wide as the bins it cannot say which
+bin each galaxy fell in. With precise measurements the order reverses: each
+galaxy's bin is then nearly known, while $\rho$ keeps the shot noise of
+drawing 2000 galaxies from it.
 
 ## Next steps
 

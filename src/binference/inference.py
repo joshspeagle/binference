@@ -44,7 +44,8 @@ class Auto(Engine):
     The candidates, in order, keeping only engines that take every option in
     ``engine_kwargs``:
 
-    1. Gibbs for a selection or response inferred jointly with a conjugate prior.
+    1. Gibbs for a selection (not a smoothed injection selection) or response inferred
+       jointly with a conjugate prior and integer weights.
     2. Gibbs for a conjugate prior with integer weights when the fraction of missing
        information at the MAP, :math:`f`, is at most ``gibbs_max_missing``, and the
        run it needs is at most ``max_gibbs_draws`` per chain. It runs
@@ -301,7 +302,7 @@ def infer(
     Returns
     -------
     PopulationResult or PointEstimate
-        Posterior draws (or the MAP estimate for ``method="map"``).
+        Posterior draws, or the MAP estimate for ``method="map"`` and ``"em"``.
 
     Examples
     --------

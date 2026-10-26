@@ -1,4 +1,4 @@
-"""The No-U-Turn Sampler engine (default exact engine)."""
+"""The No-U-Turn Sampler engine (exact for every prior)."""
 
 from __future__ import annotations
 
@@ -235,7 +235,7 @@ def _chain_worker(payload):
 
 
 class NUTS(Engine):
-    """No-U-Turn Sampler on the exact posterior (the default engine).
+    """No-U-Turn Sampler on the exact posterior, for every prior.
 
     Samples the unconstrained coordinates of the model (isometric log-ratios
     for simplex priors, whitened fields and log-hyperparameters for smooth

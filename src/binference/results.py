@@ -559,20 +559,27 @@ class _IndividualMixin:
         L, R, _, _ = self._new_object_draws(self._new_likelihoods(likelihoods), n_draws)
         return self._to_bins(_mean_responsibilities(L, R, chunk))
 
-    def log_predictive(self, likelihoods: Likelihoods | Any, n_draws: int | None = N_DRAWS):
+    def log_predictive(
+        self, likelihoods: Likelihoods | Any, n_draws: int | None = N_DRAWS, chunk: int = 4096
+    ):
         r"""Log posterior-predictive density of new objects, :math:`\log E[L_i\cdot\rho]`.
 
         Includes the per-object log-scales of the likelihoods, so values can be
-        compared across priors and binnings (e.g. for cross-validation).
+        compared across priors and binnings (e.g. for cross-validation). Works
+        through the objects ``chunk`` at a time.
         """
         # rates rescale out of the ratio
         L, R, norm, log_scale = self._new_object_draws(self._new_likelihoods(likelihoods), n_draws)
-        S = np.einsum("snk,sk->ns", L, R) if L.ndim == 3 else np.asarray(L @ R.T)  # (N, n)
-        if norm is not None:  # a new *detected* object: divide by S . rho
-            S = S / norm[None, :]
-        with np.errstate(divide="ignore"):
-            lp = special.logsumexp(np.log(S), axis=1) - np.log(R.shape[0])
-        return lp + log_scale
+        n = L.shape[-2]
+        lp = np.empty(n)
+        for sl in chunk_slices(n, chunk):
+            block = L[:, sl] if L.ndim == 3 else L[sl]
+            S = np.einsum("snk,sk->ns", block, R) if L.ndim == 3 else np.asarray(block @ R.T)
+            if norm is not None:  # a new *detected* object: divide by S . rho
+                S = S / norm[None, :]
+            with np.errstate(divide="ignore"):
+                lp[sl] = special.logsumexp(np.log(S), axis=1)
+        return lp - np.log(R.shape[0]) + log_scale
 
     def _new_object_draws(self, lk: Likelihoods, n_draws: int | None):
         """For new objects ``lk``: rows and column weights per draw as in
@@ -587,8 +594,10 @@ class _IndividualMixin:
             rows = Rd[:, lk.meta["measured_bin"]]  # the response's own rows: scale one
             return rows, R, self._norms(R, None, n_draws), np.zeros(lk.N)
         _, R, S = self._object_draws(n_draws)
-        L = model.effective_likelihoods(lk) if S is None else lk.values
-        return L, R, self._norms(R, S, n_draws), lk.log_scale
+        norm = self._norms(R, S, n_draws)
+        if S is None and model.selection_row is not None:
+            R = R * model.selection_row  # L~ . rho = L . (S o rho): the rows are not copied
+        return lk.values, R, norm, lk.log_scale
 
     def _norms(self, R: np.ndarray, S: np.ndarray | None, n_draws: int | None):
         """Each draw's normaliser of a detected object's likelihood, :math:`S\\cdot\\rho`

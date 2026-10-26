@@ -60,10 +60,8 @@ The engines spend these differently:
    well-behaved problems. Always check the diagnostics afterwards.
 6. **Scale up gracefully.** For very large problems, `method="map"` gives the
    estimate in seconds, and `method="laplace"` adds approximate error bars. The
-   default, `method="auto"`, uses Gibbs or Laplace where the benchmark matrix
-   showed them accurate and faster than NUTS, and keeps Laplace (flagged
-   approximate) instead of NUTS above $2\times10^7$ stored likelihood values
-   ([engines](engines.md)).
+   default, `method="auto"`, already uses Gibbs or Laplace where they are
+   accurate and faster than NUTS ([how it chooses](engines.md)).
 7. **Threads.** NumPy's BLAS may use several threads for the matrix–vector
    products. For many small fits, set `OMP_NUM_THREADS=1` and run the fits in
    parallel instead.
@@ -72,8 +70,11 @@ The engines spend these differently:
 
 A dense float64 likelihood matrix takes $8NK$ bytes: 160 MB for
 $N=10^6$ and $K=20$. Sparse storage keeps 12 bytes per non-zero entry. The
-per-object methods (`assignment_probabilities`, `predict_proba`) work in
-chunks, so their memory use does not grow with $N$.
+per-object methods (`assignment_probabilities`, `predict_proba`,
+`log_predictive` and so `PopulationEstimator.score`) work through the objects
+`chunk` at a time (4096 by default), so beyond their output they hold only one
+chunk's rows. The exception is a response inferred with the population, whose
+rows differ per draw: those methods hold one $N\times K$ block per draw used.
 
 ## Roadmap
 

@@ -211,7 +211,10 @@ the wrong choice biases $\rho$ toward wide bins.
 ## Selection effects
 
 Let $S_k\in(0,1]$ be the probability that an object in bin $k$ makes it into
-the catalogue. The likelihood depends on what the selection acts on:
+the catalogue. For fractions only the ratios of the $S_k$ matter
+({eq}`eq-S` is unchanged when $S$ is scaled). For rates the absolute $S$ sets
+the total, and with an exposure it may exceed one (below).
+The likelihood depends on what the selection acts on:
 
 - **`selection_mode="on_measurement"`.** Selection acts on the *measured* data: a
   flux limit on measured fluxes, a reconstruction efficiency. A detected
@@ -260,8 +263,9 @@ $$
 
 Independent $\mathrm{Gamma}(a_k,b_k)$ priors are conjugate given the labels:
 $\lambda_k\mid z\sim\mathrm{Gamma}(a_k+n_k,\,b_k+S_k)$. Fractions and rates
-are not interchangeable priors: independent Gamma rates imply a Dirichlet on
-$\rho$ only without selection.
+are not interchangeable priors: independent $\mathrm{Gamma}(a_k,b)$ rates
+imply $\rho\sim\mathrm{Dir}(a)$ only when every bin has the same rate
+parameter $b$ and there is no selection.
 
 ## Priors
 
@@ -411,7 +415,8 @@ as the likelihood itself.
 
 ## The engines
 
-- **NUTS** (Hoffman & Gelman 2014; Betancourt 2017), the default.
+- **NUTS** (Hoffman & Gelman 2014; Betancourt 2017), exact for every prior and
+  the fallback of the default `method="auto"`.
   - Multinomial trajectory sampling with the generalised U-turn criterion
     and Stan's extra checks across merged subtrees.
   - Dual-averaging step-size adaptation, with a target acceptance of 0.8, or
@@ -453,7 +458,9 @@ as the likelihood itself.
 - **NUTS health.** Divergences, saturated tree depth and E-BFMI.
 - **Monte Carlo error.** Standard errors for posterior means.
 
-`result.check()` turns these into warnings.
+`result.check()` turns these problems into warnings, together with an importance
+check's Pareto $\hat k$, an optimiser that did not converge, and problems with the
+inputs.
 
 The validation module answers a different question: is the *whole pipeline*
 calibrated?
