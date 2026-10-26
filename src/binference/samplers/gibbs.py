@@ -55,8 +55,9 @@ class Gibbs(Engine):
         starts from its own draw of the population's conditional given the
         expected counts there, as by default around a few EM steps.
     chunk : int or None
-        Objects processed per block when drawing labels (bounds memory);
-        ``None`` processes all at once.
+        Objects processed per block when drawing labels from dense likelihoods (bounds
+        memory); ``None`` processes all at once. Sparse likelihoods are processed at once,
+        in memory proportional to their nonzeros.
     """
 
     name = "gibbs"

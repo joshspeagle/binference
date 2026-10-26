@@ -1049,6 +1049,7 @@ class PopulationResult(_IndividualMixin):
         labels: np.ndarray | None = None,
         label_index: np.ndarray | None = None,
         prior_repr: str | None = None,
+        prior_key: str | None = None,
         basis: Basis | None = None,
         total: np.ndarray | None = None,
         selection: Selection | None = None,
@@ -1091,6 +1092,11 @@ class PopulationResult(_IndividualMixin):
         self.labels = labels
         self.label_index = label_index
         self.prior_repr = prior_repr or (repr(model.prior_spec) if model is not None else None)
+        #: a digest of the prior's arguments in full, which attach compares (the repr
+        #: shortens arrays)
+        self.prior_key = prior_key or (
+            model.prior_spec._fingerprint() if model is not None else None
+        )
         # the fit's selection, kept for attach after a load (audit O-1)
         self._selection = selection if model is None else model.selection_spec
         self._cache: dict[str, Any] = {}
@@ -1184,10 +1190,6 @@ class PopulationResult(_IndividualMixin):
         from .selection import _rebuild as _rebuild_selection
 
         m, saved = likelihoods_or_model, self.selection
-        # bare likelihoods get the default prior; a model counts as the fit's with its prior
-        self._fit_model = isinstance(m, PopulationModel) and (
-            self.prior_repr is None or repr(m.prior_spec) == self.prior_repr
-        )
         if not isinstance(m, PopulationModel):
             lk = m if isinstance(m, Likelihoods) else Likelihoods(m, self.basis or self.bins)
             sel = None if lk.selection is not None else saved
@@ -1201,6 +1203,10 @@ class PopulationResult(_IndividualMixin):
             raise ValueError("The likelihoods use a different basis than this result.")
         if self.basis is None and not _same_bins(m.bins, self.bins):
             raise ValueError(f"The likelihoods are on other bins ({m.bins}) than this result.")
+        # bare likelihoods get the default prior; a model counts as the fit's with its prior
+        self._fit_model = isinstance(m, PopulationModel) and (
+            self.prior_key is None or m.prior_spec._fingerprint() == self.prior_key
+        )
         self.model = m
         self._selection = m.selection_spec
         # everything computed from the previous likelihoods: the cache, the missing

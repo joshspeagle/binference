@@ -74,14 +74,15 @@ def loglike_of_evidences(w: np.ndarray, s: np.ndarray) -> float:
 def loglike_many(
     L, w: np.ndarray, V: np.ndarray, block: int = 256, chunk: int | None = DEFAULT_CHUNK
 ) -> np.ndarray:
-    """:func:`loglike` at each row of ``V`` ``(n, K)``: ``block`` rows per pass over the
-    objects, ``chunk`` objects at a time (so at most ``block * chunk`` evidences held)."""
+    """:func:`loglike` at each row of ``V`` ``(n, K)``: ``chunk`` objects at a time (each
+    sliced once), ``block`` rows of ``V`` per product (so at most ``block * chunk``
+    evidences held)."""
     N, n = L.shape[0], V.shape[0]
     out, low = np.zeros(n), np.full(n, np.inf)
-    for pts in chunk_slices(n, block):
-        Vt = V[pts].T
-        for sl in chunk_slices(N, chunk):
-            s = np.asarray((L if sl.stop - sl.start == N else L[sl]) @ Vt)
+    for sl in chunk_slices(N, chunk):
+        Ls = L if sl.stop - sl.start == N else L[sl]
+        for pts in chunk_slices(n, block):
+            s = np.asarray(Ls @ V[pts].T)
             low[pts] = np.minimum(low[pts], s.min(axis=0))
             with np.errstate(divide="ignore", invalid="ignore"):
                 out[pts] += w[sl] @ np.log(s)

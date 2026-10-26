@@ -75,7 +75,8 @@ First development version.
   28.4 s, for 8000 proposals at N = 10⁵, K = 50, one thread); EM computes `L·ρ` once per
   point; leave-one-out smooths all objects' weights together (3.1 s, from 7.4 s, at
   N = 2·10⁴ with 2000 draws); Gibbs draws labels in place (35 ms, from 47 ms, per draw
-  at N = 10⁵, K = 50). `method="auto"` keeps the MAP it computed as `result.best`.
+  at N = 10⁵, K = 50). `method="auto"` keeps the MAP it computed as `result.best` when that raised no
+  warning.
 
 ### Fixed (phase-wide review)
 
@@ -83,17 +84,23 @@ First development version.
   could enter the tail with no exceedance; with duplicated draws (resampled Laplace) the
   fit divided by zero. The cut is compared in logs, as ArviZ does; k-hat changes slightly
   where the old comparison included the cut weight.
-- Leave-one-out flags a k-hat of NaN (a degenerate tail) as unreliable.
+- A degenerate generalised-Pareto fit gives k-hat = inf in `diagnostics.psis` (was NaN,
+  which compared False with any threshold), so leave-one-out flags such objects.
+- Bootstrap and other resampling of a model with an inferred response kept each row's
+  measured bin from before rows were dropped.
 - `attach` clears everything computed from the previous likelihoods (the total, the
   missing information); a model with another prior than the fit's no longer stands in for
-  it in `best` and `binning_bias`; a saved selection on a basis re-attaches after load.
+  it in `best` and `binning_bias` (compared by a digest of the prior's arguments, saved
+  with the result, since its repr shortens arrays); a saved selection on a basis
+  re-attaches after load.
 - `save` keeps the unconstrained draws, so `prior_information_ratio` is the same after
   `load`.
 - `PopulationResult.from_samples` refuses a model that infers its selection or response
   unless their draws are given.
 - Diagnostics of a jointly inferred response are named `*_response` (were `*_selection`).
 - Posterior-sample mocks on unequal bins weighted every grid step alike, whatever its
-  width (with bins [0, 0.1, 3], half the samples fell in the narrow bin).
+  width (with bins [0, 0.1, 3], half the samples fell in the narrow bin). Their grid is
+  now 50 equal steps per bin in the bins' measure (in log z on log bins; was in z).
 - `Selection.draw` floors its Beta draws as Gibbs does, so none underflows to zero.
 - Pickling likelihoods whose within-bin data cannot be pickled warns (they were dropped
   silently).

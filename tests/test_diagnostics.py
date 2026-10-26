@@ -132,3 +132,13 @@ def test_psis_fits_only_the_weights_above_the_cut():
     lw = np.r_[above, np.full(60, cut), np.linspace(-3.0, cut - 0.01, 845)]
     k_ref, _ = d._gpdfit(np.exp(above) - np.exp(cut))
     assert d.psis(lw)[1] == pytest.approx(k_ref)
+
+
+def test_a_degenerate_tail_fit_gives_an_infinite_k_hat(monkeypatch):
+    # a NaN k-hat compares False with any threshold, so it would never be flagged
+    def nan_fit(x):
+        return np.full(x.shape[0], np.nan), np.full(x.shape[0], np.nan)
+
+    monkeypatch.setattr(d, "_gpdfit", nan_fit)
+    lw, k = d.psis(np.random.default_rng(0).normal(size=200))
+    assert k == np.inf and np.isfinite(lw).all()

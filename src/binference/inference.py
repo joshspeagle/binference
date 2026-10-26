@@ -72,8 +72,8 @@ class Auto(Engine):
     4. NUTS.
 
     The result records the choice and the reason in ``info["auto_method"]`` and
-    ``info["auto_reason"]``. Where rule 2 computed the MAP, the result keeps it as
-    :attr:`~binference.PopulationResult.best`.
+    ``info["auto_reason"]``. Where rule 2 computed the MAP without a warning, the
+    result keeps it as :attr:`~binference.PopulationResult.best`.
 
     Parameters
     ----------
@@ -132,10 +132,12 @@ class Auto(Engine):
                 out.append(("gibbs", "a joint model with a conjugate prior", None))
             else:
                 if self._map is None:
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore", BinferenceWarning)
+                    with warnings.catch_warnings(record=True) as caught:
+                        warnings.simplefilter("always", BinferenceWarning)
                         est = MAP(m).run()
-                        self._map = est, m.missing_information(est.value)  # component weights
+                    # kept as best only when it raised no warning (best would show them)
+                    keep = est if not caught else None
+                    self._map = keep, m.missing_information(est.value)  # component weights
                 f = self._map[1]
                 if f <= self.gibbs_max_missing:
                     chains = kw.get("n_chains", _options(Gibbs)["n_chains"].default)
@@ -203,7 +205,7 @@ class Auto(Engine):
             result.info["auto_reason"] = (
                 "; ".join(reasons) or "the only engine that takes these options"
             )
-            if self._map is not None:  # computed for rule 2: kept, not solved again
+            if self._map is not None and self._map[0] is not None:  # not solved again
                 result._cache["best"] = self._map[0]
             return result
         raise AssertionError("unreachable: the last candidate always returns")  # pragma: no cover

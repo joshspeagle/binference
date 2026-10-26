@@ -171,17 +171,3 @@ def test_squarem_rejects_an_extrapolation_that_makes_an_object_impossible():
     np.testing.assert_allclose(new, r2)
     assert np.isfinite(f) and len(calls) > 3  # trials were made and rejected
     np.testing.assert_allclose(s, m._L @ r2)  # the evidences at the point returned
-
-
-def test_results_saved_with_the_old_log_density_name_still_load(tmp_path):
-    mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 4), rng=6)
-    res = binference.infer(
-        mock.likelihoods, method="nuts", n_samples=50, n_warmup=50, rng=0, check=False
-    )
-    path = tmp_path / "r.npz"
-    res.save(str(path))
-    data = dict(np.load(path, allow_pickle=True))
-    data["log_prob"] = data.pop("log_density_unconstrained")
-    np.savez_compressed(path, **data)
-    back = binference.PopulationResult.load(str(path))
-    np.testing.assert_array_equal(back.log_density_unconstrained, res.log_density_unconstrained)

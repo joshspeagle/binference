@@ -114,6 +114,7 @@ def result_to_dict(result: PopulationResult) -> dict[str, Any]:
         kind=result.kind,
         approximate=bool(result.approximate),
         prior=result.prior_repr,
+        prior_key=result.prior_key,
     )
     scalars, dropped = {}, []
     for k, v in result.info.items():
@@ -202,19 +203,17 @@ def load_result(path: str) -> PopulationResult:
             kind=meta["kind"],
             bins=bins,
             x=np.array(data["x"]) if "x" in data.files else None,
-            log_density_unconstrained=next(
-                (
-                    np.array(data[k])
-                    for k in ("log_density_unconstrained", "log_prob")
-                    if k in data.files
-                ),
-                None,
-            ),  # files written before DECISIONS #70 call it log_prob
+            log_density_unconstrained=(
+                np.array(data["log_density_unconstrained"])
+                if "log_density_unconstrained" in data.files
+                else None
+            ),
             approximate=meta["approximate"],
             info=info,
             labels=np.array(data["label_draws"]) if "label_draws" in data.files else None,
             label_index=np.array(data["label_index"]) if "label_index" in data.files else None,
             prior_repr=meta.get("prior"),
+            prior_key=meta.get("prior_key"),
             basis=basis,
             total=np.array(data["total"]) if "total" in data.files else None,
             selection=selection,

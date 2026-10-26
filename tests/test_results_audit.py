@@ -380,3 +380,17 @@ def test_a_reloaded_fit_keeps_its_draws_and_needs_its_own_prior_for_the_best_fit
     # prior_information_ratio evaluates at the mean unconstrained draw, before and after
     np.testing.assert_array_equal(back.x, res.x)
     assert back.prior_information_ratio() == res.prior_information_ratio()
+
+
+def test_a_prior_that_differs_only_in_a_long_array_is_not_the_fits(tmp_path):
+    # both reprs read Dirichlet(alpha=array(shape=(10,))); the full arguments differ
+    lk = binference.simulate.mock_1d(200, Bins.linear(0, 1, 10), rng=3).likelihoods
+    fit = binference.priors.Dirichlet(np.full(10, 0.5))
+    res = Gibbs(binference.PopulationModel(lk, fit), n_warmup=10, rng=0).run(10)
+    res.save(str(tmp_path / "r.npz"))
+    back = PopulationResult.load(str(tmp_path / "r.npz"))
+    other = binference.PopulationModel(lk, binference.priors.Dirichlet(np.full(10, 3.0)))
+    assert repr(other.prior_spec) == back.prior_repr
+    with pytest.raises(ValueError, match="needs the fit's prior"):
+        _ = back.attach(other).best
+    assert back.attach(binference.PopulationModel(lk, fit)).best is not None
