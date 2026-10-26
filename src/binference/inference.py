@@ -195,8 +195,9 @@ class Auto(Engine):
             if ess >= self.target_ess and not result._mixing_problems():
                 return result
             done = result.chains.shape[1]
-            # enough for the target ESS, and at least half again while R-hat is high
-            more = ceil(done * max(1.2 * self.target_ess / max(ess, 1.0) - 1.0, 0.5))
+            # enough for the target ESS, and at least half again while R-hat is high; at
+            # most three times as many, so a poor first projection wastes less if it fails
+            more = ceil(done * min(max(1.2 * self.target_ess / max(ess, 1.0) - 1.0, 0.5), 3))
             if extension == 4 or done + more > self.max_gibbs_draws:
                 return None
             result = engine.run(more)
