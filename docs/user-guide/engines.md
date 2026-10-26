@@ -52,7 +52,7 @@ the same draws.
    $\hat R$ pass; if that would take too many draws, auto moves on.
 2. **Laplace**, importance-corrected, kept when its Pareto $\hat k$ check
    passes with enough effective draws (and, flagged approximate, for very
-   large inputs).
+   large inputs or when no other engine takes the options given).
 3. **NUTS** otherwise.
 
 The choice and its reason are in `result.info["auto_method"]` and

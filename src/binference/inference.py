@@ -16,7 +16,7 @@ from .priors import PopulationPrior
 from .results import PointEstimate, PopulationResult
 from .samplers import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
 from .samplers.base import Engine
-from .warnings import BinferenceWarning
+from .warnings import ApproximationWarning, BinferenceWarning
 
 __all__ = ["METHODS", "Auto", "infer"]
 
@@ -173,7 +173,15 @@ class Auto(Engine):
                 if result is None:
                     rejected.append(why)
                     continue
-                result.approximate = not self._passed(result)  # kept anyway: flagged
+                if not self._passed(result):  # kept anyway: flagged
+                    result.approximate = True
+                    why = "; ".join(filter(None, [why, "its importance check failed"]))
+                    warnings.warn(
+                        "auto kept Laplace draws that did not pass its importance check; "
+                        "results are approximate.",
+                        ApproximationWarning,
+                        stacklevel=2,
+                    )
             else:
                 result = engine.run(n_samples or n_gibbs or _DEFAULT_SAMPLES[key])
                 # stored labels grow with the run: their length stays as asked
