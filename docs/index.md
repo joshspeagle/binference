@@ -61,6 +61,12 @@ Every public class and function.
 :link-type: doc
 Specification, test and implementation plans, and a survey of related software.
 :::
+
+:::{grid-item-card} Background
+:link: background/index
+:link-type: doc
+The same model in astronomy, gravitational waves, unfolding, empirical Bayes, quantification and neural deconvolution.
+:::
 ::::
 
 ```{toctree}
@@ -76,4 +82,5 @@ design/index
 changelog
 contributing
 citing
+background/index
 ```
