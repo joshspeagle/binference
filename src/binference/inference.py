@@ -9,7 +9,7 @@ from typing import Any
 
 import numpy as np
 
-from ._utils import RNGLike, check_positive, is_integer_array
+from ._utils import RNGLike, check_positive, is_integer_array, warn
 from .bins import Bins
 from .model import PopulationModel
 from .priors import PopulationPrior
@@ -64,7 +64,8 @@ class Auto(Engine):
     3. Importance-corrected Laplace, kept when its Pareto :math:`\hat k` check passes
        and its importance ESS is at least ``target_ess``, or when the likelihoods have
        more than ``nnz_limit`` stored entries, or when it is the only candidate left;
-       in those two cases a result that did not pass is flagged approximate.
+       in those two cases a result that did not pass is flagged approximate (a short
+       importance ESS with a warning of its own).
     4. NUTS.
 
     The result records the choice and the reason in ``info["auto_method"]`` and
@@ -173,14 +174,14 @@ class Auto(Engine):
                 if result is None:
                     rejected.append(why)
                     continue
-                if not self._passed(result):  # kept anyway: flagged
+                if not (result.approximate or self._passed(result)):
+                    # k-hat passed (else Laplace flagged and warned) but the ESS fell short
                     result.approximate = True
-                    why = "; ".join(filter(None, [why, "its importance check failed"]))
-                    warnings.warn(
-                        "auto kept Laplace draws that did not pass its importance check; "
-                        "results are approximate.",
+                    short = f"its importance ESS is below target_ess={self.target_ess:g}"
+                    why = "; ".join(filter(None, [why, short]))
+                    warn(
+                        f"auto kept Laplace draws although {short}; results are approximate.",
                         ApproximationWarning,
-                        stacklevel=2,
                     )
             else:
                 result = engine.run(n_samples or n_gibbs or _DEFAULT_SAMPLES[key])
