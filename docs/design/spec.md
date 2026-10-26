@@ -30,7 +30,7 @@ The baseline model has been implemented at least four times in astronomy alone (
 - missing uncertainty quantification;
 - quantifying uncertainty with approximations known to under-cover, such as mean-field VB.
 
-None checks its own calibration. `binference`'s value is therefore **correct input conventions, calibrated uncertainty, built-in validation and speed**, plus what existing implementations leave out: inputs whose own uncertainty is propagated (selection functions from injections, responses from calibration sets), bases that remove the flat-within-bin approximation, and defaults chosen automatically from measured evidence.
+None checks its own calibration. `binference`'s value is therefore **correct input conventions, calibrated uncertainty, built-in validation and speed**, plus what existing implementations leave out: inputs whose own uncertainty is propagated (selection functions from injections, responses from calibration sets), bases that relax the flat-within-bin approximation, and defaults chosen automatically from measured evidence.
 
 Guiding principles (DECISIONS #34); their wording, and what the code does for each, is in `docs/vision.md`:
 
@@ -73,7 +73,7 @@ The goal is the **population distribution** $\rho \in \Delta^{K-1}$ (the fractio
 
 **In scope (implemented):**
 - **Input conversion:** discrete and binned populations on 1-D grids, N-D grids and unordered categories, with converters from likelihoods, posteriors with interim priors, samples, functions and distributions, binned measurements with a response matrix, and classifier outputs.
-- **Bases:** B-spline bases over the bins (`Basis`), which remove the flat-within-bin approximation, and a binning-bias check for that approximation (DECISIONS #47, #86).
+- **Bases:** B-spline bases over the bins (`Basis`; order 1 or higher relaxes the flat-within-bin approximation), and a binning-bias check for that approximation (DECISIONS #47, #86).
 - **Priors:** the conjugate simplex family (Dirichlet, generalised Dirichlet, Dirichlet-tree and Pólya tree), the smooth logistic-normal family (fixed covariance, random-walk/GMRF, Gaussian process) with hyperparameter inference, and Gamma rates.
 - **Selection effects** for fractions and for rates, including selection functions learned from injection campaigns and inferred jointly with the population (DECISIONS #36, #80).
 - **Responses** tallied from labelled calibration sets, inferred jointly with the population (DECISIONS #28, #81).
