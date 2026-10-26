@@ -12,12 +12,10 @@ from .._utils import RNGLike, check_positive, is_integer_array, progress, spawn
 from ..model import PopulationModel
 from ..priors.dirichlet import _dirichlet_draw
 from ..results import PopulationResult
+from ..selection import _beta_posterior, _draw_beta
 from .base import Engine, interior_start
 
 __all__ = ["Gibbs"]
-
-#: smallest detection probability a chain holds (Beta draws can underflow to zero)
-S_FLOOR = 1e-12
 
 
 class Gibbs(Engine):
@@ -57,12 +55,14 @@ class Gibbs(Engine):
         starts from its own draw of the population's conditional given the
         expected counts there, as by default around a few EM steps.
     chunk : int or None
-        Objects processed per block when drawing labels (bounds memory);
-        ``None`` processes all at once.
+        Objects processed per block when drawing labels from dense likelihoods (bounds
+        memory); ``None`` processes all at once. Sparse likelihoods are processed at once,
+        in memory proportional to their nonzeros.
     """
 
     name = "gibbs"
     joint = True
+    markov = True
 
     def __init__(
         self,
@@ -78,23 +78,7 @@ class Gibbs(Engine):
         progress: bool = False,
     ) -> None:
         super().__init__(model, rng=rng, progress=progress)
-        if not model.prior.conjugate:
-            raise TypeError(
-                f"Gibbs sampling needs a conjugate prior; {model.prior_spec!r} is not. "
-                "Use NUTS instead."
-            )
-        if model.selection_uncertain and model.selection_spec.injections.smooth is not None:
-            raise TypeError(
-                "Gibbs sampling infers independent Betas only; a smooth injection model is not "
-                "conjugate. Use NUTS instead."
-            )
-        w = model.likelihoods.weights
-        if not is_integer_array(w):
-            raise ValueError(
-                "Gibbs sampling needs integer object weights (multiplicities); "
-                "use NUTS for non-integer weights."
-            )
-        self._w_int = np.round(w)
+        self._w_int = np.round(model.likelihoods.weights)
         self._unit = bool(np.all(self._w_int == 1))
         if store_labels is True:
             if not self._unit:
@@ -135,6 +119,25 @@ class Gibbs(Engine):
         self._extra: list[np.ndarray] | None = None
         self._extra_draws: list[np.ndarray] = []
 
+    @classmethod
+    def unsupported(cls, model: PopulationModel) -> str | None:
+        if not model.prior.conjugate:
+            return (
+                f"Gibbs sampling needs a conjugate prior; {model.prior_spec!r} is not. "
+                "Use NUTS instead."
+            )
+        if model.selection_uncertain and model.selection_spec.injections.smooth is not None:
+            return (
+                "Gibbs sampling infers independent Betas only; a smooth injection model is not "
+                "conjugate. Use NUTS instead."
+            )
+        if not is_integer_array(model.likelihoods.weights):
+            return (
+                "Gibbs sampling needs integer object weights (multiplicities); "
+                "use NUTS for non-integer weights."
+            )
+        return super().unsupported(model)
+
     def _setup(self) -> None:
         if self._state is not None:
             return
@@ -143,11 +146,10 @@ class Gibbs(Engine):
         # overdispersed starts: each chain draws from the conditional given expected counts
         base = interior_start(m) if self.init is None else self.init
         nhat = m._complete_counts(base, m.expected_counts(base))
-        exposure = m._S if m.kind == "rates" else None
-        self._state = [m.prior.posterior_sample(nhat, r, exposure=exposure) for r in self._rngs]
+        self._state = [m.prior.posterior_sample(nhat, r, exposure=m._exposure) for r in self._rngs]
         # each chain starts from a draw given the injections or the tallies
         if m.selection_uncertain:
-            self._extra = [np.maximum(m.selection_spec.draw(1, r)[0], S_FLOOR) for r in self._rngs]
+            self._extra = [m.selection_spec.draw(1, r)[0] for r in self._rngs]  # floored
         elif m.response is not None:
             self._extra = [m.response.draw(1, r)[0] for r in self._rngs]
 
@@ -163,8 +165,7 @@ class Gibbs(Engine):
             m._L, self._w_int, value, rng, chunk=self.chunk, unit_weights=self._unit
         )
         counts = m._draw_missed(value, counts, rng)
-        exposure = m._S if m.kind == "rates" else None
-        self._state[c] = m.prior.posterior_sample(counts, rng, exposure=exposure)
+        self._state[c] = m.prior.posterior_sample(counts, rng, exposure=m._exposure)
         return self._state[c], labels
 
     def _iterate_joint(self, c, m, rng, value) -> tuple[np.ndarray, np.ndarray | None]:
@@ -180,9 +181,8 @@ class Gibbs(Engine):
             unit_weights=self._unit,
         )
         missed = m._draw_missed(value, counts, rng, S=S) - counts  # with the absolute S
-        injected, recovered, (a, b), _ = m.selection_spec.injections
-        S = rng.beta(a + recovered + counts, b + injected - recovered + missed)
-        self._extra[c] = np.maximum(S, S_FLOOR)  # an underflow to zero would void its bin
+        s, f = _beta_posterior(m.selection_spec.injections)
+        self._extra[c] = _draw_beta(s + counts, f + missed, rng)  # floored
         self._state[c] = m.prior.posterior_sample(counts + missed, rng)
         return self._state[c], labels
 
@@ -265,7 +265,6 @@ class Gibbs(Engine):
             self.model,
             D,
             method="gibbs",
-            kind=self.model.kind,
             labels=labels,
             label_index=self.label_index,
             info=info,

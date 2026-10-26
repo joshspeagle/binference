@@ -77,6 +77,19 @@ def test_mock_1d_posteriors_and_samples_follow_the_interim_prior_given(kind):
     assert np.all(np.abs(zscore) < 4)
 
 
+def test_mock_1d_samples_weigh_each_grid_step_by_its_width_on_unequal_bins():
+    # without an interim prior the samples follow the likelihood, flat in z; a narrow
+    # bin's 50 steps are short and must carry little mass
+    bins = Bins([0.0, 0.1, 3.0])
+    mock = mock_1d(200, bins, density=[0.5, 0.5], noise=1.0, n_samples=500, rng=0)
+    obs, sig = mock.measurements["mean"], mock.measurements["sigma"]
+    cdf = stats.norm.cdf((bins.edges[0][:, None] - obs) / sig)
+    p = (cdf[1] - cdf[0]) / (cdf[2] - cdf[0])  # each object's posterior mass in bin 0
+    S = mock.samples.shape[1]
+    zscore = ((mock.samples < 0.1).sum() - S * p.sum()) / np.sqrt(S * (p * (1 - p)).sum())
+    assert abs(zscore) < 4
+
+
 def test_mock_selection_thins_each_bin_and_adds_the_outlier_fraction():
     S = np.linspace(1.0, 0.2, 30)
     f_out, N = 0.1, 20000
@@ -159,7 +172,7 @@ def test_sbc_and_coverage_smoke():
         rng=2,
         functionals={"mean": lambda r: r @ bins.centers},
     )
-    assert cov.rates().shape == (2, 4)
+    assert cov.coverage_rates().shape == (2, 4)
     assert cov.average().shape == (2,)
     assert cov.stderr().shape == (2, 1)
     with pytest.raises(ValueError, match="informative"):

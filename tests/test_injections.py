@@ -9,9 +9,9 @@ import pytest
 from scipy import special
 
 import binference
-from binference import Bins, Likelihoods, Selection
+from binference import Bins, Likelihoods, PopulationResult, Selection
 from binference.samplers import MAP, NUTS, Gibbs, Laplace, MeanFieldVB
-from binference.selection import _logit_density
+from binference.selection import S_FLOOR, _logit_density
 from binference.validation import SBCResult
 
 
@@ -35,6 +35,15 @@ def test_injections_give_a_beta_posterior_per_bin():
     np.testing.assert_array_equal(recovered, [1, 1, 2, 0])
     np.testing.assert_allclose(sel.values, (1 + recovered) / (3 + injected))
     assert sel.draw(5, rng=0).shape == (5, 4) and sel.at_mean().injections is None
+
+
+def test_draws_of_a_selection_never_underflow_to_zero():
+    # a bin with no recovered injections under a small prior a: Beta(a, b + n) draws
+    # underflow to exactly zero, which would void the bin (Gibbs floors them alike)
+    bins = Bins.linear(0, 1, 2)
+    z, detected = np.array([0.2] * 50 + [0.7] * 50), np.r_[np.zeros(50), np.ones(50)]
+    sel = Selection.from_injections(z, detected.astype(bool), bins, "on_truth", prior=(1e-3, 1))
+    assert sel.draw(1000, rng=0).min() >= S_FLOOR
 
 
 def test_injection_inputs_are_checked_by_name():
@@ -248,7 +257,7 @@ def test_a_smooth_selection_is_refused_where_it_does_not_apply():
     with pytest.raises(ValueError, match="independent Betas"):
         sel.draw(3)
     m = binference.PopulationModel(Likelihoods(np.ones((5, 6)), bins), selection=sel)
-    with pytest.raises(TypeError, match="smooth"):
+    with pytest.raises(ValueError, match="smooth"):
         Gibbs(m)
     assert binference.inference.Auto(m).candidates()[0][0] != "gibbs"
     with pytest.raises(ValueError, match="smooth"):
@@ -287,3 +296,16 @@ def test_auto_and_exact_choose_what_they_can_infer():
         Selection.from_injections([0.1], [1], Bins.linear(0, 1, 3), "on_truth", prior=1.0)
     with pytest.raises(ValueError, match="z"):
         Selection.from_injections(np.ones((2, 2)), [1, 1], Bins.linear(0, 1, 3), "on_truth")
+
+
+def test_external_draws_of_a_joint_model_need_the_selection_draws():
+    lk, sel = _problem()
+    m = binference.PopulationModel(lk, selection=sel)
+    rho = np.full((10, 4), 0.25)
+    with pytest.raises(ValueError, match='info\\["selection_draws"\\]'):
+        PopulationResult.from_samples(m, rho)
+    S = np.broadcast_to(sel.values, (1, 10, 4))
+    res = PopulationResult.from_samples(m, rho, info={"selection_draws": S})
+    assert res.total.shape == (10,)
+    with pytest.raises(ValueError, match="one draw per sample"):
+        PopulationResult.from_samples(m, rho, info={"selection_draws": S[:, :5]})

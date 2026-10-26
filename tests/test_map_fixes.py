@@ -60,7 +60,7 @@ def test_em_converges_only_where_the_kkt_gap_is_small():
 )
 def test_every_algorithm_reports_the_same_log_posterior(prior, kwargs):
     lk = _mock().likelihoods
-    m = PopulationModel(lk._reweighted(7.0 * lk.weights), prior)  # log-scales matter
+    m = PopulationModel(lk._copy(weights=7.0 * lk.weights), prior)  # log-scales matter
     est = MAP(m, **kwargs).run()
     np.testing.assert_allclose(est.log_posterior, m.log_posterior(est.value), rtol=1e-12)
     if est.x is not None:

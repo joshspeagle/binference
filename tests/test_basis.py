@@ -246,3 +246,26 @@ def test_a_reloaded_result_attaches_on_a_transform_axis(tmp_path):
     back = PopulationResult.load(str(tmp_path / "r.npz"))
     back.attach(lk).assignment_probabilities(idx=[0])
     assert back.to_dict()["meta"]["basis"]["order"] == 1
+
+
+def test_a_reloaded_result_with_a_selection_attaches_on_a_transform_axis(tmp_path):
+    # the saved selection's basis loads with a tabulated measure, as the result's does
+    tb = Bins(np.linspace(0, 3, 7), measure=binference.Measure.transform(np.arcsinh, np.sinh))
+    mock = binference.simulate.mock_1d(100, tb, rng=7)
+    lk = Likelihoods.from_gaussian(
+        mock.measurements["mean"], mock.measurements["sigma"], Basis(tb, order=1)
+    )
+    sel = np.linspace(0.5, 1.0, tb.K)
+    res = binference.infer(
+        lk,
+        selection=sel,
+        selection_mode="on_truth",
+        method="gibbs",
+        n_samples=20,
+        n_warmup=10,
+        rng=0,
+        check=False,
+    )
+    res.save(str(tmp_path / "r.npz"))
+    back = PopulationResult.load(str(tmp_path / "r.npz"))
+    back.attach(lk).assignment_probabilities(idx=[0])

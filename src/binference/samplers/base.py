@@ -26,20 +26,33 @@ class Engine:
     #: whether the engine infers a selection from injections or a tallied response jointly
     #: (DECISIONS #30, #80, #81)
     joint: bool = False
+    #: whether its draws are Markov chains, described by R-hat and ESS
+    markov: bool = False
 
     def __init__(self, model: PopulationModel, *, rng: RNGLike = None, progress: bool = False):
         if not isinstance(model, PopulationModel):
             raise TypeError("Engines operate on a binference.PopulationModel.")
-        if model.joint and not self.joint:
-            fixed = "selection.at_mean()" if model.selection_uncertain else "response.fixed()"
-            raise ValueError(
-                f"{type(self).__name__} cannot infer a selection from injections or a tallied "
-                "response; use method='nuts', 'laplace', 'map' (space='unconstrained') or "
-                f"'gibbs', or pass {fixed} for a fixed one that ignores its uncertainty."
-            )
+        reason = self.unsupported(model)
+        if reason is not None:
+            raise ValueError(reason)
         self.model = model
         self.rng = as_generator(rng)
         self.progress = bool(progress)
+
+    @classmethod
+    def unsupported(cls, model: PopulationModel) -> str | None:
+        """Why the engine cannot run on ``model``, or ``None`` when it can."""
+        if model.joint and not cls.joint:
+            from ..inference import METHODS  # the registry imports the engines
+
+            *names, last = (repr(k) for k, e in METHODS.items() if e.joint)
+            fixed = "selection.at_mean()" if model.selection_uncertain else "response.fixed()"
+            return (
+                f"{cls.__name__} cannot infer a selection from injections or a tallied "
+                f"response; use method={', '.join(names)} or {last}, or pass {fixed} for a "
+                "fixed one that ignores its uncertainty."
+            )
+        return None
 
     def run(self, *args: Any, **kwargs: Any):  # pragma: no cover - abstract
         raise NotImplementedError
@@ -48,17 +61,21 @@ class Engine:
         return f"{type(self).__name__}({self.model!r})"
 
 
-def em_update(model: PopulationModel, value: np.ndarray) -> np.ndarray | None:
-    """One EM step for conjugate priors (fractions or rates, with selection).
+def em_update(
+    model: PopulationModel, value: np.ndarray, s: np.ndarray | None = None
+) -> np.ndarray | None:
+    """One EM step for conjugate priors (fractions or rates, with selection), given the
+    evidences ``s = L @ value`` when they are already computed.
 
     Returns ``None`` where an object has zero likelihood, rather than taking zero
     counts that would reset the step to the prior's mode (audit M-1).
     """
-    ll, nhat, _ = kern.loglike_and_counts(model._L, model._w, value)
-    if not np.isfinite(ll):
+    s = kern.matvec(model._L, value) if s is None else s
+    if not kern.possible(s):
         return None
-    exposure = model._S if model.kind == "rates" else None
-    return model.prior.map_from_counts(model._complete_counts(value, nhat), exposure=exposure)
+    nhat = value * kern.rmatvec(model._L, model._w / s)
+    counts = model._complete_counts(value, nhat)
+    return model.prior.map_from_counts(counts, exposure=model._exposure)
 
 
 def interior_start(model: PopulationModel, n_iter: int = 50) -> np.ndarray:

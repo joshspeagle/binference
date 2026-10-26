@@ -1,7 +1,5 @@
 """method="auto", the default of infer: one test per rule (DECISIONS #88)."""
 
-import functools
-
 import numpy as np
 import pytest
 
@@ -27,9 +25,14 @@ def _plan(lk, prior=None, **kw):
     ]
 
 
+class _ShortNUTS(NUTS):
+    def __init__(self, model, **kw):
+        super().__init__(model, **{"n_chains": 1, "n_warmup": 50, **kw})
+
+
 @pytest.fixture
 def short_nuts(monkeypatch):
-    monkeypatch.setitem(inf.METHODS, "nuts", functools.partial(NUTS, n_chains=1, n_warmup=50))
+    monkeypatch.setitem(inf.METHODS, "nuts", _ShortNUTS)
 
 
 def test_auto_is_the_default_and_records_its_choice():
@@ -197,3 +200,11 @@ def test_a_gibbs_run_that_stores_labels_keeps_its_length():
         lk, selection=sel, rng=0, target_ess=600, store_labels=True, check=False
     )
     assert res.method == "gibbs" and res.chains.shape[1] == 1000
+
+
+def test_auto_keeps_the_map_it_computed_as_the_best_fit():
+    lk = _lk(0.3)
+    res = binference.infer(lk, rng=0, n_samples=50, check=False)
+    assert res.info["auto_method"] == "gibbs" and "best" in res._cache
+    model = binference.PopulationModel(lk)
+    np.testing.assert_allclose(res.best.value, binference.infer(model, method="map").value)

@@ -76,6 +76,7 @@ class _BoundGammaRates(BoundPrior):
         super().__init__(prior, bins)
         self.a = a
         self.b = b
+        self.pseudocounts = a - 1.0
         self.dim = self.K
         self._const = float(np.sum(a * np.log(b) - special.gammaln(a)))
 
@@ -89,7 +90,7 @@ class _BoundGammaRates(BoundPrior):
 
     def init_from_value(self, value):
         lam = np.asarray(value, dtype=float)
-        lam = np.maximum(lam, 1e-12 * max(np.max(lam), 1e-300))
+        lam = np.maximum(lam, 1e-12 * max(np.max(lam), _TINY))
         return np.log(lam)
 
     def sample(self, n, rng):

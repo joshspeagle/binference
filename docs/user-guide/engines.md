@@ -57,7 +57,8 @@ the same draws.
 3. **NUTS** otherwise.
 
 The choice and its reason are in `result.info["auto_method"]` and
-`result.info["auto_reason"]`. {class}`binference.inference.Auto` states the
+`result.info["auto_reason"]`; where auto computed the MAP to choose, the result
+keeps it as `result.best`. {class}`binference.inference.Auto` states the
 exact rules; their thresholds (`target_ess`, `gibbs_max_missing`,
 `max_gibbs_draws`, `nnz_limit`) are options that go to `infer` like any other, e.g.
 `binference.infer(lk, target_ess=1000)`. Engine options rule out the engines

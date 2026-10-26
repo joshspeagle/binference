@@ -59,6 +59,22 @@ def test_empty_rows_raise_or_drop():
     np.testing.assert_array_equal(lk.meta["dropped"], [1])
 
 
+def test_dense_sparse_and_log_inputs_normalise_alike_around_an_empty_row():
+    L = np.array([[1.0, 0.0, 4.0], [0.0, 0.0, 0.0], [2.0, 2.0, 0.5]])
+    S = sp.csr_array(L)
+    with pytest.warns(InputWarning, match="Dropping"):
+        dense = Likelihoods(L, drop_empty=True)
+    with pytest.warns(InputWarning, match="Dropping"):
+        sparse = Likelihoods(S, drop_empty=True)
+    with pytest.warns(InputWarning, match="Dropping"), np.errstate(divide="ignore"):
+        logged = Likelihoods.from_log(np.log(L), drop_empty=True)
+    np.testing.assert_array_equal(S.toarray(), L)  # the caller's matrix is left alone
+    np.testing.assert_array_equal(dense.toarray(), [[0.25, 0.0, 1.0], [1.0, 1.0, 0.25]])
+    np.testing.assert_array_equal(sparse.toarray(), dense.toarray())
+    np.testing.assert_allclose(logged.toarray(), dense.toarray(), rtol=1e-15)
+    np.testing.assert_array_equal(sparse.log_scale, dense.log_scale)
+
+
 def test_weights_validation():
     L = np.ones((3, 2))
     with pytest.raises(ValueError):

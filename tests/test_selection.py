@@ -12,11 +12,10 @@ from binference import priors as P
 from binference.simulate import mock_1d
 
 
-def test_the_old_mode_names_point_at_the_new_ones():
-    with pytest.raises(ValueError, match="'on_truth'"):
-        Selection([0.5, 1.0], "true")
-    with pytest.raises(ValueError, match="'on_measurement'"):
-        Selection([0.5, 1.0], "observed")
+def test_an_unknown_mode_is_refused_with_the_valid_ones():
+    for mode in ("true", "observed"):  # names never released: no rename hint (DECISIONS #90)
+        with pytest.raises(ValueError, match=f"'on_measurement' or 'on_truth'.*got '{mode}'"):
+            Selection([0.5, 1.0], mode)
 
 
 def test_probabilities_above_one_need_a_declared_scale():

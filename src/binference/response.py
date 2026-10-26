@@ -22,7 +22,7 @@ from typing import Any
 import numpy as np
 from scipy import stats
 
-from ._utils import as_generator, check_positive, frozen, warn
+from ._utils import as_generator, check_nonnegative, check_positive, frozen, warn
 from .bins import Bins
 from .priors.dirichlet import _dirichlet_draw
 from .selection import Selection
@@ -92,13 +92,11 @@ class Response:
         origin,
         prior=None,
     ):
-        R = np.array(matrix, dtype=float)
+        R = check_nonnegative(np.array(matrix, dtype=float), "matrix")
         if R.ndim != 2 or R.shape[1] != truth_bins.K:
             raise ValueError(
                 f"matrix must have shape (J, K) with K={truth_bins.K} truth bins; got {R.shape}."
             )
-        if not np.all(np.isfinite(R)) or np.any(R < 0):
-            raise ValueError("matrix must be finite and non-negative.")
         col = R.sum(axis=0)
         if efficiency is not None:
             eff = np.asarray(efficiency, dtype=float).ravel()
@@ -253,9 +251,11 @@ class Response:
         if weights is None:
             w = np.ones(k.size)
         else:
-            w = np.asarray(weights, dtype=float).ravel()
-            if w.shape != k.shape or not np.all(np.isfinite(w)) or np.any(w < 0):
-                raise ValueError("weights must give one finite, non-negative value per event.")
+            w = check_nonnegative(np.ravel(weights), "weights")
+            if w.shape != k.shape:
+                raise ValueError(
+                    f"weights must give one value per event ({k.size}); got {w.size}."
+                )
         stray = int(np.count_nonzero((k < 0) & (j >= 0)))
         if stray:
             warn(

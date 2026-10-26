@@ -298,10 +298,10 @@ def test_gibbs_tree_priors_agree_with_nuts(prior):
 
 def test_gibbs_validation_and_labels(onehot):
     lk, _ = onehot
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError, match="conjugate"):
         Gibbs(PopulationModel(lk, P.LogisticNormal()))
     with pytest.warns(InputWarning, match="pseudo-likelihood"):
-        half = lk.with_weights(np.full(lk.N, 0.5), fractional=True)
+        half = lk.with_weights(np.full(lk.N, 0.5), fractional_weights=True)
     with pytest.raises(ValueError, match="integer"):
         Gibbs(PopulationModel(half))
     g = Gibbs(PopulationModel(lk), n_chains=2, n_warmup=5, store_labels=[0, 3], rng=1)
@@ -526,7 +526,7 @@ def test_vb_exact_for_onehot_and_overconfident_otherwise(onehot, k3_problem):
         vb = MeanFieldVB(PopulationModel(mock.likelihoods), rng=1).run(4000)
     assert vb.approximate
     assert np.all(vb.std < 0.8 * exact.std)
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError, match="conjugate"):
         MeanFieldVB(PopulationModel(lk, P.LogisticNormal()))
 
 

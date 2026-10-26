@@ -166,6 +166,7 @@ class _BoundDirichlet(_SimplexBound):
     def __init__(self, prior: PopulationPrior, bins: Bins, alpha: np.ndarray) -> None:
         super().__init__(prior, bins)
         self.alpha = alpha
+        self.pseudocounts = alpha - 1.0
         self.A = float(alpha.sum())
         self._const = float(special.gammaln(self.A) - special.gammaln(alpha).sum())
 

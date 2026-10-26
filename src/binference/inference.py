@@ -9,7 +9,7 @@ from typing import Any
 
 import numpy as np
 
-from ._utils import RNGLike, check_positive, is_integer_array, warn
+from ._utils import RNGLike, check_positive, warn
 from .bins import Bins
 from .model import PopulationModel
 from .priors import PopulationPrior
@@ -31,11 +31,14 @@ METHODS = {
     "bootstrap": Bootstrap,
 }
 
-_DEFAULT_SAMPLES = {"nuts": 1000, "gibbs": 1000, "laplace": 4000, "vb": 4000, "bootstrap": 200}
-
 
 def _options(engine: type) -> dict[str, inspect.Parameter]:
     return dict(inspect.signature(engine.__init__).parameters)
+
+
+def _default_draws(engine: type) -> int:
+    """The engine's own default ``n_samples``."""
+    return inspect.signature(engine.run).parameters["n_samples"].default
 
 
 class Auto(Engine):
@@ -69,7 +72,8 @@ class Auto(Engine):
     4. NUTS.
 
     The result records the choice and the reason in ``info["auto_method"]`` and
-    ``info["auto_reason"]``.
+    ``info["auto_reason"]``. Where rule 2 computed the MAP without a warning, the
+    result keeps it as :attr:`~binference.PopulationResult.best`.
 
     Parameters
     ----------
@@ -116,28 +120,29 @@ class Auto(Engine):
         self.max_gibbs_draws = int(check_positive(max_gibbs_draws, "max_gibbs_draws"))
         self.engine_kwargs = engine_kwargs
         self._rng_arg = rng
+        self._map: tuple[Any, float] | None = None  # the MAP and its missing information
 
     def candidates(self, n_samples: int | None = None) -> list[tuple[str, str, int | None]]:
         """(engine, reason, Gibbs draws per chain) in the order they are tried, for runs
         of ``n_samples`` draws per chain (None: the engines' own lengths)."""
         m, kw = self.model, self.engine_kwargs
         out: list[tuple[str, str, int | None]] = []
-        if (
-            m.prior.conjugate
-            and not (m.selection_uncertain and m.selection_spec.injections.smooth is not None)
-            and is_integer_array(m.likelihoods.weights)
-            and set(kw) <= set(_options(Gibbs))
-        ):
+        if Gibbs.unsupported(m) is None and set(kw) <= set(_options(Gibbs)):
             if m.joint:  # exact and fast (DECISIONS #80, #81)
                 out.append(("gibbs", "a joint model with a conjugate prior", None))
             else:
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore", BinferenceWarning)
-                    f = m.missing_information(MAP(m).run().value)  # component weights
+                if self._map is None:
+                    with warnings.catch_warnings(record=True) as caught:
+                        warnings.simplefilter("always", BinferenceWarning)
+                        est = MAP(m).run()
+                    # kept as best only when it raised no warning (best would show them)
+                    keep = est if not caught else None
+                    self._map = keep, m.missing_information(est.value)  # component weights
+                f = self._map[1]
                 if f <= self.gibbs_max_missing:
                     chains = kw.get("n_chains", _options(Gibbs)["n_chains"].default)
                     n = max(
-                        _DEFAULT_SAMPLES["gibbs"],
+                        _default_draws(Gibbs),
                         ceil(self.target_ess * (1 + f) / (1 - f) / chains),
                     )
                     if n_samples is not None or n <= self.max_gibbs_draws:
@@ -169,7 +174,7 @@ class Auto(Engine):
                 self.model, rng=self._rng_arg, progress=self.progress, **self.engine_kwargs
             )
             if key == "laplace":
-                n = 4 * (n_samples or _DEFAULT_SAMPLES["nuts"])
+                n = 4 * (n_samples or _default_draws(NUTS))
                 result, why = (engine.run(n), "") if last else self._try(engine, n)
                 if result is None:
                     rejected.append(why)
@@ -184,7 +189,8 @@ class Auto(Engine):
                         ApproximationWarning,
                     )
             else:
-                result = engine.run(n_samples or n_gibbs or _DEFAULT_SAMPLES[key])
+                n = n_samples or n_gibbs
+                result = engine.run() if n is None else engine.run(n)
                 # stored labels grow with the run: their length stays as asked
                 extend = key == "gibbs" and n_samples is None and engine.label_index is None
                 if extend and not self._extend(engine, result):
@@ -199,6 +205,8 @@ class Auto(Engine):
             result.info["auto_reason"] = (
                 "; ".join(reasons) or "the only engine that takes these options"
             )
+            if self._map is not None and self._map[0] is not None:  # not solved again
+                result._cache["best"] = self._map[0]
             return result
         raise AssertionError("unreachable: the last candidate always returns")  # pragma: no cover
 
@@ -343,11 +351,12 @@ def infer(
     if key == "em" and not model.joint:  # MAP by EM itself, not mix-SQP (audit O-17)
         engine_kwargs.setdefault("algorithm", "em")
     engine = METHODS[key](model, rng=rng, progress=progress, **engine_kwargs)
-    if key in ("map", "em"):
-        if n_samples is not None:
-            raise ValueError(f"n_samples does not apply to method={key!r}.")
-        return engine.run()
-    result = engine.run(_DEFAULT_SAMPLES.get(key) if n_samples is None else int(n_samples))
-    if check and result.method in ("nuts", "gibbs"):
+    if n_samples is None:
+        result = engine.run()
+    elif isinstance(engine, MAP):
+        raise ValueError(f"n_samples does not apply to method={key!r}.")
+    else:
+        result = engine.run(int(n_samples))
+    if check and METHODS[result.method].markov:
         result.check()
     return result

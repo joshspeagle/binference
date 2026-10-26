@@ -132,7 +132,7 @@ def test_coverage_gibbs():
         functionals={"mean": lambda r: r @ BINS4.centers},
         rng=99,
     )
-    rates = cov.rates()
+    rates = cov.coverage_rates()
     se = cov.stderr()
     assert np.all(np.abs(rates - cov.levels[:, None]) < 4 * se), rates
 

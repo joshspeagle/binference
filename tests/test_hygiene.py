@@ -16,7 +16,7 @@ def test_weights_are_integer_multiplicities_unless_asked_otherwise(lk):
     with pytest.raises(ValueError, match="integer multiplicities"):
         Likelihoods(lk.values, lk.bins, weights=[1.5, 1.0])
     with pytest.warns(InputWarning, match="pseudo-likelihood"):
-        frac = lk.with_weights([1.5, 1.0], fractional=True)
+        frac = lk.with_weights([1.5, 1.0], fractional_weights=True)
     assert frac.W == 2.5
     assert lk.with_weights([2, 3]).W == 5
 

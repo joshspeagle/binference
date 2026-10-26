@@ -16,6 +16,7 @@ engines:
 
 from __future__ import annotations
 
+import hashlib
 import inspect
 from typing import Any
 
@@ -75,6 +76,17 @@ class PopulationPrior:
         args = ", ".join(f"{k}={_short(v)}" for k, v in self._params().items())
         return f"{type(self).__name__}({args})"
 
+    def _fingerprint(self) -> str:
+        """A digest of the type and every argument in full (the repr shortens arrays)."""
+        h = hashlib.sha256(type(self).__name__.encode())
+        for k, v in self._params().items():
+            h.update(k.encode())
+            if isinstance(v, np.ndarray):
+                h.update(f"{v.dtype}{v.shape}".encode() + np.ascontiguousarray(v).tobytes())
+            else:
+                h.update((v._fingerprint() if hasattr(v, "_fingerprint") else repr(v)).encode())
+        return h.hexdigest()
+
 
 def _short(v: Any) -> str:
     if isinstance(v, np.ndarray):
@@ -99,6 +111,11 @@ class BoundPrior:
     conjugate: bool = False
     has_density: bool = False
     has_prior_transform: bool = False
+    #: whether it has partial non-centring weights (``with_centering``; the logistic family)
+    has_centering: bool = False
+    #: counts its mode adds to the data's, ``alpha - 1`` (Dirichlet) or ``a - 1``
+    #: (GammaRates), as in EM's M-step; ``None`` for other priors
+    pseudocounts: np.ndarray | None = None
 
     def __init__(self, prior: PopulationPrior, bins: Bins) -> None:
         self.prior = prior

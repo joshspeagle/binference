@@ -43,6 +43,7 @@ from ._quadrature import bin_log_average
 from ._utils import as_generator, check_positive, frozen, warn
 from .basis import Basis
 from .bins import Bins
+from .density import _log_nonneg
 from .priors.logistic import _rw_precision
 from .warnings import ConvergenceWarning, InputWarning
 
@@ -50,10 +51,13 @@ __all__ = ["SELECTION_MODES", "SELECTION_SCALES", "Selection", "as_selection"]
 
 SELECTION_MODES = ("on_truth", "on_measurement", "combined")
 SELECTION_SCALES = ("probability", "exposure", "relative")
-_RENAMED = {"true": "on_truth", "observed": "on_measurement"}
 
 #: neighbouring bins whose selection differs by more than this factor raise a warning
 STEEP_RATIO = 2.0
+
+#: smallest detection probability a Beta draw takes (a draw can underflow to zero,
+#: which would void its bin)
+S_FLOOR = 1e-12
 
 _HELP = (
     "A selection function needs an explicit selection_mode: 'on_measurement' if objects are "
@@ -205,20 +209,23 @@ class Selection:
         n = np.bincount(k[inside], minlength=bins.K).astype(float)
         r = np.bincount(k[inside], weights=d[inside].astype(float), minlength=bins.K)
         injections = _Injections(frozen(n), frozen(r), (a, b), smooth)
-        S = (a + r) / (a + b + n) if smooth is None else special.expit(_logit_mode(injections))
+        s, f = _beta_posterior(injections)
+        S = s / (s + f)  # the posterior means, where the smooth model's Newton steps start
+        if smooth is not None:
+            S = special.expit(_logit_mode(special.logit(S), injections))
         sel = cls(S, mode)
         object.__setattr__(sel, "injections", injections)
         return sel
 
     def draw(self, n: int, rng: Any = None) -> np.ndarray:
         """``(n, K)`` posterior draws of :math:`S` given the injections alone
-        (independent Betas)."""
+        (independent Betas), floored at :data:`S_FLOOR` so that none underflows to zero."""
         if self.injections is None:
             raise ValueError("Only a selection from injections has draws.")
-        inj, rec, (a, b), smooth = self.injections
-        if smooth is not None:
+        if self.injections.smooth is not None:
             raise ValueError("Draws are available for independent Betas only (smooth=None).")
-        return as_generator(rng).beta(a + rec, b + inj - rec, size=(int(n), self.K))
+        s, f = _beta_posterior(self.injections)
+        return _draw_beta(s, f, as_generator(rng), size=(int(n), self.K))
 
     def at_mean(self) -> Selection:
         """This selection fixed at its :attr:`values`, ignoring their uncertainty."""
@@ -354,12 +361,24 @@ class _Injections(NamedTuple):
     smooth: float | None
 
 
+def _beta_posterior(injections: _Injections) -> tuple[np.ndarray, np.ndarray]:
+    """Parameters ``(s, f)`` of the Beta posteriors of :math:`S` given the injections
+    alone: :math:`s = a + d`, :math:`f = b + n - d`."""
+    n, r, (a, b), _ = injections
+    return a + r, b + n - r
+
+
+def _draw_beta(s: Any, f: Any, rng: np.random.Generator, size: Any = None) -> np.ndarray:
+    r"""Draws of :math:`S \sim \mathrm{Beta}(s, f)`, floored at :data:`S_FLOOR`."""
+    return np.maximum(rng.beta(s, f, size=size), S_FLOOR)
+
+
 def _logit_density(y: np.ndarray, injections: _Injections) -> tuple[float, np.ndarray]:
     r"""Log density of :math:`y = \mathrm{logit}\,S` given the injections alone, with
     the Jacobian, and its gradient: :math:`\sum_k s_k\log S_k + f_k\log(1 - S_k)` with
     :math:`s = a + d`, :math:`f = b + n - d`, plus the random walk of the smooth model."""
-    n, r, (a, b), tau = injections
-    s, f = a + r, b + n - r
+    s, f = _beta_posterior(injections)
+    tau = injections.smooth
     lp = float(s @ special.log_expit(y) + f @ special.log_expit(-y))
     g = s - (s + f) * special.expit(y)
     if tau is not None:
@@ -369,15 +388,14 @@ def _logit_density(y: np.ndarray, injections: _Injections) -> tuple[float, np.nd
     return lp, g
 
 
-def _logit_mode(injections: _Injections) -> np.ndarray:
-    """The mode of :func:`_logit_density` (strictly concave), by damped Newton steps."""
-    n, r, (a, b), tau = injections
-    Q = _rw_precision(n.size, 2) / tau**2
-    y = special.logit((a + r) / (a + b + n))
+def _logit_mode(y: np.ndarray, injections: _Injections) -> np.ndarray:
+    """The mode of :func:`_logit_density` (strictly concave), by damped Newton steps from ``y``."""
+    s, f = _beta_posterior(injections)
+    Q = _rw_precision(s.size, 2) / injections.smooth**2
     lp, g = _logit_density(y, injections)
     for _ in range(100):
         S = special.expit(y)
-        step = np.linalg.solve(np.diag((a + b + n) * S * (1.0 - S)) + Q, g)
+        step = np.linalg.solve(np.diag((s + f) * S * (1.0 - S)) + Q, g)
         t = 1.0
         while t > 1e-10:
             new_lp, new_g = _logit_density(y + t * step, injections)
@@ -463,8 +481,6 @@ def _check_values(values: Any, scale: str, name: str) -> np.ndarray:
 
 
 def _check_mode(mode: str) -> None:
-    if mode in _RENAMED:
-        raise ValueError(f"selection mode {mode!r} is now {_RENAMED[mode]!r} (DECISIONS #7).")
     if mode not in ("on_truth", "on_measurement"):
         raise ValueError(
             "selection mode must be 'on_measurement' or 'on_truth' (or use "
@@ -494,11 +510,7 @@ def _bin_average(
         return f[None] if factor is None else np.stack([f, f * np.ravel(factor(labels))])
 
     def logs(f, z):
-        v = np.asarray(f(z), dtype=float).ravel()
-        if not np.all(np.isfinite(v)) or np.any(v < 0):
-            raise ValueError("A selection function must return finite, non-negative values.")
-        with np.errstate(divide="ignore"):
-            return np.log(v)
+        return _log_nonneg(np.ravel(f(z)), "The values of a selection function")
 
     def logf(z):
         lf = logs(function, z)

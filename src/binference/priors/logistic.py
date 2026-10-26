@@ -122,6 +122,7 @@ class _BoundLogistic(BoundPrior):
     kind = "fractions"
     conjugate = False
     has_density = False
+    has_centering = True
 
     def __init__(
         self,
@@ -489,7 +490,6 @@ class _BoundRandomWalk(_BoundLogistic):
 # 0.02 to 0.2 (DECISIONS #73)
 _KERNELS = {
     "rbf": (None, 1.3),
-    "se": (None, 1.3),
     "matern52": (2.5, 1.8),
     "matern32": (1.5, 2.2),
     "matern12": (0.5, 8.5),
@@ -510,7 +510,7 @@ class LogisticGP(PopulationPrior):
     Parameters
     ----------
     kernel : {"matern32", "matern52", "matern12", "rbf"}
-        Covariance kernel (``"se"`` is an alias of ``"rbf"``).
+        Covariance kernel.
     amplitude : Hyperprior or float
         Marginal standard deviation of the log-density field; inferred with a
         ``HalfNormal(2.0)`` prior by default.

@@ -117,7 +117,7 @@ cov = coverage(simulate, fit_gibbs, n_simulations=150, levels=(0.5, 0.9),
                functionals={"mean": lambda rho: rho @ centers}, rng=1)
 print("levels:", cov.levels)
 print("coverage per quantity (rows = levels):")
-print(np.round(cov.rates(), 2))
+print(np.round(cov.coverage_rates(), 2))
 print("standard error:", cov.stderr().ravel().round(3))
 ```
 

@@ -16,10 +16,13 @@ from typing import Any
 import numpy as np
 from scipy import special, stats
 
+from ._utils import chunk_slices
+
 __all__ = [
     "autocorr_function",
     "autocorr_time",
     "ess",
+    "importance_ess",
     "kkt_gap",
     "mcse",
     "missing_information",
@@ -204,34 +207,35 @@ def mcse(x: Any) -> float:
 # ----------------------------------------------------------------------------
 # Pareto-smoothed importance sampling
 # ----------------------------------------------------------------------------
-def _gpdfit(x: np.ndarray) -> tuple[float, float]:
-    """Zhang & Stephens (2009) generalised-Pareto fit with the PSIS prior on k."""
+def _gpdfit(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Zhang & Stephens (2009) generalised-Pareto fit with the PSIS prior on k, of each
+    row of the sorted exceedances ``x`` ``(..., n)``."""
     prior_bs, prior_k = 3.0, 10.0
-    n = len(x)
+    n = x.shape[-1]
     m_est = 30 + int(n**0.5)
     b = 1.0 - np.sqrt(m_est / (np.arange(1, m_est + 1, dtype=float) - 0.5))
-    b /= prior_bs * x[int(n / 4 + 0.5) - 1]
-    b += 1.0 / x[-1]
-    k = np.log1p(-b[:, None] * x).mean(axis=1)
+    b = b / (prior_bs * x[..., int(n / 4 + 0.5) - 1, None]) + 1.0 / x[..., -1, None]
+    k = np.log1p(-b[..., None] * x[..., None, :]).mean(axis=-1)
     with np.errstate(divide="ignore", invalid="ignore"):
         len_scale = n * (np.log(-(b / k)) - k - 1.0)
-    weights = 1.0 / np.exp(len_scale - len_scale[:, None]).sum(axis=1)
-    keep = weights >= 10 * np.finfo(float).eps
-    weights, b = weights[keep], b[keep]
-    weights /= weights.sum()
-    b_post = float(np.sum(b * weights))
-    k_post = float(np.log1p(-b_post * x).mean())
+    weights = 1.0 / np.exp(len_scale[..., None, :] - len_scale[..., None]).sum(axis=-1)
+    weights = np.where(weights >= 10 * np.finfo(float).eps, weights, 0.0)  # NaN dropped too
+    b_post = np.sum(b * weights, axis=-1) / weights.sum(axis=-1)
+    k_post = np.log1p(-b_post[..., None] * x).mean(axis=-1)
     sigma = -k_post / b_post
     k_post = (n * k_post + prior_k * 0.5) / (n + prior_k)
     return k_post, sigma
 
 
-def _gpinv(p: np.ndarray, k: float, sigma: float) -> np.ndarray:
-    if sigma <= 0:
-        return np.full_like(p, np.nan)
-    if abs(k) < np.finfo(float).eps:
-        return -sigma * np.log1p(-p)
-    return sigma * np.expm1(-k * np.log1p(-p)) / k
+def _gpinv(p: np.ndarray, k: np.ndarray, sigma: np.ndarray) -> np.ndarray:
+    # quantiles p of generalised Paretos (k, sigma), broadcast; NaN where sigma <= 0
+    with np.errstate(divide="ignore", invalid="ignore"):
+        q = np.where(
+            np.abs(k) < np.finfo(float).eps,
+            -sigma * np.log1p(-p),
+            sigma * np.expm1(-k * np.log1p(-p)) / k,
+        )
+    return np.where(sigma > 0, q, np.nan)
 
 
 def psis_threshold(n: int) -> float:
@@ -262,28 +266,47 @@ def psis(log_weights: Any) -> tuple[np.ndarray, float]:
         ``-inf`` for equal weights, which have no tail.
     """
     lw = np.array(log_weights, dtype=float).ravel()
-    n = lw.size
-    if n < 5:
+    if lw.size < 5:
         raise ValueError("Need at least 5 importance weights.")
+    lw, k = _psis_rows(lw[None])  # lw is a copy
+    return lw[0], float(k[0])
+
+
+def _psis_rows(log_weights: np.ndarray, block: int = 2**22) -> tuple[np.ndarray, np.ndarray]:
+    """:func:`psis` of each row of the float array ``log_weights`` ``(r, n)``, ``n >= 5``,
+    in place: the smoothed log-weights (that array) and ``k_hat`` ``(r,)``. Rows whose
+    tails are equally long are fitted together, about ``block`` values at a time."""
+    lw = log_weights
+    r, n = lw.shape
     lw[~np.isfinite(lw)] = -np.inf
-    lw = lw - np.max(lw)
-    if np.all(lw > -1e-10):  # equal weights (to round-off): exact, no tail to fit
-        return lw - np.log(n), -np.inf
+    lw -= lw.max(axis=1, keepdims=True)
+    k = np.full(r, np.inf)  # no tail of more than 4 weights to fit
+    equal = np.all(lw > -1e-10, axis=1)  # equal weights (to round-off): exact, no tail
+    k[equal] = -np.inf
     tail_len = int(np.ceil(min(0.2 * n, 3.0 * np.sqrt(n))))  # rounded up, as ArviZ and loo
-    sorted_lw = np.sort(lw)
-    exp_cut = max(np.exp(sorted_lw[-tail_len - 1]), np.finfo(float).tiny)
-    tail_idx = np.flatnonzero(lw > np.log(exp_cut))
-    k = float("inf")
-    if tail_idx.size > 4:
-        order = np.argsort(lw[tail_idx])
-        tail_idx = tail_idx[order]
-        x_tail = np.exp(lw[tail_idx]) - exp_cut
-        k, sigma = _gpdfit(x_tail)
-        if np.isfinite(k):
-            probs = np.arange(0.5, tail_idx.size) / tail_idx.size
-            smoothed = np.log(_gpinv(probs, k, sigma) + exp_cut)
-            lw[tail_idx] = np.minimum(smoothed, 0.0)
-    lw = lw - special.logsumexp(lw)
+    # the tail_len + 1 largest weights of each row, sorted: the cut and the tail above it
+    top = np.argpartition(lw, n - tail_len - 1, axis=1)[:, n - tail_len - 1 :]
+    srt = np.take_along_axis(lw, top, axis=1)
+    order = np.argsort(srt, axis=1, kind="stable")
+    top, srt = np.take_along_axis(top, order, axis=1), np.take_along_axis(srt, order, axis=1)
+    cut = np.maximum(srt[:, 0], np.log(np.finfo(float).tiny))  # in logs, as ArviZ
+    exp_cut = np.exp(cut)
+    size = np.sum(srt > cut[:, None], axis=1)  # weights tied with the cut stay below it
+    fit = ~equal & (size > 4)
+    for m in np.unique(size[fit]):
+        same = np.flatnonzero(fit & (size == m))
+        probs = np.arange(0.5, m) / m
+        for sl in chunk_slices(same.size, max(1, block // (m * (30 + int(m**0.5))))):
+            rows = same[sl]
+            x = np.exp(srt[rows, -m:]) - exp_cut[rows, None]
+            k[rows], sigma = _gpdfit(x)
+            k[rows] = np.where(np.isnan(k[rows]), np.inf, k[rows])  # a degenerate fit: no tail
+            smoothed = np.log(_gpinv(probs, k[rows, None], sigma[:, None]) + exp_cut[rows, None])
+            ok = np.isfinite(k[rows])
+            lw[rows[ok, None], top[rows[ok], -m:]] = np.minimum(smoothed[ok], 0.0)
+    mx = lw.max(axis=1, keepdims=True)  # normalised: logsumexp of each row zero
+    lse = mx[:, 0] + np.log(np.exp(lw - mx).sum(axis=1))
+    lw -= np.where(equal, np.log(n), lse)[:, None]
     return lw, k
 
 
@@ -304,3 +327,10 @@ def missing_information(model: Any, value: Any, **kwargs: Any) -> float:
     See :meth:`binference.PopulationModel.missing_information`.
     """
     return model.missing_information(np.asarray(value, dtype=float), **kwargs)
+
+
+def importance_ess(weights: Any) -> float:
+    r"""Kish's effective sample size of importance weights,
+    :math:`(\sum_s w_s)^2 / \sum_s w_s^2` (normalised or not)."""
+    w = np.asarray(weights, dtype=float)
+    return float(np.sum(w) ** 2 / np.sum(w**2))

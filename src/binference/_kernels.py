@@ -20,6 +20,7 @@ from ._utils import chunk_slices
 __all__ = [
     "loglike",
     "loglike_and_counts",
+    "loglike_many",
     "matvec",
     "possible",
     "responsibilities",
@@ -28,7 +29,13 @@ __all__ = [
     "sample_labels",
 ]
 
-DEFAULT_CHUNK = 65536
+#: objects per block of the chunked kernels: Gibbs labels were drawn as fast in blocks of
+#: 4096 as of 65536 objects (N = 2e4 to 2e5, K = 20 to 80)
+DEFAULT_CHUNK = 4096
+
+#: rows are normalised to a maximum of one, so an evidence below this (a log-likelihood
+#: below -575) is effectively impossible
+MIN_EVIDENCE = 1e-250
 
 #: below this fraction of non-zero entries, sparse storage is chosen: the largest fill at
 #: which it beat dense in every measured case (DECISIONS #77)
@@ -48,17 +55,39 @@ def rmatvec(L, y: np.ndarray) -> np.ndarray:
 def possible(s: np.ndarray) -> bool:
     """Whether every object's evidence ``s_i = L_i . rho`` is positive.
 
-    Rows are normalised to a maximum of one, so an evidence below 1e-250
-    (log-likelihood < -575) is effectively impossible; the one test used by the
+    Evidences below :data:`MIN_EVIDENCE` count as zero; the one test used by the
     log-likelihood, EM and the KKT gap (it also keeps ``w / s`` finite).
     """
-    return bool(s.min() > 1e-250)  # the comparison also catches NaN
+    return bool(s.min() > MIN_EVIDENCE)  # the comparison also catches NaN
 
 
 def loglike(L, w: np.ndarray, rho: np.ndarray) -> float:
     """``sum_i w_i log(L_i . rho)`` (``-inf`` if some object is impossible), one pass."""
-    s = matvec(L, rho)
+    return loglike_of_evidences(w, matvec(L, rho))
+
+
+def loglike_of_evidences(w: np.ndarray, s: np.ndarray) -> float:
+    """``sum_i w_i log s_i`` for the evidences ``s = L @ rho`` (``-inf`` if one is zero)."""
     return float(np.dot(w, np.log(s))) if possible(s) else -np.inf
+
+
+def loglike_many(
+    L, w: np.ndarray, V: np.ndarray, block: int = 256, chunk: int | None = DEFAULT_CHUNK
+) -> np.ndarray:
+    """:func:`loglike` at each row of ``V`` ``(n, K)``: ``chunk`` objects at a time (each
+    sliced once), ``block`` rows of ``V`` per product (so at most ``block * chunk``
+    evidences held)."""
+    N, n = L.shape[0], V.shape[0]
+    out, low = np.zeros(n), np.full(n, np.inf)
+    for sl in chunk_slices(N, chunk):
+        Ls = L if sl.stop - sl.start == N else L[sl]
+        for pts in chunk_slices(n, block):
+            s = np.asarray(Ls @ V[pts].T)
+            low[pts] = np.minimum(low[pts], s.min(axis=0))
+            with np.errstate(divide="ignore", invalid="ignore"):
+                out[pts] += w[sl] @ np.log(s)
+    # the test of possible() per point
+    return np.where((low > MIN_EVIDENCE) & np.isfinite(out), out, -np.inf)
 
 
 def loglike_and_counts(L, w: np.ndarray, rho: np.ndarray) -> tuple[float, np.ndarray, np.ndarray]:
@@ -115,8 +144,8 @@ def responsibilities(
 
 
 def _sample_labels_dense(Lc: np.ndarray, rho: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    P = Lc * rho
-    c = np.cumsum(P, axis=1)
+    c = Lc * rho
+    np.cumsum(c, axis=1, out=c)
     # u in (0, total]: the first index with c_k >= u always has P_k > 0
     u = (1.0 - rng.random(Lc.shape[0])) * c[:, -1]
     idx = np.sum(c < u[:, None], axis=1)
@@ -141,16 +170,16 @@ def _sample_labels_csr(Lc, rho: np.ndarray, rng: np.random.Generator) -> np.ndar
 
 
 def sample_labels(L, rho: np.ndarray, rng: np.random.Generator, chunk: int | None = DEFAULT_CHUNK):
-    """Draw one bin label per object from ``Cat(r_i(rho))`` (vectorised, chunked)."""
+    """Draw one bin label per object from ``Cat(r_i(rho))`` (vectorised; dense rows
+    ``chunk`` at a time, sparse rows at once, whose cost and memory follow the nonzeros:
+    slicing CSR rows per chunk made them slower, 57% at N = 2e5, K = 200, 2% filled)."""
+    if sp.issparse(L):
+        return _sample_labels_csr(sp.csr_array(L), rho, rng)
     N = L.shape[0]
     out = np.empty(N, dtype=np.int64)
-    sparse = sp.issparse(L)
     for sl in chunk_slices(N, chunk):
-        block = L[sl]
-        if sparse:
-            out[sl] = _sample_labels_csr(block, rho, rng)
-        else:
-            out[sl] = _sample_labels_dense(np.asarray(block), rho, rng)
+        block = L if sl.stop - sl.start == N else L[sl]  # one chunk: no copy
+        out[sl] = _sample_labels_dense(np.asarray(block), rho, rng)
     return out
 
 
@@ -209,12 +238,10 @@ def sample_counts(
     counts = np.zeros(K)
     N = L.shape[0]
     m_all = np.asarray(np.round(w_int), dtype=np.int64)
-    if sp.issparse(L):
-        for sl in chunk_slices(N, chunk):
-            Lc = sp.csr_array(L[sl])
-            n = _multinomial_csr(Lc, m_all[sl], rho, rng)
-            counts += np.bincount(Lc.indices, weights=n, minlength=K)
-        return counts, None
+    if sp.issparse(L):  # all rows at once, as sample_labels
+        Lc = sp.csr_array(L)
+        n = _multinomial_csr(Lc, m_all, rho, rng)
+        return np.bincount(Lc.indices, weights=n, minlength=K), None
     for sl in chunk_slices(N, chunk):
         R = responsibilities(L[sl], rho, chunk=None)
         # guard tiny negative round-off and renormalise

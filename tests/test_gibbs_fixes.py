@@ -78,3 +78,24 @@ def test_bootstrap_counts_replicates_that_did_not_converge():
     assert any(s.startswith("EM did not converge") for s in msgs)  # the base fit is not silenced
     assert "5 of 5 bootstrap fits did not converge; raise max_iter." in msgs
     assert res.info["n_not_converged"] == 5
+
+
+def test_label_draws_do_not_depend_on_the_chunk_size():
+    L = np.random.default_rng(0).random((50, 6)) * (np.random.default_rng(1).random((50, 6)) > 0.4)
+    L[:, 0] += 0.1  # every object possible
+    rho = np.random.default_rng(2).dirichlet(np.ones(6))
+    for M in (L, sp.csr_array(L)):
+        whole = kern.sample_labels(M, rho, np.random.default_rng(3), chunk=None)
+        np.testing.assert_array_equal(
+            kern.sample_labels(M, rho, np.random.default_rng(3), chunk=7), whole
+        )
+
+
+def test_gibbs_says_why_a_model_is_unsupported_and_refuses_it_with_that_reason():
+    lk = binference.simulate.mock_1d(50, Bins.linear(0, 1, 4), rng=0).likelihoods
+    assert Gibbs.unsupported(PopulationModel(lk)) is None
+    logistic = PopulationModel(lk, binference.priors.LogisticNormal())
+    reason = Gibbs.unsupported(logistic)
+    assert "conjugate" in reason
+    with pytest.raises(ValueError, match=reason[:30]):
+        Gibbs(logistic)

@@ -33,14 +33,13 @@ def _plt():
     return plt
 
 
-#: axis labels and symbols of what can be plotted (``which``)
+#: axis labels of what can be plotted (``which``)
 _YLABEL = {
     "density": "density",
     "fractions": "fraction per bin",
     "rates": "rate",
     "selected": "selected fraction per bin",
 }
-_SYMBOL = {"density": "density", "fractions": "rho", "rates": "rate", "selected": "phi"}
 
 
 def _overlay(result: Any, values: Any, which: str, total: float) -> np.ndarray:
@@ -92,7 +91,7 @@ def plot_population(
         fit's selection (bins without a basis). 2-D grids show the median and the
         relative uncertainty as images (an array of two axes) and take no overlays.
     """
-    from .results import _which_name
+    from .results import _central, _which_name
 
     plt = _plt()
     bins = result.bins
@@ -116,7 +115,7 @@ def plot_population(
     ylabel = _YLABEL[which]
     if bins.is_categorical:
         x = np.arange(bins.K)
-        lo, hi = np.quantile(X, [0.5 - levels[0] / 2, 0.5 + levels[0] / 2], axis=0)
+        lo, hi = _central(X, levels[0])
         ax.bar(x, med, color=color, alpha=0.6, label=label or "posterior median")
         if X.shape[0] > 1:
             ax.errorbar(x, med, yerr=[med - lo, hi - med], fmt="none", ecolor=INK, capsize=3)
@@ -143,7 +142,7 @@ def plot_population(
             band_handles.append(
                 _band_patch(color, 1.0 - (1.0 - alpha) ** n_layers, f"{lev:.0%} interval")
             )
-            lo, hi = np.quantile(X, [0.5 - lev / 2, 0.5 + lev / 2], axis=0)
+            lo, hi = _central(X, lev)
             if step:
                 ax.fill_between(
                     edges,
@@ -230,6 +229,24 @@ def _plot_2d(result, X, plt, ax):
     return axes
 
 
+def _subplots(plt, fig, nrow: int, ncol: int, figsize: tuple, **kwargs: Any):
+    # a new figure of nrow x ncol axes, or those axes added to fig
+    if fig is None:
+        return plt.subplots(nrow, ncol, figsize=figsize, squeeze=False, **kwargs)
+    return fig, np.asarray(fig.subplots(nrow, ncol, squeeze=False, **kwargs))
+
+
+def _chosen_bins(result: Any, which: str, idx: Any, max_bins: int):
+    """The draws of ``which``, the bins ``idx`` (by default the ``max_bins`` largest by
+    mean, in order) and the quantity's symbol."""
+    from .results import _SYMBOL, _which_name
+
+    X = result._which(which)
+    if idx is None:
+        idx = np.sort(np.argsort(-X.mean(axis=0))[:max_bins])
+    return X, list(idx), _SYMBOL[_which_name(which)]
+
+
 def plot_corner(
     result: Any,
     idx: Sequence[int] | None = None,
@@ -242,19 +259,9 @@ def plot_corner(
 ):
     """Corner plot of the fractions (or ``which="rates"``, ...) in selected bins
     (default: the most populated)."""
-    from .results import _which_name
-
-    plt = _plt()
-    X = result._which(which)
-    name = _SYMBOL[_which_name(which)]
-    if idx is None:
-        idx = np.sort(np.argsort(-X.mean(axis=0))[:max_bins])
-    idx = list(idx)
+    X, idx, name = _chosen_bins(result, which, idx, max_bins)
     n = len(idx)
-    if fig is None:
-        fig, axes = plt.subplots(n, n, figsize=(2.2 * n, 2.2 * n), squeeze=False)
-    else:
-        axes = np.asarray(fig.subplots(n, n, squeeze=False))
+    fig, axes = _subplots(_plt(), fig, n, n, (2.2 * n, 2.2 * n))
     for i, ki in enumerate(idx):
         for j, kj in enumerate(idx):
             a = axes[i, j]
@@ -284,20 +291,9 @@ def plot_trace(
 ):
     """Trace plots of the fractions (or ``which="rates"``, ...) in selected bins, one
     line per chain."""
-    from .results import _which_name
-
-    plt = _plt()
-    C = result._which(which).reshape(result.n_chains, -1, result.K)
-    name = _SYMBOL[_which_name(which)]
-    if idx is None:
-        idx = np.sort(np.argsort(-C.reshape(-1, C.shape[-1]).mean(axis=0))[:max_bins])
-    idx = list(idx)
-    if fig is None:
-        fig, axes = plt.subplots(
-            len(idx), 1, figsize=(8, 1.8 * len(idx)), sharex=True, squeeze=False
-        )
-    else:
-        axes = np.asarray(fig.subplots(len(idx), 1, sharex=True, squeeze=False))
+    X, idx, name = _chosen_bins(result, which, idx, max_bins)
+    C = X.reshape(result.n_chains, -1, result.K)
+    fig, axes = _subplots(_plt(), fig, len(idx), 1, (8, 1.8 * len(idx)), sharex=True)
     for a, k in zip(axes[:, 0], idx, strict=True):
         for c in range(C.shape[0]):
             a.plot(C[c, :, k], lw=0.6, alpha=0.8)
@@ -359,10 +355,7 @@ def plot_sbc(sbc_result: Any, n_bins: int | None = None, max_panels: int = 12, f
     q = min(len(names), max_panels)
     ncol = min(4, q)
     nrow = int(np.ceil(q / ncol))
-    if fig is None:
-        fig, axes = plt.subplots(nrow, ncol, figsize=(3 * ncol, 2.4 * nrow), squeeze=False)
-    else:
-        axes = np.asarray(fig.subplots(nrow, ncol, squeeze=False))
+    fig, axes = _subplots(plt, fig, nrow, ncol, (3 * ncol, 2.4 * nrow))
     n_sims = sbc_result.ranks.shape[0]
     nb = H.shape[1]
     # per bin: bins can hold different numbers of the possible ranks (audit G-1)

@@ -270,7 +270,7 @@ R-BINS-1: smoothness priors require ordered grids and raise a clear error on cat
 Methods:
 - `compress(decimals=None)`: merge identical rows into integer weights (sparse stays sparse).
 - Views and copies: `subset(idx)` (also `lk[idx]`), `to_dense()`, `to_sparse(rtol=…)`, `toarray()`.
-- `with_weights(w, fractional=False)`, `with_selection(selection, selection_mode=None)`, `on_basis(basis)`.
+- `with_weights(w, fractional_weights=False)`, `with_selection(selection, selection_mode=None)`, `on_basis(basis)`.
 - `stack(interim=None)`: the stacked estimate, one EM step from the interim prior (DECISIONS #11).
 - `sample_variance(rho)`: the Monte Carlo variance of likelihoods from samples.
 - `__len__`, `N`, `K`, `W`, `shape`, `nnz`.

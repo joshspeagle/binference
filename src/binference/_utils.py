@@ -12,6 +12,7 @@ import numpy as np
 
 __all__ = [
     "as_generator",
+    "check_nonnegative",
     "check_positive",
     "check_positive_weights",
     "chunk_slices",
@@ -90,6 +91,14 @@ def check_positive(value: Any, name: str) -> np.ndarray:
     a = np.asarray(value, dtype=float)
     if not np.all(np.isfinite(a)) or np.any(a <= 0):
         raise ValueError(f"{name} must be finite and strictly positive.")
+    return a
+
+
+def check_nonnegative(value: Any, name: str) -> np.ndarray:
+    """``value`` as a float array, after checking that it is finite and non-negative."""
+    a = np.asarray(value, dtype=float)
+    if not np.all(np.isfinite(a)) or np.any(a < 0):
+        raise ValueError(f"{name} must be finite and non-negative.")
     return a
 
 

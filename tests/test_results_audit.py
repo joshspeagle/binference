@@ -43,6 +43,20 @@ def test_a_reloaded_fit_keeps_its_selection_and_total(tmp_path):
         PopulationResult.load(str(tmp_path / "fit")).attach(other)
 
 
+def test_attaching_other_likelihoods_redraws_the_total_and_missing_information():
+    # both were kept from the previous likelihoods (W objects, their information)
+    bins = Bins.linear(0, 1, 4)
+    mock = binference.simulate.mock_1d(200, bins, noise=0.1, rng=0)
+    res = Gibbs(binference.PopulationModel(mock.likelihoods), n_warmup=20, rng=0).run(20)
+    total, info = res.total.copy(), res._missing_information()
+    half = binference.PopulationModel(mock.likelihoods[:100])
+    res.attach(half)
+    fresh = PopulationResult(half, res.component_draws, method="gibbs")
+    np.testing.assert_array_equal(res.total, fresh.total)
+    assert res.total.mean() < 0.7 * total.mean()  # about W = 100 objects, not 200
+    assert res._missing_information() == fresh._missing_information() != info
+
+
 def test_likelihoods_on_other_bins_are_refused(tmp_path):
     lk, res = _fit_with_selection()
     log_bins = Bins.log(1, 100, 4)
@@ -351,3 +365,32 @@ def test_saturated_trees_suggest_gibbs_only_for_priors_with_unbounded_density():
         _nuts_result(binference.priors.Dirichlet(1.0), max_depth_fraction=0.2).check()
     assert "Hint" not in str(rec[0].message)
     assert _nuts_result(None, max_depth_fraction=0.05).check() == []  # 5% is tolerated
+
+
+def test_a_reloaded_fit_keeps_its_draws_and_needs_its_own_prior_for_the_best_fit(tmp_path):
+    lk = binference.simulate.mock_1d(200, rng=3).likelihoods
+    prior = binference.priors.LogisticRandomWalk(scale=1.0)
+    res = binference.infer(lk, prior, method="laplace", rng=0)
+    res.save(str(tmp_path / "r.npz"))
+    back = binference.PopulationResult.load(str(tmp_path / "r.npz"))
+    with pytest.raises(ValueError, match="needs the fit's prior"):
+        _ = back.attach(binference.PopulationModel(lk)).best  # the default prior
+    back.attach(binference.PopulationModel(lk, prior))
+    np.testing.assert_allclose(back.best.rho, res.best.rho)
+    # prior_information_ratio evaluates at the mean unconstrained draw, before and after
+    np.testing.assert_array_equal(back.x, res.x)
+    assert back.prior_information_ratio() == res.prior_information_ratio()
+
+
+def test_a_prior_that_differs_only_in_a_long_array_is_not_the_fits(tmp_path):
+    # both reprs read Dirichlet(alpha=array(shape=(10,))); the full arguments differ
+    lk = binference.simulate.mock_1d(200, Bins.linear(0, 1, 10), rng=3).likelihoods
+    fit = binference.priors.Dirichlet(np.full(10, 0.5))
+    res = Gibbs(binference.PopulationModel(lk, fit), n_warmup=10, rng=0).run(10)
+    res.save(str(tmp_path / "r.npz"))
+    back = PopulationResult.load(str(tmp_path / "r.npz"))
+    other = binference.PopulationModel(lk, binference.priors.Dirichlet(np.full(10, 3.0)))
+    assert repr(other.prior_spec) == back.prior_repr
+    with pytest.raises(ValueError, match="needs the fit's prior"):
+        _ = back.attach(other).best
+    assert back.attach(binference.PopulationModel(lk, fit)).best is not None
