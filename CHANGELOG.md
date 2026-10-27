@@ -79,13 +79,10 @@ First development version.
   N = 2·10⁴ with 2000 draws); Gibbs draws labels in place (35 ms, from 47 ms, per draw
   at N = 10⁵, K = 50). `method="auto"` keeps the MAP it computed as `result.best` when that raised no
   warning.
-- Plot colours follow the active matplotlib style (DECISIONS #98): the population is
-  drawn in the first colour of `axes.prop_cycle`, the objects' own data (the `stack`
-  overlay, an object's own likelihood) in the second, set by the new `sample_color`
-  argument of `plot_population` and `plot_individual`; the truth is a dashed line in
-  `text.color`. `color` defaults to None (the cycle) and `plot_individual` and
-  `plot_sbc` take it too; the module constants `POSTERIOR_COLOR`, `STACK_COLOR` and
-  `INK` are gone.
+- Plot colours follow the active matplotlib style instead of fixed hex colours; new
+  `sample_color` argument on `plot_population` and `plot_individual`; `color` defaults to
+  the style and is added to `plot_individual` and `plot_sbc`; 2-D maps ramp to the
+  population colour; `POSTERIOR_COLOR`, `STACK_COLOR` and `INK` are removed (DECISIONS #98).
 
 ### Fixed (phase-wide review)
 

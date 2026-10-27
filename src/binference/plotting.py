@@ -1,4 +1,11 @@
-"""Plotting helpers (require matplotlib: ``pip install "binference[plot]"``)."""
+"""Plotting helpers (require matplotlib: ``pip install "binference[plot]"``).
+
+Colours follow the active matplotlib style. The population (medians, bands, bars,
+histograms) takes the first colour of ``axes.prop_cycle``, or ``color``; what the objects'
+own data say (the stack, an object's own likelihood) takes the second, or
+``sample_color``; reference lines, error bars and the truth (dashed) take ``text.color``.
+2-D maps ramp from ``axes.facecolor`` to the population colour.
+"""
 
 from __future__ import annotations
 
@@ -12,28 +19,27 @@ from .warnings import InputWarning
 
 __all__ = ["plot_corner", "plot_individual", "plot_population", "plot_sbc", "plot_trace"]
 
-# Colours follow the active matplotlib style (DECISIONS #98): the population takes the
-# first colour of ``axes.prop_cycle``, the objects (``sample_color``) the second, and
-# reference lines and error bars ``text.color``.
-
 
 def _style_color(name: str, value: Any, slot: int):
-    """``value`` checked as a colour, or colour ``slot`` of the style's cycle when None."""
-    import matplotlib as mpl
-    from matplotlib.colors import is_color_like
+    """``value`` checked as a colour, or colour ``slot`` of the style's cycle when None.
+
+    Resolved now, not left as "C0": a figure drawn after leaving a style context would
+    otherwise colour its lines from another cycle than its bars and bands.
+    """
+    from matplotlib.colors import is_color_like, to_hex
 
     if value is None:
-        cycle = mpl.rcParams["axes.prop_cycle"].by_key()["color"]
-        return cycle[slot % len(cycle)]
+        return to_hex(f"C{slot}")
     if not is_color_like(value):
         raise ValueError(f"{name} must be a matplotlib colour or None, got {value!r}.")
     return value
 
 
-def _ink():
-    import matplotlib as mpl
+def _ramp(plt, color):
+    """A sequential colormap from the axes background to ``color``."""
+    from matplotlib.colors import LinearSegmentedColormap
 
-    return mpl.rcParams["text.color"]
+    return LinearSegmentedColormap.from_list("ramp", [plt.rcParams["axes.facecolor"], color])
 
 
 def _tidy(ax) -> None:
@@ -108,12 +114,9 @@ def plot_population(
         posterior mean total; for the selected population they are reweighted by the
         fit's selection (bins without a basis). 2-D grids show the median and the
         relative uncertainty as images (an array of two axes) and take no overlays.
-    color : matplotlib colour, optional
-        Colour of the posterior (median and bands); by default the first colour of the
-        style's ``axes.prop_cycle``.
-    sample_color : matplotlib colour, optional
-        Colour of what the objects' own data say (the ``stack`` overlay); by default the
-        second colour of the style's cycle. The truth is a dashed line in ``text.color``.
+    color, sample_color : matplotlib colour, optional
+        Colours of the posterior and of the ``stack`` overlay (default: the style's;
+        see the module docstring).
     label : str, optional
         Legend label of the median (default "posterior median").
     alpha : float
@@ -126,7 +129,7 @@ def plot_population(
     plt = _plt()
     color = _style_color("color", color, 0)
     sample_color = _style_color("sample_color", sample_color, 1)
-    ink = _ink()
+    ink = plt.rcParams["text.color"]
     bins = result.bins
     which = _which_name(which)
     if bins.ndim > 2 and not bins.is_categorical:
@@ -142,7 +145,7 @@ def plot_population(
     if bins.ndim == 2 and not bins.is_categorical:
         if truth is not None or stack is not None or label is not None:
             warn("2-D plots show no truth, stack or label; they are ignored.", InputWarning)
-        return _plot_2d(result, X, plt, ax)
+        return _plot_2d(result, X, plt, ax, color)
     if ax is None:
         _, ax = plt.subplots(figsize=(7, 4))
     ylabel = _YLABEL[which]
@@ -239,7 +242,7 @@ def _band_patch(color: str, alpha: float, label: str):
     return Patch(facecolor=color, alpha=alpha, lw=0, label=label)
 
 
-def _plot_2d(result, X, plt, ax):
+def _plot_2d(result, X, plt, ax, color):
     bins = result.bins
     med = bins.unflatten(np.median(X, axis=0))
     sd = bins.unflatten(X.std(axis=0)) if X.shape[0] > 1 else None
@@ -249,14 +252,15 @@ def _plot_2d(result, X, plt, ax):
         _, ax = plt.subplots(1, ncol, figsize=(5 * ncol, 4), squeeze=False)
         ax = ax[0]
     axes = np.atleast_1d(ax)
-    im = axes[0].pcolormesh(ex, ey, med.T, shading="flat")
+    im = axes[0].pcolormesh(ex, ey, med.T, shading="flat", cmap=_ramp(plt, color))
     plt.colorbar(im, ax=axes[0], label="posterior median")
     axes[0].set_xlabel("axis 0")
     axes[0].set_ylabel("axis 1")
     if sd is not None and len(axes) > 1:
         with np.errstate(divide="ignore", invalid="ignore"):
             rel = np.where(med > 0, sd / med, np.nan)
-        im2 = axes[1].pcolormesh(ex, ey, rel.T, shading="flat", cmap="magma")
+        grey = _ramp(plt, plt.rcParams["text.color"])
+        im2 = axes[1].pcolormesh(ex, ey, rel.T, shading="flat", cmap=grey)
         plt.colorbar(im2, ax=axes[1], label="relative uncertainty (sd / median)")
         axes[1].set_xlabel("axis 0")
     return axes
@@ -291,16 +295,10 @@ def plot_corner(
     which: str = "fractions",
 ):
     """Corner plot of the fractions (or ``which="rates"``, ...) in selected bins
-    (default: the most populated).
-
-    The histograms are drawn in ``color`` (by default the first colour of the style's
-    ``axes.prop_cycle``), the 2-D histograms on a ramp from ``axes.facecolor`` to it.
-    """
-    from matplotlib.colors import LinearSegmentedColormap
-
+    (default: the most populated), in ``color`` (default: the style's)."""
     plt = _plt()
     color = _style_color("color", color, 0)
-    ramp = LinearSegmentedColormap.from_list("population", [plt.rcParams["axes.facecolor"], color])
+    ramp = _ramp(plt, color)
     X, idx, name = _chosen_bins(result, which, idx, max_bins)
     n = len(idx)
     fig, axes = _subplots(plt, fig, n, n, (2.2 * n, 2.2 * n))
@@ -354,12 +352,8 @@ def plot_individual(
     color: Any = None,
     sample_color: Any = None,
 ):
-    """Compare object ``i``'s own likelihood (flat-prior posterior) with its shrunk posterior.
-
-    The hierarchical posterior is drawn in ``color`` (by default the first colour of the
-    style's ``axes.prop_cycle``), the object's own likelihood in ``sample_color`` (by
-    default the cycle's second colour).
-    """
+    """Compare object ``i``'s own likelihood (flat-prior posterior, in ``sample_color``)
+    with its shrunk posterior (in ``color``); colours default to the style's."""
     plt = _plt()
     color = _style_color("color", color, 0)
     sample_color = _style_color("sample_color", sample_color, 1)
@@ -410,16 +404,13 @@ def plot_sbc(
     *,
     color: Any = None,
 ):
-    """Rank histograms from :func:`binference.validation.sbc` with a 99% uniformity band.
-
-    The histograms are drawn in ``color`` (by default the first colour of the style's
-    ``axes.prop_cycle``), the band as a pale fill of ``text.color``.
-    """
+    """Rank histograms from :func:`binference.validation.sbc` (in ``color``, default the
+    style's) with a 99% uniformity band."""
     from scipy import stats
 
     plt = _plt()
     color = _style_color("color", color, 0)
-    ink = _ink()
+    ink = plt.rcParams["text.color"]
     H = sbc_result.histogram(n_bins)
     names = sbc_result.names
     q = min(len(names), max_panels)
