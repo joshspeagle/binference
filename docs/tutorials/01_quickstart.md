@@ -217,4 +217,4 @@ drawing 2000 galaxies from it.
 - {doc}`02_inputs` shows how to feed in posteriors computed under an interim
   prior, posterior samples, and unequal bins.
 - {doc}`03_engines` compares the engines.
-- The [user guide](../user-guide/index) explains every option.
+- The [user guide](../guides/index) explains every option.

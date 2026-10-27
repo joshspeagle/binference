@@ -53,12 +53,12 @@ likelihood with a selection function (Loredo 2004; Kelly, Fan & Vestergaard 2008
 | smoothness of $n(z)$ or of a rate density | `priors.LogisticGP`, `priors.LogisticRandomWalk` |
 | expected numbers, occurrence rates | `result.rates`, `result.total`, `priors.GammaRates` |
 
-The model needs bin averages of each likelihood ([theory](../theory.md#objects-bins-and-likelihoods)).
+The model needs bin averages of each likelihood ([theory](../how-it-works/theory.md#objects-bins-and-likelihoods)).
 Leistedt et al. (2016) and the HSC Y3 analysis integrate each likelihood over the
 histogram bins; RAIL's summarizers evaluate each PDF at grid points instead.
 `from_gaussian` and `from_density` compute the bin averages, and `from_table` asks
 whether a table holds values per bin or masses (`representation=`)
-({doc}`../user-guide/inputs`).
+({doc}`../guides/inputs`).
 
 Posterior samples enter as Hogg et al.'s importance-sampling estimate: each object's
 samples are histogrammed onto the bins, each weighted by the inverse of the interim
@@ -69,7 +69,7 @@ log-likelihood. The Poisson-process likelihood of occurrence-rate studies is the
 form of the same model: under the scale-free prior $p(\Lambda)\propto1/\Lambda$ on the
 total it reduces to the normalised likelihood in fractions (Mandel, Farr & Gair 2019),
 which is how binference obtains `result.total` and `result.rates` from a fit of
-fractions ({doc}`../user-guide/selection`). The {doc}`quick start
+fractions ({doc}`../guides/selection`). The {doc}`quick start
 <../tutorials/01_quickstart>` fits a redshift distribution, the {doc}`selection tutorial
 <../tutorials/05_selection>` an occurrence rate, and the {doc}`two-dimensional tutorial
 <../tutorials/08_two_dimensions>` a population on a grid.
@@ -128,7 +128,7 @@ binference:
 
 - **The two samplers target the same posterior for $\rho$.** Summing the hierarchical
   model over the labels gives the population model exactly
-  ([theory](../theory.md#the-augmented-hierarchical-form)), so binference has one model
+  ([theory](../how-it-works/theory.md#the-augmented-hierarchical-form)), so binference has one model
   with several engines.
 - **The hierarchical sampler is exact.** It matched the exact posteriors (root-mean-square
   z-score 0.94 over 132 statistics) and passed the Geweke test. binference keeps it,
@@ -137,7 +137,7 @@ binference:
   and 180 sweeps as the likelihood width grew from 0.5 to 1, 2 and 4 bin widths, while
   a simple HMC in log-ratio coordinates stayed at 1–14. binference therefore leaves
   Gibbs for an importance-corrected Laplace approximation or NUTS when the fraction of
-  missing information is high ({doc}`../user-guide/engines`).
+  missing information is high ({doc}`../guides/engines`).
 - **The population sampler is not a valid MCMC sampler.** Its proposal width depends on
   the current state, but the acceptance test omits the Hastings factor this requires,
   and the width is held fixed across three inner steps. A bin whose posterior reaches
@@ -149,14 +149,14 @@ binference:
   fails the Geweke test, and it inflates standard deviations by a factor of 1.1–1.9
   even with a representative reference sample. binference replaces it with the power
   prior `Dirichlet.from_counts(m, strength)` and with logistic priors centred on a
-  reference distribution ({doc}`../user-guide/priors`).
+  reference distribution ({doc}`../guides/priors`).
 - **Wrong inputs cause the largest errors.** Posteriors computed under a non-uniform
   interim prior biased $\rho$ by up to 12.6 posterior standard deviations and cut the
   coverage of 68% and 95% intervals to 0.29 and 0.52; dividing out the interim prior
   removed the bias. Using the bin integral of each likelihood where the model needs the
-  bin average biased $\rho$ as well ({doc}`../user-guide/pitfalls`). binference
+  bin average biased $\rho$ as well ({doc}`../guides/pitfalls`). binference
   requires the interim prior for posteriors and asks what a table holds
-  ({doc}`../user-guide/inputs`).
+  ({doc}`../guides/inputs`).
 - **Software defects** (runs that never resumed, a `reset()` that left old samples,
   legacy random state, bins frozen at exactly zero, no input validation) are each
   covered by a test in binference: engines resume (`engine.run(a); engine.run(b)`),
@@ -214,11 +214,11 @@ histogram mode, and its `Gibbs` engine is their sampler.
 
 **Added.** Explicit input types, with the interim prior required for posteriors and bin
 averages computed from Gaussians, densities and samples; exact sampling by default, with
-approximations flagged as such ({doc}`../user-guide/engines`); the two selection modes, and
+approximations flagged as such ({doc}`../guides/engines`); the two selection modes, and
 completeness measured by injections and inferred with the population; smoothness priors;
 rates and totals; per-draw derived quantities (`result.functional`, `result.rebin`); a
 check of the within-bin flatness assumption (`result.binning_bias`); and
-simulation-based calibration and coverage tools ({doc}`../user-guide/validation`).
+simulation-based calibration and coverage tools ({doc}`../guides/validation`).
 
 **Not done.** binference propagates only the uncertainty that its model contains: a
 Dirichlet or logistic prior over independent objects sees shot noise, not the sample
@@ -236,7 +236,7 @@ files or nz_prior (results save to `.npz` and convert to an xarray `DataTree`).
   missed the accuracy requirement by five to ten times before correction (Ilbert et al.
   2021), and Rubin's first data-preview paper still reports stacked $n(z)$ without an
   uncertainty band (Zhang et al. 2025). The stack is one EM step from the interim prior
-  ({doc}`../user-guide/pitfalls`).
+  ({doc}`../guides/pitfalls`).
 - **Posteriors used as likelihoods.** A misspecified interim prior was "disastrous" for
   every estimator CHIPPR tested (Malz & Hogg 2022), and the stacked PDFs of
   machine-learning codes "show the imprint of the training sample" (Zhang et al. 2025).
@@ -262,7 +262,7 @@ files or nz_prior (results save to `.npz` and convert to an xarray `DataTree`).
   probabilistically" and biased (Foreman-Mackey et al. 2014). Selection functions should
   be expressed in observed attributes and defined beyond the region where objects are
   catalogued (Rix et al. 2021). Mandel, Farr & Gair (2019) name the two classic mistakes
-  ({doc}`../user-guide/selection`).
+  ({doc}`../guides/selection`).
 - **Contamination and systematics** can dwarf counting noise: correcting Kepler
   candidates for reliability moved the Earth-analogue rate for GK stars from 0.034 to
   0.015 (Bryson et al. 2020), and isochrone systematics in colour–magnitude fitting run

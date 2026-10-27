@@ -1,5 +1,6 @@
 {#- The home page: the body full width, with no sidebar or outline. #}
 {%- extends "layout.html" %}
+{%- block body_tag %}<body class="home-page">{% endblock %}
 {%- block content %}
 <nav class="side mobilenav" id="sidebar" aria-label="Sections">
   <ul>{%- for s in bnf_sections %}<li><a href="{{ pathto(s.docname) }}">{{ s.caption }}</a></li>{% endfor -%}</ul>

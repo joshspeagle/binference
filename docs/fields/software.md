@@ -46,7 +46,7 @@ prior, Gaussian measurements, likelihood functions, and binned counts with a res
 samples the posterior exactly with NUTS or Gibbs, or approximates it with Laplace, VB
 and bootstrap engines whose results are flagged when approximate; and supports selection on the truth or on the
 measurement (fixed, or inferred from injections), Dirichlet-family and logistic
-smoothness priors, and rates ({doc}`../user-guide/index`).
+smoothness priors, and rates ({doc}`../guides/index`).
 
 ## Notes on the landscape
 
@@ -67,7 +67,7 @@ smoothness priors, and rates ({doc}`../user-guide/index`).
   rows (salmon's equivalence classes, Empirikos's multiplicities), sparse storage
   (npeb's log-probability threshold) and computing each object's likelihood once on
   fixed bins (Starlight) are the established remedies; binference offers the first two
-  as `lk.compress()` and sparse `Likelihoods` ({doc}`../user-guide/performance`).
+  as `lk.compress()` and sparse `Likelihoods` ({doc}`../guides/performance`).
 
 ## Lessons from scientific Python packages
 
@@ -85,7 +85,7 @@ The interface follows patterns that users of other inference packages praise:
   and priors declared as objects. binference's priors, selections and responses are
   objects passed to one `infer` call.
 - **UltraNest**: output that says which criteria were met. `result.check()` lists the
-  diagnostics that failed and, where it can, a remedy ({doc}`../user-guide/results`).
+  diagnostics that failed and, where it can, a remedy ({doc}`../guides/results`).
 - **ArviZ 1.x**: results that other tools read. `result.to_datatree()` returns an xarray
   `DataTree` in ArviZ's layout, and `result.samples` stays a plain array.
 - **SPEC 7**: one `rng` argument that accepts a seed or a `numpy.random.Generator`, with
@@ -101,7 +101,7 @@ calibration (Talts et al. 2018) that ranks the joint log-likelihood as well as e
 fraction, because parameter ranks alone "could never detect large classes of problems
 including when the posterior is equal to the prior" (Modrák et al. 2023). binference
 ships the exact posterior, simulation-based calibration and coverage as user-facing
-tools ({doc}`../user-guide/validation`).
+tools ({doc}`../guides/validation`).
 
 ## References
 

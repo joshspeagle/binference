@@ -82,7 +82,7 @@ class PopulationModel:
     -----
     ``likelihoods`` must be ordinary likelihoods :math:`p(d_i \\mid z)` evaluated at
     the observed data, *not* renormalised over the detectable data space (see
-    :doc:`/user-guide/selection`).
+    :doc:`/guides/selection`).
     """
 
     def __init__(

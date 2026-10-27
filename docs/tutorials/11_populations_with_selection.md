@@ -83,7 +83,7 @@ is recovered with probability $p_{\rm det}$. In the lightest bins only a
 few injections are recovered, so the detection probability there is known
 only roughly. `Selection.from_injections` tallies them per bin and gives
 each bin's detection probability a Beta posterior (see the
-[user guide](../user-guide/selection)); `sel.injections` holds the tallies.
+[user guide](../guides/selection)); `sel.injections` holds the tallies.
 
 ```{code-cell} python
 n_inj = 3000
@@ -155,7 +155,7 @@ joint fit's bands are wider there.
 
 The fraction of mergers in the four lightest bins (below 10.2 solar masses), and the total number
 of mergers including those never detected (`result.total`, see the [user
-guide](../user-guide/selection)), depend most on the lightest bins:
+guide](../guides/selection)), depend most on the lightest bins:
 
 ```{code-cell} python
 light = np.arange(bins.K) < 4                  # upper edge at 10.15 Msun
@@ -199,7 +199,7 @@ assert recovered[:5].sum() > expected[:5].sum()
 ```
 
 A total this poorly determined also depends on the prior, which by default
-pulls it down ([user guide](../user-guide/selection)). Before quoting a
+pulls it down ([user guide](../guides/selection)). Before quoting a
 total from such data, check its calibration on simulations
 ({doc}`07_validation`).
 
@@ -236,5 +236,5 @@ ax.legend(frameon=False, fontsize=8);
   only on the true mass, so `"on_truth"` is exact. In real detectors
   detection and measurement share the same noise, and the selection acts on
   the measurement ({doc}`05_selection`; the
-  [gravitational-wave background page](../background/gravitational-waves)
+  [gravitational-wave background page](../fields/gravitational-waves)
   says what that means for injection-based selection).

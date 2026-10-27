@@ -41,7 +41,7 @@ The {doc}`empirical Bayes tutorial <../tutorials/09_empirical_bayes>` works thro
 the NPMLE, the posterior over $g$ and the shrinkage estimates on simulated data.
 
 The likelihood matrix on a grid is binference's $L_{ik}$, and $w$ is $\rho$
-([theory](../theory.md#the-population-model)). The grid maps onto
+([theory](../how-it-works/theory.md#the-population-model)). The grid maps onto
 {class}`~binference.Bins` as narrow bins around the support points, with bin-averaged
 likelihoods from `Likelihoods.from_gaussian` or `from_density`, or, when only the values
 at the points matter, onto `Bins.categories` with `Likelihoods(L, bins)`; the smoothness
@@ -51,18 +51,18 @@ priors need ordered bins.
   estimate, so `binference.infer(lk, method="map")` computes the NPMLE on the grid. For
   this prior it uses mix-SQP (Kim et al. 2020); `method="em"` runs SQUAREM-accelerated
   EM instead. The solvers for other priors are in
-  [Point estimates](../user-guide/engines.md#point-estimates). The result carries its KKT
+  [Point estimates](../guides/engines.md#point-estimates). The result carries its KKT
   gap, the largest violation of the optimality conditions, which is zero at the optimum
   (`binference.diagnostics.kkt_gap`).
 - **The Dirichlet-penalised mixture** of ashr, $\sum_iw_i\log(\sum_k\pi_kL_{ik})+
   \sum_k(\alpha_k-1)\log\pi_k$, is the MAP of the same model with a Dirichlet prior.
 - **Smooth $g$.** `LogisticRandomWalk` and `LogisticGP` put a Gaussian prior on
   $\log\rho$ and infer its smoothness, the Bayesian counterpart of Efron's penalised
-  log-spline ({doc}`../user-guide/priors`).
+  log-spline ({doc}`../guides/priors`).
 - **Empirical-Bayes posteriors** of each object are `result.assignment_probabilities`,
   which average over the posterior draws of $\rho$; the `_best` variants, such as
   `assignment_probabilities_best`, use the point estimate alone, as plug-in empirical
-  Bayes does ({doc}`../user-guide/results`).
+  Bayes does ({doc}`../guides/results`).
 - **Efron's ratio of "artificial to genuine information"** is
   `result.prior_information_ratio()`.
 - **Bootstrap.** The `Bootstrap` engine resamples objects (`scheme="nonparametric"`) or
@@ -114,7 +114,7 @@ wanted, with row scaling irrelevant and per-object weights.
 checked with simulation-based calibration; priors with $\alpha_k<1$, which ashr's
 pseudo-observation encoding cannot represent; interim-prior correction and posterior-sample inputs, which
 none of the surveyed EB packages supports; selection effects; and sparse storage and
-`lk.compress()` for duplicated rows ({doc}`../user-guide/performance`).
+`lk.compress()` for duplicated rows ({doc}`../guides/performance`).
 
 **Not done.** binference gives Bayesian credible intervals, not frequentist intervals
 for functionals of $g$ such as Empirikos.jl's; it does not move support points, as the
@@ -139,7 +139,7 @@ layer; and it has no f-modelling estimators.
   overlapping likelihoods.
 - **EM is slow near the optimum and never revives a zeroed weight.** A fixed point with
   $w_k=0$ need not be optimal, so self-consistency is necessary but not sufficient; the
-  KKT gap is the check ([theory](../theory.md#point-estimates-em-is-iterated-stacking)).
+  KKT gap is the check ([theory](../how-it-works/theory.md#point-estimates-em-is-iterated-stacking)).
 - **Deconvolution is slow.** Nonparametric rates are "very slow" (Efron 2016), so
   individual bin fractions are often prior-dominated and strongly anti-correlated;
   well-identified functionals (cumulative fractions, coarse sums, moments) are the

@@ -44,14 +44,14 @@ mass distribution with a selection measured by injections.
   onto the bins with the PE prior divided out, which is the binned form of the
   per-event term above. The interim prior is a {class}`~binference.Density`; ragged
   sample counts and importance weights are accepted, and each event's effective number
-  of samples is stored ({doc}`../user-guide/inputs`).
+  of samples is stored ({doc}`../guides/inputs`).
 - **Selection** acts on the measured data, so it is `selection_mode="on_measurement"`:
   each event's likelihood is used as is and divided by the detectable fraction, with
   $S_k$ the detection probability averaged over bin $k$
-  ([theory](../theory.md#selection-effects)). `Selection.from_injections` estimates
+  ([theory](../how-it-works/theory.md#selection-effects)). `Selection.from_injections` estimates
   $S_k$ from injections counted per bin, without reweighting by their draw density
   within a bin; for a selection on the measurement it is a plug-in, not inferred with
-  the population ({doc}`../user-guide/selection`).
+  the population ({doc}`../guides/selection`).
 - **Rates.** A fit of fractions also gives the total number and the rates under the
   scale-free prior on the total (`result.total`, `result.rates`), and `GammaRates` puts
   priors on the rates directly; `scale="exposure"` declares a selection with absolute
@@ -70,7 +70,7 @@ Monte Carlo noise at all; only likelihoods built from samples do. Second, the
 binned Monte Carlo estimate is linear in $\rho$, so its variance is a cheap quadratic
 form in $\rho$: `lk.sample_variance(rho)` returns each object's relative variance
 $V_i(\rho)$ (with its effective number of samples), and `result.check()` warns when $\sum_iV_i>1$, the per-event part of the
-LVK's variance criterion ({doc}`../user-guide/inputs`).
+LVK's variance criterion ({doc}`../guides/inputs`).
 
 ## Methods and software
 

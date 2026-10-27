@@ -317,7 +317,7 @@ class Likelihoods:
 
     Use the ``from_*`` constructors to convert posteriors (with their interim
     prior), posterior samples, analytic measurement models, response
-    matrices or classifier outputs into likelihoods. See :doc:`/user-guide/inputs`
+    matrices or classifier outputs into likelihoods. See :doc:`/guides/inputs`
     for the conventions.
 
     Parameters
@@ -343,7 +343,7 @@ class Likelihoods:
         proper posteriors; a warning says so (DECISIONS #1).
     selection : array_like (K,), callable or Selection, optional
         Detection probability (or exposure) per bin, used by models unless
-        overridden; see :doc:`/user-guide/selection`.
+        overridden; see :doc:`/guides/selection`.
     selection_mode : {"on_measurement", "on_truth"}, optional
         Required with an array or callable ``selection``: whether objects are
         selected on their measured data (or the likelihoods already include the

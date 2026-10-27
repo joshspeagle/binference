@@ -2,8 +2,8 @@
    docs/_scripts/brand.py writes; this file holds layout and components only
    (docs/design/brand.md). The extension loads it after every other stylesheet. */
 
-/* Breakpoints (media queries cannot read variables): 1180 px drops the outline, 900 px moves
-   the sidebar into the menu, 520 px folds the search box. */
+/* Breakpoints (media queries cannot read variables): 1180 px drops the outline, 1080 px leaves
+   the sections to the sidebar, 900 px moves the sidebar into the menu, 520 px folds the search. */
 :root {
   --bar-h: 56px;
   --side-w: 248px;
@@ -176,6 +176,7 @@ code, kbd { font-family: var(--b-font-mono); font-size: .88em; }
 :not(pre) > code {
   background: var(--b-surface); padding: 1px 4px; overflow-wrap: anywhere;
 }
+:not(pre) > code span.pre { white-space: normal; }  /* basic.css sets nowrap, which defeats the wrap */
 a code.literal { color: inherit; }
 
 /* ---------------------------------------------------------------- code */
@@ -337,20 +338,32 @@ main form input[type="submit"] {
   .docs { grid-template-columns: var(--side-w) minmax(0, 1fr); }
   .toc { display: none; }
 }
+/* below 1080 px the sections leave the bar: the sidebar lists them, and the home page,
+   which has none, opens them from the menu */
+@media (max-width: 1080px) {
+  .mainnav { display: none; }
+  .home-page .menubtn { display: grid; }
+  .mobilenav {
+    position: fixed; inset: calc(var(--bar-h) + env(safe-area-inset-top, 0px)) 0 0 0; max-height: none;
+    z-index: 25; background: var(--b-bg); padding: 16px var(--gutter-r) 16px var(--gutter-l);
+    overflow-y: auto; border-top: 1px solid var(--b-rule);
+  }
+  .mobilenav.open { display: block; }
+  .mobilenav a { display: block; padding: 10px 0; font-size: 1rem; color: var(--b-ink); }
+}
 @media (max-width: 900px) {
   :root { --bar-h: 52px; }
-  .mainnav { display: none; }
   .menubtn { display: grid; }
   .searchbar input { width: 6rem; }
   .searchbar kbd { display: none; }
   .docs { grid-template-columns: minmax(0, 1fr); padding-top: 20px; }
-  .side, .mobilenav {
+  .side {
     display: none; position: fixed; inset: calc(var(--bar-h) + env(safe-area-inset-top, 0px)) 0 0 0;
+    align-self: stretch;  /* the wide layout's sticky sidebar sets start */
     max-height: none; z-index: 25; background: var(--b-bg); padding: 16px var(--gutter-r) 16px var(--gutter-l);
     overflow-y: auto; border-top: 1px solid var(--b-rule);
   }
-  .side.open, .mobilenav.open { display: block; }
-  .mobilenav a { display: block; padding: 10px 0; font-size: 1rem; color: var(--b-ink); }
+  .side.open { display: block; }
   .article h1 { font: var(--b-type-title-phone); }
 }
 @media (max-width: 520px) {
@@ -360,6 +373,7 @@ main form input[type="submit"] {
   .searchbar:focus-within { position: absolute; left: 12px; right: 12px; width: auto; background: var(--b-bar); border: 1px solid var(--b-bar-text); padding: 0 8px; }
   .searchbar:focus-within input { position: static; width: 100%; height: auto; opacity: 1; }
   .pager { grid-template-columns: 1fr; }
+  table.genindextable td { display: block; width: auto; }
   .pager .nx { text-align: left; }
 }
 

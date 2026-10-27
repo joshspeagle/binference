@@ -39,9 +39,9 @@ The same model has been written down separately in several fields:
 
 Adding up the per-object posteriors computed under an interim prior, the usual
 shortcut, is exactly one EM step from that prior
-([theory](https://joshspeagle.github.io/binference/theory.html#point-estimates-em-is-iterated-stacking)). binference runs the
+([theory](https://joshspeagle.github.io/binference/how-it-works/theory.html#point-estimates-em-is-iterated-stacking)). binference runs the
 iteration to convergence and quantifies its uncertainty. The
-[background pages](https://joshspeagle.github.io/binference/background/index.html)
+[background pages](https://joshspeagle.github.io/binference/fields/index.html)
 describe each field's methods and software and how binference relates to them.
 
 ## Installation

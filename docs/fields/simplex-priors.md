@@ -4,8 +4,8 @@ The fractions $\rho$ live on the simplex, and the statistics literature offers b
 range of priors there and a range of algorithms for the posterior
 $p(\rho\mid D)\propto p(\rho)\prod_i\sum_kL_{ik}\rho_k$. This page summarises what is
 known about each, and which of them binference provides. The {doc}`theory page
-<../theory>` defines binference's priors and engines; the {doc}`priors
-<../user-guide/priors>` and {doc}`engines <../user-guide/engines>` pages say how to
+<../how-it-works/theory>` defines binference's priors and engines; the {doc}`priors
+<../guides/priors>` and {doc}`engines <../guides/engines>` pages say how to
 choose among them.
 
 ## Priors
@@ -63,7 +63,7 @@ sampler. binference implements these three itself.
 ## Inference algorithms
 
 The log-likelihood $\sum_i\log(L_i\cdot\rho)$ is concave on the simplex, and its value
-and gradient cost one pass over $L$ ([theory](../theory.md#the-population-model)).
+and gradient cost one pass over $L$ ([theory](../how-it-works/theory.md#the-population-model)).
 
 - **Gibbs data augmentation** alternates per-object labels and a conjugate draw of
   $\rho$ (Tanner & Wong 1987; Diebolt & Robert 1994). It is exact, but its convergence,
@@ -103,7 +103,7 @@ SQUAREM-accelerated EM and reports a KKT gap; `Laplace` corrects its Gaussian dr
 Pareto-smoothed importance sampling and reports the Pareto $\hat k$; `MeanFieldVB` is
 the closed-form scheme above (the algorithm of RAIL's `VarInfStackSummarizer`), flagged
 as approximate. `method="auto"` chooses among them by rules measured on a benchmark
-({doc}`../user-guide/engines`). binference has no stochastic-gradient samplers and computes
+({doc}`../guides/engines`). binference has no stochastic-gradient samplers and computes
 no evidences; held-out predictive densities (`result.log_predictive`) compare models
 instead.
 
@@ -114,7 +114,7 @@ instead.
   cells", leaving the two observed cells only 0.008 of the posterior mass; the uniform
   prior "is even worse", and Berger, Bernardo & Sun (2015) recommend $\alpha\approx1/K$.
   Broad likelihoods reduce the effective counts further. `Dirichlet.reference()` sets
-  $\alpha=1/K$ ({doc}`../user-guide/pitfalls`).
+  $\alpha=1/K$ ({doc}`../guides/pitfalls`).
 - **The Haldane limit** $\alpha\to0$ gives an improper posterior if any bin is empty.
 - **A symmetric $\alpha$ is not consistent under merging bins** of unequal width or
   number: coarse groups get prior mass in proportion to the number of fine bins they
@@ -128,7 +128,7 @@ instead.
   revives a bin it has set to zero.
 - **Bins without data** are not identified: their posterior is their prior conditional.
   `result.data_support` and `result.prior_information_ratio()` show how much the data
-  determine ({doc}`../user-guide/results`).
+  determine ({doc}`../guides/results`).
 - **Smoothing scales** are hard to learn: the strength of a smoothness prior railed
   against its prior bounds in GWTC-4 and was fixed by hand (see
   {doc}`gravitational-waves`).

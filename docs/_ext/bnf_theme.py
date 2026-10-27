@@ -1,8 +1,7 @@
 """Template context and directives for the binference docs theme (``docs/_themes/binference``).
 
-* The top bar's sections are the root toctrees with a caption; while the root has none,
-  its entries are the sections. The current section is the one listing the page's top
-  ancestor.
+* The top bar's sections are the root toctrees with a caption. The current section is the
+  one listing the page's top ancestor.
 * Pages with two or more sections get the "On this page" outline.
 * A page whose front matter says ``layout: home`` uses ``home.html``.
 * ``{plain-words}`` is the "In plain words" note of concept pages (at most one per page).
@@ -13,6 +12,9 @@ from __future__ import annotations
 from docutils import nodes
 from docutils.parsers.rst.directives.admonitions import BaseAdmonition
 from sphinx import addnodes
+from sphinx.util import logging
+
+logger = logging.getLogger(__name__)
 
 
 class PlainWords(BaseAdmonition):
@@ -34,16 +36,15 @@ def _sections(app, env) -> None:
     def docs(t):  # documents only: entries can also be URLs or "self"
         return [d for _, d in t["entries"] if d in env.titles]
 
-    captioned = [t for t in toctrees if t.get("caption") and docs(t)]
-    if captioned:
-        app.bnf_sections = [
-            {"caption": t["caption"], "docname": docs(t)[0], "docs": docs(t)} for t in captioned
-        ]
-        return
-    entries = [d for t in toctrees for d in docs(t)]
     app.bnf_sections = [
-        {"caption": env.titles[d].astext(), "docname": d, "docs": [d]} for d in entries
+        {"caption": t["caption"], "docname": docs(t)[0], "docs": docs(t)}
+        for t in toctrees
+        if t.get("caption") and docs(t)
     ]
+    if not app.bnf_sections:
+        logger.warning(
+            "the root document has no captioned toctree, so the top bar has no sections"
+        )
 
 
 def _page_context(app, pagename, templatename, context, doctree):

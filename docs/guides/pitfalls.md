@@ -13,7 +13,7 @@ Posteriors already contain an interim prior $\pi$. Treating them as
 likelihoods replaces $L_i\cdot\rho$ by $L_i\cdot(\pi\odot\rho)$. The data
 then constrain $\pi\odot\rho$ rather than $\rho$, and an extra factor
 $(\pi\cdot\rho)^W$ drags the population toward where $\pi$ is large
-([theory](../theory.md#likelihoods-versus-posteriors)). binference's slow tests
+([theory](../how-it-works/theory.md#likelihoods-versus-posteriors)). binference's slow tests
 show biases of more than eight standard deviations.
 
 **Fix.** Use `Likelihoods.from_table(P, bins, interim=interim)` or
