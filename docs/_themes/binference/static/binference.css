@@ -24,7 +24,7 @@ body {
   -webkit-text-size-adjust: 100%;
   text-rendering: optimizeLegibility;
 }
-a { color: var(--b-link); text-underline-offset: 2px; text-decoration-thickness: 1px; overflow-wrap: anywhere; }
+a { color: var(--b-link); text-underline-offset: 2px; text-decoration-thickness: 1px; overflow-wrap: break-word; }
 a:hover { text-decoration-thickness: 2px; }
 :focus-visible { outline: var(--b-focus) solid var(--b-link); outline-offset: 2px; }
 img, svg { max-width: 100%; height: auto; }
@@ -174,7 +174,7 @@ blockquote { margin: 1rem 0; padding: 0 0 0 1rem; border-left: 1px solid var(--b
 /* inline code */
 code, kbd { font-family: var(--b-font-mono); font-size: .88em; }
 :not(pre) > code {
-  background: var(--b-surface); padding: 1px 4px; overflow-wrap: anywhere;
+  background: var(--b-surface); padding: 1px 4px; overflow-wrap: break-word;
 }
 :not(pre) > code span.pre { white-space: normal; }  /* basic.css sets nowrap, which defeats the wrap */
 a code.literal { color: inherit; }

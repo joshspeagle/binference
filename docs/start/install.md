@@ -1,35 +1,36 @@
-# Installation
+# Install
 
-binference needs Python ≥ 3.13 with NumPy ≥ 2.1, SciPy ≥ 1.14.1 and the small
-pure-Python package threadpoolctl, which keeps parallel chains from
-oversubscribing the cores. Plotting needs matplotlib, and export to
-ArviZ-style `DataTree`s needs xarray. Both are optional extras.
+binference needs Python 3.13 or later. Its core depends on three packages: NumPy
+(2.1 or later), SciPy (1.14.1 or later) and threadpoolctl, which keeps parallel chains
+from oversubscribing the cores.
 
-binference is in alpha. Until it is released on PyPI as `binference`, install it
-from GitHub:
+binference is in alpha. Until it is released on PyPI, install it from GitHub, with the
+plotting extra:
 
 ```bash
 pip install "binference[plot] @ git+https://github.com/joshspeagle/binference"
 ```
 
-For development:
+Leave out `[plot]` for the core alone, or name several extras, such as `[plot,xarray]`.
 
-```bash
-git clone https://github.com/joshspeagle/binference
-cd binference
-pip install -e ".[dev]"
-```
+## Extras
 
-| extra | adds |
-|---|---|
-| `plot` | matplotlib, for `result.plot()` and friends |
-| `xarray` | xarray, for `result.to_datatree()` |
-| `test` | pytest, coverage and matplotlib (for the plotting tests) |
-| `docs` | Sphinx and the notebook toolchain used to build these pages |
-| `dev` | all of the above plus pre-commit, whose hooks run ruff |
-| `all` | `plot` and `xarray` |
+| Extra | Adds | For |
+|---|---|---|
+| `plot` | matplotlib | `result.plot()` and the functions of `binference.plotting` |
+| `xarray` | xarray | `result.to_datatree()`, an ArviZ-compatible export |
+| `all` | both of the above | |
+| `test` | pytest, pytest-cov and matplotlib | running the test suite |
+| `docs` | Sphinx, myst-nb and the rest of the documentation toolchain | building these pages |
+| `dev` | `test`, `docs`, `plot`, `xarray` and pre-commit | working on binference itself |
 
-Check the installation:
+To work on binference itself, follow the set-up in the
+[contributing guide](../contributing.md).
+
+## Check the installation
+
+This fits a simulated catalogue of 500 objects on 10 bins and prints the fitted
+population fractions.
 
 ```python
 import binference
@@ -39,4 +40,4 @@ mock = binference.simulate.mock_1d(500, binference.Bins.linear(0, 3, 10), rng=0)
 print(binference.infer(mock.likelihoods, method="map").rho.round(3))
 ```
 
-Then work through the [quick-start tutorial](../tutorials/01_quickstart).
+Next, the {doc}`quickstart` takes you from your own arrays to a population.

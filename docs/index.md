@@ -9,7 +9,7 @@ distribution of the population the objects come from, with calibrated
 uncertainty, and the posterior of each object under that population. The same
 problem appears under different names in several fields
 ([background](fields/index.md)); binference treats them as one model
-([why binference](start/vision.md)).
+([what binference does](start/what-it-does.md)).
 
 ```{image} _static/quickstart.png
 :alt: Population posteriors for a mock catalogue under a flat Dirichlet prior and a Gaussian-process prior
@@ -28,10 +28,10 @@ result.plot(truth=mock.truth.rho)
 ::::{grid} 1 2 2 3
 :gutter: 3
 
-:::{grid-item-card} Why binference
-:link: start/vision
+:::{grid-item-card} What binference does
+:link: start/what-it-does
 :link-type: doc
-What it does, for whom, and the principles behind its design.
+The problem in pictures, the same model under many names, and whether it suits your data.
 :::
 
 :::{grid-item-card} Getting started
@@ -75,8 +75,11 @@ The same model in astronomy, gravitational waves, unfolding, empirical Bayes, qu
 :caption: Start
 :hidden:
 
-start/vision
+start/what-it-does
+start/is-it-right
 start/install
+start/quickstart
+start/principles
 ```
 
 ```{toctree}
