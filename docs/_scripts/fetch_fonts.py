@@ -45,7 +45,9 @@ def main() -> None:
                 name = f"{family.replace(' ', '')}-{subset}.woff2"
                 (OUT / name).write_bytes(get(url))
                 faces.append(re.sub(r"url\(https://[^)]+\)", f"url({name})", block))
-        (OUT / f"OFL-{licence}.txt").write_bytes(get(f"{GOOGLE_FONTS}/{licence}/OFL.txt"))
+        text = get(f"{GOOGLE_FONTS}/{licence}/OFL.txt").decode()
+        lines = [line.rstrip() for line in text.splitlines()]  # as the whitespace hook wants
+        (OUT / f"OFL-{licence}.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     header = "/* Written by docs/_scripts/fetch_fonts.py; urls are relative to this file. */\n"
     (OUT / "fonts.css").write_text(header + "\n".join(faces) + "\n", encoding="utf-8")
     print("\n".join(sorted(p.name for p in OUT.iterdir())))
