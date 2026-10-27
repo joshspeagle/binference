@@ -50,7 +50,7 @@ pytest --cov=binference         # coverage report
 
 ## Extending binference
 
-* **Priors** subclass `binference.priors.base.Prior` (the user-facing
+* **Priors** subclass `binference.priors.PopulationPrior` (the user-facing
   specification) and return a `BoundPrior` from `bind(bins)`. A bound prior
   maps unconstrained coordinates to log-fractions or log-rates (`forward`) and
   returns the log prior and its gradient (`log_prior_and_grad`). Conjugate
@@ -68,6 +68,10 @@ pytest --cov=binference         # coverage report
 ```bash
 pip install -e ".[docs]"
 sphinx-build -W --keep-going -b html docs docs/_build/html
+# the code of the README, home page, installation page and guides
+python docs/_scripts/run_snippets.py README.md docs/index.md docs/start/install.md docs/guides/*.md
+# external links, without executing the tutorials (CI runs this weekly)
+BINFERENCE_DOCS_EXECUTE=off sphinx-build -b linkcheck docs docs/_build/linkcheck
 ```
 
 The tutorials in `docs/tutorials/` are MyST notebooks executed at build time,

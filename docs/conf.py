@@ -102,3 +102,14 @@ html_theme_options = {"source_repository": "https://github.com/joshspeagle/binfe
 html_copy_source = False
 # MathJax 3, pinned (Sphinx's default loads an unpinned version)
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"
+
+# -- Link check (weekly in CI) --------------------------------------------------
+# These publishers and hosts answer automated requests with 403 Forbidden, so their
+# links cannot be checked; the DOIs are matched by publisher prefix.
+linkcheck_ignore = [
+    r"https://doi\.org/10\.1080/",  # Taylor & Francis
+    r"https://doi\.org/10\.1093/",  # Oxford University Press
+    r"https://doi\.org/10\.1139/",  # Canadian Science Publishing
+    r"https://doi\.org/10\.1162/",  # MIT Press
+    r"https://git\.ligo\.org/",
+]

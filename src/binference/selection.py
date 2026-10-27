@@ -49,7 +49,9 @@ from .warnings import ConvergenceWarning, InputWarning
 
 __all__ = ["SELECTION_MODES", "SELECTION_SCALES", "Selection", "as_selection"]
 
+#: The values of ``Selection.mode``: how objects are selected.
 SELECTION_MODES = ("on_truth", "on_measurement", "combined")
+#: The values of ``Selection.scale``: what the selection values measure.
 SELECTION_SCALES = ("probability", "exposure", "relative")
 
 #: neighbouring bins whose selection differs by more than this factor raise a warning

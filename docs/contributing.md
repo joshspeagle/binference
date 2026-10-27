@@ -8,8 +8,9 @@ orphan: true
 ```
 
 ```{toctree}
-:caption: Design notes
+:caption: Contribute
 :maxdepth: 1
 
+writing
 design/index
 ```
