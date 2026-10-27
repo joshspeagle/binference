@@ -7,7 +7,9 @@
   as outlines; the favicon;
 * ``tokens.css``: the colour, type and size tokens of the site theme;
 
-and the generated tables of ``brand.md`` (between its ``<!-- name:start/end -->``
+and ``docs/_ext/matplotlibrc``, the style of the tutorials' plots (``conf.py`` hands it to
+the notebook kernels),
+with the generated tables of ``brand.md`` (between its ``<!-- name:start/end -->``
 markers). ``--check`` writes nothing and fails if a committed output is stale; CI runs it.
 The lockups need fontTools and Sora's variable font, downloaded on first use to
 ``docs/_build/brand/`` and verified against its SHA-256.
@@ -57,6 +59,7 @@ TOKENS = {
     "tip": ("#0E7D6E", "#4CC2B0", "'In plain words' notes", "bg"),
     "warn": ("#9A6200", "#E8AE52", "warnings", "bg"),
     "danger": ("#B42318", "#F97066", "errors", "bg"),
+    "figure-ground": ("#FBFBFE", "#FBFBFE", "ground of tutorial plots, both themes", "ink"),
 }
 #: data colours: (light, dark, use); validated with the dataviz palette checks
 DATA = {
@@ -303,6 +306,36 @@ def tokens_css() -> str:
     )
 
 
+MATPLOTLIBRC = DOCS / "_ext" / "matplotlibrc"
+
+
+def matplotlibrc() -> str:
+    """Tutorial plots: drawn for the light figure ground in both themes (the theme puts them on
+    that ground in the dark theme), categories in order, readable at phone width."""
+    light = {k: v[0].lstrip("#") for k, v in TOKENS.items()}
+    cycle = ", ".join(f"'{c.lstrip('#')}'" for c in DATA["cat"][0])
+    lines = {
+        "figure.dpi": 144,
+        "figure.facecolor": light["figure-ground"],
+        "axes.facecolor": light["figure-ground"],
+        "savefig.facecolor": light["figure-ground"],
+        "axes.prop_cycle": f"cycler('color', [{cycle}])",
+        "text.color": light["ink"],
+        "axes.labelcolor": light["ink"],
+        "axes.edgecolor": light["ink-2"],
+        "xtick.color": light["ink-2"],
+        "ytick.color": light["ink-2"],
+        "grid.color": light["rule"],
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "legend.frameon": False,
+        "font.size": 11,
+        "lines.linewidth": 1.8,
+    }
+    header = "# Written by docs/_scripts/brand.py; edit the tokens there.\n"
+    return header + "".join(f"{k}: {v}\n" for k, v in lines.items())
+
+
 def _lum(c: str) -> float:
     v = [int(c[i : i + 2], 16) / 255 for i in (1, 3, 5)]
     v = [x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4 for x in v]
@@ -348,7 +381,11 @@ def tables() -> dict[str, str]:
 
 
 def outputs() -> dict[Path, str]:
-    out = {STATIC / "tokens.css": tokens_css(), STATIC / "brand" / "favicon.svg": favicon_svg()}
+    out = {
+        STATIC / "tokens.css": tokens_css(),
+        STATIC / "brand" / "favicon.svg": favicon_svg(),
+        MATPLOTLIBRC: matplotlibrc(),
+    }
     for theme, tag in ((0, "light"), (1, "dark")):
         for cut in CUTS:
             out[STATIC / "brand" / f"mark-{cut}-{tag}.svg"] = mark_svg(cut, theme)

@@ -25,8 +25,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import binference
-
-plt.rcParams["figure.dpi"] = 110
 ```
 
 ## Quantification under prior shift

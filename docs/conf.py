@@ -6,6 +6,9 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath("../src"))
+sys.path.insert(0, os.path.abspath("_ext"))
+# the tutorials' plot style, written by _scripts/brand.py; the notebook kernels inherit it
+os.environ["MATPLOTLIBRC"] = os.path.abspath("_ext/matplotlibrc")
 
 from binference import __version__
 
@@ -16,18 +19,26 @@ release = __version__
 version = ".".join(__version__.split(".")[:2])
 
 extensions = [
+    "bnf_theme",
     "myst_nb",
     "numpydoc",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
-    "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
     "sphinx_design",
 ]
 
-exclude_patterns = ["_build", "_scripts", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
+exclude_patterns = [
+    "_build",
+    "_scripts",
+    "_ext",
+    "_themes",
+    "Thumbs.db",
+    ".DS_Store",
+    "**.ipynb_checkpoints",
+]
 source_suffix = {".rst": "restructuredtext", ".md": "myst-nb"}
 
 # -- MyST / notebooks ---------------------------------------------------------
@@ -47,22 +58,13 @@ numpydoc_show_class_members = False
 numpydoc_class_members_toctree = False
 numpydoc_validation_checks: set[str] = set()
 
-intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
-    "numpy": ("https://numpy.org/doc/stable/", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
-    "matplotlib": ("https://matplotlib.org/stable/", None),
-}
-
 # -- HTML ---------------------------------------------------------------------
-html_theme = "pydata_sphinx_theme"
-html_title = f"binference {version}"
+html_theme = "binference"
+html_theme_path = ["_themes"]
+html_title = "binference"
 html_static_path = ["_static"]
-html_theme_options = {
-    "github_url": "https://github.com/joshspeagle/binference",
-    "show_toc_level": 2,
-    "navigation_with_keys": False,
-    "header_links_before_dropdown": 6,
-    "secondary_sidebar_items": ["page-toc", "sourcelink"],
-}
-html_context = {"default_mode": "auto"}
+html_favicon = "_themes/binference/static/brand/favicon.svg"
+html_theme_options = {"source_repository": "https://github.com/joshspeagle/binference"}
+html_copy_source = False
+# MathJax 3, pinned (Sphinx's default loads an unpinned version)
+mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"

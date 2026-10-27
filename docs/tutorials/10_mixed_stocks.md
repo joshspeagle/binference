@@ -25,7 +25,6 @@ import numpy as np
 
 import binference
 
-plt.rcParams["figure.dpi"] = 110
 rng = np.random.default_rng(10)
 ```
 

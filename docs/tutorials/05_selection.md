@@ -24,7 +24,6 @@ from scipy import stats
 
 import binference
 
-plt.rcParams["figure.dpi"] = 110
 rng = np.random.default_rng(2026)
 ```
 

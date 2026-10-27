@@ -77,6 +77,7 @@ large text 3; `sample` is for marks only, and coral text uses `sample-text`.
 | `tip` | 'In plain words' notes | `#0E7D6E` | 4.9 | `#4CC2B0` | 8.5 | `bg` |
 | `warn` | warnings | `#9A6200` | 4.9 | `#E8AE52` | 9.3 | `bg` |
 | `danger` | errors | `#B42318` | 6.4 | `#F97066` | 6.6 | `bg` |
+| `figure-ground` | ground of tutorial plots, both themes | `#FBFBFE` | 15.4 | `#FBFBFE` | 1.2 | `ink` |
 | `cat-0…4` | categories, in this order | `#4A4FC4` `#C07C00` `#1A9E8C` `#8F2E74` `#5E8A1C` | | `#7C82E8` `#C4871C` `#25A390` `#9C4A8E` `#749E39` | | |
 | `seq-0…4` | sequential, one hue | `#E2E3F8` `#B8BBEE` `#8186DE` `#4C53C2` `#2A2F8F` | | `#1F2257` `#33388C` `#5259C7` `#8A90EC` `#C9CCFA` | | |
 | `div-0…4` | diverging, grey middle | `#2A2F8F` `#8186DE` `#E4E4EA` `#E0A848` `#8A5600` | | `#C9CCFA` `#5C63C9` `#3A3B4E` `#C48A2A` `#F2C77A` | | |

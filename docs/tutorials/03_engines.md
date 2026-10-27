@@ -22,7 +22,6 @@ import numpy as np
 
 import binference
 
-plt.rcParams["figure.dpi"] = 110
 mock = binference.simulate.mock_1d(1500, binference.Bins.linear(0, 3, 20), noise=(0.1, 0.3), rng=11)
 lk = mock.likelihoods
 ```
