@@ -147,7 +147,7 @@ def test_em_started_at_its_fixed_point_converges_at_once():
 def test_an_explicit_simplex_algorithm_never_silently_runs_lbfgs():
     lk = _mock(n=300, K=8).likelihoods
     # a non-conjugate prior, or the unconstrained space, cannot run EM or mix-SQP
-    with pytest.raises(ValueError, match="algorithm='em'"):
+    with pytest.raises(ValueError, match="algorithm='em' cannot run here: the simplex needs"):
         MAP(PopulationModel(lk, P.LogisticRandomWalk()), algorithm="em")
     with pytest.raises(ValueError, match="algorithm='mixsqp'"):
         MAP(PopulationModel(lk, P.Dirichlet(1.0)), algorithm="mixsqp", space="unconstrained")
@@ -164,7 +164,7 @@ def test_the_ess_message_never_rounds_the_per_chain_value_up_to_the_limit():
     with warnings.catch_warnings():  # a short run; only the message's format is tested
         warnings.simplefilter("ignore", ConvergenceWarning)
         res = binference.infer(_mock(n=100, K=3).likelihoods, method="gibbs", n_samples=20, rng=0)
-    for ess, shown in ((399.0, "99.7"), (399.9, "99.9")):  # 99.75 and 99.975 per chain
+    for ess, shown in ((399.0, "399 (99.7"), (399.9, "399 (99.9")):  # 99.75, 99.975 per chain
         res._cache["diagnostics"] = dict(res.diagnostics, ess_tail=np.full(3, ess))
         msgs = [m for m in res._mixing_problems() if "tail ESS" in m]
-        assert msgs and f"({shown} per chain < 100)" in msgs[0]
+        assert msgs and f"= {shown} per chain < 100)" in msgs[0]

@@ -1499,9 +1499,10 @@ class PopulationResult(_IndividualMixin):
                     ess = np.nanmin(d[key])
                     per_chain = ess / max(1, self.n_chains)
                     if per_chain < ess_min:
+                        # rounded down, so the message never shows the limit as reached
                         msgs.append(
-                            f"min {kind} ESS{what} = {ess:.0f} "
-                            f"({math.floor(per_chain * 10) / 10:.1f} per chain < {ess_min:.0f})"
+                            f"min {kind} ESS{what} = {math.floor(ess)} "
+                            f"({math.floor(per_chain * 10) / 10:.1f} per chain < {ess_min:g})"
                         )
         return msgs
 

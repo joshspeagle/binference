@@ -198,11 +198,6 @@ class MAP(Engine):
         super().__init__(model, rng=rng, progress=progress)
         if space not in ("auto", "simplex", "unconstrained"):
             raise ValueError("space must be 'auto', 'simplex' or 'unconstrained'.")
-        if model.joint and (space == "simplex" or algorithm != "auto"):
-            raise ValueError(
-                "A selection from injections or a tallied response is inferred by L-BFGS in "
-                "space='unconstrained' only; leave algorithm='auto' (DECISIONS #80, #81)."
-            )
         if algorithm not in ("auto", "mixsqp", "em"):
             raise ValueError("algorithm must be 'auto', 'mixsqp' or 'em'.")
         self.algorithm = algorithm
@@ -211,23 +206,32 @@ class MAP(Engine):
         self.max_iter = int(max_iter)
         self.accelerate = bool(accelerate)
         self.init = None if init is None else np.asarray(init, dtype=float)
-        # an explicit algorithm or space="simplex" solves on the simplex
-        if algorithm != "auto" or space == "simplex":
-            if space == "unconstrained" or not (model.prior.conjugate and model.prior.has_density):
-                raise ValueError(
-                    f"space={space!r} with algorithm={algorithm!r} solves on the simplex, which "
-                    "needs a conjugate prior; use space='unconstrained' or algorithm='auto' for "
-                    "L-BFGS."
+        # an explicit algorithm or space="simplex" solves on the simplex, if it can
+        self._on_simplex = algorithm != "auto" or space == "simplex"
+        if self._on_simplex:
+            asked = f"algorithm={algorithm!r}" if algorithm != "auto" else "space='simplex'"
+            if model.joint:
+                why = "a joint selection or response is fitted by L-BFGS in space='unconstrained'"
+            elif space == "unconstrained":
+                why = "space='unconstrained' runs L-BFGS"
+            elif not (model.prior.conjugate and model.prior.has_density):
+                why = "the simplex needs a conjugate prior"
+            elif algorithm == "mixsqp" and not self._mixsqp_applies():
+                why = (
+                    "mix-SQP needs a Dirichlet prior with concentrations >= 1 (exactly 1 with "
+                    "a selection function) or GammaRates with shapes >= 1"
                 )
-            if algorithm == "mixsqp" and not self._mixsqp_applies():
+            else:
+                why = None
+            if why:
+                fix = "algorithm='auto'" if algorithm != "auto" else "space='auto'"
                 raise ValueError(
-                    "algorithm='mixsqp' needs a Dirichlet prior with concentrations >= 1 (exactly "
-                    "1 with a selection function) or GammaRates with shapes >= 1."
+                    f"{asked} cannot run here: {why}. Use {fix} (method='map' in infer)."
                 )
 
     def _resolve_space(self) -> str:
         m = self.model
-        if self.algorithm != "auto" or self.space == "simplex":
+        if self._on_simplex:
             if m.prior.unbounded_density():
                 warn(
                     "The prior density is unbounded at the boundary of the simplex (e.g. "
