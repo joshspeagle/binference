@@ -21,7 +21,7 @@ Requirements carry IDs (`R-…`) so that tests and code can point back to them. 
 
 `binference` turns **a catalogue of noisy, heteroscedastic, arbitrarily shaped per-object PDFs over a set of bins or categories** into **a posterior over the population distribution** (bin fractions or rates). It also returns **consistent posteriors for each individual object** under that population. Typical inputs are photo-z PDFs, positions on a colour–magnitude grid, classifier outputs over classes, or a detector response.
 
-**Vision** (DECISIONS #33): as easy to pick up as scikit-learn, with every part reachable by an expert; stated in `docs/vision.md`.
+**Vision** (DECISIONS #33): as easy to pick up as scikit-learn, with every part reachable by an expert; stated in `docs/start/vision.md`.
 
 The baseline model has been implemented at least four times in astronomy alone (Leistedt+2016, Leistedt & Hogg 2017, CHIPPR, `frankenz`). It reappears as iterative Bayesian unfolding in HEP, NPMLE/g-modelling in statistics, EMQ quantification in ML, and genetic stock identification in ecology. Every implementation the census found is one of the following:
 
@@ -32,7 +32,7 @@ The baseline model has been implemented at least four times in astronomy alone (
 
 None checks its own calibration. `binference`'s value is therefore **correct input conventions, calibrated uncertainty, built-in validation and speed**, plus what existing implementations leave out: inputs whose own uncertainty is propagated (selection functions from injections, responses from calibration sets), bases that relax the flat-within-bin approximation, and defaults chosen automatically from measured evidence.
 
-Guiding principles (DECISIONS #34); their wording, and what the code does for each, is in `docs/vision.md`:
+Guiding principles (DECISIONS #34); their wording, and what the code does for each, is in `docs/start/vision.md`:
 
 1. Correct by construction.
 2. Easy things are one line, hard things are possible (as emcee, dynesty, nautilus and sbi).
@@ -415,7 +415,7 @@ All engines take a `PopulationModel`, accept `rng` (SPEC 7: an int seed, `numpy.
 3. Importance-corrected Laplace, kept when its $\hat k$ check passes and its importance ESS is at least `target_ess`; also kept, flagged approximate, above `nnz_limit` ($2\times10^7$) stored likelihood entries, or when it is the only candidate left.
 4. NUTS.
 
-Engine options passed to `infer` rule out the candidates that do not take them. The choice and its reason are in `result.info["auto_method"]` and `result.info["auto_reason"]`. The thresholds come from the benchmark matrix, `benchmarks/matrix.py` (DECISIONS #42), whose results are in `docs/user-guide/engines.md`.
+Engine options passed to `infer` rule out the candidates that do not take them. The choice and its reason are in `result.info["auto_method"]` and `result.info["auto_reason"]`. The thresholds come from the benchmark matrix, `benchmarks/matrix.py` (DECISIONS #42), whose results are in `docs/guides/engines.md`.
 
 The documentation ranks the engines a user can choose by when to use them:
 - NUTS: exact for every prior; mixes well with broad likelihoods.

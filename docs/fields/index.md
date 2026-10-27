@@ -22,7 +22,7 @@ $$
 p(D\mid\rho)=\prod_{i=1}^{N}\sum_{k=1}^{K}L_{ik}\,\rho_k .
 $$
 
-The {doc}`theory page <../theory>` derives this model, its equivalent hierarchical form
+The {doc}`theory page <../how-it-works/theory>` derives this model, its equivalent hierarchical form
 with a latent bin label per object, and its extensions (priors, selection effects,
 rates). The table names the same pieces in each field.
 
@@ -40,7 +40,7 @@ satisfies $\rho_k=N^{-1}\sum_i r_{ik}$, where $r_{ik}\propto L_{ik}\rho_k$ is ob
 $i$'s posterior over bins under the population $\rho$: it is the fixed point of
 "average the per-object posteriors computed under the current population". Averaging
 posteriors computed under an interim prior (stacking) is one step of this iteration
-from that prior ([theory](../theory.md#point-estimates-em-is-iterated-stacking)).
+from that prior ([theory](../how-it-works/theory.md#point-estimates-em-is-iterated-stacking)).
 Iterative Bayesian unfolding stopped early is the same iteration truncated, and EMQ in
 quantification is the same iteration with the training prevalence as the starting point.
 binference's `method="map"` finds the fixed point itself (by mix-SQP or EM) and reports

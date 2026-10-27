@@ -1,6 +1,6 @@
 """Execute the code of Markdown pages, in order, one namespace per page.
 
-Usage: python docs/_scripts/run_snippets.py docs/user-guide/*.md docs/tutorials/*.md
+Usage: python docs/_scripts/run_snippets.py docs/guides/*.md docs/tutorials/*.md
 Blocks fenced as ```python or ```{code-cell} python run; other fences do not, nor
 do blocks whose fence says "skip" (```python skip), for sketches with placeholder data.
 """

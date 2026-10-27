@@ -228,5 +228,5 @@ assert covered.mean() > 0.9 - 3 * np.sqrt(0.09 / n) and np.mean(hi - lo) < 2 * 1
   empirical Bayes posterior with that uncertainty included.
 - A smooth $g$, as in Efron's g-modelling, corresponds to a smoothness prior
   such as `priors.LogisticGP()` ({doc}`04_priors`). The
-  [empirical Bayes background page](../background/empirical-bayes) places
+  [empirical Bayes background page](../fields/empirical-bayes) places
   this tutorial among the packages of that field.

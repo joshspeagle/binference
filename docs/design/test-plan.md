@@ -301,7 +301,7 @@ More result tests are in `tests/test_results_audit.py`, `tests/test_results_outp
 ### 2.12 Docs, examples and packaging
 
 - `docs/tutorials/*.md` (MyST notebooks) are executed in the docs CI job (`myst-nb`, `nb_execution_mode="cache"`, fail on error). Each tutorial should run in under 2 minutes. Numbers that the prose quotes or compares are checked by hidden `assert` cells (tagged `remove-cell`).
-- The code of `README.md`, `docs/install.md` and the user guide runs in CI with `docs/_scripts/run_snippets.py`, which also runs tutorials locally.
+- The code of `README.md`, `docs/start/install.md` and the guides runs in CI with `docs/_scripts/run_snippets.py`, which also runs tutorials locally.
 - `python -m build` produces sdist and wheel; `twine check` passes, and the wheel is installed in a clean virtualenv and imported (CI job `dist`).
 - **Not implemented:** numpydoc validation as a lint step.
 

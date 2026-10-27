@@ -42,16 +42,16 @@ discriminative variants followed.
 
 Expanding the histogram into objects, an event measured in bin $b$ has the likelihood
 row $L_{ik}=R_{b(i),k}$, and all events in the same measured bin share a row
-([theory](../theory.md#objects-bins-and-likelihoods)).
+([theory](../how-it-works/theory.md#objects-bins-and-likelihoods)).
 {meth}`Likelihoods.from_binned(response, counts=...) <binference.Likelihoods.from_binned>`
 builds these rows, one per measured bin weighted by its count, and accounts for the
 efficiency $\epsilon_k=\sum_bR_{bk}$. The {class}`~binference.Response` comes from a
 known matrix, from tallied events, or from the simulated events themselves, where a
 missed event plays the role of RooUnfold's `Miss`; a response tallied from a finite
-simulation is inferred with the spectrum ({doc}`../user-guide/inputs` gives the
+simulation is inferred with the spectrum ({doc}`../guides/inputs` gives the
 details). Regularisation is a
 prior, not an iteration count: `LogisticGP` or `LogisticRandomWalk` infer how smooth the
-spectrum is ({doc}`../user-guide/priors`). The total and the expected counts per true
+spectrum is ({doc}`../guides/priors`). The total and the expected counts per true
 bin come from `result.total` and `result.rates`. When there are more measured bins than
 true bins, `result.check()` compares the measured counts with those each posterior draw
 predicts through the response: a folding check of the fit. The {doc}`unfolding tutorial
@@ -95,7 +95,7 @@ paired (true, measured) simulations.
 
 **Shared.** The likelihood of binned unfolding with a Poisson or multinomial count
 model, the EM algorithm (`method="em"`; `method="map"` chooses its solver,
-{doc}`../user-guide/engines`), and the posterior that FBU samples, with regularisation
+{doc}`../guides/engines`), and the posterior that FBU samples, with regularisation
 as a prior.
 
 **Added.** A maintained, pip-installable Bayesian unfolding: posterior draws of the
@@ -122,13 +122,13 @@ approximate), and does not read ROOT histograms.
   coverage ... due to the inherent bias"; an iteratively bias-corrected bootstrap
   restored nearly nominal coverage (Kuusela & Panaretos 2015). binference's
   {func}`~binference.validation.coverage` measures the coverage of an analysis on
-  simulations ({doc}`../user-guide/validation`).
+  simulations ({doc}`../guides/validation`).
 - **Wide bins.** The response "depends on the unknown shape of the true spectrum", and
   regularising with wide bins introduces "a non-trivial bias"; the remedy is to unfold
   on fine bins and build intervals for functionals of them (Stanley, Patil & Kuusela
   2022). In binference: fine bins with a smoothness prior, coarse summaries through
   `result.rebin` and `result.functional`, and `result.binning_bias` to test the
-  within-bin assumption ({doc}`../user-guide/results`).
+  within-bin assumption ({doc}`../guides/results`).
 - **Noisy response matrices.** A response estimated from a finite simulation "can
   inadvertently regularize the problem" (Zhu et al. 2025).
 - **Bin-by-bin correction** "provably accounts for smearing effects incorrectly"

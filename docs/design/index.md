@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 # Design notes
 
 These documents record how binference was designed: what the package must do,

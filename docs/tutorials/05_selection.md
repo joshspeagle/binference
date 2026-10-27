@@ -10,7 +10,7 @@ kernelspec:
 # Selection effects and rates
 
 Catalogues are rarely complete. This tutorial treats the two common cases,
-using the vocabulary of the [user guide](../user-guide/selection):
+using the vocabulary of the [user guide](../guides/selection):
 
 1. **Occurrence rates with a completeness that depends on the true value.**
    This is `selection_mode="on_truth"` with Poisson rates and an exposure.

@@ -62,7 +62,7 @@ print({k: np.quantile(v, [0.16, 0.5, 0.84]).round(2)
 Ten sines per axis (`n_basis=10`) are enough for a 12 × 12 grid. The default,
 one sine per bin, gives 144 modes, and NUTS then moved slowly through their
 energy (E-BFMI below 0.3 in one chain;
-[what it means](../user-guide/pitfalls.md#not-looking-at-the-diagnostics)).
+[what it means](../guides/pitfalls.md#not-looking-at-the-diagnostics)).
 
 ```{code-cell} python
 axes = result.plot()
@@ -111,4 +111,4 @@ likelihoods). For larger grids:
 - Run chains in parallel with `n_jobs=-1`.
 - Get a quick estimate with `method="map"` before sampling.
 
-The {doc}`performance guide <../user-guide/performance>` has more.
+The {doc}`performance guide <../guides/performance>` has more.

@@ -103,7 +103,7 @@ jobs:
       - name: Check the brand assets and tokens against docs/_scripts/brand.py
         run: python docs/_scripts/brand.py --check
       - name: Run the code of the README, installation page and user guide
-        run: python docs/_scripts/run_snippets.py README.md docs/install.md docs/user-guide/*.md
+        run: python docs/_scripts/run_snippets.py README.md docs/start/install.md docs/guides/*.md
       # Executed notebooks are reused until the tutorials, the package, the plot style or the docs
       # configuration change; the weekly run always executes them afresh.
       - if: github.event_name != 'schedule'

@@ -22,7 +22,7 @@ print(mock.truth.rho, mock.truth.n_drawn, "objects drawn,", lk.N, "selected")
 ## Three ways selection can act
 
 The likelihood depends on what the selection acts on, so binference asks you to
-say which ([theory](../theory.md#selection-effects)):
+say which ([theory](../how-it-works/theory.md#selection-effects)):
 
 `selection_mode="on_measurement"`
 : Objects are selected on their **measured** data, such as a flux limit on

@@ -49,7 +49,7 @@ class Bins:
     one-dimensional set of bins, a rectilinear N-dimensional grid of cells
     (flattened in C order), or a set of unordered categories. It records bin
     *volumes* (widths, areas, ...), which matter whenever bins have unequal
-    sizes (see :doc:`/theory`).
+    sizes (see :doc:`/how-it-works/theory`).
 
     Each grid axis carries a :class:`~binference.measure.Measure`, the
     coordinate ``u = T(z)`` in which the population is flat within a bin

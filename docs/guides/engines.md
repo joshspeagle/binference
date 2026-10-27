@@ -114,7 +114,7 @@ iterations, starting near the posterior mode.
 
 - **Warm-up** adapts the step size and the mass matrix. For smoothness priors
   it also re-parametrises the prior and starts a dense mass matrix from the
-  local curvature ([theory](../theory.md#smoothness-the-logistic-family)).
+  local curvature ([theory](../how-it-works/theory.md#smoothness-the-logistic-family)).
 - **Diagnostics** are computed automatically: $\hat R$, effective sample
   sizes, divergences, tree depth and E-BFMI. `binference.infer(check=True)`, the
   default, warns about any problem.

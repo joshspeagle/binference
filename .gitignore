@@ -104,6 +104,6 @@ venv.bak/
 .mypy_cache/
 
 # Sphinx autosummary output and notebook execution cache
-docs/api/generated/
+docs/reference/api/generated/
 docs/jupyter_execute/
 .jupyter_cache/

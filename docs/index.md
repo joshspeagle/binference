@@ -8,8 +8,8 @@ bins with a response, or a classifier's output. binference infers the
 distribution of the population the objects come from, with calibrated
 uncertainty, and the posterior of each object under that population. The same
 problem appears under different names in several fields
-([background](background/index.md)); binference treats them as one model
-([why binference](vision.md)).
+([background](fields/index.md)); binference treats them as one model
+([why binference](start/vision.md)).
 
 ```{image} _static/quickstart.png
 :alt: Population posteriors for a mock catalogue under a flat Dirichlet prior and a Gaussian-process prior
@@ -29,13 +29,13 @@ result.plot(truth=mock.truth.rho)
 :gutter: 3
 
 :::{grid-item-card} Why binference
-:link: vision
+:link: start/vision
 :link-type: doc
 What it does, for whom, and the principles behind its design.
 :::
 
 :::{grid-item-card} Getting started
-:link: install
+:link: start/install
 :link-type: doc
 Install binference and run your first fit.
 :::
@@ -47,19 +47,19 @@ Executed, end-to-end examples from several fields.
 :::
 
 :::{grid-item-card} User guide
-:link: user-guide/index
+:link: guides/index
 :link-type: doc
 Inputs and conventions, priors, selection, engines, results, performance and pitfalls.
 :::
 
 :::{grid-item-card} Theory
-:link: theory
+:link: how-it-works/theory
 :link-type: doc
 The model, its augmented form, EM as iterated stacking, selection effects and the samplers.
 :::
 
 :::{grid-item-card} API reference
-:link: api/index
+:link: reference/api/index
 :link-type: doc
 Every public class and function.
 :::
@@ -71,25 +71,57 @@ Specification, test and implementation plans, and a survey of related software.
 :::
 
 :::{grid-item-card} Background
-:link: background/index
+:link: fields/index
 :link-type: doc
 The same model in astronomy, gravitational waves, unfolding, empirical Bayes, quantification and neural deconvolution.
 :::
 ::::
 
 ```{toctree}
+:caption: Start
+:hidden:
+
+start/vision
+start/install
+```
+
+```{toctree}
+:caption: Tutorials
 :hidden:
 :maxdepth: 2
 
-vision
-install
 tutorials/index
-user-guide/index
-theory
-background/index
-api/index
-design/index
-changelog
-contributing
-citing
+```
+
+```{toctree}
+:caption: Guides
+:hidden:
+:maxdepth: 2
+
+guides/index
+```
+
+```{toctree}
+:caption: How it works
+:hidden:
+
+how-it-works/theory
+```
+
+```{toctree}
+:caption: Fields
+:hidden:
+:maxdepth: 2
+
+fields/index
+```
+
+```{toctree}
+:caption: Reference
+:hidden:
+:maxdepth: 2
+
+reference/api/index
+reference/changelog
+reference/citing
 ```
