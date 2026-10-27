@@ -108,8 +108,9 @@ other indices are declared where they are used. The {doc}`glossary` defines the 
 
 ## Symbols on older pages
 
-Some pages written before this table use a symbol with a second meaning. Read them with
-this mapping until they are rewritten.
+The theory page, the guides and some docstrings were written before this table and still
+use a symbol with a second meaning. Read them with this mapping; the section rewrites of
+the documentation adopt the symbols above and remove it.
 
 | Older symbol | Meaning there | Symbol here |
 |---|---|---|

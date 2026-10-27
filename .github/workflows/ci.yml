@@ -103,6 +103,8 @@ jobs:
       - run: sphinx-build -b linkcheck docs docs/_build/linkcheck
         env:
           BINFERENCE_DOCS_EXECUTE: "off"
+      - name: Check that every DOI in the bibliography is registered
+        run: python docs/_scripts/check_dois.py
 
   docs:
     # Pushes to main also publish the site to GitHub Pages (deploy job below).
@@ -121,8 +123,8 @@ jobs:
         run: python docs/_scripts/brand.py --check
       - name: Check the defaults page against the code and its docstrings
         run: python docs/_scripts/defaults_table.py --check
-      - name: Run the code of the README, home page, installation page and guides
-        run: python docs/_scripts/run_snippets.py README.md docs/index.md docs/start/install.md docs/guides/*.md
+      - name: Run the code of the README, installation page and guides
+        run: python docs/_scripts/run_snippets.py README.md docs/start/install.md docs/guides/*.md
       # Executed notebooks are reused until the tutorials, the package, the plot style or the docs
       # configuration change; the weekly run always executes them afresh.
       - if: github.event_name != 'schedule'

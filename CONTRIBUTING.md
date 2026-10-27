@@ -68,10 +68,11 @@ pytest --cov=binference         # coverage report
 ```bash
 pip install -e ".[docs]"
 sphinx-build -W --keep-going -b html docs docs/_build/html
-# the code of the README, home page, installation page and guides
-python docs/_scripts/run_snippets.py README.md docs/index.md docs/start/install.md docs/guides/*.md
-# external links, without executing the tutorials (CI runs this weekly)
+# the code of the README, installation page and guides
+python docs/_scripts/run_snippets.py README.md docs/start/install.md docs/guides/*.md
+# external links and the bibliography's DOIs (CI runs these weekly)
 BINFERENCE_DOCS_EXECUTE=off sphinx-build -b linkcheck docs docs/_build/linkcheck
+python docs/_scripts/check_dois.py
 ```
 
 The tutorials in `docs/tutorials/` are MyST notebooks executed at build time,

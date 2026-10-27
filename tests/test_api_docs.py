@@ -29,11 +29,6 @@ def documented_names():
     return names
 
 
-def resolve(qualname):
-    module, _, name = qualname.rpartition(".")
-    return getattr(importlib.import_module(module), name)
-
-
 def public_names():
     """Names in ``binference.__all__`` and in every public submodule's ``__all__``.
 
@@ -55,7 +50,7 @@ def public_names():
 
 
 def test_every_public_name_appears_exactly_once_in_the_api_pages():
-    documented = Counter(id(resolve(n)) for n in documented_names())
+    documented = Counter(id(pkgutil.resolve_name(n)) for n in documented_names())
     public = public_names()
     assert not public.keys() - documented.keys(), sorted(
         public[k] for k in public.keys() - documented.keys()

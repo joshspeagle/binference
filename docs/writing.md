@@ -33,7 +33,8 @@ Astronomy leads the examples. Every input type and every field still has its own
 - State only measured figures, each with the setup that produced it. Every number on a
   page comes from code that CI runs.
 - Do not cite design records ("DECISIONS #n") in user pages or docstrings. The reason
-  for a design belongs in its issue or pull request.
+  for a design belongs in its issue or pull request. Older docstrings still cite them;
+  remove the citation when you rewrite the docstring.
 
 ## Concept pages
 

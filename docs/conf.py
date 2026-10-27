@@ -2,15 +2,10 @@
 
 from __future__ import annotations
 
-import dataclasses
 import hashlib
 import os
 import sys
 from pathlib import Path
-
-from sphinxcontrib.bibtex.plugin import register_plugin
-from sphinxcontrib.bibtex.style.referencing import BracketStyle
-from sphinxcontrib.bibtex.style.referencing.author_year import AuthorYearReferenceStyle
 
 sys.path.insert(0, os.path.abspath("../src"))
 sys.path.insert(0, os.path.abspath("_ext"))
@@ -36,6 +31,7 @@ extensions = [
     "sphinx_copybutton",
     "sphinx_design",
     "sphinxcontrib.bibtex",
+    "bnf_cite",
 ]
 
 exclude_patterns = [
@@ -64,24 +60,6 @@ nb_merge_streams = True
 # -- Bibliography -------------------------------------------------------------
 bibtex_bibfiles = ["references.bib"]
 bibtex_default_style = "plain"
-
-
-# author-year citations in round brackets, "(Hogg et al. 2010; Malz 2021)"
-def _round(sep: str = ", ") -> BracketStyle:
-    return BracketStyle(left="(", right=")", sep=sep)
-
-
-@dataclasses.dataclass
-class _RoundAuthorYear(AuthorYearReferenceStyle):
-    bracket_parenthetical: BracketStyle = dataclasses.field(default_factory=lambda: _round("; "))
-    bracket_textual: BracketStyle = dataclasses.field(default_factory=_round)
-    bracket_author: BracketStyle = dataclasses.field(default_factory=_round)
-    bracket_label: BracketStyle = dataclasses.field(default_factory=_round)
-    bracket_year: BracketStyle = dataclasses.field(default_factory=_round)
-    author_year_sep: str = " "
-
-
-register_plugin("sphinxcontrib.bibtex.style.referencing", "author_year_round", _RoundAuthorYear)
 bibtex_reference_style = "author_year_round"
 
 # -- API reference ------------------------------------------------------------
@@ -104,12 +82,6 @@ html_copy_source = False
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"
 
 # -- Link check (weekly in CI) --------------------------------------------------
-# These publishers and hosts answer automated requests with 403 Forbidden, so their
-# links cannot be checked; the DOIs are matched by publisher prefix.
-linkcheck_ignore = [
-    r"https://doi\.org/10\.1080/",  # Taylor & Francis
-    r"https://doi\.org/10\.1093/",  # Oxford University Press
-    r"https://doi\.org/10\.1139/",  # Canadian Science Publishing
-    r"https://doi\.org/10\.1162/",  # MIT Press
-    r"https://git\.ligo\.org/",
-]
+# DOIs are checked against the DOI resolver instead (_scripts/check_dois.py), since many
+# publishers answer automated requests with 403; git.ligo.org does the same.
+linkcheck_ignore = [r"https://doi\.org/", r"https://git\.ligo\.org/"]
