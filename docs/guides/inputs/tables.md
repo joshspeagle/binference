@@ -40,7 +40,7 @@ form, use {doc}`gaussian` or {doc}`functions` instead.
   it as the likelihood *integrated over* the bin, such as a CDF difference. binference
   divides a {term}`mass` by the {term}`bin volume`. On equal bins the choice makes no
   difference; on unequal bins it matters a lot
-  ([masses versus densities](../../how-it-works/theory.md#masses-versus-densities)).
+  ([masses versus densities](../../how-it-works/model.md#masses-versus-densities)).
 - **Objects with no support.** A row of zeros means the object cannot lie in any bin.
   That raises an error. Pass `drop_empty=True` to drop such objects with a warning.
 

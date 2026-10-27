@@ -213,4 +213,4 @@ binnings directly, score each fit on held-out objects with `result.log_predictiv
 ({doc}`results`).
 
 The theory behind the bias is in
-[binning is a modelling choice](../how-it-works/theory.md#binning-is-a-modelling-choice).
+[binning is a modelling choice](../how-it-works/model.md#binning-bias).

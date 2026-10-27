@@ -194,7 +194,7 @@ pipeline is calibrated, the ranks are uniform:
 
 Simulation-based calibration (SBC; {cite:alp}`talts2018`) fits many catalogues
 simulated from the prior, and ranks the truth among each fit's draws. How it works is
-in the [theory](../how-it-works/theory.md#diagnostics-and-validation). Read the rank
+in the [theory](../how-it-works/validation.md). Read the rank
 histograms as in the figure above.
 
 ```python
@@ -229,7 +229,7 @@ fig = result.plot()
   independent draws: keep `n_draws` below the effective sample size.
 
 binference's own slow tests run SBC on its engines and priors
-([theory](../how-it-works/theory.md#diagnostics-and-validation)).
+([theory](../how-it-works/validation.md)).
 
 ## Coverage
 
@@ -246,7 +246,7 @@ print(cov.levels, cov.average().round(2), cov.stderr().ravel().round(2))
 
 To see how the intervals behave for one particular truth, simulate from a fixed
 population instead of from the prior
-([why](../how-it-works/theory.md#diagnostics-and-validation)).
+([why](../how-it-works/validation.md)).
 
 ## Exact posteriors for small problems
 

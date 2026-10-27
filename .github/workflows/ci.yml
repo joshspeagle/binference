@@ -49,6 +49,7 @@ jobs:
             docs:
               - *code
               - "docs/**"
+              - "benchmarks/**"  # read by docs/how-it-works/auto.md
               - "CONTRIBUTING.md"
               - "reports/**"  # included by docs/design/landscape.md
 
@@ -161,7 +162,7 @@ jobs:
       - name: Check the defaults page against the code and its docstrings
         run: python docs/_scripts/defaults_table.py --check
       - name: Run the code of the README, installation page and guides
-        run: python docs/_scripts/run_snippets.py README.md docs/start/install.md docs/guides/*.md docs/guides/inputs/*.md
+        run: python docs/_scripts/run_snippets.py README.md docs/index.md docs/start/install.md docs/guides/*.md docs/guides/inputs/*.md
       # Executed notebooks are reused while the package, the plot style and the docs
       # configuration are unchanged; within that, a cache from other page text is restored
       # and only notebooks whose code cells changed run again. The weekly run neither reads
@@ -170,8 +171,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: docs/_build/.jupyter_cache
-          key: jupyter-${{ hashFiles('src/**', 'pyproject.toml', 'docs/conf.py', 'docs/_ext/**') }}-${{ hashFiles('docs/**/*.md') }}
-          restore-keys: jupyter-${{ hashFiles('src/**', 'pyproject.toml', 'docs/conf.py', 'docs/_ext/**') }}-
+          key: jupyter-${{ hashFiles('src/**', 'pyproject.toml', 'docs/conf.py', 'docs/_ext/**', 'benchmarks/**') }}-${{ hashFiles('docs/**/*.md') }}
+          restore-keys: jupyter-${{ hashFiles('src/**', 'pyproject.toml', 'docs/conf.py', 'docs/_ext/**', 'benchmarks/**') }}-
       - name: Build, with warnings as errors, executing the tutorials
         run: sphinx-build -W --keep-going -b html docs docs/_build/html
       - if: github.event_name == 'push' && github.ref == 'refs/heads/main'

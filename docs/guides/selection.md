@@ -51,7 +51,7 @@ which: the {term}`selection mode`.
   example a completeness in redshift together with a magnitude limit.
 
 How each mode enters the likelihood is in the
-[theory](../how-it-works/theory.md#selection-effects).
+[theory](../how-it-works/model.md#selection-effects).
 
 The mock above selects on the true bin:
 
@@ -207,7 +207,7 @@ print(joint.mean.round(3), joint.info["selection_draws"].mean(axis=(0, 1)).round
 ```
 
 Gibbs, NUTS, Laplace and `MAP(space="unconstrained")` infer it; VB and the bootstrap do
-not ([theory](../how-it-works/theory.md#selection-effects)). For those, or to ignore the
+not ([theory](../how-it-works/model.md#selection-effects)). For those, or to ignore the
 uncertainty, `measured.at_mean()` gives a fixed selection at its mean values. For a
 selection on the measurement, pass `Selection.from_injections(...).at_mean()`, a fixed
 selection; binference infers only a selection on the truth.
@@ -238,7 +238,7 @@ objects were detected, and $S$ is absolute: detection probabilities, or exposure
 $\Lambda\,S\cdot\rho$, where $\Lambda$ is the total expected number of objects.
 
 - **The total.** `result.total` holds one draw of $\Lambda$ per draw of $\rho$, under
-  a scale-free prior on $\Lambda$ ([theory](../how-it-works/theory.md#selection-effects)).
+  a scale-free prior on $\Lambda$ ([theory](../how-it-works/model.md#selection-effects)).
 - **The rates.** `result.rates` holds $\lambda_k=\Lambda\rho_k$: the expected number of
   objects per bin, per unit exposure.
 - **A relative selection** identifies no total, and both are `None`.
@@ -256,7 +256,7 @@ print("total:", fit.total.mean().round(0), "+/-", fit.total.std().round(0),
 
 The total inherits the prior on the fractions, which biases the total low when it is
 poorly determined, for example when some bins hold few detections
-([theory](../how-it-works/theory.md#selection-effects)). Check a total's calibration on simulations
+([theory](../how-it-works/model.md#selection-effects)). Check a total's calibration on simulations
 ({doc}`checking`) before you quote it from such data.
 
 ### The objects the catalogue missed

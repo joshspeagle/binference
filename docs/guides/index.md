@@ -1,7 +1,7 @@
 # Guides
 
 The guides say how to do one task each. The [tutorials](../tutorials/index) show whole
-analyses, and the [theory](../how-it-works/theory) page has the maths.
+analyses, and {doc}`How it works <../how-it-works/index>` has the maths.
 
 An analysis has five steps, and each has a guide:
 

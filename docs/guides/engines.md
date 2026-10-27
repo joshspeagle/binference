@@ -3,8 +3,8 @@
 {func}`binference.infer` builds the model and runs an {term}`engine` in one call. The
 default, `method="auto"`, picks the engine for you, and most analyses should keep it.
 This page says when to override it, and how to pass options to an engine. What each
-engine computes, and when it is exact, is in the
-[theory](../how-it-works/theory.md#the-engines).
+engine computes, and when it is exact, is on the
+{doc}`engines concept page <../concepts/engines>`.
 
 ```python
 import numpy as np
@@ -44,7 +44,7 @@ number of draws **per chain**. If auto chooses Laplace, it draws four times
 {term}`Auto <auto>` runs Gibbs where Gibbs mixes well, then importance-corrected
 Laplace where its check passes, and NUTS otherwise. The rules, and the benchmark of
 every engine against long reference runs that set them, are in the
-{doc}`theory <../how-it-works/theory>`. {class}`binference.inference.Auto` lists its
+{doc}`how auto chooses <../how-it-works/auto>`. {class}`binference.inference.Auto` lists its
 options.
 
 - **What it chose.** The choice and its reason are in `result.info["auto_method"]`
@@ -123,7 +123,7 @@ engine's output.
 
 `method="map"` returns a {class}`~binference.PointEstimate`. Three solvers share the
 work: {term}`mix-SQP`, EM and {term}`L-BFGS`. {class}`~binference.samplers.MAP` gives the
-routing, and the [theory](../how-it-works/theory.md#point-estimates-em-is-iterated-stacking)
+routing, and [point estimates](../how-it-works/point-estimates.md)
 explains it.
 
 - **The choice** is recorded in `est.info["algorithm"]` and `est.info["space"]`.

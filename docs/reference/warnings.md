@@ -61,7 +61,7 @@ result may be biased.
   **Cause.** `representation` is probably wrong, which biases the fractions toward wide
   bins.
   **Fix.** Pass `representation="<other>"`. See
-  [masses versus densities](../how-it-works/theory.md#masses-versus-densities).
+  [masses versus densities](../how-it-works/model.md#masses-versus-densities).
 
 `Bin averages did not reach tol=<tol> in <n> bin(s) after <max_depth> refinements; ...`
 : **When.** The adaptive quadrature of a density or selection function stops early.

@@ -3,7 +3,7 @@
 The prior on the population matters most when the data say least: many bins, few
 objects, or measurement errors as wide as the bins. Start with the default. Change it
 when the checks at the end of this page say the prior, not the data, sets the answer.
-What each prior means is in the [theory](../how-it-works/theory.md#priors).
+What each prior means is in the [theory](../how-it-works/priors.md).
 
 | Your situation | Prior to try |
 |---|---|

@@ -117,7 +117,7 @@ print(p_loo.round(2)[0], k_hat.round(2))
 
 $\rho$ describes the population the objects came from. For the histogram of **these**
 objects, the {term}`realised sample`, draw it
-([why they differ](../how-it-works/theory.md#population-versus-realised-sample)):
+([why they differ](../how-it-works/model.md#population-versus-realised-sample)):
 
 ```python
 counts = result.realized_counts(n_draws=500, rng=0)     # (500, K) draws of the histogram

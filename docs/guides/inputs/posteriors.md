@@ -8,7 +8,7 @@ recover the likelihoods, so you must say what it was.
 ```{warning}
 Never pass posteriors as likelihoods. The fitted population is then biased toward the
 interim prior, often by many standard deviations
-([why](../../how-it-works/theory.md#likelihoods-versus-posteriors)).
+([why](../../how-it-works/model.md#likelihoods-versus-posteriors)).
 ```
 
 ## A table of posteriors

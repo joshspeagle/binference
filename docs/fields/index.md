@@ -21,7 +21,7 @@ $$
 p(D\mid\rho)=\prod_{i=1}^{N}\sum_{k=1}^{K}L_{ik}\,\rho_k .
 $$
 
-The {doc}`theory page <../how-it-works/theory>` derives this model and its extensions.
+The {doc}`model page <../how-it-works/model>` derives this model and its extensions.
 The two tables below collect each field's names for binference's terms in one place. A
 dash means the field has no common name for the term. Each field page uses its own names
 only on that page.
@@ -49,7 +49,7 @@ only on that page.
 | ecology and genetics | conditional maximum likelihood (SPAM, ONCOR); EM (salmon) | BAYES, rubias, SourceTracker (Gibbs) | — | — |
 
 Each field's point estimator is EM, or a truncation or acceleration of it
-([theory](../how-it-works/theory.md#point-estimates-em-is-iterated-stacking)).
+([theory](../how-it-works/point-estimates.md#em-is-iterated-stacking)).
 
 ## What binference adds in every field
 

@@ -31,7 +31,7 @@ basis
 bin
   One of the $K$ cells $B_1,\dots,B_K$ that partition the true value $z$. A bin is an
   interval, a cell of a grid, or a category. See
-  [theory](../how-it-works/theory.md#objects-bins-and-likelihoods).
+  [the model](../how-it-works/model.md#objects-bins-and-likelihoods).
 
 bin volume
   $v_k$: the width of bin $k$ in one dimension, its area or volume on a grid, and one
@@ -41,7 +41,7 @@ bin volume
 bin-averaged likelihood
   $L_{ik}$: the likelihood of object $i$ averaged over bin $k$. It is the only per-object
   input the model uses, and only its shape across the bins matters. See
-  [theory](../how-it-works/theory.md#objects-bins-and-likelihoods).
+  [the model](../how-it-works/model.md#objects-bins-and-likelihoods).
 
 binned measurement
   A measurement that records only the measured bin of each object, such as a
@@ -52,7 +52,7 @@ binned measurement
 binning bias
   The bias from assuming the population is flat within each bin. It does not shrink as
   objects are added. `result.binning_bias()` measures it; see
-  [theory](../how-it-works/theory.md#binning-is-a-modelling-choice).
+  [the model](../how-it-works/model.md#binning-bias).
 
 bootstrap
   An engine that refits the {term}`MAP` estimate to resampled or reweighted objects.
@@ -70,7 +70,7 @@ concentration
 conjugate prior
   A prior whose posterior has the same form once every object's bin is known. The
   Dirichlet family and `GammaRates` are conjugate, so Gibbs, EM and mean-field VB apply
-  to them. See [priors](../how-it-works/theory.md#the-dirichlet-family).
+  to them. See [priors](../how-it-works/priors.md#the-dirichlet-family-as-trees).
 
 coverage
   The share of simulated data sets in which a credible interval contains the true value.
@@ -91,7 +91,7 @@ data support
 Dirichlet prior
   The default prior on {term}`population fractions`, `Dirichlet(alpha)`. With every
   {term}`concentration` equal to one it is uniform on the {term}`simplex`. See
-  [the Dirichlet family](../how-it-works/theory.md#the-dirichlet-family).
+  [the Dirichlet family](../how-it-works/priors.md#the-dirichlet-family-as-trees).
 
 Dirichlet tree
   A prior with a Dirichlet at every node of a tree over the bins, `DirichletTree`. Bins
@@ -126,7 +126,7 @@ EM
 expectation-maximisation
   The iteration that finds the {term}`MAP` or maximum-likelihood population by
   repeated {term}`stacking` under the current estimate. See
-  [EM is iterated stacking](../how-it-works/theory.md#point-estimates-em-is-iterated-stacking).
+  [EM is iterated stacking](../how-it-works/point-estimates.md#em-is-iterated-stacking).
   It is also called iterative Bayesian unfolding or Richardson–Lucy in particle
   physics, and EMQ in quantification.
 
@@ -172,7 +172,7 @@ hyperparameter
 hyperprior
   The prior of a {term}`hyperparameter`: `HalfNormal`, `LogNormal`, `InverseGamma` or
   `Gamma`. A plain number fixes the hyperparameter instead. See
-  [hyperpriors](../how-it-works/theory.md#hyperpriors).
+  [hyperpriors](../how-it-works/priors.md#hyperpriors).
 
 importance sampling
   Reweighting draws from a simple proposal so that they represent the exact posterior.
@@ -195,7 +195,7 @@ KKT gap
   How far a point estimate is from the optimality conditions of its problem. It is zero
   at the optimum and infinite where an object has zero likelihood.
   `PointEstimate.kkt_gap` reports it; see
-  [point estimates](../how-it-works/theory.md#point-estimates-em-is-iterated-stacking).
+  [the certificate](../how-it-works/point-estimates.md#the-certificate).
 
 label
   $k_i$: the bin that object $i$ truly lies in. The model treats it as unknown; `Gibbs`
@@ -235,7 +235,7 @@ smoothness prior
   A prior that makes neighbouring bins similar: `LogisticNormal`,
   `LogisticRandomWalk` or `LogisticGP`. It puts a Gaussian on the log-fractions and
   infers how smooth they are. See
-  [smoothness](../how-it-works/theory.md#smoothness-the-logistic-family).
+  [smoothness](../how-it-works/priors.md#the-logistic-family).
 
 log predictive density
   $\log\mathbb E[L_*\cdot\rho]$ for new objects with likelihood rows $L_*$. It scores
@@ -251,7 +251,7 @@ mass
 density
   The two ways an input can give values per bin. A mass is integrated over the bin; a
   density is a value per unit {term}`bin volume`. See
-  [masses versus densities](../how-it-works/theory.md#masses-versus-densities).
+  [masses versus densities](../how-it-works/model.md#masses-versus-densities).
 
 Monte Carlo standard error
 MCSE
@@ -354,7 +354,7 @@ response matrix
 responsibilities
   $r_{ik}(\rho)$: object $i$'s posterior over bins for a given population $\rho$. EM
   averages them over objects. See
-  [the augmented form](../how-it-works/theory.md#the-augmented-hierarchical-form).
+  [the augmented form](../how-it-works/model.md#the-augmented-form).
 
 SBC
 simulation-based calibration
@@ -406,7 +406,7 @@ tree depth
 unconstrained coordinates
   Coordinates in which every real vector is a valid population: isometric log-ratios for
   fractions, log-rates for rates. NUTS, Laplace and L-BFGS work in them. See
-  [unconstrained coordinates](../how-it-works/theory.md#unconstrained-coordinates).
+  [unconstrained coordinates](../how-it-works/priors.md#coordinates).
 
 warm-up
   The first iterations of a NUTS or Gibbs chain, discarded while the sampler adapts or

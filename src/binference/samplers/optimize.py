@@ -165,9 +165,10 @@ class MAP(Engine):
         (:meth:`~binference.PopulationModel.kkt_gap`) for EM, and for mix-SQP
         the same gap of the problem it solves (in the observed fractions under
         selection, the composition for rates); the largest absolute gradient
-        divided by ``max(1, W)`` for L-BFGS. A run that can no longer improve
-        the objective in floating point counts as converged when that measure
-        is below ``1e3 * tol``.
+        divided by ``max(1, W)`` for L-BFGS, whose estimates keep the largest
+        absolute gradient in ``info["grad_norm"]`` and have ``kkt_gap`` NaN. A
+        run that can no longer improve the objective in floating point counts as
+        converged when that measure is below ``1e3 * tol``.
     max_iter : int
         Maximum number of (accelerated) EM iterations or L-BFGS iterations.
     accelerate : bool

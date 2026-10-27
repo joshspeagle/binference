@@ -62,7 +62,7 @@ tree or a Pólya tree.
 
 The log-likelihood $\sum_i\log(L_i\cdot\rho)$ is concave on the simplex. Its value and
 gradient cost one pass over $L$
-([theory](../how-it-works/theory.md#the-population-model)).
+([theory](../how-it-works/model.md#the-population-model)).
 
 - **Gibbs data augmentation** alternates the objects' labels and a conjugate draw of
   $\rho$ {cite:p}`tanner1987,diebolt1994`. It is exact. The fraction of
