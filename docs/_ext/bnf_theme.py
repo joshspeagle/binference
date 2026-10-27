@@ -12,6 +12,9 @@ from __future__ import annotations
 from docutils import nodes
 from docutils.parsers.rst.directives.admonitions import BaseAdmonition
 from sphinx import addnodes
+from sphinx.util import logging
+
+logger = logging.getLogger(__name__)
 
 
 class PlainWords(BaseAdmonition):
@@ -38,6 +41,10 @@ def _sections(app, env) -> None:
         for t in toctrees
         if t.get("caption") and docs(t)
     ]
+    if not app.bnf_sections:
+        logger.warning(
+            "the root document has no captioned toctree, so the top bar has no sections"
+        )
 
 
 def _page_context(app, pagename, templatename, context, doctree):

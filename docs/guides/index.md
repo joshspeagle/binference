@@ -1,6 +1,6 @@
-# User guide
+# Guides
 
-The user guide explains how binference is organised and how to make good choices.
+The guides explain how binference is organised and how to make good choices.
 The [tutorials](../tutorials/index) show complete analyses, and the
 [theory](../how-it-works/theory) page has the maths.
 

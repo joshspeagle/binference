@@ -1,4 +1,4 @@
-# Background
+# Fields
 
 binference fits one statistical model. Several fields arrived at the same model
 independently, gave it their own names, and wrote their own software for it. The pages

@@ -46,7 +46,7 @@ Install binference and run your first fit.
 Executed, end-to-end examples from several fields.
 :::
 
-:::{grid-item-card} User guide
+:::{grid-item-card} Guides
 :link: guides/index
 :link-type: doc
 Inputs and conventions, priors, selection, engines, results, performance and pitfalls.
@@ -64,7 +64,7 @@ The model, its augmented form, EM as iterated stacking, selection effects and th
 Every public class and function.
 :::
 
-:::{grid-item-card} Background
+:::{grid-item-card} Fields
 :link: fields/index
 :link-type: doc
 The same model in astronomy, gravitational waves, unfolding, empirical Bayes, quantification and neural deconvolution.
