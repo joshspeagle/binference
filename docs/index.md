@@ -9,35 +9,44 @@ distribution of the population the objects come from, with calibrated
 uncertainty, and the posterior of each object under that population. The same
 problem appears under different names in several fields
 ([background](fields/index.md)); binference treats them as one model
-([why binference](start/vision.md)).
+([what binference does](start/what-it-does.md)).
 
 ```{image} _static/quickstart.png
-:alt: Population posteriors for a mock catalogue under a flat Dirichlet prior and a Gaussian-process prior
-:width: 100%
+---
+alt: >-
+  Population posteriors for a mock catalogue under a flat Dirichlet prior and a
+  Gaussian-process prior
+width: 100%
+---
 ```
 
 ```python
 import binference
 
-mock = binference.simulate.mock_1d(2000, rng=42)
-result = binference.infer(mock.likelihoods, rng=1)   # method="auto" picks the engine
-result.summary()
-result.plot(truth=mock.truth.rho)
+bins = binference.Bins.linear(0.0, 3.0, 15)
+
+# a simulated stand-in for your arrays: measured values and their Gaussian errors
+mock = binference.simulate.mock_1d(2000, bins, rng=42)
+z_obs, z_err = mock.measurements["mean"], mock.measurements["sigma"]
+
+lk = binference.Likelihoods.from_gaussian(z_obs, z_err, bins)
+result = binference.infer(lk, rng=1)  # method="auto" chooses the engine
+print(result.summary())
 ```
 
 ::::{grid} 1 2 2 3
 :gutter: 3
 
-:::{grid-item-card} Why binference
-:link: start/vision
+:::{grid-item-card} What binference does
+:link: start/what-it-does
 :link-type: doc
-What it does, for whom, and the principles behind its design.
+The problem in pictures, what binference infers, and the same model under many names.
 :::
 
 :::{grid-item-card} Getting started
 :link: start/install
 :link-type: doc
-Install binference and run your first fit.
+Install binference and check that it runs.
 :::
 
 :::{grid-item-card} Tutorials
@@ -49,13 +58,15 @@ Executed, end-to-end examples from several fields.
 :::{grid-item-card} Guides
 :link: guides/index
 :link-type: doc
-Inputs and conventions, priors, selection, engines, results, performance and pitfalls.
+Inputs and conventions, priors, selection, engines, results, performance and
+pitfalls.
 :::
 
 :::{grid-item-card} Theory
 :link: how-it-works/theory
 :link-type: doc
-The model, its augmented form, EM as iterated stacking, selection effects and the samplers.
+The model, its augmented form, EM as iterated stacking, selection effects and the
+samplers.
 :::
 
 :::{grid-item-card} API reference
@@ -67,7 +78,8 @@ Every public class and function.
 :::{grid-item-card} Fields
 :link: fields/index
 :link-type: doc
-The same model in astronomy, gravitational waves, unfolding, empirical Bayes, quantification and neural deconvolution.
+The same model in astronomy, gravitational waves, unfolding, empirical Bayes,
+quantification, ecology and neural deconvolution.
 :::
 ::::
 
@@ -75,8 +87,11 @@ The same model in astronomy, gravitational waves, unfolding, empirical Bayes, qu
 :caption: Start
 :hidden:
 
-start/vision
+start/what-it-does
+start/is-it-right
 start/install
+start/quickstart
+start/principles
 ```
 
 ```{toctree}
