@@ -19,6 +19,7 @@ import argparse
 import functools
 import hashlib
 import math
+import re
 import sys
 import urllib.request
 from pathlib import Path
@@ -29,11 +30,13 @@ DOCS = Path(__file__).parents[1]
 STATIC = DOCS / "_themes" / "binference" / "static"
 BRAND_MD = DOCS / "design" / "brand.md"
 GOOGLE_FONTS = "https://raw.githubusercontent.com/google/fonts/main/ofl"
+#: the Sora the lockups are drawn from, pinned to a google/fonts commit and its SHA-256
 SORA_TTF = (
-    f"{GOOGLE_FONTS}/sora/Sora%5Bwght%5D.ttf",
+    "https://raw.githubusercontent.com/google/fonts/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0"
+    "/ofl/sora/Sora%5Bwght%5D.ttf",
     "84ff7096ae3ec6c8be47d906d1a0ba4de7f2ce78c615275c77301964a316e16c",
 )
-SORA_CACHE = DOCS / "_build" / "brand" / "Sora-wght.ttf"
+SORA_CACHE = DOCS / "_build" / "brand" / f"Sora-wght-{SORA_TTF[1][:12]}.ttf"
 
 # --------------------------------------------------------------------------- tokens
 
@@ -183,7 +186,8 @@ def _svg(width: float, body: str, label: bool = True) -> str:
 
 
 def mark_svg(cut: str, theme: int) -> str:
-    return _svg(SIZE, mark_body(cut, TOKENS["brand"][theme], TOKENS["sample"][theme], "b"))
+    uid = f"binference-{cut}-{('light', 'dark')[theme]}"  # unique if several are inlined
+    return _svg(SIZE, mark_body(cut, TOKENS["brand"][theme], TOKENS["sample"][theme], uid))
 
 
 def favicon_svg() -> str:
@@ -193,7 +197,9 @@ def favicon_svg() -> str:
         f"<style>svg{{--m:{lm};--d:{ld}}}"
         f"@media (prefers-color-scheme:dark){{svg{{--m:{dm};--d:{dd}}}}}</style>"
     )
-    return _svg(SIZE, style + mark_body("tiny", "var(--m)", "var(--d)", "f"), label=False)
+    return _svg(
+        SIZE, style + mark_body("tiny", "var(--m)", "var(--d)", "binference-favicon"), label=False
+    )
 
 
 # --------------------------------------------------------------------------- the wordmark
@@ -204,22 +210,25 @@ def _sora_600():
     from fontTools.varLib.instancer import instantiateVariableFont
 
     url, sha = SORA_TTF
-    if not SORA_CACHE.exists():
+    if not SORA_CACHE.exists() or hashlib.sha256(SORA_CACHE.read_bytes()).hexdigest() != sha:
         SORA_CACHE.parent.mkdir(parents=True, exist_ok=True)
         with urllib.request.urlopen(url, timeout=60) as r:
-            SORA_CACHE.write_bytes(r.read())
-    if hashlib.sha256(SORA_CACHE.read_bytes()).hexdigest() != sha:
-        raise SystemExit(
-            f"{SORA_CACHE} is not the Sora the lockups were drawn from (its SHA-256 differs); "
-            "update SORA_TTF deliberately and regenerate."
-        )
+            data = r.read()
+        if hashlib.sha256(data).hexdigest() != sha:
+            raise SystemExit(f"{url} does not have the SHA-256 in SORA_TTF.")
+        SORA_CACHE.write_bytes(data)
     return instantiateVariableFont(TTFont(SORA_CACHE), {"wght": 600})
 
 
 @functools.cache
 def wordmark():
-    """ "binference" in Sora 600 as SVG paths in font units (y up), with a dotless i so the
-    error bar can replace its dot. Returns (paths, width, units per em, i centre, stem top)."""
+    """The word "binference" in Sora 600 as SVG paths in font units (y up), with a dotless i
+    so the error bar can replace its dot. Returns (paths, width, units per em, i centre,
+    stem top).
+
+    Letters are placed by their advance widths. Sora's kerning moves this word by 7 units
+    of 5588 in total (measured in Chromium), which no one can see, so it is not applied.
+    """
     from fontTools.pens.boundsPen import BoundsPen
     from fontTools.pens.svgPathPen import SVGPathPen
 
@@ -239,8 +248,8 @@ def wordmark():
     return paths, x, font["head"].unitsPerEm, i_x, stem_top
 
 
-def lockup_svg(theme: int) -> str:
-    """The mark beside the wordmark, all outlines, sharing the baseline ``BASE``.
+def lockup_svg(theme: int, cut: str = "mid") -> str:
+    """The mark (``cut``) beside the wordmark, all outlines, sharing the baseline ``BASE``.
 
     The error bar is the design sheet's 24 x 34 box scaled to 0.33 em: it starts 0.06 em
     above the stem and runs 28 box units up, with the dot 10 units up (radius 7), caps 14
@@ -264,7 +273,8 @@ def lockup_svg(theme: int) -> str:
         f'<g transform="translate({_f(SIZE + gap)} {_f(BASE)}) scale({s:.5f} {-s:.5f})">'
         f'<g fill="{ink}">{letters}</g>{bar}</g>'
     )
-    return _svg(SIZE + gap + width * s, mark_body("full", TOKENS["brand"][theme], dot, "l") + word)
+    uid = f"binference-lockup-{cut}-{('light', 'dark')[theme]}"
+    return _svg(SIZE + gap + width * s, mark_body(cut, TOKENS["brand"][theme], dot, uid) + word)
 
 
 # --------------------------------------------------------------------------- outputs
@@ -342,14 +352,32 @@ def outputs() -> dict[Path, str]:
     for theme, tag in ((0, "light"), (1, "dark")):
         for cut in CUTS:
             out[STATIC / "brand" / f"mark-{cut}-{tag}.svg"] = mark_svg(cut, theme)
-        out[STATIC / "brand" / f"lockup-{tag}.svg"] = lockup_svg(theme)
-    md = BRAND_MD.read_text()
+        out[STATIC / "brand" / f"lockup-{tag}.svg"] = lockup_svg(theme, "mid")
+        out[STATIC / "brand" / f"lockup-large-{tag}.svg"] = lockup_svg(theme, "full")
+    md = BRAND_MD.read_text(encoding="utf-8")
     for name, table in tables().items():
         start, end = f"<!-- {name}:start -->", f"<!-- {name}:end -->"
         i, j = md.index(start) + len(start), md.index(end)
         md = md[:i] + "\n" + table + "\n" + md[j:]
     out[BRAND_MD] = md
     return out
+
+
+def font_problems() -> list[str]:
+    """What in ``static/fonts/`` disagrees with ``FONTS``: missing faces or other weights.
+    (fetch_fonts.py writes those files; it needs the network, so it is not run here.)"""
+    css = (STATIC / "fonts" / "fonts.css").read_text(encoding="utf-8")
+    problems = []
+    for family, _, weights, _ in FONTS.values():
+        problems += [
+            f"no {family} {subset} file (run docs/_scripts/fetch_fonts.py)"
+            for subset in ("latin", "latin-ext")
+            if not (STATIC / "fonts" / f"{family.replace(' ', '')}-{subset}.woff2").exists()
+        ]
+        served = re.findall(rf"font-family: '{family}';.*?font-weight: ([\d ]+);", css, re.S)
+        if served != [weights.replace("..", " ")] * 2:
+            problems.append(f"fonts.css does not serve {family} at weights {weights}")
+    return problems
 
 
 def main(argv=None) -> int:
@@ -360,13 +388,13 @@ def main(argv=None) -> int:
     for path, text in outputs().items():
         if not args.check:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text)
-        elif not path.exists() or path.read_text() != text:
-            stale.append(path.relative_to(DOCS.parent))
+            path.write_text(text, encoding="utf-8")
+        elif not path.exists() or path.read_text(encoding="utf-8") != text:
+            stale.append(f"{path.relative_to(DOCS.parent)} is stale (run docs/_scripts/brand.py)")
+    stale += font_problems()
     if stale:
-        print("stale (run python docs/_scripts/brand.py):", *stale, sep="\n  ")
-        return 1
-    return 0
+        print(*stale, sep="\n")
+    return 1 if stale else 0
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ This page is the locked design of the binference documentation site. Josh locked
 `notes/review/docs-design/`. Every number here lives in one place,
 [`docs/_scripts/brand.py`](https://github.com/joshspeagle/binference/blob/main/docs/_scripts/brand.py),
 which draws the marks, writes the theme's tokens and fills in the tables below; CI fails if
-any of them is stale. A change to the design changes `brand.py` first, then this page.
+any of them is stale or the served fonts disagree with it. A change to the design changes `brand.py` first, then this page.
 
 ## Concept
 
@@ -22,8 +22,8 @@ its edge steps where they disagree. One line is their mean. An elliptical counte
 out of the bowl and holds one sample, in coral.
 
 The mark has three cuts, drawn from the same geometry with fewer bins and draws as it
-shrinks. The files are served from `_static/brand/` (their source is the theme's
-`static/brand/` folder):
+shrinks. The files live in the theme's `static/brand/` folder, which the site theme serves
+as `_static/brand/`:
 
 <!-- cuts:start -->
 | Cut | Used at | Bins | Draws | Files |
@@ -43,9 +43,11 @@ Rules for the mark:
 ## The wordmark
 
 "binference" is set in Sora at weight 600, lower case. The dot of the i is a measurement
-with an error bar, in coral. The lockups `lockup-{light,dark}.svg` hold the wordmark as
-outlines, so they never depend on a loaded font; the mark and the wordmark share a baseline
-(their size ratio is in the table of sizes below).
+with an error bar, in coral. The lockups hold the wordmark as outlines, so they never depend
+on a loaded font: `lockup-{light,dark}.svg` with the mid cut, for bars and headers, and
+`lockup-large-{light,dark}.svg` with the full cut, for the README and other places where the
+mark is at least 48 px tall. The mark and the wordmark share a baseline (their size ratio is
+in the table of sizes below).
 
 ## Colour
 
@@ -80,10 +82,12 @@ large text 3; `sample` is for marks only, and coral text uses `sample-text`.
 | `div-0…4` | diverging, grey middle | `#2A2F8F` `#8186DE` `#E4E4EA` `#E0A848` `#8A5600` | | `#C9CCFA` `#5C63C9` `#3A3B4E` `#C48A2A` `#F2C77A` | | |
 <!-- tokens:end -->
 
-The data colours passed the categorical checks of the dataviz palette validator in both
-themes: lightness band, chroma floor, colour-blind separation of adjacent pairs,
-normal-vision separation and contrast with the page. Categories are used in their order and
-never cycled; more categories fold into "other" or a separate panel.
+The categories were checked on 2026-10-27 with the categorical checks of the dataviz
+palette validator, against `bg` in each theme: lightness band, chroma floor, colour-blind
+separation of adjacent pairs, normal-vision separation and contrast with the page. Run it
+again when they change. Categories are used in their order and never cycled; more
+categories fold into "other" or a separate panel. The sequential and diverging ramps step
+monotonically in lightness.
 
 ## Type
 
@@ -99,7 +103,7 @@ never cycled; more categories fold into "other" or a separate panel.
 
 Atkinson Hyperlegible was designed by the Braille Institute so that letters that look alike
 (I l 1, O 0, rn m) stay distinct. All three faces are under the SIL Open Font License and are
-served from `_static/fonts/` (fetched by `docs/_scripts/fetch_fonts.py`). They have no Greek
+kept in the theme's `static/fonts/` (fetched by `docs/_scripts/fetch_fonts.py`). They have no Greek
 letters, so Greek symbols are always written as maths (`$\rho$`), which MathJax sets in its
 own fonts.
 

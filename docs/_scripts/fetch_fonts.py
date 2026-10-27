@@ -28,13 +28,18 @@ def get(url: str) -> bytes:
 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
+    for old in OUT.glob("*.woff2"):  # faces of families no longer in FONTS go too
+        old.unlink()
     faces = []
     for family, _, weights, licence in FONTS.values():
         q = family.replace(" ", "+")
         css = get(
             f"https://fonts.googleapis.com/css2?family={q}:wght@{weights}&display=swap"
         ).decode()
-        for subset, block in re.findall(r"/\* ([\w-]+) \*/\s*(@font-face \{.*?\})", css, re.S):
+        blocks = dict(re.findall(r"/\* ([\w-]+) \*/\s*(@font-face \{.*?\})", css, re.S))
+        if missing := set(SUBSETS) - set(blocks):
+            raise SystemExit(f"Google Fonts served no {sorted(missing)} face for {family}.")
+        for subset, block in blocks.items():
             if subset in SUBSETS:
                 url = re.search(r"url\((https://[^)]+\.woff2)\)", block).group(1)
                 name = f"{family.replace(' ', '')}-{subset}.woff2"
@@ -42,7 +47,7 @@ def main() -> None:
                 faces.append(re.sub(r"url\(https://[^)]+\)", f"url({name})", block))
         (OUT / f"OFL-{licence}.txt").write_bytes(get(f"{GOOGLE_FONTS}/{licence}/OFL.txt"))
     header = "/* Written by docs/_scripts/fetch_fonts.py; urls are relative to this file. */\n"
-    (OUT / "fonts.css").write_text(header + "\n".join(faces) + "\n")
+    (OUT / "fonts.css").write_text(header + "\n".join(faces) + "\n", encoding="utf-8")
     print("\n".join(sorted(p.name for p in OUT.iterdir())))
 
 
