@@ -52,7 +52,7 @@ other indices are declared where they are used. The {doc}`glossary` defines the 
 |---|---|---|---|
 | $S_k$ | selection: probability that an object in bin $k$ is observed, or its exposure | `Selection.values` | [model](../how-it-works/model.md#selection-effects) |
 | $\tilde L_{ik}$ | detected-object likelihood: $S_kL_{ik}$ on the truth, $L_{ik}$ on the measurement | | [model](../how-it-works/model.md#selection-effects) |
-| $S^{\rm truth}(z)$, $S^{\rm meas}(d)$ | the two parts of a combined selection | `Selection.combined(on_truth=, on_measurement=)` | [selection](../guides/selection.md#three-ways-selection-can-act) |
+| $S^{\rm truth}(z)$, $S^{\rm meas}(d)$ | the two parts of a combined selection | `Selection.combined(on_truth=, on_measurement=)` | [selection](../guides/selection.md#say-how-the-selection-acts) |
 | $\phi_k$ | selected population: $S_k\rho_k/S\cdot\rho$ | `result.selected` | [point estimates](../how-it-works/point-estimates.md#mix-sqp) |
 | $\chi_k$ | composition of the rates in mix-SQP | | [point estimates](../how-it-works/point-estimates.md#mix-sqp) |
 | $M$ | number of objects the selection missed | | [model](../how-it-works/model.md#selection-effects) |
