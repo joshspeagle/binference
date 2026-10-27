@@ -131,7 +131,7 @@ g_k=\frac1W\sum_i\frac{w_iL_{ik}}{L_i\cdot\hat\rho}\le1,\quad\text{with equality
 $$
 
 so binference reports the **optimality gap** $\max_kg_k-1$ for every point
-estimate found on the simplex (`PointEstimate.kkt_gap`); it is infinite where an
+estimate found by EM or mix-SQP (`PointEstimate.kkt_gap`); it is infinite where an
 object has zero likelihood. L-BFGS estimates have their own check
 ([point estimates](user-guide/engines.md#point-estimates)). For rates, with $G$ the gradient of the
 log posterior in $\lambda$,

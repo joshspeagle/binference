@@ -156,5 +156,6 @@ than ignore them.
 
 A low E-BFMI (below 0.3) means that NUTS moves slowly through the energy
 distribution, so it may under-explore the tails of the posterior. A longer
-warm-up or a higher `target_accept` can help; if neither does, compare the
-fit with a longer run or another prior before you rely on its tails.
+warm-up or another prior may help: a raised `target_accept` does not change
+the energy geometry that causes it. Otherwise compare the fit with a longer
+run before you rely on its tails.

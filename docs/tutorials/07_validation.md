@@ -93,7 +93,7 @@ def fit_vb(lk, rng):
         warnings.simplefilter("ignore", binference.ApproximationWarning)
         return binference.infer(lk, prior, method="vb", rng=rng, n_samples=1000)
 
-bad = sbc(simulate, fit_vb, n_simulations=150, n_draws=49, rng=0)
+bad = sbc(simulate, fit_vb, n_simulations=150, n_draws=19, rng=0)
 print("uniformity p-values:", {n: round(float(v), 4) for n, v in zip(bad.names, bad.pvalues(10))})
 fig = bad.plot()
 ```

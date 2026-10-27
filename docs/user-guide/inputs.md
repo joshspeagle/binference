@@ -64,8 +64,7 @@ masked = binference.Bins.grid(np.linspace(0, 4, 5), np.linspace(0, 5, 6), mask=m
 print(masked.K, masked.shape, masked.index([[0.5, 0.5], [0.5, 1.5]]))
 ```
 
-Smoothness priors (`LogisticRandomWalk`, `LogisticGP`) do not yet accept
-masked grids ({doc}`priors`).
+Not every prior accepts masked grids ({doc}`priors`).
 
 ### Within-bin shape and internal resolution: `Basis`
 

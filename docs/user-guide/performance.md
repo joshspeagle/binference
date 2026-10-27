@@ -62,8 +62,10 @@ The engines spend these differently:
    the population's features cause binning bias ({doc}`pitfalls`). A
    smoothness prior lets you use fine bins without noisy results.
 5. **Draw what you need.** If the effective sample sizes are well above what
-   you need, shorten the run: `n_samples=500, n_warmup=500` often suffices for
-   well-behaved problems. Always check the diagnostics afterwards.
+   you need, shorten a NUTS run: `method="nuts", n_samples=500, n_warmup=500`
+   often suffices for well-behaved problems. Under `method="auto"`, leave the
+   run length to auto (see {doc}`engines`). Always check the diagnostics
+   afterwards.
 6. **Scale up gracefully.** For very large problems, `method="map"` gives the
    estimate in seconds, and `method="laplace"` adds approximate error bars. The
    default, `method="auto"`, already uses Gibbs or Laplace where they are

@@ -335,9 +335,9 @@ def infer(
     >>> bins = binference.Bins.linear(0.0, 1.0, 5)
     >>> z = rng.uniform(0, 1, 300)
     >>> lk = binference.Likelihoods.from_gaussian(z + rng.normal(0, 0.05, 300), 0.05, bins)
-    >>> res = binference.infer(lk, rng=0, n_samples=200, n_warmup=200)
-    >>> res.samples.shape
-    (800, 5)
+    >>> res = binference.infer(lk, rng=0)
+    >>> res.mean.shape
+    (5,)
     """
     if isinstance(likelihoods, PopulationModel):
         if any(v is not None for v in (prior, selection, selection_mode, bins)):

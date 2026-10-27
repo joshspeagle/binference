@@ -84,7 +84,7 @@ print(binference.infer(lk, gp, method="map").rho[:3].round(4))
 | `LogisticRandomWalk(order=1)` | penalises jumps between neighbours | `scale` of the differences |
 | `LogisticRandomWalk(order=2)` | penalises curvature; linear trends (and, on 2-D grids, the surface $xy$) are free | `scale` |
 | `LogisticGP(kernel=...)` | stationary GP: `"matern12"`, `"matern32"`, `"matern52"`, `"rbf"` | `amplitude`, `length_scale` (one per axis) |
-| `LogisticNormal(mean, cov)` | any fixed covariance, or independent bins | `scale` (inferred without `cov`; fixed at 1 with one) |
+| `LogisticNormal(mean, cov)` | any fixed covariance, or independent bins | `scale` (by default inferred without `cov`, fixed at 1 with one) |
 
 - **Grids.** All of them work on 1-D bins and N-D grids. The random walk
   then uses the sum of per-axis difference penalties, and the GP takes one
