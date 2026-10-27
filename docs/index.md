@@ -53,7 +53,7 @@ Inputs and conventions, priors, selection, engines, results, performance and pit
 :::
 
 :::{grid-item-card} Theory
-:link: how-it-works/theory
+:link: how-it-works/index
 :link-type: doc
 The model, its augmented form, EM as iterated stacking, selection effects and the samplers.
 :::
@@ -97,7 +97,7 @@ guides/index
 :caption: How it works
 :hidden:
 
-how-it-works/theory
+how-it-works/index
 ```
 
 ```{toctree}

@@ -41,7 +41,7 @@ The {doc}`empirical Bayes tutorial <../tutorials/09_empirical_bayes>` works thro
 the NPMLE, the posterior over $g$ and the shrinkage estimates on simulated data.
 
 The likelihood matrix on a grid is binference's $L_{ik}$, and $w$ is $\rho$
-([theory](../how-it-works/theory.md#the-population-model)). The grid maps onto
+([theory](../how-it-works/model.md#the-population-model)). The grid maps onto
 {class}`~binference.Bins` as narrow bins around the support points, with bin-averaged
 likelihoods from `Likelihoods.from_gaussian` or `from_density`, or, when only the values
 at the points matter, onto `Bins.categories` with `Likelihoods(L, bins)`; the smoothness
@@ -138,7 +138,7 @@ layer; and it has no f-modelling estimators.
   overlapping likelihoods.
 - **EM is slow near the optimum and never revives a zeroed weight.** A fixed point with
   $w_k=0$ need not be optimal, so self-consistency is necessary but not sufficient; the
-  KKT gap is the check ([theory](../how-it-works/theory.md#point-estimates-em-is-iterated-stacking)).
+  KKT gap is the check ([theory](../how-it-works/point-estimates.md#em-is-iterated-stacking)).
 - **Deconvolution is slow.** Nonparametric rates are "very slow" {cite:p}`efron2016`, so
   individual bin fractions are often prior-dominated and strongly anti-correlated;
   well-identified functionals (cumulative fractions, coarse sums, moments) are the

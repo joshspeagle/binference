@@ -42,7 +42,7 @@ discriminative variants followed.
 
 Expanding the histogram into objects, an event measured in bin $b$ has the likelihood
 row $L_{ik}=R_{b(i),k}$, and all events in the same measured bin share a row
-([theory](../how-it-works/theory.md#objects-bins-and-likelihoods)).
+([theory](../how-it-works/model.md#objects-bins-and-likelihoods)).
 {meth}`Likelihoods.from_binned(response, counts=...) <binference.Likelihoods.from_binned>`
 builds these rows, one per measured bin weighted by its count, and accounts for the
 efficiency $\epsilon_k=\sum_bR_{bk}$. The {class}`~binference.Response` comes from a

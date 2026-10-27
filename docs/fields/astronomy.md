@@ -53,7 +53,7 @@ likelihood with a selection function {cite:p}`loredo2004,kelly2008`.
 | smoothness of $n(z)$ or of a rate density | `priors.LogisticGP`, `priors.LogisticRandomWalk` |
 | expected numbers, occurrence rates | `result.rates`, `result.total`, `priors.GammaRates` |
 
-The model needs bin averages of each likelihood ([theory](../how-it-works/theory.md#objects-bins-and-likelihoods)).
+The model needs bin averages of each likelihood ([theory](../how-it-works/model.md#objects-bins-and-likelihoods)).
 {cite:t}`leistedt2016` and the HSC Y3 analysis integrate each likelihood over the
 histogram bins; RAIL's summarizers evaluate each PDF at grid points instead.
 `from_gaussian` and `from_density` compute the bin averages, and `from_table` asks
@@ -126,7 +126,7 @@ binference:
 
 - **The two samplers target the same posterior for $\rho$.** Summing the hierarchical
   model over the labels gives the population model exactly
-  ([theory](../how-it-works/theory.md#the-augmented-hierarchical-form)), so binference has one model
+  ([theory](../how-it-works/model.md#the-augmented-form)), so binference has one model
   with several engines.
 - **The hierarchical sampler is exact.** It matched the exact posteriors (root-mean-square
   z-score 0.94 over 132 statistics) and passed the Geweke test. binference keeps it,

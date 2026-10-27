@@ -3,7 +3,7 @@
 binference's model needs one thing from your data: for every object $i$ and bin
 $k$, the **bin-averaged likelihood** $L_{ik}$, the probability density of the
 object's data if its true value lies in bin $k$
-([theory](../how-it-works/theory.md#objects-bins-and-likelihoods)). The
+([theory](../how-it-works/model.md#objects-bins-and-likelihoods)). The
 {class}`~binference.Likelihoods` class holds these values together with their
 {class}`~binference.Bins`, optional weights and an optional selection function. Its
 constructors convert the usual data products into likelihoods.

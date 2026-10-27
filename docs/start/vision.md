@@ -9,7 +9,7 @@ behind thousands of noisy estimates, the class proportions of an unlabelled
 set, the mix of source populations in a catch. Each object carries a
 likelihood over bins of the quantity of interest, and the population is a set
 of bin fractions $\rho$ (or rates). binference infers $\rho$ with its full
-uncertainty, and each object's posterior under it ([theory](../how-it-works/theory.md)).
+uncertainty, and each object's posterior under it ([theory](../how-it-works/model.md)).
 
 The aim is that binference is as easy to pick up as scikit-learn: a newcomer
 gets a correct, calibrated answer from one call without knowing the

@@ -4,7 +4,7 @@ The fractions $\rho$ live on the simplex, and the statistics literature offers b
 range of priors there and a range of algorithms for the posterior
 $p(\rho\mid D)\propto p(\rho)\prod_i\sum_kL_{ik}\rho_k$. This page summarises what is
 known about each, and which of them binference provides. The {doc}`theory page
-<../how-it-works/theory>` defines binference's priors and engines; the {doc}`priors
+<../how-it-works/index>` defines binference's priors and engines; the {doc}`priors
 <../guides/priors>` and {doc}`engines <../guides/engines>` pages say how to
 choose among them.
 
@@ -62,7 +62,7 @@ sampler. binference implements these three itself.
 ## Inference algorithms
 
 The log-likelihood $\sum_i\log(L_i\cdot\rho)$ is concave on the simplex, and its value
-and gradient cost one pass over $L$ ([theory](../how-it-works/theory.md#the-population-model)).
+and gradient cost one pass over $L$ ([theory](../how-it-works/model.md#the-population-model)).
 
 - **Gibbs data augmentation** alternates per-object labels and a conjugate draw of
   $\rho$ {cite:p}`tanner1987,diebolt1994`. It is exact, but its convergence,
