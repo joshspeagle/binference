@@ -26,8 +26,8 @@ To work on binference itself, follow the set-up in the
 
 ## Check the installation
 
-This fits a simulated catalogue of 500 objects on 10 bins and prints the fitted
-population fractions.
+This prints the installed version, then fits a simulated catalogue of 500 objects on
+10 bins and prints the fitted population fractions.
 
 ```python
 import binference

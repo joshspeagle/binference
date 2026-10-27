@@ -57,6 +57,13 @@ To contribute, see [`CONTRIBUTING.md`][contributing].
 
 [contributing]: https://github.com/joshspeagle/binference/blob/main/CONTRIBUTING.md
 
+## Status and citing
+
+binference is alpha software, and its API may change before 1.0. If you use it, please
+cite it as described on the [citing page][citing].
+
+[citing]: https://joshspeagle.github.io/binference/reference/citing.html
+
 ## License
 
 MIT; see [LICENSE](https://github.com/joshspeagle/binference/blob/main/LICENSE).

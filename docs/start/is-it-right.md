@@ -14,7 +14,7 @@ tutorials that use it.
 
 | You have, for each object | binference reads it with | Read more |
 |---|---|---|
-| a measured value and its Gaussian error | `Likelihoods.from_gaussian` | [guide](../guides/inputs.md#gaussian-measurements), {doc}`tutorial 1 <../tutorials/01_quickstart>`, {doc}`tutorial 9 <../tutorials/09_empirical_bayes>` |
+| a measured value and its Gaussian error | `Likelihoods.from_gaussian` | [guide](../guides/inputs.md#gaussian-measurements), {doc}`quick start <quickstart>`, {doc}`tutorial 9 <../tutorials/09_empirical_bayes>` |
 | likelihoods or log-likelihoods on the bins | `Likelihoods.from_table` | [guide](../guides/inputs.md#likelihood-matrices), {doc}`tutorial 10 <../tutorials/10_mixed_stocks>` |
 | a likelihood function or a SciPy distribution | `Likelihoods.from_density` | [guide](../guides/inputs.md#likelihood-functions-and-distributions) |
 | a posterior on the bins, and the prior it was computed under | `Likelihoods.from_table` | [guide](../guides/inputs.md#posteriors-computed-under-an-interim-prior), {doc}`tutorial 2 <../tutorials/02_inputs>` |
