@@ -1,0 +1,513 @@
+"""Design round 2 for the binference docs site: the design sheet built on mark C' (Overlay b).
+
+Josh chose C' on 2026-10-27. This writes ``design-sheet.html`` next to this file:
+``python notes/review/docs-design/round2/make_round2.py``. The mark functions here become the
+committed logo generator once the sheet is locked.
+"""
+
+from __future__ import annotations
+
+import itertools
+import math
+from pathlib import Path
+
+import numpy as np
+
+OUT = Path(__file__).with_name("design-sheet.html")
+_ids = itertools.count()
+
+
+def f(x: float) -> str:
+    return f"{x:.2f}".rstrip("0").rstrip(".")
+
+
+# --------------------------------------------------------------------------- the mark
+
+CUTS = {
+    # bins, draws, draw opacity, outline width, jitter (log sd), sample radius
+    "full": dict(nb=10, nd=7, op=0.17, sw=1.6, sd=0.15, dot=3.2),
+    "mid": dict(nb=7, nd=4, op=0.26, sw=2.0, sd=0.13, dot=3.6),
+    "tiny": dict(nb=5, nd=2, op=0.4, sw=2.6, sd=0.07, dot=4.0),
+}
+
+
+def mark_paths(cut: str = "full", seed: int = 3):
+    """Geometry of the Overlay b on a 64-unit grid: draw paths, mean outline, counter and sample.
+
+    The stem is the first bin. The other bins trace an elliptical bowl that spans them
+    exactly (a floor c plus a semi-ellipse of semi-axes a across and b up), so no bin falls
+    outside it at any cut; the counter is an ellipse inside the bowl.
+    """
+    p = CUTS[cut]
+    base, x0, x1, c, b = 58.0, 7.0, 57.0, 4.0, 29.0  # floor c, bowl height c + b
+    nb = p["nb"]
+    w = (x1 - x0) / nb
+    a = (x1 - x0 - w) / 2
+    cx, cy = x0 + w + a, base - 16.5
+    mean = np.empty(nb)
+    mean[0] = base - 4  # the stem is the tallest bin
+    for k in range(1, nb):
+        u = (x0 + (k + 0.5) * w - cx) / a
+        mean[k] = c + b * math.sqrt(max(1 - u * u, 0))
+
+    def step(h):
+        d = f"M{f(x0)} {f(base)}"
+        for k in range(nb):
+            d += f"V{f(base - h[k])}H{f(x0 + (k + 1) * w)}"
+        return d + f"V{f(base)}"
+
+    rng = np.random.default_rng(seed)
+    draws = []
+    for _ in range(p["nd"]):
+        h = mean * np.exp(rng.normal(0, p["sd"], nb))
+        h[0] = min(h[0], base - 2)
+        draws.append(step(h) + "Z")
+    return dict(draws=draws, mean=step(mean), cx=cx, cy=cy, rx=0.34 * a, ry=7.8, **p)
+
+
+def mark_svg(cut="full", main="var(--b-main)", dot="var(--b-dot)", label="binference", cls="mark", seed=3):
+    g = mark_paths(cut, seed)
+    mid = f"bm{next(_ids)}"
+    fills = "".join(f'<path d="{d}" fill="{main}" opacity="{g["op"]}"/>' for d in g["draws"])
+    return (
+        f'<svg class="{cls}" viewBox="0 0 64 64" role="img" aria-label="{label}">'
+        f'<mask id="{mid}"><rect width="64" height="64" fill="#fff"/>'
+        f'<ellipse cx="{f(g["cx"])}" cy="{f(g["cy"])}" rx="{f(g["rx"])}" ry="{f(g["ry"])}" fill="#000"/></mask>'
+        f'<g mask="url(#{mid})">{fills}<path d="{g["mean"]}" fill="none" stroke="{main}" '
+        f'stroke-width="{g["sw"]}" stroke-linejoin="miter"/></g>'
+        f'<circle cx="{f(g["cx"])}" cy="{f(g["cy"])}" r="{g["dot"]}" fill="{dot}"/></svg>'
+    )
+
+
+def tittle():
+    st = 'stroke="var(--b-dot)" stroke-width="3.2" stroke-linecap="round"'
+    return (
+        '<svg class="tit" viewBox="0 0 24 34" aria-hidden="true">'
+        f'<line x1="12" y1="2" x2="12" y2="30" {st}/><line x1="5" y1="2" x2="19" y2="2" {st}/>'
+        f'<line x1="5" y1="30" x2="19" y2="30" {st}/><circle cx="12" cy="20" r="7" fill="var(--b-dot)"/></svg>'
+    )
+
+
+def wordmark(cls="wm"):
+    return f'<span class="{cls}">b<span class="ti">ı{tittle()}</span>nference</span>'
+
+
+def lockup(cut="mid", cls="lock"):
+    return f'<span class="{cls}">{mark_svg(cut, cls="mark lk")}{wordmark()}</span>'
+
+
+# --------------------------------------------------------------------------- tokens
+
+LIGHT = dict(
+    bg="#FBFBFE", surface="#F1F2FA", raised="#E6E8F5", rule="#DADCEC",
+    ink="#1B1D4A", ink2="#5D5F86", brand="#4A4FC4", link="#3A3FB0",
+    sample="#EC5F3E", sampletext="#C2410C", bar="#10112A", bartext="#E8E9FB",
+    tip="#0E7D6E", warn="#9A6200", danger="#B42318",
+)
+DARK = dict(
+    bg="#10112A", surface="#181A3D", raised="#22255A", rule="#2B2E5E",
+    ink="#E8E9FB", ink2="#9C9ECB", brand="#8C91F0", link="#A5A9F5",
+    sample="#FF8A6B", sampletext="#FF8A6B", bar="#0B0C20", bartext="#E8E9FB",
+    tip="#4CC2B0", warn="#E8AE52", danger="#F97066",
+)
+ROLES = [
+    ("bg", "page"), ("surface", "panels, code, explainers"), ("raised", "hover, selected"),
+    ("rule", "hairlines"), ("ink", "text"), ("ink2", "secondary text, axes"),
+    ("brand", "the population: draws, bins, the mark"), ("link", "links, focus"),
+    ("sample", "an object or a sample (marks only)"), ("sampletext", "the same, as text"),
+    ("bar", "top bar, both themes"), ("tip", "'In plain words' notes"),
+    ("warn", "warnings"), ("danger", "errors"),
+]
+CAT_LIGHT = ["#4A4FC4", "#C07C00", "#1A9E8C", "#8F2E74", "#5E8A1C"]
+CAT_DARK = ["#7C82E8", "#C4871C", "#25A390", "#9C4A8E", "#749E39"]
+SEQ_LIGHT = ["#E2E3F8", "#B8BBEE", "#8186DE", "#4C53C2", "#2A2F8F"]
+SEQ_DARK = ["#1F2257", "#33388C", "#5259C7", "#8A90EC", "#C9CCFA"]
+DIV_LIGHT = ["#2A2F8F", "#8186DE", "#E4E4EA", "#E0A848", "#8A5600"]
+DIV_DARK = ["#C9CCFA", "#5C63C9", "#3A3B4E", "#C48A2A", "#F2C77A"]
+
+
+def _lum(hexc):
+    c = [int(hexc[i : i + 2], 16) / 255 for i in (1, 3, 5)]
+    c = [x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+
+
+def contrast(a, b):
+    la, lb = sorted((_lum(a), _lum(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+def css_vars(t, prefix="--b-"):
+    m = {
+        "bg": t["bg"], "surface": t["surface"], "raised": t["raised"], "rule": t["rule"],
+        "ink": t["ink"], "ink2": t["ink2"], "main": t["brand"], "link": t["link"],
+        "dot": t["sample"], "dottext": t["sampletext"], "bar": t["bar"], "bartext": t["bartext"],
+        "tip": t["tip"], "warn": t["warn"], "danger": t["danger"],
+    }
+    return ";".join(f"{prefix}{k}:{v}" for k, v in m.items())
+
+
+# --------------------------------------------------------------------------- figure
+
+def demo_figure(t, cat, theme):
+    """The figure style: a population with its draws, the objects, and the truth."""
+    rng = np.random.default_rng(11)
+    K, W, H, L, B, T = 12, 560, 250, 46, 214, 18
+    xs = np.linspace(0, 1, K + 1)
+    truth = np.exp(-0.5 * ((xs[:-1] + 0.5 / K - 0.42) / 0.16) ** 2)
+    truth /= truth.sum()
+    draws = [truth * np.exp(rng.normal(0, 0.22, K)) for _ in range(8)]
+    draws = [d / d.sum() for d in draws]
+    mean = np.mean(draws, axis=0)
+    ymax = 0.2
+    X = lambda u: L + u * (W - L - 14)  # noqa: E731
+    Y = lambda v: B - v / ymax * (B - T)  # noqa: E731
+
+    def step(h):
+        d = f"M{f(X(0))} {f(Y(0))}"
+        for k in range(K):
+            d += f"V{f(Y(h[k]))}H{f(X(xs[k + 1]))}"
+        return d + f"V{f(Y(0))}"
+
+    out = [f'<svg class="fig" viewBox="0 0 {W} {H + 30}" role="img" aria-label="Population with posterior draws, objects and truth ({theme})">']
+    for v in (0.05, 0.1, 0.15, 0.2):
+        out.append(f'<line x1="{L}" x2="{W - 14}" y1="{f(Y(v))}" y2="{f(Y(v))}" stroke="{t["rule"]}" stroke-width="1"/>')
+        out.append(f'<text x="{L - 6}" y="{f(Y(v) + 4)}" text-anchor="end" class="ax">{v:.2f}</text>')
+    for d in draws:
+        out.append(f'<path d="{step(d)}Z" fill="{t["brand"]}" opacity=".13"/>')
+    out.append(f'<path d="{step(mean)}" fill="none" stroke="{t["brand"]}" stroke-width="2"/>')
+    tx = np.linspace(0, 1, 120)
+    ty = np.exp(-0.5 * ((tx - 0.42) / 0.16) ** 2)
+    ty = ty / ty.max() * truth.max()
+    out.append('<path d="M' + " L".join(f"{f(X(a))} {f(Y(b))}" for a, b in zip(tx, ty)) + f'" fill="none" stroke="{t["ink"]}" stroke-width="1.5" stroke-dasharray="5 4"/>')
+    obs = np.clip(rng.normal(0.42, 0.18, 26), 0.02, 0.98)
+    for o in obs:
+        out.append(f'<circle cx="{f(X(o))}" cy="{f(B + 9)}" r="3.4" fill="{t["sample"]}" stroke="{t["bg"]}" stroke-width="1.2" opacity=".9"/>')
+    out.append(f'<line x1="{L}" x2="{W - 14}" y1="{B}" y2="{B}" stroke="{t["ink2"]}" stroke-width="1"/>')
+    for u in (0, 0.5, 1):
+        out.append(f'<text x="{f(X(u))}" y="{B + 44}" text-anchor="middle" class="ax">{u:g}</text>')
+    # direct labels
+    k = int(np.argmax(mean))
+    out.append(f'<text x="{f(X(xs[k + 1]) + 6)}" y="{f(Y(mean[k]) + 4)}" class="lab" fill="{t["brand"]}">population (8 draws, mean)</text>')
+    out.append(f'<text x="{f(X(0.78))}" y="{f(Y(ty[95]) - 8)}" class="lab" fill="{t["ink"]}">truth</text>')
+    out.append(f'<text x="{f(X(1))}" y="{B + 26}" text-anchor="end" class="lab" fill="{t["sampletext"]}">objects</text>')
+    out.append("</svg>")
+    return "".join(out)
+
+
+# --------------------------------------------------------------------------- page
+
+def swatch_rows():
+    rows = []
+    for key, role in ROLES:
+        lc, dc = LIGHT[key], DARK[key]
+        cl = contrast(lc, LIGHT["bg"]) if key not in ("bg",) else contrast(LIGHT["ink"], lc)
+        cd = contrast(dc, DARK["bg"]) if key not in ("bg",) else contrast(DARK["ink"], dc)
+        if key == "bar":
+            cl, cd = contrast(LIGHT["bartext"], lc), contrast(DARK["bartext"], dc)
+        rows.append(
+            f'<tr><td><code>{key}</code></td><td>{role}</td>'
+            f'<td><span class="chip" style="background:{lc}"></span><code>{lc}</code> <span class="cr">{cl:.1f}</span></td>'
+            f'<td><span class="chip" style="background:{dc}"></span><code>{dc}</code> <span class="cr">{cd:.1f}</span></td></tr>'
+        )
+    return "".join(rows)
+
+
+def ramp(cols):
+    return '<div class="ramp">' + "".join(f'<span style="background:{c}" title="{c}"></span>' for c in cols) + "</div>"
+
+
+def site_mock(theme, phone=False):
+    t = LIGHT if theme == "light" else DARK
+    cls = "site phone" if phone else "site"
+    fig = demo_figure(t, CAT_LIGHT if theme == "light" else CAT_DARK, theme)
+    side = "" if phone else """
+      <aside class="s-side"><b>Concepts</b><a>Bins and likelihoods</a><a>Likelihoods and posteriors</a>
+      <a class="cur">Population and objects</a><a>Priors on the simplex</a><a>Selection</a><a>Engines</a></aside>"""
+    toc = "" if phone else '<aside class="s-toc"><b>On this page</b><a class="cur">Shrinkage</a><a>The realised sample</a><a>Bins trade mass</a></aside>'
+    return f"""
+<div class="{cls}" style="{css_vars(t)}">
+  <div class="s-bar">{lockup('mid', 'lock s-lock')}<nav>{'' if phone else '<a>Start</a><a class="cur">Concepts</a><a>Tutorials</a><a>Guides</a><a>How it works</a><a>Fields</a><a>Reference</a>'}</nav>
+    <span class="s-search">{'⌕' if phone else 'Search <kbd>/</kbd>'}</span>{'<span class="s-menu">Menu</span>' if phone else ''}</div>
+  <div class="s-body">{side}
+    <article>
+      <p class="s-crumb">Concepts / Population and objects</p>
+      <h1>Population and objects</h1>
+      <p class="s-lede">binference infers two things at once: the population the objects came from, and each object's value given that population.</p>
+      <div class="s-plain"><b>In plain words</b>An object measured badly borrows strength from the others. Its estimate moves toward values that are common in the population.</div>
+      <h2 id="shrinkage">Shrinkage</h2>
+      <p>The posterior of one object is its likelihood times the population fractions. Where the population is high, the posterior gains mass.</p>
+      <figure>{fig}<figcaption>A population inferred from 26 objects. Pale fills are posterior draws; the line is their mean; the dashed curve is the truth.</figcaption></figure>
+      <div class="s-code"><span class="s-lang">python</span><pre><span class="k">import</span> binference
+result = binference.infer(lk)
+post = result.individual(<span class="n">3</span>)   <span class="c"># one object's posterior</span></pre></div>
+      <div class="s-out"><span class="s-lang">output</span><pre>bin       mean    q16     q84
+[0.4, 0.5) 0.31   0.22    0.40</pre></div>
+      <div class="s-note warn"><b>Warning</b>Posteriors computed under another prior are not likelihoods. Pass the interim prior.</div>
+      <div class="s-explainer"><div class="s-ex-head"><b>Explainer V-5</b> Change the population's width</div>
+        <input type="range" aria-label="Population width (demo)" value="40"><span class="s-read">width 0.16 · shift 0.07</span></div>
+      <div class="s-pager"><a><small>Previous</small>Likelihoods and posteriors</a><a class="nx"><small>Next</small>Priors on the simplex</a></div>
+    </article>{toc}
+  </div>
+</div>"""
+
+
+CSS = r"""
+/* Layout: the sheet frame follows the viewer's theme; each mock inside carries its own theme. */
+:root{--bg:#F3F3F7;--panel:#FFFFFF;--fg:#1B1D4A;--fg2:#5D5F86;--rule:#DADCEC;--focus:#3A3FB0;
+  --display:'Sora',system-ui,sans-serif;--body:'Atkinson Hyperlegible Next',system-ui,sans-serif;--mono:'Atkinson Hyperlegible Mono',ui-monospace,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0B0C20;--panel:#14153A;--fg:#E8E9FB;--fg2:#9C9ECB;--rule:#2B2E5E;--focus:#A5A9F5;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0B0C20;--panel:#14153A;--fg:#E8E9FB;--fg2:#9C9ECB;--rule:#2B2E5E;--focus:#A5A9F5;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:16.5px/1.6 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 72px}
+main{max-width:1180px;margin:0 auto;display:grid;gap:56px}
+h1.sheet{font:600 clamp(1.9rem,3.6vw,2.6rem)/1.15 var(--display);margin:0;letter-spacing:-.01em;text-wrap:balance}
+.lede{max-width:46rem;color:var(--fg2);margin:.4rem 0 0}
+section{display:grid;gap:16px;min-width:0}
+section>h2{font:600 1.4rem/1.2 var(--display);margin:0;padding-top:14px;border-top:1px solid var(--rule)}
+section>p,section>ul{max-width:46rem;margin:0}
+code{font:.86em var(--mono)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px}
+.pane{border:1px solid var(--rule);padding:20px;min-width:0;background:var(--b-bg);color:var(--b-ink)}
+.pane .cap{font:600 .72rem/1 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--b-ink2);margin-bottom:12px}
+.hero-mark>.mark{width:min(220px,60%);height:auto;display:block;margin:6px auto 4px}
+.ladder{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.ladder .mark{display:block}.m128{width:128px;height:128px}.m64{width:64px;height:64px}.m32{width:32px;height:32px}.m16{width:16px;height:16px}
+.ladder small{display:block;font-size:.72rem;color:var(--b-ink2);text-align:center;margin-top:4px}
+.tab{display:inline-flex;align-items:center;gap:8px;background:var(--b-surface);border:1px solid var(--b-rule);border-bottom:none;padding:7px 12px;font-size:.85rem}
+.tile{width:96px;height:96px;background:var(--b-main);display:grid;place-items:center;border-radius:20px}
+.tile .mark{width:72px;height:72px}
+.wm{font-family:'Sora',system-ui,sans-serif;font-weight:600;line-height:normal;letter-spacing:-.01em;white-space:nowrap;color:var(--b-ink)}
+.ti{position:relative;display:inline-block}
+.tit{position:absolute;left:50%;transform:translateX(-50%);top:-.07em;width:.23em;height:.33em}
+.lock{display:inline-flex;align-items:center;gap:.32em}.lock .lk{width:1.45em;height:1.45em}
+.lock-l{font-size:2.6rem}.lock-m{font-size:1.5rem}
+.stack{display:inline-grid;justify-items:center;gap:4px;font-size:1.5rem}.stack .mark{width:72px;height:72px}
+.donts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.donts figure{margin:0;border:1px solid var(--b-rule);padding:10px;text-align:center}
+.donts .mark{width:64px;height:64px}
+.donts figcaption{font-size:.8rem;color:var(--b-ink2)}
+.tbl{overflow-x:auto;border:1px solid var(--rule);background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:.88rem;min-width:640px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule);vertical-align:middle}
+th{font-size:.76rem;letter-spacing:.04em;color:var(--fg2)}
+.chip{display:inline-block;width:18px;height:18px;vertical-align:middle;margin-right:6px;border:1px solid var(--rule)}
+.cr{font:.8rem var(--mono);color:var(--fg2);margin-left:4px;font-variant-numeric:tabular-nums}
+.ramp{display:flex;height:26px}.ramp span{flex:1}
+.ramps{display:grid;gap:8px}.ramps p{margin:0;font-size:.82rem;color:var(--b-ink2)}
+.grey{filter:grayscale(1)}
+.type-row{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px 16px;align-items:baseline;border-bottom:1px solid var(--b-rule);padding:8px 0}
+.type-row small{color:var(--b-ink2);font:.76rem var(--mono)}
+.rules{counter-reset:r;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:12px;list-style:none;padding:0;margin:0}
+.rules li{border:1px solid var(--rule);background:var(--panel);padding:14px 16px;counter-increment:r}
+.rules li::before{content:"Rule " counter(r);display:block;font:600 .72rem/1 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--fg2);margin-bottom:6px}
+.fig{width:100%;height:auto;display:block}
+.fig .ax{font:12px var(--mono);fill:var(--b-ink2)}.fig .lab{font:600 12.5px var(--body)}
+/* the site mock */
+.site{background:var(--b-bg);color:var(--b-ink);border:1px solid var(--rule);font:15px/1.6 var(--body);overflow:hidden;min-width:0}
+.s-bar{background:var(--b-bar);color:var(--b-bartext);display:flex;align-items:center;gap:20px;padding:10px 18px;--b-ink:var(--b-bartext)}
+.s-lock{font-size:1.15rem}
+.s-bar nav{display:flex;gap:16px;font-size:.88rem;flex-wrap:wrap}.s-bar nav a{opacity:.78}.s-bar nav a.cur{opacity:1;box-shadow:inset 0 -2px 0 var(--b-dot)}
+.s-search{margin-left:auto;font-size:.82rem;border:1px solid #ffffff33;padding:3px 10px;opacity:.85}
+.s-search kbd{font:.75rem var(--mono);border:1px solid #ffffff44;padding:0 4px;margin-left:6px}
+.s-body{display:grid;grid-template-columns:190px minmax(0,1fr) 160px;gap:28px;padding:24px 22px}
+.s-side,.s-toc{display:grid;align-content:start;gap:6px;font-size:.84rem;color:var(--b-ink2)}
+.s-side b,.s-toc b{color:var(--b-ink);font:600 .76rem var(--body);letter-spacing:.06em;text-transform:uppercase}
+.s-side a.cur{color:var(--b-ink);font-weight:600;box-shadow:inset 3px 0 0 var(--b-main);padding-left:9px}
+.s-toc a.cur{color:var(--b-link)}
+article{min-width:0}
+.s-crumb{font-size:.8rem;color:var(--b-ink2);margin:0}
+article h1{font:600 2rem/1.15 'Sora',sans-serif;margin:.2rem 0 .4rem;letter-spacing:-.015em}
+article h2{font:600 1.25rem/1.25 'Sora',sans-serif;margin:1.4rem 0 .3rem}
+.s-lede{font-size:1.08rem;color:var(--b-ink2);margin:0 0 1rem}
+.s-plain{border-left:3px solid var(--b-tip);background:var(--b-surface);padding:10px 14px;margin:1rem 0}
+.s-plain b,.s-note b{display:block;font:600 .74rem var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--b-tip);margin-bottom:2px}
+.s-note.warn{border-left:3px solid var(--b-warn);background:var(--b-surface);padding:10px 14px;margin:1rem 0}.s-note.warn b{color:var(--b-warn)}
+figure{margin:1rem 0}.site .fig{max-width:620px}figcaption{font-size:.84rem;color:var(--b-ink2);border-top:1px solid var(--b-rule);padding-top:6px}
+.s-code,.s-out{position:relative;background:var(--b-surface);border:1px solid var(--b-rule);margin:.8rem 0 0}
+.s-out{margin-top:-1px;background:var(--b-bg)}
+.s-code pre,.s-out pre{margin:0;padding:12px 14px;font:13.5px/1.5 var(--mono);overflow-x:auto}
+.s-lang{position:absolute;right:8px;top:6px;font:.7rem var(--mono);color:var(--b-ink2)}
+.k{color:var(--b-main)}.n{color:var(--b-dottext)}.c{color:var(--b-ink2)}
+.s-explainer{border:1px solid var(--b-rule);border-top:3px solid var(--b-main);background:var(--b-surface);padding:12px 14px;margin:1rem 0;display:grid;gap:8px}
+.s-ex-head{font-size:.9rem}.s-ex-head b{font-weight:600;margin-right:6px}
+.s-explainer input{width:100%;accent-color:var(--b-main)}
+.s-read{font:.82rem var(--mono);color:var(--b-ink2)}
+.s-pager{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:1.4rem}
+.s-pager a{border:1px solid var(--b-rule);padding:8px 12px;display:grid;font-size:.9rem}.s-pager .nx{text-align:right}
+.s-pager small{color:var(--b-ink2);font-size:.74rem}
+.site.phone{max-width:390px;width:100%}
+.site.phone .s-body{grid-template-columns:1fr;padding:18px 16px}
+.s-menu{font-size:.82rem;border:1px solid #ffffff33;padding:3px 10px}
+.phones{display:flex;flex-wrap:wrap;gap:16px}
+/* home hero */
+.home{background:var(--b-bg);color:var(--b-ink);border:1px solid var(--rule);padding:clamp(20px,4vw,48px);display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:24px;align-items:center}
+.home h3{font:600 clamp(1.8rem,3.6vw,2.7rem)/1.1 'Sora',sans-serif;letter-spacing:-.02em;margin:0 0 .6rem;text-wrap:balance}
+.home p{color:var(--b-ink2);margin:0 0 1rem;max-width:30rem}
+.btns{display:flex;gap:10px;flex-wrap:wrap}
+.btn{font:600 .9rem var(--body);padding:9px 16px;border:1px solid var(--b-main);color:var(--b-ink)}
+.btn.pri{background:var(--b-main);color:var(--b-bg)}
+.paths{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px}
+.paths a{border:1px solid var(--b-rule);background:var(--b-surface);padding:12px 14px;font-size:.92rem}
+.paths a b{display:block;font-weight:600;margin-bottom:2px}
+#hero-svg{width:100%;max-width:340px;height:auto;justify-self:center}
+.calls{display:grid;gap:10px}.calls div{border:1px solid var(--rule);border-left:3px solid var(--focus);background:var(--panel);padding:12px 16px}
+.calls b{display:block}.calls p{margin:.2rem 0 0;color:var(--fg2);font-size:.94rem}
+@media (max-width:860px){.s-body{grid-template-columns:1fr}.s-side,.s-toc{display:none}.home{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){#hero-svg path{transition:none!important}}
+"""
+
+
+def hero_js():
+    g = mark_paths("full")
+    return f"""
+(function(){{
+  const svg=document.getElementById('hero-svg'); if(!svg) return;
+  const paths=[...svg.querySelectorAll('path.draw')];
+  const nb={g['nb']}, base=58, x0=7, w=(57-7)/nb;
+  const c=4, b=29, a=(57-7-w)/2, cx=x0+w+a;
+  const m=[];for(let k=0;k<nb;k++){{if(k===0){{m.push(base-4);continue}}const u=(x0+(k+.5)*w-cx)/a;m.push(c+b*Math.sqrt(Math.max(1-u*u,0)))}}
+  let s=7;const rnd=()=>{{s=(s*1103515245+12345)%2147483648;return s/2147483648}};
+  const gauss=()=>Math.sqrt(-2*Math.log(rnd()+1e-12))*Math.cos(6.283185*rnd());
+  const step=h=>{{let d='M'+x0+' '+base;for(let k=0;k<nb;k++)d+='V'+(base-h[k]).toFixed(2)+'H'+(x0+(k+1)*w).toFixed(2);return d+'V'+base+'Z'}};
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  let i=0;setInterval(()=>{{const h=m.map(v=>v*Math.exp(.15*gauss()));h[0]=Math.min(h[0],base-2);paths[i%paths.length].setAttribute('d',step(h));i++}},420);
+}})();
+const g=document.getElementById('greybtn');
+g.addEventListener('click',()=>{{const on=document.getElementById('palette').classList.toggle('grey');g.setAttribute('aria-pressed',on);g.textContent=on?'Show in colour':'Show in greyscale'}});
+"""
+
+
+def page():
+    L, D = css_vars(LIGHT), css_vars(DARK)
+    hero = mark_svg("full", cls="mark").replace('<path d="M', '<path class="draw" d="M', CUTS["full"]["nd"]).replace(
+        'class="mark"', 'id="hero-svg" class="mark"', 1)
+    favicon_row = lambda t: (  # noqa: E731
+        f'<div class="ladder">'
+        f'<span>{mark_svg("full", cls="mark m128")}<small>128 · full</small></span>'
+        f'<span>{mark_svg("full", cls="mark m64")}<small>64 · full</small></span>'
+        f'<span>{mark_svg("mid", cls="mark m32")}<small>32 · mid</small></span>'
+        f'<span>{mark_svg("tiny", cls="mark m16")}<small>16 · tiny</small></span>'
+        f'<span class="tab">{mark_svg("tiny", cls="mark m16")}Population and objects</span></div>'
+    )
+    donts = "".join(
+        f'<figure>{svg}<figcaption>{cap}</figcaption></figure>'
+        for svg, cap in [
+            (mark_svg("full", main="var(--b-dot)", dot="var(--b-main)"), "No swapped colours: coral is the sample"),
+            (mark_svg("full", main="#2E9E6B"), "No other hues for the draws"),
+            (mark_svg("full").replace('opacity="0.17"', 'opacity="1"'), "No solid fill: the draws must show"),
+            (mark_svg("full").replace("<svg ", '<svg style="transform:rotate(-8deg)" '), "No rotation or tilt"),
+        ]
+    )
+    return f"""<title>binference Design Sheet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Atkinson+Hyperlegible+Next:wght@400;600;700&family=Atkinson+Hyperlegible+Mono:wght@400;600&display=swap">
+<style>{CSS}</style>
+<main>
+<header>
+  <h1 class="sheet">binference design sheet</h1>
+  <p class="lede">Round 2 of the docs-site design (issue #99), built on the mark you chose: C′, the b drawn as posterior draws of a histogram.
+  Lock it, or mark what to change. Once locked it becomes <code>docs/design/brand.md</code>, with the script that drew every mark on this page.</p>
+</header>
+
+<section>
+  <h2>1 · The mark</h2>
+  <p>A histogram b: the tallest bin is the stem, the others trace the bowl. Seven posterior draws are overlaid as pale fills, so the b is darkest where they agree and its edge steps where they disagree. The line is their mean. One sample, in coral, sits in the counter. Three cuts keep it legible: full from 48 px, mid from 24 px, tiny for favicons.</p>
+  <div class="grid2">
+    <div class="pane hero-mark" style="{L}"><div class="cap">Light</div>{mark_svg('full')}{favicon_row('l')}</div>
+    <div class="pane hero-mark" style="{D}"><div class="cap">Dark</div>{mark_svg('full')}{favicon_row('d')}</div>
+  </div>
+  <div class="grid3">
+    <div class="pane" style="{L}"><div class="cap">App tile and social card</div><div class="tile" style="--b-main:#FBFBFE;--b-dot:#EC5F3E;background:#4A4FC4">{mark_svg('mid')}</div></div>
+    <div class="pane" style="{L}"><div class="cap">One colour (print, stamps)</div>{mark_svg('full', main='var(--b-ink)', dot='var(--b-ink)', cls='mark m64')}</div>
+    <div class="pane" style="{D}"><div class="cap">Don'ts</div><div class="donts">{donts}</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>2 · Wordmark and lockups</h2>
+  <p>The dot of the i is a measurement with an error bar, in coral. The wordmark is set in Sora 600 and drawn as outlines in the final files, so it never depends on a loaded font.</p>
+  <div class="grid2">
+    <div class="pane" style="{L}"><div class="cap">Light</div>{lockup('full','lock lock-l')}<p style="margin:.8rem 0 0">{lockup('mid','lock lock-m')}</p><p style="margin:.8rem 0 0"><span class="stack">{mark_svg('full')}{wordmark()}</span></p></div>
+    <div class="pane" style="{D}"><div class="cap">Dark</div>{lockup('full','lock lock-l')}<p style="margin:.8rem 0 0">{lockup('mid','lock lock-m')}</p><p style="margin:.8rem 0 0"><span class="stack">{mark_svg('full')}{wordmark()}</span></p></div>
+  </div>
+</section>
+
+<section id="palette">
+  <h2>3 · Colour</h2>
+  <p>One brand hue, indigo, is the population: the draws, the bins, the mark. Coral is a sample or an object, and nothing else. Neutrals are tinted toward indigo. Every text pair below is measured against its page colour (WCAG ratio; 4.5 is the AA floor for text, 3 for marks).</p>
+  <div><button id="greybtn" type="button" aria-pressed="false" style="font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--rule);padding:6px 12px;cursor:pointer">Show in greyscale</button></div>
+  <div class="tbl"><table><thead><tr><th>Token</th><th>Role</th><th>Light · contrast</th><th>Dark · contrast</th></tr></thead><tbody>{swatch_rows()}</tbody></table></div>
+  <div class="grid2">
+    <div class="pane ramps" style="{L}"><div class="cap">Data colours, light</div><p>Categories, in this order (validated: colour-blind separation and contrast pass)</p>{ramp(CAT_LIGHT)}<p>Sequential (one hue)</p>{ramp(SEQ_LIGHT)}<p>Diverging (grey middle)</p>{ramp(DIV_LIGHT)}</div>
+    <div class="pane ramps" style="{D}"><div class="cap">Data colours, dark</div><p>Categories, in this order (validated against the dark page)</p>{ramp(CAT_DARK)}<p>Sequential</p>{ramp(SEQ_DARK)}<p>Diverging</p>{ramp(DIV_DARK)}</div>
+  </div>
+</section>
+
+<section>
+  <h2>4 · Type</h2>
+  <p>Sora for the wordmark and headings: geometric, with the round bowls of the b. Atkinson Hyperlegible Next for text and Atkinson Hyperlegible Mono for code, designed by the Braille Institute so that look-alike letters (I l 1, O 0, rn m) stay distinct for every reader. All three are open-licence and will be self-hosted.</p>
+  <div class="pane" style="{L}">
+    <div class="type-row"><small>Page title · Sora 600 · 32</small><span style="font:600 2rem/1.15 'Sora';letter-spacing:-.015em">Population and objects</span></div>
+    <div class="type-row"><small>Section · Sora 600 · 20</small><span style="font:600 1.25rem/1.25 'Sora'">Shrinkage</span></div>
+    <div class="type-row"><small>Text · Atkinson Next 400 · 16.5</small><span>The posterior of one object is its likelihood times the population fractions, ρ.</span></div>
+    <div class="type-row"><small>Code · Atkinson Mono 400 · 14</small><span style="font:14px var(--mono)">result = binference.infer(lk, method="auto")  # Il1 O0 rn</span></div>
+    <div class="type-row"><small>Caption · Atkinson Next · 14</small><span style="font-size:.86rem;color:var(--b-ink2)">Pale fills are posterior draws; the line is their mean.</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>5 · Drawing rules</h2>
+  <p>The mark's language becomes the rule for every figure and explainer on the site.</p>
+  <ol class="rules">
+    <li><b>Uncertainty is drawn, never hidden.</b> A population is shown as its posterior draws (6–8 pale fills, or a band), with the mean as one line. A bare histogram with no spread is never the answer.</li>
+    <li><b>Indigo is the population, coral is an object.</b> Draws, bins and estimates are indigo; data points, samples and single objects are coral; the truth is an ink dashed line. Coral marks nothing else.</li>
+    <li><b>Bins are steps.</b> Anything binned is drawn as square steps, never smoothed; continuous curves are only for what is continuous (a likelihood, a truth).</li>
+    <li><b>Square and flat.</b> Corners square (2 px at most on controls); no gradients, no shadows, no glows; hairline rules, not boxes.</li>
+    <li><b>Words before colour.</b> Direct labels over legends; hue is never the only signal (fill vs outline, dot vs line, dashed vs solid); every figure reads in greyscale.</li>
+    <li><b>Readable on a phone.</b> Figure text is at least 12 px at 390 px wide; wide figures get a narrow version; every figure has a caption and real alt text.</li>
+  </ol>
+  <div class="grid2">
+    <div class="pane" style="{L}"><div class="cap">Figure style, light</div>{demo_figure(LIGHT, CAT_LIGHT, 'light')}</div>
+    <div class="pane" style="{D}"><div class="cap">Figure style, dark</div>{demo_figure(DARK, CAT_DARK, 'dark')}</div>
+  </div>
+</section>
+
+<section>
+  <h2>6 · A page</h2>
+  <p>A Concepts page at desktop width in light, and at phone width in both themes. The top bar is the darkest indigo in both themes, so the brand block never changes. "In plain words" is the student note, at most one per page.</p>
+  {site_mock('light')}
+  <div class="phones">{site_mock('light', phone=True)}{site_mock('dark', phone=True)}</div>
+</section>
+
+<section>
+  <h2>7 · Home page</h2>
+  <p>The hero is the mark itself, live: its draws keep resampling, so the b never holds still but its shape does. Under reduced motion it stays still. Three paths start from the data the reader has.</p>
+  <div class="home" style="{D}">
+    <div><h3>Infer the population, then every object.</h3>
+    <p>binference turns noisy measurements, posteriors, samples or classifier outputs into a binned population with honest uncertainty, and gives each object's value under it.</p>
+    <div class="btns"><span class="btn pri">Quick start</span><span class="btn">What it does</span></div></div>
+    {hero}
+    <div class="paths"><a><b>Measurements with errors</b>Gaussian or any likelihood per object</a><a><b>Posteriors or samples</b>Computed under some other prior</a><a><b>A classifier or binned counts</b>Scores, labels, a response matrix</a></div>
+  </div>
+</section>
+
+<section>
+  <h2>8 · Your calls before the lock</h2>
+  <div class="calls">
+    <div><b>1. Top bar dark in both themes</b><p>Default: yes, as shown. The alternative is a bar that follows the theme.</p></div>
+    <div><b>2. Atkinson Hyperlegible for text and code</b><p>Default: yes, for legibility. The alternative is a more neutral grotesque.</p></div>
+    <div><b>3. The live hero</b><p>Default: the draws resample slowly on the home page only; still everywhere else.</p></div>
+    <div><b>4. "In plain words" notes</b><p>Default: one per concept page, in teal, for students. Name it differently if you prefer.</p></div>
+  </div>
+</section>
+</main>
+<script>{hero_js()}</script>
+"""
+
+
+if __name__ == "__main__":
+    OUT.write_text(page())
+    print(f"wrote {OUT} ({OUT.stat().st_size / 1024:.0f} kB)")
