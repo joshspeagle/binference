@@ -115,7 +115,8 @@ mystnb:
   image:
     alt: |
       Top panel: two step curves near one at low true values fall to near zero above
-      about 2. The dashed curve, for the cut on the measurement, falls more gradually.
+      about 2. The dashed curve, for the cut on the measurement, lies to the right and falls more
+      steeply.
       Bottom panel: a single-humped population outline centred at 1.5. The shaded
       selected part matches it at low values and falls away above 1.5.
 ---

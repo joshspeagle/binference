@@ -41,8 +41,8 @@ proportional to $\prod_k\rho_k^{\alpha_k-1}$. Its parameters $\alpha_k$ are the
 The concentrations act like objects seen before the data, or pseudo-counts. Suppose
 you knew the bin of every object, with $n_k$ objects in bin $k$. The posterior would
 then be $\mathrm{Dir}(\alpha+n)$, so $\alpha_k$ adds to the count of bin $k$. A prior
-with this property is {term}`conjugate <conjugate prior>`. The Gibbs, EM and mean-field
-VB engines need it.
+with this property is {term}`conjugate <conjugate prior>`. Gibbs and mean-field
+VB need it, and so does EM, one of MAP's solvers.
 
 The size of $\alpha$ sets how strongly the prior moves the estimate
 ({ref}`figure <fig-dirichlet>`):
@@ -111,8 +111,8 @@ How smooth the population is, is not fixed in advance. binference infers the pri
 {term}`hyperparameters <hyperparameter>`, such as the size of the jumps or the length
 scale, with the population. By default the prior is centred on a density
 that is flat in the {term}`measure` coordinate. Its notion of smooth then does not
-depend on how you bin. Smoothness priors are not conjugate, so they need NUTS, MAP or
-Laplace (see {doc}`engines`).
+depend on how you bin. Smoothness priors are not conjugate, so Gibbs and VB cannot use
+them (see {doc}`engines`).
 
 ## When the prior matters
 

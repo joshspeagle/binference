@@ -39,13 +39,14 @@ The {term}`likelihood function` $\ell_i(z)=p(d_i\mid z)$ says how probable objec
 data are if its true value is $z$. It is not a distribution over $z$, and its overall
 scale does not matter: only its shape across $z$ carries information.
 
-The model uses one number per object and bin, the {term}`bin-averaged likelihood`
+The model uses one number per object and bin, the {term}`bin-averaged likelihood`.
+On linear bins it is
 
 $$
 L_{ik}=\frac{1}{v_k}\int_{B_k}\ell_i(z)\,dz ,
 $$
 
-the average of $\ell_i$ over bin $k$. The $N\times K$ table of these numbers is the
+the average of $\ell_i$ over bin $k$ (the measures section below covers other bins). The $N\times K$ table of these numbers is the
 {term}`likelihood matrix`. {ref}`The bin-average figure <fig-bin-average>` shows one object's
 likelihood and its bin averages for a precise and a noisy measurement.
 
@@ -133,10 +134,10 @@ mystnb:
       mass peaks in a wide bin.
   image:
     alt: |
-      Two stacked panels of steps. In both, the solid density steps peak in the bin
-      that contains z equal to one. The dotted mass steps are tallest in wider bins
-      next to it. In the top panel that is the bin from 1.1 to 1.6; in the bottom
-      panel, the bin just above one.
+      Two stacked panels of steps. In the top panel the solid density steps peak in
+      the two narrow bins from 0.9 to 1.1. The dotted mass steps peak in the wider bin from 1.1 to 1.6.
+      In the bottom panel the density peaks in the bin just below 1, and the mass in
+      the wider bin from 1.0 to 1.585.
 ---
 unequal = binference.Bins([0, 0.2, 0.4, 0.5, 0.9, 1.0, 1.1, 1.6, 3.0])
 log_spaced = binference.Bins(np.geomspace(0.1, 10, 11), measure="linear")
@@ -160,7 +161,8 @@ binference calls it the bin axis's {term}`measure`, $u=T(z)$. Linear bins use $u
 Logarithmic bins use $u=\log z$, so the population is flat in $\log z$ within each bin.
 A logarithmic bin's centre is then the geometric mean of its edges.
 
-The measure decides how $\ell_i$ is averaged over a bin: uniformly in $u$. It also
+With a measure other than $u=z$, binference averages $\ell_i$ over each bin uniformly
+in $u$, and the population is flat in $u$, not in $z$. The measure also
 decides what a {term}`smoothness prior <logistic prior>` calls flat (see
 [priors on the simplex](priors-on-the-simplex.md)). Choose the coordinate in which the
 population changes least across a bin.

@@ -39,7 +39,7 @@ computes and when its answer is exact.
 | {term}`NUTS` | draws from the posterior | always, once its chains have converged |
 | {term}`Gibbs` | draws from the posterior, with every object's bin | for a conjugate prior and integer weights, once converged |
 | {term}`MAP` | the most probable population, with a certificate | never; it is a point, not a posterior |
-| {term}`Laplace` | draws from a Gaussian at the mode, reweighted toward the posterior | when its importance check passes |
+| {term}`Laplace` | draws from a heavy-tailed version of a Gaussian at the mode, reweighted toward the posterior | when its importance check passes |
 | {term}`mean-field VB` | draws from an approximation that treats the population and the objects' bins as independent | never; its intervals are too narrow |
 | {term}`bootstrap` | MAP estimates refitted to resampled objects | never; it is not a posterior |
 | {term}`auto` | Gibbs, Laplace or NUTS, chosen for the data | when the engine it chose is |
@@ -68,8 +68,8 @@ carries no uncertainty, so use it for quick looks and as a starting point.
 
 **Laplace.** The Laplace engine fits a Gaussian at the posterior's mode, in
 {term}`unconstrained coordinates`, where every vector of real numbers is a valid population.
-It then reweights draws from the Gaussian so that they follow the exact posterior
-({term}`importance sampling`). The {term}`Pareto k-hat` $\hat k$ of the weights says
+It then draws from a heavy-tailed version of that Gaussian and reweights the draws so
+that they follow the exact posterior ({term}`importance sampling`). The {term}`Pareto k-hat` $\hat k$ of the weights says
 whether that worked. If it did not, binference marks the result approximate.
 
 **Mean-field VB.** Treating the population and each object's bin as independent ignores
@@ -80,15 +80,17 @@ It is fast, and binference always marks the result approximate.
 answers how much the estimate would change with new data, not how probable each
 population is.
 
-**Auto.** The default engine tries Gibbs where Gibbs draws are nearly independent, then
-Laplace where its check passes, and NUTS otherwise. The rules, and the benchmark
+**Auto.** The default engine tries Gibbs where Gibbs mixes well enough, running it
+longer to make up for correlated draws. It then tries Laplace where its check passes,
+and NUTS otherwise. {class}`~binference.inference.Auto` gives the thresholds. The rules, and the benchmark
 behind them, are in the {doc}`engines guide <../guides/engines>`.
 
 ## Seeing them on one problem
 
 {ref}`Figure <fig-engines>` shows a population on three bins. The fractions
 $(\rho_1,\rho_2,\rho_3)$ lie on a triangle, and unconstrained coordinates $(x_1,x_2)$
-map that triangle to the whole plane. Every engine describes the same posterior there.
+map that triangle to the whole plane. The samplers and the approximations describe the
+same posterior there, and MAP marks its highest point.
 
 ```{code-cell} python
 ---
@@ -106,7 +108,8 @@ mystnb:
   image:
     alt: |
       Two scatter plots with the same axes. In the top panel, indigo dots from NUTS
-      and amber crosses from Gibbs form one cloud, longer to the lower left. In the
+      and amber crosses from Gibbs form one cloud. Its tail runs to the left, and a few
+      draws lie far above it. In the
       bottom panel, a teal Laplace ellipse covers most of the same cloud. A smaller
       dashed plum VB ellipse lies inside it. An open diamond marks the mode, and a
       star beside it marks the MAP.
@@ -147,8 +150,8 @@ ax.plot(*model.from_value(est.rho), "*", ms=13, color=INK, label="MAP")
 ax.legend(loc="lower left", bbox_to_anchor=(0, 1.02), borderaxespad=0, fontsize=12, ncol=3, columnspacing=0.8, handlelength=1.5)
 for a in axes:
     a.set_ylabel("$x_2$")
-    a.set_xlim(-4, 2.5)
-    a.set_ylim(-2, 3)
+    a.set_xlim(-5, 2.5)
+    a.set_ylim(-2, 5)
 axes[1].set_xlabel("$x_1$")
 plt.show()
 glue("k_hat", lap.info["k_hat"], display=False)
@@ -170,9 +173,9 @@ The MAP and the mode in $x$ differ because they are the peaks of two densities o
 same posterior, one in $\rho$ and one in $x$.
 
 ```{plain-words}
-Every engine describes the same posterior. NUTS and Gibbs draw from it, and MAP finds
-its highest point. Laplace and VB approximate it with a simpler distribution;
-binference marks an approximation that is not exact.
+NUTS and Gibbs draw from the posterior, and Laplace and VB approximate it; binference
+marks an approximation that is not exact. MAP finds the posterior's highest point. The
+bootstrap answers a different question.
 ```
 
 ## Where next

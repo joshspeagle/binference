@@ -36,8 +36,9 @@ RAMP = ["#B8BBEE", "#8186DE", "#4C53C2", "#2A2F8F"]  # the docs' sequential indi
 The {term}`population` is the distribution the objects are drawn from. binference
 describes it by the {term}`population fractions` $\rho_k$, the share of the population
 in bin $k$. The fractions are non-negative and sum to one, so they lie on the
-{term}`simplex` $\Delta^{K-1}$. Within bin $k$ the population density is
-$p(z\mid\rho)=\rho_k/v_k$.
+{term}`simplex` $\Delta^{K-1}$. On linear bins the population density within bin $k$
+is $p(z\mid\rho)=\rho_k/v_k$; with another {term}`measure` it is flat in that coordinate
+instead.
 
 Your $N$ objects are one draw from that population. Their histogram of true values is
 the {term}`realised sample` $n_k$. A second draw of $N$ objects would give a different
@@ -206,8 +207,8 @@ mystnb:
       has unit area.
   image:
     alt: |
-      Two stacked panels. In the top panel a narrow indigo population peaks at 1.25,
-      and the dashed likelihood peaks at 1.9. The solid posterior lies between them,
+      Two stacked panels. In the top panel a narrow indigo population is centred at
+      1.2, with a flat top from 1.1 to 1.3. The dashed likelihood peaks at 1.9. The solid posterior lies between them,
       peaking near 1.4, and is narrower than the likelihood. In the bottom panel the
       population is broad and low. The posterior nearly coincides with the
       likelihood.
