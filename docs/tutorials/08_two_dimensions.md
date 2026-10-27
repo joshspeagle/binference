@@ -21,7 +21,6 @@ import numpy as np
 
 import binference
 
-plt.rcParams["figure.dpi"] = 110
 grid = binference.Bins.grid(np.linspace(0, 1, 13), np.linspace(0, 1, 13))   # 12 x 12 cells
 mock = binference.simulate.mock_2d(3000, grid, density="banana", noise=(0.02, 0.06), rng=8)
 lk = mock.likelihoods

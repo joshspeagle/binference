@@ -23,7 +23,6 @@ import numpy as np
 import binference
 from binference import priors
 
-plt.rcParams["figure.dpi"] = 110
 bins = binference.Bins.linear(0, 3, 40)
 mock = binference.simulate.mock_1d(400, bins, noise=(0.05, 0.15), rng=21)
 lk = mock.likelihoods

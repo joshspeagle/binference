@@ -20,7 +20,6 @@ import numpy as np
 
 import binference
 
-plt.rcParams["figure.dpi"] = 110
 bins = binference.Bins.linear(0.0, 3.0, 20)
 ```
 

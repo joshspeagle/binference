@@ -25,7 +25,6 @@ import binference
 from binference import priors
 from binference.validation import coverage, exact_posterior, sbc
 
-plt.rcParams["figure.dpi"] = 110
 ```
 
 ## Exact posteriors

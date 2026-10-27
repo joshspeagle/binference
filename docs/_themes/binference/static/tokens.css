@@ -38,10 +38,15 @@
   --b-type-text: 400 16.5px/1.6 var(--b-font-body);
   --b-type-code: 400 14px/1.5 var(--b-font-mono);
   --b-type-caption: 400 14px/1.45 var(--b-font-body);
+  --b-type-subsection: 600 17px/1.3 var(--b-font-display);
+  --b-type-minor: 600 15px/1.3 var(--b-font-body);
+  --b-type-label: 600 12px/1.4 var(--b-font-body);
+  --b-type-title-phone: 600 28px/1.15 var(--b-font-display);
   --b-accent-rule: 3px;
   --b-focus: 2px;
   --b-radius: 2px;
   --b-figure-text: 12px;
+  --b-figure-ground: #FBFBFE;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
