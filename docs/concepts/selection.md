@@ -39,11 +39,11 @@ to observe. Ignoring that biases $\rho$ toward them.
 ## On the truth or on the measurement
 
 What matters is what the selection acts on, its {term}`selection mode`
-({ref}`figure <fig-selection-modes>`):
+({ref}`the modes figure <fig-selection-modes>`):
 
 - **On the truth.** The chance of being kept depends on the true value $z$ alone, not on
-  the measurement noise. A completeness that depends on true planet radius is an
-  example. Each object's likelihood is then multiplied by $S_k$.
+  the measurement noise. A selection that depends on true planet radius is an example.
+  binference then multiplies each object's likelihood by $S_k$.
 - **On the measurement.** The cut acts on the measured data $d$, such as a limit on
   measured flux. An object near the cut is kept or lost depending on its noise. The
   likelihood of a kept object is used as it is. Here $S_k$ is the chance that an object
@@ -59,17 +59,17 @@ mystnb:
   figure:
     name: fig-selection-modes
     caption: |
-      300 mock objects, with true values $z$ and measured values $d$ with Gaussian
+      300 mock objects with true values $z$. Their measured values $d$ have Gaussian
       errors of 0.3. Top: each object is kept with a probability that falls from one
       to zero around $z=1.5$. Bottom: objects with $d$ above 1.6 (dashed line) are
       missed. Filled: selected. Open: missed.
   image:
     alt: |
-      Two scatter plots of measured value against true value, with the points along a
+      Two scatter plots of measured value against true value. The points lie along a
       rising diagonal band. In the top panel kept and missed points mix along the
-      band, with missed points dominating above a true value of about 1.5. In the
-      bottom panel every point below a horizontal dashed line at 1.6 is kept and
-      every point above it is missed, so the boundary is horizontal.
+      band, and missed points dominate above a true value of about 1.5. In the bottom
+      panel every point below a horizontal dashed line at 1.6 is kept. Every point
+      above it is missed, so the boundary is horizontal.
 ---
 bins = binference.Bins.linear(0, 3, 15)
 mock = binference.simulate.mock_1d(300, bins, density="gaussian", noise=0.3, rng=5)
@@ -98,15 +98,8 @@ $$
 S\cdot\rho=\sum_kS_k\rho_k ,
 $$
 
-the area under the selected part of the population ({ref}`figure <fig-normaliser>`).
-binference divides each object's term by this share. The posterior becomes
-
-$$
-p(\rho\mid D)\propto p(\rho)\,\frac{\prod_i(\tilde L_i\cdot\rho)^{w_i}}{(S\cdot\rho)^W},
-$$
-
-where $\tilde L_{ik}$ is $S_kL_{ik}$ on the truth and $L_{ik}$ on the measurement, and
-$W$ is the total {term}`weight <weights>` of the objects.
+the area under the selected part of the population ({ref}`the normaliser figure <fig-normaliser>`).
+binference divides each object's term in the likelihood by this selected share.
 
 ```{code-cell} python
 ---
@@ -116,15 +109,15 @@ mystnb:
     name: fig-normaliser
     caption: |
       Top: the selection $S_k$ of the two examples above, on 15 bins, computed by
-      binference: from the completeness for selection on the truth, and from the cut
-      at $d=1.6$ for selection on the measurement. Bottom: the population (outline)
-      and its part selected by the cut (shaded). The shaded area is $S\cdot\rho$.
+      binference. One comes from a smooth selection on the truth, the other from the
+      cut at $d=1.6$. Bottom: the population (outline) and its part selected by the cut
+      (shaded). The shaded area is $S\cdot\rho$.
   image:
     alt: |
-      Top panel: two step curves near one at low true values that fall to near zero
-      above about 2; the dashed curve, for the cut on the measurement, falls more
-      gradually. Bottom panel: a single-humped population outline centred at 1.5;
-      the shaded selected part matches it at low values and falls away above 1.5.
+      Top panel: two step curves near one at low true values fall to near zero above
+      about 2. The dashed curve, for the cut on the measurement, falls more gradually.
+      Bottom panel: a single-humped population outline centred at 1.5. The shaded
+      selected part matches it at low values and falls away above 1.5.
 ---
 mock = binference.simulate.mock_1d(200, bins, density="gaussian", noise=0.3,
                                    measured_range=(None, CUT), rng=5)
@@ -151,32 +144,26 @@ axes[1].set_xlabel("true value $z$")
 plt.show()
 ```
 
-Two mistakes are common, and both bias the fractions toward well-observed bins. One
-divides by $S\cdot\rho$ and also renormalises each object's likelihood over the data
-that could be detected, which corrects twice. The other leaves the normaliser out,
-which corrects nothing {cite:p}`mandel2019`.
+The pitfalls guide describes the
+[two common mistakes](../guides/pitfalls.md#ignoring-selection-or-modelling-it-twice)
+with the normaliser.
 
-For the fractions, only the ratios between the $S_k$ matter: scaling every $S_k$ by
-the same factor leaves $\rho$ unchanged. A selection known only up to a constant is
-enough.
+For the fractions, only the ratios of the $S_k$ matter. A selection known only up to a
+constant is enough.
 
 ## Rates and totals
 
 The normaliser also answers a second question: how many objects were there in all?
 Suppose $W$ objects are selected, a share $S\cdot\rho$ of the population. Then the
-population held about $W/(S\cdot\rho)$ objects. binference draws the {term}`total` $\Lambda$, the
-expected number of objects including those it missed, for every draw of $\rho$. The
+population held about $W/(S\cdot\rho)$ objects. For every draw of $\rho$, binference
+draws the {term}`total` $\Lambda$: the expected number of objects, including those the
+selection missed. The
 {term}`rates` $\lambda_k=\Lambda\rho_k$ are the expected numbers per bin.
 
-The total needs the absolute $S_k$, not just their ratios. An {term}`exposure`, such as
+The total needs absolute values of $S_k$. An {term}`exposure`, such as
 observing time times area, can take the place of a probability, and then the rates
 are numbers per unit exposure. A prior on the rates themselves replaces the prior on
 the fractions when you have prior knowledge of the counts.
-
-When $S$ changes quickly within a bin, its bin average depends on the shape of the
-population there. Give binference the selection as a function of $z$ in that case. When
-$S$ is measured by passing simulated {term}`injections` through the pipeline, binference
-can infer it together with the population.
 
 ```{plain-words}
 If some objects are easier to find, your catalogue has too many of them. Tell
@@ -186,11 +173,8 @@ the true value or on the measurement.
 
 ## Where next
 
-- The {doc}`selection guide <../guides/selection>` attaches a selection in each mode,
-  measures it with [injections](../guides/selection.md#selection-measured-by-injections)
-  and infers [rates and totals](../guides/selection.md#rates-and-exposure).
-- The tutorials {doc}`../tutorials/05_selection` and
-  {doc}`../tutorials/11_populations_with_selection` correct incomplete catalogues.
-- The theory page derives the [normaliser](../how-it-works/theory.md#selection-effects)
-  and the distribution of the missed objects.
-- Next concept: {doc}`engines`.
+- Do it: the {doc}`selection guide <../guides/selection>`, including selections that
+  vary within bins and selections measured by injections.
+- See it: the tutorial {doc}`../tutorials/05_selection`.
+- Derivation: [selection effects](../how-it-works/theory.md#selection-effects) on the
+  theory page.

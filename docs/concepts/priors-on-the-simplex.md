@@ -40,11 +40,12 @@ proportional to $\prod_k\rho_k^{\alpha_k-1}$. Its parameters $\alpha_k$ are the
 
 The concentrations act like objects seen before the data, or pseudo-counts. Suppose
 you knew the bin of every object, with $n_k$ objects in bin $k$. The posterior would
-then be $\mathrm{Dir}(\alpha+n)$, so $\alpha_k$ adds to the count of bin $k$. This is
-why the Dirichlet is a {term}`conjugate prior`, and why the Gibbs, EM and mean-field VB
-engines apply to it.
+then be $\mathrm{Dir}(\alpha+n)$, so $\alpha_k$ adds to the count of bin $k$. A prior
+with this property is {term}`conjugate <conjugate prior>`. The Gibbs, EM and mean-field
+VB engines need it.
 
-The size of $\alpha$ sets how strongly the prior pulls ({ref}`figure <fig-dirichlet>`):
+The size of $\alpha$ sets how strongly the prior moves the estimate
+({ref}`figure <fig-dirichlet>`):
 
 - With every $\alpha_k=1$, the default, every population is equally probable. The
   prior is flat on the simplex.
@@ -59,9 +60,9 @@ mystnb:
   figure:
     name: fig-dirichlet
     caption: |
-      1,500 draws each from symmetric Dirichlet priors on three bins, with every
-      concentration $\alpha_k$ equal to the $\alpha$ shown, drawn by binference. Each
-      point is one population; each corner puts the whole population in one bin.
+      1,500 draws each from symmetric Dirichlet priors on three bins, drawn by
+      binference. Every concentration $\alpha_k$ equals the $\alpha$ shown. Each point
+      is one population; each corner puts the whole population in one bin.
   image:
     alt: |
       Four triangles. For alpha 0.2 the points sit on the corners and edges. For
@@ -88,23 +89,16 @@ plt.show()
 ```
 
 The flat prior is not free. It adds one pseudo-count per bin, $K$ in all. With $K$
-comparable to the number of objects, that pulls the estimate toward equal fractions.
-The {term}`reference prior`, with every $\alpha_k=1/K$, adds one pseudo-count in all.
-
-Concentrations can also follow a base density, so that $\alpha_k$ is proportional to
-its mass in bin $k$. A prior built this way describes the same density however you
-bin it. A reference sample can set them too, down-weighted if it may not represent
-your objects.
-
-Three relatives of the Dirichlet allow bins to vary together in ways a Dirichlet
-cannot: the {term}`generalized Dirichlet`, the {term}`Dirichlet tree` and the
-{term}`Pólya tree`. All three are conjugate as well.
+comparable to the number of objects, that moves the estimate toward equal fractions.
+The {doc}`priors guide <../guides/priors>` gives the alternatives: the
+{term}`reference prior`, concentrations from a base density or a reference sample, and
+three conjugate relatives of the Dirichlet.
 
 ## Smoothness priors
 
-A Dirichlet does not know which bins are neighbours. Shuffle the bins and it says the
-same thing. With broad likelihoods, neighbouring bins trade mass, and the posterior
-mean can be jagged.
+A Dirichlet treats bins as unordered: shuffling them leaves the prior unchanged. With
+broad likelihoods, mass can shift between neighbouring bins with little change in the
+likelihood, and the posterior mean can be jagged.
 
 A {term}`smoothness prior <logistic prior>` adds what the Dirichlet leaves out. It puts
 a Gaussian distribution on the log-fractions $\eta$, with $\rho=\mathrm{softmax}(\eta)$,
@@ -113,19 +107,18 @@ and makes neighbouring values of $\eta$ similar:
 - a random walk penalises jumps, or bends, between neighbouring bins;
 - a Gaussian process correlates bins closer than a length scale.
 
-How smooth the population is, is not fixed in advance. The prior's
+How smooth the population is, is not fixed in advance. binference infers the prior's
 {term}`hyperparameters <hyperparameter>`, such as the size of the jumps or the length
-scale, are inferred with the population. By default the prior is centred on a density
+scale, with the population. By default the prior is centred on a density
 that is flat in the {term}`measure` coordinate. Its notion of smooth then does not
-depend on how you bin. Smoothness priors are not conjugate, so they need NUTS, MAP or Laplace
-(see {doc}`engines`).
+depend on how you bin. Smoothness priors are not conjugate, so they need NUTS, MAP or
+Laplace (see {doc}`engines`).
 
 ## When the prior matters
 
-The prior matters where the data are weak. The {term}`data support` of a bin is the
-number of objects' worth of likelihood it holds. In a bin with less than about one
-object's worth, the prior sets the answer. With many objects in every bin, any of
-these priors gives nearly the same population.
+The prior matters where the data are weak. A bin's {term}`data support` is the number
+of objects' worth of likelihood it holds. Where it is low, the prior sets the answer.
+With many objects in every bin, any of these priors gives nearly the same population.
 
 To choose between priors that the data cannot tell apart, compare them on held-out
 objects, with the {term}`log predictive density`. For counts per unit time or area
@@ -140,12 +133,7 @@ prior says that neighbouring bins should look alike.
 
 ## Where next
 
-- The {doc}`priors guide <../guides/priors>` sets up each prior and its options.
-- The tutorial {doc}`../tutorials/04_priors` compares priors on a sparse catalogue and
-  chooses between them on held-out data.
-- The theory page defines [the Dirichlet family](../how-it-works/theory.md#the-dirichlet-family),
-  [the logistic family](../how-it-works/theory.md#smoothness-the-logistic-family) and
-  [hyperpriors](../how-it-works/theory.md#hyperpriors).
-- The results guide reports
-  [data support](../guides/results.md#the-population) for every bin.
-- Next concept: {doc}`selection`.
+- Do it: the {doc}`priors guide <../guides/priors>`.
+- See it: the tutorial {doc}`../tutorials/04_priors`.
+- Derivation: [the Dirichlet family](../how-it-works/theory.md#the-dirichlet-family) on
+  the theory page.

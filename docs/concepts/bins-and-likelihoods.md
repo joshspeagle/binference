@@ -46,7 +46,7 @@ L_{ik}=\frac{1}{v_k}\int_{B_k}\ell_i(z)\,dz ,
 $$
 
 the average of $\ell_i$ over bin $k$. The $N\times K$ table of these numbers is the
-{term}`likelihood matrix`. {ref}`Figure <fig-bin-average>` shows one object's
+{term}`likelihood matrix`. {ref}`The bin-average figure <fig-bin-average>` shows one object's
 likelihood and its bin averages for a precise and a noisy measurement.
 
 ```{code-cell} python
@@ -57,14 +57,14 @@ mystnb:
     name: fig-bin-average
     caption: |
       One object measured at $d_i=1.37$ with a Gaussian error $\sigma$, on 12 bins.
-      The dashed curve is the likelihood $\ell_i(z)$; the steps are its bin averages
+      The dashed curve is the likelihood $\ell_i(z)$. The steps are its bin averages
       $L_{ik}$, computed by binference. With $\sigma=0.1$ almost all of the likelihood
       lies in three bins; with $\sigma=0.4$ it spreads over eight.
   image:
     alt: |
       Two stacked panels. In the top panel a narrow dashed bell curve peaks at z of
-      about 1.4, and solid steps put almost all of its height into the bin from 1.25
-      to 1.5. In the bottom panel a broad bell curve is followed closely by steps that
+      about 1.4. Solid steps put almost all of its height into the bin from 1.25 to
+      1.5. In the bottom panel a broad bell curve is followed closely by steps that
       rise and fall over about eight bins.
 ---
 bins = binference.Bins.linear(0, 3, 12)
@@ -86,7 +86,8 @@ axes[1].set_xlabel("true value $z$")
 plt.show()
 ```
 
-When the likelihood is much narrower than the bins, each object points to one bin.
+When the likelihood is much narrower than the bins, each object places nearly all its
+likelihood in one bin.
 When it is broader, it spreads over several bins, and the data cannot say which of
 them the object lies in. The [population page](population-and-objects.md) shows what
 that does to the fit.
@@ -114,10 +115,9 @@ distribution or histograms of samples. The first kind is a {term}`density`, the 
 a {term}`mass`, and a mass equals the density times the bin volume.
 
 With equal bins the two differ by one constant, which cancels. With unequal bins they
-have different shapes. Read as densities, masses move the peak toward the widest bins
-({ref}`figure <fig-mass-density>`). binference reads a likelihood table as densities
-and a posterior table as masses unless you say otherwise. With unequal bins, say which
-one you pass.
+have different shapes. If you pass masses as densities, the peak moves toward the
+widest bins ({ref}`the mass figure <fig-mass-density>`). Say which you pass, as the
+[inputs guide](../guides/inputs.md#likelihood-matrices) shows.
 
 ```{code-cell} python
 ---
@@ -126,17 +126,17 @@ mystnb:
   figure:
     name: fig-mass-density
     caption: |
-      One object's likelihood, Gaussian with mean 1 and standard deviation 0.35, as bin
-      averages (density, solid) and bin integrals (mass, dotted). Each is scaled to a
-      peak of one. Top: unequal bins on a linear axis. Bottom: ten log-spaced bins
+      One object's likelihood, Gaussian with mean 1 and standard deviation 0.35. It is
+      shown as bin averages (density, solid) and bin integrals (mass, dotted), each
+      scaled to a peak of one. Top: unequal bins on a linear axis. Bottom: ten log-spaced bins
       from 0.1 to 10 on a logarithmic axis. The density follows the likelihood; the
       mass peaks in a wide bin.
   image:
     alt: |
       Two stacked panels of steps. In both, the solid density steps peak in the bin
       that contains z equal to one. The dotted mass steps are tallest in wider bins
-      next to it: in the top panel the bin from 1.1 to 1.6, in the bottom panel the
-      bin just above one.
+      next to it. In the top panel that is the bin from 1.1 to 1.6; in the bottom
+      panel, the bin just above one.
 ---
 unequal = binference.Bins([0, 0.2, 0.4, 0.5, 0.9, 1.0, 1.1, 1.6, 3.0])
 log_spaced = binference.Bins(np.geomspace(0.1, 10, 11), measure="linear")
@@ -161,14 +161,14 @@ Logarithmic bins use $u=\log z$, so the population is flat in $\log z$ within ea
 A logarithmic bin's centre is then the geometric mean of its edges.
 
 The measure decides how $\ell_i$ is averaged over a bin: uniformly in $u$. It also
-decides what a smoothness prior calls flat (see
+decides what a {term}`smoothness prior <logistic prior>` calls flat (see
 [priors on the simplex](priors-on-the-simplex.md)). Choose the coordinate in which the
 population changes least across a bin.
 
-When the population is not flat within the bins, the bin averages weight the wrong
-parts of each bin. This {term}`binning bias` does not shrink as objects are added.
-Bins narrower than the features you care about keep it small, and a {term}`basis`
-can model the shape within each bin.
+When the population is not flat within the bins, the resulting {term}`binning bias`
+does not shrink as you add objects; the inputs guide shows how a
+[within-bin basis](../guides/inputs.md#within-bin-shape-and-internal-resolution-basis)
+reduces it.
 
 ```{plain-words}
 binference asks one question of each object: how well does each bin explain its data?
@@ -177,13 +177,7 @@ The answers, one per bin, are all it needs.
 
 ## Where next
 
-- The {doc}`inputs guide <../guides/inputs>` builds likelihoods from each kind of data,
-  including [measures](../guides/inputs.md#measures-flat-in-which-coordinate) and the
-  [within-bin basis](../guides/inputs.md#within-bin-shape-and-internal-resolution-basis).
-- The tutorial {doc}`../tutorials/02_inputs` turns a table of posteriors, posterior
-  samples and masses on unequal bins into likelihoods.
-- The theory page defines the
-  [bin-averaged likelihood](../how-it-works/theory.md#objects-bins-and-likelihoods),
-  [masses and densities](../how-it-works/theory.md#masses-versus-densities) and
-  [binning bias](../how-it-works/theory.md#binning-is-a-modelling-choice).
-- Next concept: {doc}`likelihoods-and-posteriors`.
+- Do it: the {doc}`inputs guide <../guides/inputs>`.
+- See it: the tutorial {doc}`../tutorials/02_inputs`.
+- Derivation: [objects, bins and likelihoods](../how-it-works/theory.md#objects-bins-and-likelihoods)
+  on the theory page.

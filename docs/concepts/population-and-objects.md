@@ -41,7 +41,7 @@ $p(z\mid\rho)=\rho_k/v_k$.
 
 Your $N$ objects are one draw from that population. Their histogram of true values is
 the {term}`realised sample` $n_k$. A second draw of $N$ objects would give a different
-histogram, and each object's data add measurement noise on top ({ref}`figure <fig-realised>`).
+histogram, and each object's data add measurement noise on top ({ref}`the sample figure <fig-realised>`).
 
 ```{code-cell} python
 ---
@@ -50,16 +50,16 @@ mystnb:
   figure:
     name: fig-realised
     caption: |
-      Top: a population on 15 bins (indigo) and the histograms of three samples of 100
-      objects drawn from it (coral, solid, dashed and dotted). Bottom: 25 objects of
+      Top: a population on 15 bins (indigo). The coral lines are the histograms of
+      three samples of 100 objects drawn from it. Bottom: 25 objects of
       one sample, sorted by true value. Each has a true value (open circle) and a
       measured value with its error bar (filled).
   image:
     alt: |
-      Top panel: an indigo step histogram with two humps, and three coral step
-      histograms that scatter around it by up to about half its height. Bottom panel:
-      25 rows, one per object, each with an open circle at the true value and a filled
-      coral point with a horizontal error bar at the measured value, often displaced
+      Top panel: an indigo step histogram with two humps. Three coral step histograms
+      scatter around it by up to about half its height. Bottom panel: 25 rows, one per
+      object. Each row has an open circle at the true value and a filled coral point
+      with a horizontal error bar at the measured value. The point is often displaced
       from the circle.
 ---
 bins = binference.Bins.linear(0, 3, 15)
@@ -89,7 +89,7 @@ ax.legend(fontsize=12, loc="lower right")
 plt.show()
 ```
 
-Both are useful, for different questions. A property of the population, such as an
+A property of the population, such as an
 occurrence rate or a luminosity function, needs $\rho$. A property of these particular
 objects, such as the redshift distribution of one lens sample, needs $n_k$. The
 uncertainty of $n_k$ leaves out the noise of drawing $N$ objects, so it is narrower.
@@ -106,7 +106,9 @@ $$
 
 Averaging them over the objects gives a new estimate of the population. Starting from a
 flat population, the first average is the stack of the objects' posteriors under a flat
-prior. {term}`EM` repeats the average under each new estimate ({ref}`figure <fig-em>`, top). Each step undoes more of the blurring by the measurement errors.
+prior. {term}`EM` repeats the average under each new estimate
+({ref}`the EM figure <fig-em>`, top). Each step removes more of the widening caused by
+measurement errors.
 
 ```{code-cell} python
 ---
@@ -117,17 +119,17 @@ mystnb:
     caption: |
       2,000 mock objects on 20 bins, with measurement errors between 0.15 and 0.35.
       Top: EM steps from a flat population. Step 1 is the stack; later steps are
-      darker. Bottom: the hierarchical fit, the posterior mean and 68% band of the
-      population from NUTS (two chains of 300 draws), with the stack for comparison.
-      Dashed: the true population.
+      darker. Bottom: the hierarchical fit, with the stack for comparison. The fit is
+      the posterior mean and 68% band from Gibbs, four chains of 1,000 draws. Dashed:
+      the true population.
   image:
     alt: |
       Two stacked panels. In the top panel the palest line, the stack, is a smooth
-      single broad hump that misses the dip between the two humps of the dashed
-      truth; darker lines for later steps deepen the dip and sharpen the humps,
-      and the darkest, step 200, swings up and down between neighbouring bins. In the
-      bottom panel an indigo band contains the dashed truth in most
-      bins, while the pale stack line stays too smooth.
+      broad hump. It misses the dip between the two humps of the dashed truth. Darker
+      lines for later steps deepen the dip and sharpen the humps. The darkest, step
+      200, swings up and down between neighbouring bins. In the bottom panel an indigo
+      band contains the dashed truth in most bins. The pale stack line stays too
+      smooth.
 ---
 bins = binference.Bins.linear(0, 3, 20)
 truth = binference.simulate.population(bins, "bimodal")
@@ -141,8 +143,7 @@ for t in range(2, 201):
         steps[t] = rho
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
-    fit = binference.infer(lk, method="nuts", n_chains=2, n_samples=300, n_warmup=300, rng=1,
-                           check=False)
+    fit = binference.infer(lk, method="gibbs", n_samples=1000, rng=1, check=False)
 dens = lambda r: r / bins.volumes  # noqa: E731
 fig, axes = plt.subplots(2, 1, layout="constrained", figsize=(4.8, 5.1), sharex=True)
 ax = axes[0]
@@ -167,29 +168,29 @@ glue("neighbour_corr", float(np.median(np.diag(corr, 1))), display=False)
 
 Run to convergence, EM reaches the most probable population, the {term}`MAP`. A
 hierarchical fit goes further: it gives the posterior of the population, with its
-uncertainty ({ref}`figure <fig-em>`, bottom). The stack does neither. It is one step
+uncertainty ({ref}`the EM figure <fig-em>`, bottom). The stack does neither. It is one step
 of the iteration, too smooth wherever the likelihoods are broader than the features of
-the population. The later EM steps in the figure turn jagged: neighbouring bins
-trade mass, as the next section explains.
+the population. The later EM steps in the figure turn jagged, for the reason the next
+section gives.
 
 ## Correlations between bins
 
 When likelihoods are broader than the bins, the data constrain the sum of neighbouring
-bins better than either bin. Mass can move between them at little cost, so their
-fractions are anti-correlated. In the fit of {ref}`figure <fig-em>`, the median
-correlation between neighbouring bins is {glue:text}`neighbour_corr:.2f`.
-
-Per-bin error bars therefore do not combine like independent errors. Compute a sum, a
-mean or a ratio of bins on each posterior {term}`draw`, and take the spread of the
-results.
+bins better than either bin. Mass can shift between them with little change in the
+likelihood, so their fractions are anti-correlated. In the fit of
+{ref}`the EM figure <fig-em>`, the median correlation between neighbouring bins is
+{glue:text}`neighbour_corr:.2f`. Per-bin error bars therefore do not combine like
+independent errors; the pitfalls guide shows
+[how to combine them](../guides/pitfalls.md#reading-per-bin-error-bars-as-independent).
 
 ## Shrinkage: each object under the population
 
-The population also informs each object. Object $i$'s
-{term}`hierarchical posterior` $P(k_i=k\mid D)$ is its responsibilities averaged over
-the posterior of $\rho$. It is narrower than the object's own likelihood wherever the
+The population also informs each object. Let $k_i$ be the bin of object $i$, and $D$
+the data of all objects. Object $i$'s {term}`hierarchical posterior` $P(k_i=k\mid D)$
+is its responsibilities averaged over the posterior of $\rho$. It is narrower than the object's own likelihood wherever the
 population is informative. This is {term}`shrinkage`, and it is strongest when the
-population is narrow compared with the measurement error ({ref}`figure <fig-shrinkage>`).
+population is narrow compared with the measurement error
+({ref}`the shrinkage figure <fig-shrinkage>`).
 
 ```{code-cell} python
 ---
@@ -206,9 +207,9 @@ mystnb:
   image:
     alt: |
       Two stacked panels. In the top panel a narrow indigo population peaks at 1.25,
-      the dashed likelihood peaks at 1.9, and the solid posterior lies between them,
-      peaking near 1.4 and narrower than the likelihood. In the bottom panel the
-      population is broad and low, and the posterior nearly coincides with the
+      and the dashed likelihood peaks at 1.9. The solid posterior lies between them,
+      peaking near 1.4, and is narrower than the likelihood. In the bottom panel the
+      population is broad and low. The posterior nearly coincides with the
       likelihood.
 ---
 bins = binference.Bins.linear(0, 3, 30)
@@ -232,8 +233,8 @@ axes[1].set_xlabel("true value $z$")
 plt.show()
 ```
 
-Shrinkage is not a bias to remove. Each object's own likelihood ignores what the other
-objects say about where objects tend to lie, and the hierarchical posterior adds it.
+Shrinkage is not a bias to remove. Each object's own likelihood leaves out where the
+other objects lie; the hierarchical posterior adds it.
 
 ```{plain-words}
 The population is where objects like yours come from, and your catalogue is one draw
@@ -243,17 +244,9 @@ population.
 
 ## Where next
 
-- The results guide reads [the population](../guides/results.md#the-population),
+- Do it: the results guide reads [the population](../guides/results.md#the-population),
   [individual objects](../guides/results.md#individual-objects) and
-  [the realised sample](../guides/results.md#population-versus-realised-sample) from a
-  fit.
-- The tutorial {doc}`../tutorials/01_quickstart` makes these fits on a mock catalogue.
-- The pitfalls guide covers
-  [stacking](../guides/pitfalls.md#stacking),
-  [correlated error bars](../guides/pitfalls.md#reading-per-bin-error-bars-as-independent)
-  and [the population versus the sample](../guides/pitfalls.md#confusing-the-population-with-the-sample).
-- The theory page defines the
-  [augmented form](../how-it-works/theory.md#the-augmented-hierarchical-form),
-  [the realised sample](../how-it-works/theory.md#population-versus-realised-sample) and
-  [individual objects](../how-it-works/theory.md#individual-objects).
-- Next concept: {doc}`priors-on-the-simplex`.
+  [the realised sample](../guides/results.md#population-versus-realised-sample) from a fit.
+- See it: the tutorial {doc}`../tutorials/01_quickstart`.
+- Derivation: [the augmented form](../how-it-works/theory.md#the-augmented-hierarchical-form)
+  on the theory page.

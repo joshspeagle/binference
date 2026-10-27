@@ -41,8 +41,9 @@ $$
 The prior $\pi$ is the {term}`interim prior`. The code chose it before anyone knew the
 population. For a classifier, it is the class mix of the training set.
 
-The same likelihood gives different posteriors under different interim priors ({ref}`figure <fig-interim>`). A broad interim prior barely changes the likelihood. A narrow
-one pulls the posterior toward its own peak.
+The same likelihood gives different posteriors under different interim priors
+({ref}`figure <fig-interim>`). A broad interim prior barely changes the likelihood. A
+narrow one moves the posterior toward its own peak.
 
 ```{code-cell} python
 ---
@@ -51,9 +52,9 @@ mystnb:
   figure:
     name: fig-interim
     caption: |
-      One object's likelihood (dashed), Gaussian with mean 1.9 and standard deviation
-      0.3, times an interim prior (dotted) gives its posterior (solid), on 60 bins.
-      Top: a broad interim prior, normal with mean 1.5 and standard deviation 0.9.
+      One object's likelihood (dashed) times an interim prior (dotted) gives its
+      posterior (solid), on 60 bins. The likelihood is Gaussian with mean 1.9 and
+      standard deviation 0.3. Top: a broad interim prior, normal with mean 1.5 and standard deviation 0.9.
       Bottom: a narrow one, normal with mean 0.9 and standard deviation 0.3. Each
       curve has unit area.
   image:
@@ -98,8 +99,9 @@ so you must name the one that was used.
 
 Treating posteriors as likelihoods counts the interim prior once per object. The data
 then constrain the product of $\pi$ and the population rather than the population
-itself. An extra factor rewards populations that put their mass where $\pi$ is large.
-The fit drifts toward the interim prior, and more so the narrower it is ({ref}`figure <fig-interim-drift>`). With uninformative data, it collapses onto the interim
+itself. The fit then favours populations that are large where $\pi$ is large. It moves
+toward the interim prior, more so the narrower $\pi$ is
+({ref}`figure <fig-interim-drift>`). With uninformative data it equals the interim
 prior's peak.
 
 ```{code-cell} python
@@ -109,17 +111,18 @@ mystnb:
   figure:
     name: fig-interim-drift
     caption: |
-      Population fits to the posteriors of 2,000 mock objects on 15 bins, with
-      measurement errors between 0.1 and 0.25, computed under the two interim priors
-      above. Indigo: the interim prior divided out. Amber: the posteriors used as
-      likelihoods. Each shows its posterior mean and 68% band, from Gibbs sampling
-      with 4,000 draws. Dashed: the true population. Dotted: the interim prior.
+      Population fits to the posteriors of 2,000 mock objects on 15 bins. The
+      measurement errors are between 0.1 and 0.25, and the posteriors use the two
+      interim priors above. Indigo: the interim prior divided out. Amber: the
+      posteriors used as likelihoods. Each shows its posterior mean and 68% band,
+      from 1,000 Gibbs draws. Dashed: the true population. Dotted: the interim prior.
   image:
     alt: |
       Two stacked panels of population densities. In both, the indigo band follows
       the dashed truth, which has two humps. In the top panel the amber band is close
-      to the truth. In the bottom panel the amber band piles up between 0.6 and 1.4,
-      under the narrow dotted interim prior, and drops below the truth elsewhere.
+      to the truth. In the bottom panel the amber band rises above the truth between
+      0.4 and 1.6, under the narrow dotted interim prior. It falls below the truth on
+      both sides.
 ---
 bins = binference.Bins.linear(0, 3, 15)
 truth = binference.simulate.population(bins, "bimodal")
@@ -133,7 +136,7 @@ for ax, (name, pi) in zip(axes, INTERIMS.items(), strict=True):
         lk = binference.Likelihoods.from_table(mock.posteriors, bins, **how)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            fits[label] = binference.infer(lk, method="gibbs", n_samples=1000, rng=1, check=False)
+            fits[label] = binference.infer(lk, method="gibbs", n_samples=250, rng=1, check=False)
     for (label, fit), color in zip(fits.items(), ("C0", "C1"), strict=True):
         fit.plot(ax=ax, levels=(0.68,), color=color, label=label)
     ax.stairs(truth / bins.volumes, bins.edges[0], color=INK, lw=1.4, ls="--", label="truth")
@@ -155,23 +158,10 @@ plt.show()
 
 ## Stacking is one step from the interim prior
 
-Stacking averages the objects' posteriors and calls the average the population. Each
-posterior is the object's posterior over bins under the interim prior: its
-{term}`responsibilities` $r_{ik}(\pi)$. The stack is therefore
-
-$$
-\frac1W\sum_iw_i\,r_{ik}(\pi),
-$$
-
-with $w_i$ the {term}`weights` and $W$ their sum. This is exactly one step of
-{term}`EM` started from the interim prior. EM repeats the step: it recomputes every
-object's posterior under the current estimate and averages again, until nothing
-changes.
-
-One step is not enough when likelihoods are broad. The stack is then the population
-blurred by the measurement errors, and pulled toward $\pi$. The
-[population page](population-and-objects.md#stacking-and-the-hierarchical-fit) shows the
-steps that follow.
+{term}`Stacking` averages the objects' posteriors and calls the average the
+population. The stack is one step of {term}`EM` started from the interim prior, so it
+leans toward $\pi$; [the EM figure](population-and-objects.md#stacking-and-the-hierarchical-fit)
+shows the steps that follow.
 
 ```{plain-words}
 A posterior is a likelihood with someone else's guess about the population already
@@ -180,16 +170,10 @@ mixed in. Take that guess out before you ask what the population is.
 
 ## Where next
 
-- The inputs guide converts
-  [posteriors](../guides/inputs.md#posteriors-computed-under-an-interim-prior) and
-  [posterior samples](../guides/inputs.md#posterior-samples) with their interim prior.
-- The tutorial {doc}`../tutorials/02_inputs` repeats {ref}`figure <fig-interim-drift>` with a photometric-redshift mock.
-  {doc}`../tutorials/06_categories_unfolding` divides a classifier's training class
-  mix out of its probabilities.
-- The pitfalls guide describes
-  [posteriors used as likelihoods](../guides/pitfalls.md#feeding-posteriors-in-as-likelihoods)
-  and [stacking](../guides/pitfalls.md#stacking).
-- The theory page derives the
-  [bias](../how-it-works/theory.md#likelihoods-versus-posteriors) and shows that
-  [EM is iterated stacking](../how-it-works/theory.md#point-estimates-em-is-iterated-stacking).
-- Next concept: {doc}`population-and-objects`.
+- Do it: the inputs guide converts
+  [posteriors](../guides/inputs.md#posteriors-computed-under-an-interim-prior) with
+  their interim prior.
+- See it: the tutorial {doc}`../tutorials/02_inputs` repeats
+  {ref}`the drift figure <fig-interim-drift>` with a photometric-redshift mock.
+- Derivation: [likelihoods versus posteriors](../how-it-works/theory.md#likelihoods-versus-posteriors)
+  on the theory page.
