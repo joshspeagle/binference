@@ -1500,7 +1500,7 @@ class PopulationResult(_IndividualMixin):
                     if per_chain < ess_min:
                         msgs.append(
                             f"min {kind} ESS{what} = {ess:.0f} "
-                            f"({per_chain:.0f} per chain < {ess_min:.0f})"
+                            f"({per_chain:.1f} per chain < {ess_min:.0f})"
                         )
         return msgs
 
@@ -1923,6 +1923,10 @@ class PointEstimate(_IndividualMixin):
     def check(self, kkt_max: float = 1e-4, strict: bool = False) -> list[str]:
         """Warn (or raise with ``strict=True``) when the optimiser did not converge or the
         KKT gap (per object; see :meth:`PopulationModel.kkt_gap`) exceeds ``kkt_max``.
+
+        Estimates found by L-BFGS in unconstrained coordinates have no KKT gap (NaN); for
+        them the check is ``converged``, which holds when the largest gradient divided by
+        ``max(1, W)`` fell below the solver's ``tol`` (kept in ``info["grad_norm"]``).
 
         The default is ten times the round-off floor at which MAP stops (DECISIONS #12).
         Returns the messages (empty if the estimate looks fine).

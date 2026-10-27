@@ -1,5 +1,7 @@
 """Tests for the MAP fixes of audit M-5, M-6, M-8, M-9, M-13 and T-4."""
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -140,3 +142,29 @@ def test_em_started_at_its_fixed_point_converges_at_once():
     mode = MAP(m, algorithm="em").run()
     again = MAP(m, algorithm="em", init=mode.value, max_iter=5).run()
     assert again.converged and again.n_iter < 5
+
+
+def test_an_explicit_simplex_algorithm_never_silently_runs_lbfgs():
+    lk = _mock(n=300, K=8).likelihoods
+    # a non-conjugate prior, or the unconstrained space, cannot run EM or mix-SQP
+    with pytest.raises(ValueError, match="algorithm='em'"):
+        MAP(PopulationModel(lk, P.LogisticRandomWalk()), algorithm="em").run()
+    with pytest.raises(ValueError, match="algorithm='mixsqp'"):
+        MAP(PopulationModel(lk, P.Dirichlet(1.0)), algorithm="mixsqp", space="unconstrained").run()
+    with pytest.raises(ValueError, match="conjugate"):
+        binference.infer(lk, P.LogisticGP(), method="em")
+    # below one, auto picks L-BFGS, but asking for EM runs EM on the simplex (and warns)
+    with pytest.warns(binference.InputWarning, match="unbounded"):
+        est = binference.infer(lk, P.Dirichlet(0.5), method="em")
+    assert est.info == {"space": "simplex", "algorithm": "squarem"}
+
+
+def test_the_ess_message_never_rounds_the_per_chain_value_up_to_the_limit():
+    with warnings.catch_warnings():  # a short run; only the message's format is tested
+        warnings.simplefilter("ignore", ConvergenceWarning)
+        res = binference.infer(_mock(n=300, K=4).likelihoods, method="gibbs", n_samples=200, rng=0)
+    d = dict(res.diagnostics)
+    d["ess_tail"] = np.full_like(np.asarray(d["ess_tail"], float), 399.0)
+    res._cache["diagnostics"] = d
+    msgs = [m for m in res._mixing_problems() if "tail ESS" in m]
+    assert msgs and "(99.8 per chain < 100)" in msgs[0]

@@ -169,7 +169,10 @@ class MAP(Engine):
     algorithm : {"auto", "mixsqp", "em"}
         Simplex-space algorithm: ``"auto"`` uses mix-SQP where it applies
         (Dirichlet prior with concentrations >= 1, or exactly 1 with
-        selection; GammaRates with shapes >= 1) and EM otherwise.
+        selection; GammaRates with shapes >= 1), EM on the simplex otherwise,
+        and L-BFGS in the unconstrained space. ``"mixsqp"`` or ``"em"`` solve on
+        the simplex (as ``space="simplex"``) and raise for a non-conjugate prior
+        or ``space="unconstrained"``.
     init : array_like (K,), optional
         Starting fractions (or rates). By default mix-SQP starts after 10
         regularised EM steps from uniform, the other algorithms after up to 50.
@@ -213,22 +216,32 @@ class MAP(Engine):
     def _resolve_space(self) -> str:
         m = self.model
         simplex_ok = m.prior.conjugate and m.prior.has_density
+        if self.algorithm != "auto":  # an explicit simplex algorithm asks for the simplex
+            if self.space == "unconstrained" or not simplex_ok:
+                raise ValueError(
+                    f"algorithm={self.algorithm!r} solves on the simplex, which needs a conjugate "
+                    "prior and space='auto' or 'simplex'; use algorithm='auto' for L-BFGS."
+                )
+            return self._simplex_space()
         if self.space == "simplex":
             if not simplex_ok:
                 raise ValueError("space='simplex' needs a conjugate prior; use 'unconstrained'.")
-            if m.prior.unbounded_density():
-                warn(
-                    "The prior density is unbounded at the boundary of the simplex (e.g. "
-                    "concentrations below one, or a Polya tree), so the EM solution can clip "
-                    "components to exactly zero; space='unconstrained' gives an interior mode.",
-                    InputWarning,
-                )
-            return "simplex"
+            return self._simplex_space()
         if self.space == "unconstrained" or m.joint:
             return "unconstrained"
         if simplex_ok and not m.prior.unbounded_density():
             return "simplex"
         return "unconstrained"
+
+    def _simplex_space(self) -> str:
+        if self.model.prior.unbounded_density():
+            warn(
+                "The prior density is unbounded at the boundary of the simplex (e.g. "
+                "concentrations below one, or a Polya tree), so the EM solution can clip "
+                "components to exactly zero; space='unconstrained' gives an interior mode.",
+                InputWarning,
+            )
+        return "simplex"
 
     def run(self) -> PointEstimate:
         """Find the mode."""
