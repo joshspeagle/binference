@@ -50,8 +50,8 @@ the same draws.
    runs long enough for a target effective sample size, from the
    autocorrelation time $(1+f)/(1-f)$, and is extended until that size and
    $\hat R$ pass; if that would take too many draws, auto moves on. An
-   explicit `n_samples` fixes the run length. Auto then chooses Gibbs at any
-   projected length, does not extend it, and warns if it did not mix.
+   explicit `n_samples` fixes the run length: auto then does not extend Gibbs,
+   and warns if it did not mix.
 2. **Laplace**, importance-corrected, kept when its Pareto $\hat k$ check
    passes with enough effective draws. For very large inputs, or when no
    other engine takes the options given, it is kept anyway, and flagged

@@ -98,10 +98,9 @@ print("largest shift between the two fits:", shift.max().round(2), "posterior sd
 ```
 
 The fit from samples warns about this noise: the Monte Carlo variance of the
-likelihoods at the fitted population, $\sum_iV_i$, is above the limit of 1. `from_s.check()` returns the same message.
-[Posterior samples](../user-guide/inputs.md#posterior-samples) in the user guide
-defines $V_i$ and the warning for objects with few effective samples. To reduce
-the noise, use more samples per object, coarser bins, or `floor=`.
+likelihoods at the fitted population is too large
+([posterior samples](../user-guide/inputs.md#posterior-samples)). To reduce it,
+use more samples per object, coarser bins, or `floor=`.
 
 ## Unequal bins: masses versus densities
 

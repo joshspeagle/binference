@@ -60,14 +60,12 @@ print({k: np.quantile(v, [0.16, 0.5, 0.84]).round(2)
        for k, v in result.info["hyperparameters"].items()})
 ```
 
-The fit warns that the E-BFMI of one chain is 0.25, below the limit of 0.3.
-E-BFMI measures how well NUTS moves through the energy distribution. A low
-value means that NUTS may under-explore the tails of the posterior. A longer
-warm-up does not remove the warning here: 2000 warm-up iterations gave 0.25,
-and 1000 with `target_accept=0.95` gave 0.26. Their hyperparameter intervals were within
-0.06 of the ones above. R-hat and the effective sample sizes pass. For a result
-that you publish, compare such a fit with a longer run or another prior
-([pitfalls](../user-guide/pitfalls.md#not-looking-at-the-diagnostics)).
+The fit warns that E-BFMI is below 0.3 in one chain
+([what it means](../user-guide/pitfalls.md#not-looking-at-the-diagnostics)).
+A longer warm-up (2000 iterations) or `target_accept=0.95` did not remove the
+warning, and moved the hyperparameter intervals by at most 0.06. R-hat and the
+effective sample sizes pass. For a result that you publish, compare such a fit
+with a longer run or another prior.
 
 ```{code-cell} python
 axes = result.plot()

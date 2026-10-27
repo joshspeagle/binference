@@ -312,8 +312,7 @@ def infer(
         conjugate prior, and a jointly inferred selection or response runs L-BFGS.
     n_samples : int, optional
         Draws per chain (NUTS, Gibbs, and ``"auto"``) or in total (Laplace, VB,
-        bootstrap). Under ``"auto"`` it fixes the run length: Gibbs is then not
-        extended until it mixes.
+        bootstrap). Under ``"auto"`` it fixes the run length (see :class:`Auto`).
     rng : int, numpy.random.Generator, or None
         Random number generator or seed (SPEC 7).
     progress : bool
