@@ -41,11 +41,16 @@ jobs:
               - "tests/**"
               - "pyproject.toml"
               - ".github/workflows/**"
+              # packed into the sdist and checked by the dist job or the tests
+              - "README.md"
+              - "LICENSE"
+              - "CHANGELOG.md"
+              - "CITATION.cff"
             docs:
               - *code
               - "docs/**"
-              - "README.md"
               - "CONTRIBUTING.md"
+              - "reports/**"  # included by docs/design/landscape.md
 
   lint:
     # The pre-commit hooks are the single pin of the lint and format tools.
@@ -137,7 +142,8 @@ jobs:
         run: python docs/_scripts/run_snippets.py README.md docs/start/install.md docs/guides/*.md
       # Executed notebooks are reused while the package, the plot style and the docs
       # configuration are unchanged; within that, a cache from other page text is restored
-      # and only the notebooks whose text changed run again. The weekly run executes all.
+      # and only notebooks whose code cells changed run again. The weekly run neither reads
+      # nor writes the cache, so it executes every notebook.
       - if: github.event_name != 'schedule'
         uses: actions/cache@v4
         with:
@@ -187,3 +193,15 @@ jobs:
           python -m venv "$RUNNER_TEMP/clean"
           "$RUNNER_TEMP/clean/bin/python" -m pip install dist/*.whl
           "$RUNNER_TEMP/clean/bin/python" -I -c "import binference; print(binference.__version__)"
+
+  ci-ok:
+    # One check that sums up a run, for branch protection: it fails when a job failed or was
+    # cancelled, and passes when jobs were skipped because the change cannot affect them.
+    if: always()
+    needs: [lint, test, minimum-dependencies, docs, dist]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+      - run: echo "every job that applies passed"
