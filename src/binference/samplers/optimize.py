@@ -169,7 +169,9 @@ class MAP(Engine):
     algorithm : {"auto", "mixsqp", "em"}
         Simplex-space algorithm: ``"auto"`` uses mix-SQP where it applies
         (Dirichlet prior with concentrations >= 1, or exactly 1 with
-        selection; GammaRates with shapes >= 1) and EM otherwise.
+        selection; GammaRates with shapes >= 1), EM on the simplex otherwise,
+        and L-BFGS in the unconstrained space. ``"mixsqp"`` and ``"em"`` solve on
+        the simplex, as ``space="simplex"`` does (not for joint models).
     init : array_like (K,), optional
         Starting fractions (or rates). By default mix-SQP starts after 10
         regularised EM steps from uniform, the other algorithms after up to 50.
@@ -196,11 +198,6 @@ class MAP(Engine):
         super().__init__(model, rng=rng, progress=progress)
         if space not in ("auto", "simplex", "unconstrained"):
             raise ValueError("space must be 'auto', 'simplex' or 'unconstrained'.")
-        if model.joint and (space == "simplex" or algorithm != "auto"):
-            raise ValueError(
-                "A selection from injections or a tallied response is inferred by L-BFGS in "
-                "space='unconstrained' only; leave algorithm='auto' (DECISIONS #80, #81)."
-            )
         if algorithm not in ("auto", "mixsqp", "em"):
             raise ValueError("algorithm must be 'auto', 'mixsqp' or 'em'.")
         self.algorithm = algorithm
@@ -209,13 +206,32 @@ class MAP(Engine):
         self.max_iter = int(max_iter)
         self.accelerate = bool(accelerate)
         self.init = None if init is None else np.asarray(init, dtype=float)
+        # an explicit algorithm or space="simplex" solves on the simplex, if it can
+        self._on_simplex = algorithm != "auto" or space == "simplex"
+        if self._on_simplex:
+            asked = f"algorithm={algorithm!r}" if algorithm != "auto" else "space='simplex'"
+            if model.joint:
+                why = "a joint selection or response is fitted by L-BFGS in space='unconstrained'"
+            elif space == "unconstrained":
+                why = "space='unconstrained' runs L-BFGS"
+            elif not (model.prior.conjugate and model.prior.has_density):
+                why = "the simplex needs a conjugate prior"
+            elif algorithm == "mixsqp" and not self._mixsqp_applies():
+                why = (
+                    "mix-SQP needs a Dirichlet prior with concentrations >= 1 (exactly 1 with "
+                    "a selection function) or GammaRates with shapes >= 1"
+                )
+            else:
+                why = None
+            if why:
+                fix = "algorithm='auto'" if algorithm != "auto" else "space='auto'"
+                raise ValueError(
+                    f"{asked} cannot run here: {why}. Use {fix} (method='map' in infer)."
+                )
 
     def _resolve_space(self) -> str:
         m = self.model
-        simplex_ok = m.prior.conjugate and m.prior.has_density
-        if self.space == "simplex":
-            if not simplex_ok:
-                raise ValueError("space='simplex' needs a conjugate prior; use 'unconstrained'.")
+        if self._on_simplex:
             if m.prior.unbounded_density():
                 warn(
                     "The prior density is unbounded at the boundary of the simplex (e.g. "
@@ -226,23 +242,15 @@ class MAP(Engine):
             return "simplex"
         if self.space == "unconstrained" or m.joint:
             return "unconstrained"
-        if simplex_ok and not m.prior.unbounded_density():
+        if m.prior.conjugate and m.prior.has_density and not m.prior.unbounded_density():
             return "simplex"
         return "unconstrained"
 
     def run(self) -> PointEstimate:
         """Find the mode."""
         m = self.model
-        space = self._resolve_space()
-        if space == "simplex":
-            if self._mixsqp_applies():
-                return self._run_mixsqp(m)
-            if self.algorithm == "mixsqp":
-                raise ValueError(
-                    "mix-SQP needs a Dirichlet prior with concentrations >= 1 (exactly 1 with "
-                    "a selection function) or GammaRates with shapes >= 1."
-                )
-            return self._run_em(m)
+        if self._resolve_space() == "simplex":
+            return self._run_mixsqp(m) if self._mixsqp_applies() else self._run_em(m)
         return self._run_lbfgs(m)
 
     #: whether results carry their log-likelihood, KKT gap and convergence diagnostics;

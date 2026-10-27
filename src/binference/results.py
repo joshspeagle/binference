@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from collections.abc import Callable, Sequence
 from functools import partial
 from typing import TYPE_CHECKING, Any
@@ -1498,9 +1499,10 @@ class PopulationResult(_IndividualMixin):
                     ess = np.nanmin(d[key])
                     per_chain = ess / max(1, self.n_chains)
                     if per_chain < ess_min:
+                        # rounded down, so the message never shows the limit as reached
                         msgs.append(
-                            f"min {kind} ESS{what} = {ess:.0f} "
-                            f"({per_chain:.0f} per chain < {ess_min:.0f})"
+                            f"min {kind} ESS{what} = {math.floor(ess)} "
+                            f"({math.floor(per_chain * 10) / 10:.1f} per chain < {ess_min:g})"
                         )
         return msgs
 
@@ -1923,6 +1925,9 @@ class PointEstimate(_IndividualMixin):
     def check(self, kkt_max: float = 1e-4, strict: bool = False) -> list[str]:
         """Warn (or raise with ``strict=True``) when the optimiser did not converge or the
         KKT gap (per object; see :meth:`PopulationModel.kkt_gap`) exceeds ``kkt_max``.
+
+        Estimates found by L-BFGS in unconstrained coordinates have no KKT gap (NaN); for
+        them the check is ``converged`` (see ``tol`` of :class:`~binference.samplers.MAP`).
 
         The default is ten times the round-off floor at which MAP stops (DECISIONS #12).
         Returns the messages (empty if the estimate looks fine).

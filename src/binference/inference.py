@@ -308,7 +308,8 @@ def infer(
         ``engine_kwargs``, and the choice and its reason are in
         ``result.info["auto_method"]`` and ``result.info["auto_reason"]``.
         ``"nuts"`` samples the exact posterior with any prior; ``"em"`` is MAP by
-        EM itself (``algorithm="em"``) rather than mix-SQP.
+        EM on the simplex (``algorithm="em"``) rather than mix-SQP; it needs a
+        conjugate prior, and a jointly inferred selection or response runs L-BFGS.
     n_samples : int, optional
         Draws per chain (NUTS, Gibbs) or in total (Laplace, VB, bootstrap).
     rng : int, numpy.random.Generator, or None

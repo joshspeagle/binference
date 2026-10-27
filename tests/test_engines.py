@@ -414,8 +414,8 @@ def test_mixsqp_on_tall_dense_inputs_and_fallbacks():
         selection_mode="on_truth",
     )
     assert MAP(sel).run().info["algorithm"] == "squarem"
-    with pytest.raises(ValueError, match="mix-SQP"):
-        MAP(sel, algorithm="mixsqp").run()
+    with pytest.raises(ValueError, match="concentrations >= 1"):
+        MAP(sel, algorithm="mixsqp")
     with pytest.raises(ValueError):
         MAP(m, algorithm="newton")
 
