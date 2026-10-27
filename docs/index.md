@@ -112,6 +112,10 @@ fields/index
 :hidden:
 
 reference/api/index
+reference/glossary
+reference/notation
+reference/defaults
+reference/warnings
 reference/bibliography
 reference/changelog
 reference/citing
