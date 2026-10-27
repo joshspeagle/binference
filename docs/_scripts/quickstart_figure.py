@@ -1,6 +1,8 @@
 """Regenerate docs/_static/quickstart.png (the README figure).
 
-Run from the repository root: ``python docs/_scripts/quickstart_figure.py``.
+Run from the repository root, with the docs style:
+``MATPLOTLIBRC=docs/_ext/matplotlibrc python docs/_scripts/quickstart_figure.py``.
+It fits the example of the README and the home page.
 """
 
 import matplotlib
@@ -10,8 +12,10 @@ import matplotlib.pyplot as plt
 
 import binference
 
-mock = binference.simulate.mock_1d(2000, rng=42)
-lk = mock.likelihoods
+bins = binference.Bins.linear(0.0, 3.0, 15)
+mock = binference.simulate.mock_1d(2000, bins, rng=42)
+z_obs, z_err = mock.measurements["mean"], mock.measurements["sigma"]
+lk = binference.Likelihoods.from_gaussian(z_obs, z_err, bins)
 stack = lk.stack()
 
 flat = binference.infer(lk, rng=1)

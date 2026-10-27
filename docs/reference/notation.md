@@ -144,5 +144,6 @@ documentation adopt the symbols above and remove it.
 | $G$ | gradient of the log posterior in $\lambda$ | $\partial\log p/\partial\lambda$ |
 
 The field pages quote each field's own formulas. On the gravitational-wave page,
-$\Lambda$ denotes hyperparameters $\theta$, and $S_i$ the number of samples of event $i$.
+$\Lambda$ denotes hyperparameters, $\theta$ an event's parameters, $S_i$ the number of
+samples of event $i$, $R$ the merger rate and $N_\text{draw}$ the number of injections.
 On the empirical-Bayes page, $w$ and $g$ denote $\rho$.
