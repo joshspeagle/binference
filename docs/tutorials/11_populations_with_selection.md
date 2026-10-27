@@ -113,7 +113,7 @@ the lightest bins, where there are few detections.
 
 ```{code-cell} python
 exact = binference.Selection.from_function(lambda x: p_det(np.exp(x)), bins, "on_truth")
-kw = dict(method="nuts", rng=1)
+kw = dict(method="nuts", n_warmup=500, rng=1)
 fits = {
     "no selection": binference.infer(lk, **kw),
     "plug-in injections": binference.infer(lk, selection=sel.at_mean(), **kw),

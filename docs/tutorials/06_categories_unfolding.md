@@ -148,7 +148,7 @@ or a regularisation strength by hand.
 ```{code-cell} python
 lk_u = binference.Likelihoods.from_binned(mu.response, counts=counts)
 print(lk_u, lk_u.selection)
-flat = binference.infer(lk_u, method="nuts", rng=1, n_warmup=500)
+flat = binference.infer(lk_u, method="nuts", rng=1, n_warmup=500, n_samples=700)
 smooth = binference.infer(lk_u, binference.priors.LogisticGP(), rng=1, check=False)
 d = smooth.diagnostics
 print(f"divergent: {d['n_divergent']} of {smooth.n_draws}, max R-hat {d['rhat'].max():.3f}, "

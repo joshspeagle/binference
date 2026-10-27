@@ -64,7 +64,7 @@ simulate = binference.simulate.prior_predictive(prior, grid, n_objects=50, noise
 
 def fit_gibbs(lk, rng):
     return binference.infer(lk, prior, method="gibbs", rng=rng, n_chains=4,
-                        n_warmup=200, n_samples=500, check=False)
+                        n_warmup=100, n_samples=500, check=False)
 
 result = sbc(simulate, fit_gibbs, n_simulations=150, n_draws=19, rng=0)
 print("uniformity p-values:", {n: round(float(v), 3) for n, v in zip(result.names, result.pvalues(10))})

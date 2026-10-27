@@ -53,19 +53,17 @@ the tutorials, so `n_jobs=-1` runs the four chains in parallel processes.
 They use the same random streams as a serial run.
 
 ```{code-cell} python
-result = binference.infer(lk, binference.priors.LogisticGP(), rng=1, n_samples=500, n_warmup=500,
-                      n_jobs=-1)
+result = binference.infer(lk, binference.priors.LogisticGP(n_basis=10), rng=1, n_samples=500,
+                      n_warmup=500, n_jobs=-1)
 print(result)
 print({k: np.quantile(v, [0.16, 0.5, 0.84]).round(2)
        for k, v in result.info["hyperparameters"].items()})
 ```
 
-The fit warns that E-BFMI is below 0.3 in one chain
-([what it means](../user-guide/pitfalls.md#not-looking-at-the-diagnostics)).
-A longer warm-up (2000 iterations) or `target_accept=0.95` did not remove the
-warning, and moved the hyperparameter intervals by at most 0.06. R-hat and the
-effective sample sizes pass. For a result that you publish, compare such a fit
-with a longer run or another prior.
+Ten sines per axis (`n_basis=10`) are enough for a 12 × 12 grid. The default,
+one sine per bin, gives 144 modes, and NUTS then moved slowly through their
+energy (E-BFMI below 0.3 in one chain;
+[what it means](../user-guide/pitfalls.md#not-looking-at-the-diagnostics)).
 
 ```{code-cell} python
 axes = result.plot()
