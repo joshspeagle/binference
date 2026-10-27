@@ -95,6 +95,13 @@ start/principles
 ```
 
 ```{toctree}
+:caption: Concepts
+:hidden:
+
+concepts/index
+```
+
+```{toctree}
 :caption: Tutorials
 :hidden:
 
