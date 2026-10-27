@@ -27,7 +27,7 @@ from ..bins import Bins
 
 __all__ = ["BoundPrior", "PopulationPrior"]
 
-#: floor of drawn fractions and rates, so their logarithms stay finite
+#: Floor of drawn fractions and rates, so that their logarithms stay finite.
 _TINY = 1e-300
 
 
@@ -105,7 +105,15 @@ def _per_item(value: Any, n: int, name: str) -> np.ndarray:
 
 
 class BoundPrior:
-    """Numerical interface of a prior bound to specific bins (internal)."""
+    """Numerical interface of a prior bound to specific bins (internal).
+
+    Parameters
+    ----------
+    prior : PopulationPrior
+        The prior.
+    bins : Bins
+        The bins it is bound to.
+    """
 
     kind: str = "fractions"
     conjugate: bool = False
@@ -126,7 +134,13 @@ class BoundPrior:
     dim: int
 
     def forward(self, x: np.ndarray) -> tuple[np.ndarray, Any]:  # pragma: no cover
-        """Map unconstrained ``x`` to logits / log-rates ``eta`` (and a cache)."""
+        """Map unconstrained ``x`` to logits / log-rates ``eta`` (and a cache).
+
+        Parameters
+        ----------
+        x : ndarray (dim,)
+            Unconstrained point.
+        """
         raise NotImplementedError
 
     def log_prior_and_grad(
@@ -136,6 +150,17 @@ class BoundPrior:
 
         ``d_eta`` is the gradient of the log-likelihood with respect to
         ``eta``; the returned gradient is ``d/dx [log prior(x) + loglike]``.
+
+        Parameters
+        ----------
+        x : ndarray (dim,)
+            Unconstrained point.
+        cache : object
+            The cache :meth:`forward` returned for ``x``.
+        value : ndarray (K,)
+            Fractions or rates at ``x``.
+        d_eta : ndarray (K,)
+            Gradient of the log-likelihood with respect to ``eta``.
         """
         raise NotImplementedError
 
@@ -144,6 +169,11 @@ class BoundPrior:
 
         Exact for the Dirichlet family and rates; for the logistic priors a
         ridge-regularised fit that shrinks towards the prior mean.
+
+        Parameters
+        ----------
+        value : ndarray (K,)
+            Fractions or rates.
         """
         raise NotImplementedError
 
@@ -152,7 +182,13 @@ class BoundPrior:
         raise NotImplementedError
 
     def log_density(self, value: np.ndarray) -> np.ndarray:
-        """Log-density of fractions (on the simplex) or rates."""
+        """Log-density of fractions (on the simplex) or rates.
+
+        Parameters
+        ----------
+        value : ndarray (..., K)
+            Fractions or rates.
+        """
         raise NotImplementedError(f"{type(self.prior).__name__} has no closed-form density.")
 
     def unbounded_density(self) -> bool:
@@ -168,6 +204,11 @@ class BoundPrior:
 
         Components with zero value are returned as zero (they are handled as
         active constraints by callers).
+
+        Parameters
+        ----------
+        value : ndarray (K,)
+            Fractions or rates.
         """
         raise NotImplementedError(f"{type(self.prior).__name__} has no closed-form density.")
 
@@ -175,6 +216,11 @@ class BoundPrior:
         """Map the unit hypercube ``[0, 1]^dim`` to prior draws (nested sampling).
 
         ``dim`` is ``K - 1`` for fractions and ``K`` for rates.
+
+        Parameters
+        ----------
+        u : ndarray (..., dim)
+            Points in the unit hypercube.
         """
         raise NotImplementedError(f"{type(self.prior).__name__} has no prior transform.")
 

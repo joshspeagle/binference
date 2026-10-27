@@ -22,7 +22,7 @@ On a grid of bins this is exactly binference's model: $g$ is the population
 $\rho$ over bins of $\theta$, and each unit's likelihood is its Gaussian
 measurement. Efron's g-modelling fits a smooth exponential family for $g$
 on such a grid, and the nonparametric maximum-likelihood estimate (NPMLE)
-of Kiefer and Wolfowitz, as computed by Koenker's REBayes, maximises the
+of {cite:t}`kiefer1956`, as computed by Koenker's REBayes, maximises the
 likelihood over all mixing distributions. This tutorial computes the NPMLE,
 the full posterior over $g$, and the per-unit shrinkage estimates that
 follow from each.

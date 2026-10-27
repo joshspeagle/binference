@@ -30,6 +30,8 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
     "sphinx_design",
+    "sphinxcontrib.bibtex",
+    "bnf_cite",
 ]
 
 exclude_patterns = [
@@ -55,13 +57,25 @@ nb_execution_raise_on_error = True
 nb_execution_show_tb = True
 nb_merge_streams = True
 
+# -- Bibliography -------------------------------------------------------------
+bibtex_bibfiles = ["references.bib"]
+bibtex_default_style = "plain"
+bibtex_reference_style = "author_year_round"
+
 # -- API reference ------------------------------------------------------------
 autosummary_generate = True
 autodoc_default_options = {"members": True, "inherited-members": False}
 autodoc_typehints = "none"
 numpydoc_show_class_members = False
 numpydoc_class_members_toctree = False
-numpydoc_validation_checks: set[str] = set()
+# every parameter of the public API is documented; the first excluded classes are built
+# by the library, and their fields are listed under Attributes
+numpydoc_validation_checks = {"PR01"}
+numpydoc_validation_exclude = {
+    r"\.(Density|Measure|PointEstimate|PopulationResult|Mock|Truth|CoverageResult"
+    r"|ExactPosterior|SBCResult)$",
+    r"\.(PopulationPrior|Hyperprior)\.__init__$",  # base classes: object's *args, **kwargs
+}
 
 # -- HTML ---------------------------------------------------------------------
 html_theme = "binference"
@@ -73,3 +87,8 @@ html_theme_options = {"source_repository": "https://github.com/joshspeagle/binfe
 html_copy_source = False
 # MathJax 3, pinned (Sphinx's default loads an unpinned version)
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"
+
+# -- Link check (weekly in CI) --------------------------------------------------
+# DOIs are checked against the DOI resolver instead (_scripts/check_dois.py), since many
+# publishers answer automated requests with 403; git.ligo.org does the same.
+linkcheck_ignore = [r"https://doi\.org/", r"https://git\.ligo\.org/"]

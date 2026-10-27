@@ -29,16 +29,17 @@ __all__ = [
     "sample_labels",
 ]
 
-#: objects per block of the chunked kernels: Gibbs labels were drawn as fast in blocks of
-#: 4096 as of 65536 objects (N = 2e4 to 2e5, K = 20 to 80)
+# Gibbs labels were drawn as fast in blocks of 4096 as of 65536 objects (N = 2e4 to 2e5,
+# K = 20 to 80)
+#: Objects per block of the chunked likelihood kernels.
 DEFAULT_CHUNK = 4096
 
-#: rows are normalised to a maximum of one, so an evidence below this (a log-likelihood
-#: below -575) is effectively impossible
+# rows are normalised to a maximum of one, so this is a log-likelihood below -575
+#: An object whose normalised evidence is below this is impossible.
 MIN_EVIDENCE = 1e-250
 
-#: below this fraction of non-zero entries, sparse storage is chosen: the largest fill at
-#: which it beat dense in every measured case (DECISIONS #77)
+# the largest fill at which sparse beat dense in every measured case (DECISIONS #77)
+#: Likelihoods are stored sparse below this share of non-zero entries.
 SPARSE_FILL = 0.1
 
 

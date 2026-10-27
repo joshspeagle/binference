@@ -49,14 +49,17 @@ from .warnings import ConvergenceWarning, InputWarning
 
 __all__ = ["SELECTION_MODES", "SELECTION_SCALES", "Selection", "as_selection"]
 
+#: The values of ``Selection.mode``: how objects are selected.
 SELECTION_MODES = ("on_truth", "on_measurement", "combined")
+#: The values of ``Selection.scale``: what the selection values measure.
 SELECTION_SCALES = ("probability", "exposure", "relative")
 
-#: neighbouring bins whose selection differs by more than this factor raise a warning
+#: A selection that changes by more than this factor between neighbouring bins raises a
+#: warning.
 STEEP_RATIO = 2.0
 
-#: smallest detection probability a Beta draw takes (a draw can underflow to zero,
-#: which would void its bin)
+# a Beta draw can underflow to zero, which would void its bin
+#: Smallest detection probability a draw of an inferred selection takes.
 S_FLOOR = 1e-12
 
 _HELP = (
@@ -79,7 +82,8 @@ class Selection:
         How selection enters the likelihood (see the module documentation);
         :meth:`combined` builds the third mode.
     scale : {"probability", "exposure", "relative"}
-        ``"probability"`` (default): values are detection probabilities in
+        Whether the values are detection probabilities, exposures or relative
+        values. ``"probability"`` (default): values are detection probabilities in
         (0, 1]. ``"exposure"``: absolute positive values, such as the exposure
         of a rate model. ``"relative"``: only ratios between bins are known,
         which suffices for fractions but not for rates or totals.
@@ -219,7 +223,15 @@ class Selection:
 
     def draw(self, n: int, rng: Any = None) -> np.ndarray:
         """``(n, K)`` posterior draws of :math:`S` given the injections alone
-        (independent Betas), floored at :data:`S_FLOOR` so that none underflows to zero."""
+        (independent Betas), floored at :data:`S_FLOOR` so that none underflows to zero.
+
+        Parameters
+        ----------
+        n : int
+            Number of draws.
+        rng : int, numpy.random.Generator, or None
+            Random number generator.
+        """
         if self.injections is None:
             raise ValueError("Only a selection from injections has draws.")
         if self.injections.smooth is not None:
@@ -257,6 +269,20 @@ class Selection:
         quadrature to ``tol`` relative to the largest bin average. With a
         :class:`~binference.Basis` for ``bins``, the averages are taken on its
         quadrature cells and weighted by each component (DECISIONS #47, #76).
+
+        Parameters
+        ----------
+        function : callable
+            Detection probability or exposure at points ``z``.
+        bins : Bins or Basis
+            Bins over which ``function`` is averaged.
+        mode : {"on_measurement", "on_truth"}
+            How selection enters the likelihood, as for :class:`Selection`.
+        scale : {"probability", "exposure", "relative"}, optional
+            Whether the values are detection probabilities, exposures or relative
+            values, as for :class:`Selection`.
+        tol : float, optional
+            Quadrature tolerance relative to the largest bin average.
         """
         _check_mode(mode)
         _check_values(np.ones(2), scale, "selection")  # the scale, before any quadrature
@@ -285,12 +311,13 @@ class Selection:
             :math:`P(d \\in A \\mid z)`, the probability that the measured data
             pass the cut given the true value.
         bins : Bins or Basis, optional
-            Needed when either part is a callable, which is then averaged over
-            each bin in the measure coordinate (when both are, the product is
+            Bins over which callable parts are averaged, in the measure coordinate;
+            needed when either part is a callable (when both are, the product is
             averaged as a whole). With a :class:`~binference.Basis` the result
             is per component, as for :meth:`from_function`.
-        scale : str
-            As for :class:`Selection`, applied to both parts.
+        scale : {"probability", "exposure", "relative"}, optional
+            Whether the values of both parts are detection probabilities, exposures
+            or relative values, as for :class:`Selection`.
         tol : float
             Quadrature tolerance for callable parts (see :meth:`from_function`).
         """
@@ -555,6 +582,15 @@ def as_selection(selection: Any, mode: str | None, bins: Bins | Basis) -> Select
     With a :class:`~binference.Basis`, arrays and selections given per bin are
     mapped to the components (:math:`\\phi_k`-weighted averages) and callables are
     averaged on the basis's quadrature cells.
+
+    Parameters
+    ----------
+    selection : None, Selection, callable or array_like
+        The selection as the user gave it.
+    mode : str or None
+        ``selection_mode``, required with a callable or an array.
+    bins : Bins or Basis
+        Bins of the model.
     """
     if selection is None:
         if mode is not None:

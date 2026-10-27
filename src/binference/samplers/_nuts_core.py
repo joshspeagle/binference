@@ -22,6 +22,13 @@ LogpGrad = Callable[[np.ndarray], tuple[float, np.ndarray]]
 
 _NEG_INF = -math.inf
 
+#: Iterations of the first fast phase of Stan-style warm-up.
+_INIT_BUFFER = 75
+#: Iterations of the first slow window of Stan-style warm-up; each next one is twice as long.
+_BASE_WINDOW = 25
+#: Iterations of the last fast phase of Stan-style warm-up.
+_TERM_BUFFER = 50
+
 
 class Metric:
     """Euclidean metric: inverse mass matrix ``inv_m`` (diagonal vector or dense matrix)."""
@@ -247,7 +254,10 @@ def find_reasonable_eps(x, lp, g, metric: Metric, fn: LogpGrad, rng) -> float:
 
 
 def adaptation_windows(
-    n_warmup: int, init_buffer: int = 75, term_buffer: int = 50, base_window: int = 25
+    n_warmup: int,
+    init_buffer: int = _INIT_BUFFER,
+    term_buffer: int = _TERM_BUFFER,
+    base_window: int = _BASE_WINDOW,
 ) -> list[tuple[int, int]]:
     """Stan-style slow adaptation windows ``[(start, end), ...]``.
 

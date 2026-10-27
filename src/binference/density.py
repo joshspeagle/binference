@@ -54,6 +54,11 @@ class Density:
 
         On linear bins the two agree. On log bins, flat in ``u`` gives equal
         mass per decade. On categories, every category has equal mass.
+
+        Parameters
+        ----------
+        coordinate : {"measure", "z"}, optional
+            Flat in the measure coordinate ``u`` or in ``z``.
         """
         if coordinate not in ("measure", "z"):
             raise ValueError(f"coordinate must be 'measure' or 'z'; got {coordinate!r}.")
@@ -61,12 +66,24 @@ class Density:
 
     @classmethod
     def from_masses(cls, masses: Any) -> Density:
-        """Probability mass per bin (normalised on use)."""
+        """Probability mass per bin (normalised on use).
+
+        Parameters
+        ----------
+        masses : array_like (K,)
+            Non-negative mass per bin.
+        """
         return cls(values=_nonneg(masses, "masses"))
 
     @classmethod
     def from_densities(cls, densities: Any) -> Density:
-        """Density per unit ``z``-volume in each bin; masses are densities times volumes."""
+        """Density per unit ``z``-volume in each bin; masses are densities times volumes.
+
+        Parameters
+        ----------
+        densities : array_like (K,)
+            Non-negative density per bin.
+        """
         return cls(values=_nonneg(densities, "densities"), per_volume=True)
 
     @classmethod
@@ -75,6 +92,11 @@ class Density:
 
         On grids ``func`` receives points of shape ``(M,)`` (1-D) or
         ``(M, ndim)``; on categories it receives the category labels.
+
+        Parameters
+        ----------
+        func : callable
+            Non-negative density of ``z``.
         """
         if not callable(func):
             raise TypeError("func must be callable.")
@@ -86,6 +108,11 @@ class Density:
 
         On 1-D grids a ``cdf`` gives exact bin masses; otherwise the density is
         averaged over each bin by quadrature.
+
+        Parameters
+        ----------
+        dist : object
+            A distribution with ``cdf``, ``logpdf`` or ``pdf``.
         """
         if not _is_distribution(dist):
             raise TypeError("dist needs a cdf, logpdf or pdf method.")
@@ -101,6 +128,15 @@ class Density:
         applies to arrays only). Without it the array is accepted only on bins
         where both readings agree (categories and bins of equal volume);
         :meth:`masses` raises otherwise.
+
+        Parameters
+        ----------
+        value : Density, "flat", callable, distribution or array_like (K,)
+            What to read as a density.
+        representation : {"mass", "density"}, optional
+            Whether an array holds masses or densities.
+        name : str, optional
+            Name of the argument, used in error messages.
         """
         if representation not in (None, "mass", "density"):
             raise ValueError(f"{name} representation must be 'mass' or 'density'.")
@@ -128,6 +164,17 @@ class Density:
         ``n_sub`` fixed Gauss-Legendre
         points per bin and axis (see :meth:`Likelihoods.from_density
         <binference.Likelihoods.from_density>`).
+
+        Parameters
+        ----------
+        bins : Bins
+            The bins.
+        tol : float, optional
+            Relative tolerance of the adaptive quadrature over each bin.
+        max_depth : int, optional
+            Most refinements of the adaptive quadrature.
+        n_sub : int, optional
+            Fixed Gauss-Legendre points per bin and axis in place of adaptive quadrature.
         """
         m = check_nonnegative(self._bin_masses(bins, tol, max_depth, n_sub), f"{self!r} masses")
         total = m.sum()

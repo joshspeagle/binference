@@ -422,3 +422,9 @@ Append-only. One entry per working session (or per step within a long session).
 ## 2026-10-27: docs phase, the structure (#109)
 
 - Pages moved into six captioned sections with the text unchanged (DECISIONS #97); links, README, CLAUDE.md, docstrings and CI paths follow. Found and fixed while checking: the phone menu stopped at its content's height; long inline code and the general index scrolled sideways on phones. Reviews: two `/simplify` reviewers (one footer hub for contributing and the design notes, dead code and options dropped) and `/code-review medium` (design pages had become unreachable, captions disagreed with page titles, a missing-section warning). Left for the final pass: one long inline formula on `design/spec` scrolls at 390 px; four viewcode anchors on `Auto` point nowhere.
+- #109 (PR #110) merged.
+
+## 2026-10-27: docs phase, foundations (#111) and plot colours (#112)
+
+- #112 (PR #113) merged: plots take their colours from the matplotlib style, with a `sample_color` argument (DECISIONS #98).
+- #111: one bibliography (127 checked entries; about 200 citations converted), the API page grouped by task with a coverage test (8 names were missing), a weekly link check with every DOI checked at the resolver, a writing-rules page, and the glossary, notation, defaults and warnings pages (DECISIONS #99; the notation renames are in QUESTIONS). The reviews reshaped the defaults page: run-time thresholds that were literals inside functions became named constants with `#:` comments, the page lists those, and numpydoc's PR01 check in the docs build keeps every public parameter documented (about 280 parameter entries added to docstrings). Behaviour is unchanged; fast and slow suites pass.

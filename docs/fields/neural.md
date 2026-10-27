@@ -16,29 +16,29 @@ $p(w_i\mid\theta)=\int p(w_i\mid v)\,p_\theta(v)\,dv$, which is estimated by Mon
 How it is estimated depends on what each object provides:
 
 - **a likelihood that is easy to sample**: average the density over draws from the
-  likelihood, $\frac1K\sum_jp_\theta(v_{ij})$ (Yan & Sanders 2025);
+  likelihood, $\frac1K\sum_jp_\theta(v_{ij})$ {cite:p}`yan2025`;
 - **posterior samples under an interim prior** $\pi_0$: average
-  $p_\theta(v_{ij})/\pi_0(v_{ij})$ over the samples, as in Hogg, Myers & Bovy (2010) and
-  in gravitational-wave flows (Ruhe et al. 2022);
+  $p_\theta(v_{ij})/\pi_0(v_{ij})$ over the samples, as in {cite:t}`hogg2010` and
+  in gravitational-wave flows {cite:p}`ruhe2022`;
 - **a simulator**: average the likelihood over draws from the population model itself
-  (Vandegar et al. 2021), or train a recognition network for an importance-weighted
-  bound (Dockhorn et al. 2020).
+  {cite:p}`vandegar2021`, or train a recognition network for an importance-weighted
+  bound {cite:p}`dockhorn2020`.
 
 The census groups the methods in four families:
 
-1. **Flows fitted by marginal likelihood**: Dockhorn, Ritchie, Yu & Murray (2020),
-   Neural Empirical Bayes (Vandegar et al. 2021), and Yan & Sanders (2025) on Gaia
+1. **Flows fitted by marginal likelihood**: {cite:t}`dockhorn2020`,
+   Neural Empirical Bayes {cite:p}`vandegar2021`, and {cite:t}`yan2025` on Gaia
    velocities.
-2. **Neural empirical Bayes on a grid**: Neural-g (Wang et al. 2024) maps fixed grid
+2. **Neural empirical Bayes on a grid**: Neural-g {cite:p}`wang2024` maps fixed grid
    points through a network with a softmax output and trains it on exactly binference's
    likelihood $\sum_i\log\sum_kL_{ik}\rho_k$.
 3. **Diffusion and flow-matching priors learned from corrupted observations**, by EM
-   with posterior sampling (DiEM; Rozet et al. 2024) or by corruption-aware objectives
+   with posterior sampling (DiEM; {cite:alp}`rozet2024`) or by corruption-aware objectives
    (ambient diffusion; noise-robust conditional flow matching), aimed at images.
 4. **Likelihood-free population fits** that compare simulated and observed data:
-   optimal transport (pop-cosmos; Alsing et al. 2024), the Wasserstein distance
+   optimal transport (pop-cosmos; {cite:alp}`alsing2024`), the Wasserstein distance
    (PopSED), and the convolutional maximum mean discrepancy. Hierarchical neural
-   posterior estimation and amortised population inference (Leyde et al. 2024) belong
+   posterior estimation and amortised population inference {cite:p}`leyde2024` belong
    here too.
 
 ## In binference's terms
@@ -63,14 +63,14 @@ number of bins grows as the product of the bins per axis.
 ## Methods and software
 
 - **density-deconvolution** ([bayesiains/density-deconvolution](https://github.com/bayesiains/density-deconvolution)),
-  the code of Dockhorn et al. (2020): a masked autoregressive flow trained by amortised
+  the code of {cite:t}`dockhorn2020`: a masked autoregressive flow trained by amortised
   variational inference with the ELBO or an importance-weighted bound. It has no licence
   and a single 2020 commit.
 - **NEB** ([MaximeVandegar/NEB](https://github.com/MaximeVandegar/NEB); MIT notebooks,
   last touched 2022): direct Monte Carlo, a de-biased Russian-roulette estimator, the
   ELBO and an importance-weighted bound behind a one-line estimator interface.
 - **Denoising-Milky-Way-with-NF** ([Ziyang-Yan/Denoising-Milky-Way-with-NF](https://github.com/Ziyang-Yan/Denoising-Milky-Way-with-NF);
-  MIT), the code of Yan & Sanders (2025): a spline flow in zuko, trained with fresh
+  MIT), the code of {cite:t}`yan2025`: a spline flow in zuko, trained with fresh
   likelihood draws every epoch after pre-training on the noisy points. It has no
   packaging and no tests.
 - **neuralG** ([shijiew97/neuralG](https://github.com/shijiew97/neuralG)): an R wrapper
@@ -110,47 +110,31 @@ no simulation-based inference.
 - **Monte Carlo objectives are biased.** The log of a Monte Carlo average is biased low
   by $O(1/K)$ in the number of samples $K$; a Russian-roulette estimator removes the
   bias at small $K$, and in Neural Empirical Bayes tests direct Monte Carlo with
-  $K=1024$ beat the ELBO and the importance-weighted bound (Vandegar et al. 2021).
+  $K=1024$ beat the ELBO and the importance-weighted bound {cite:p}`vandegar2021`.
   "The variational bound is not tight, and biases us towards worse prior models", with
-  high variance between runs (Dockhorn et al. 2020).
+  high variance between runs {cite:p}`dockhorn2020`.
 - **Selection makes training unstable.** The selection term enters with the opposite
-  bias, so the objective is no longer a bound; Ruhe et al. (2022) dropped selection
+  bias, so the objective is no longer a bound; {cite:t}`ruhe2022` dropped selection
   because "Optimization was highly unstable when including the selection function".
 - **Noise augmentation is not deconvolution.** pzflow's `convolve_errs` option trains on
   extra-noisy draws of the data; it does not maximise the marginal likelihood. Fitting a
   flow to pooled posterior samples without dividing out the interim prior learns the
   noise-broadened, prior-weighted density, not the population.
 - **Identifiability.** "Distinct source distributions may result in the same
-  distribution over observations" (Vandegar et al. 2021), and "empirical Bayes is an
+  distribution over observations" {cite:p}`vandegar2021`, and "empirical Bayes is an
   ill-posed problem", so a conservative initial prior "is therefore preferable for
-  scientific applications" (Rozet et al. 2024).
+  scientific applications" {cite:p}`rozet2024`.
 - **Small samples.** Spline flows show gridded artefacts at small $N$, controlled mainly
-  by the number of spline bins (Yan & Sanders 2025); flows can collapse to point masses
-  with very few observations (Vandegar et al. 2021); flows could not represent an
-  expected sharp edge (Ruhe et al. 2022).
+  by the number of spline bins {cite:p}`yan2025`; flows can collapse to point masses
+  with very few observations {cite:p}`vandegar2021`; flows could not represent an
+  expected sharp edge {cite:p}`ruhe2022`.
 - **Extrapolation.** Flows extrapolate beyond the support of the samples and injections;
-  population statements should be restricted to supported regions (Iampieri &
-  Mastrogiovanni 2026).
+  population statements should be restricted to supported regions {cite:p}`iampieri2026`.
 - **Uncertainty.** Results are reported as point estimates, at most with scatter between
   five training runs. Hamiltonian Monte Carlo over the weights worked for a flow with 90
-  parameters and was judged "not scalable" (Ruhe et al. 2022), and amortised neural
-  posteriors are often overconfident (Hermans et al. 2021).
-- **Cost.** Yan & Sanders's training took 4 hours at $K=32$ and 16 hours at $K=128$ on
+  parameters and was judged "not scalable" {cite:p}`ruhe2022`, and amortised neural
+  posteriors are often overconfident {cite:p}`hermans2022`.
+- **Cost.** {cite:author}`yan2025`'s training took 4 hours at $K=32$ and 16 hours at $K=128$ on
   one T4 GPU, against about one hour for GPU extreme deconvolution.
 - **Training losses.** For conditional flow matching the training loss can plateau while
-  physical fidelity is still improving (ScatterPrism, 2026).
-
-## References
-
-- Alsing et al. (2024), *ApJS* ([arXiv:2402.00935](https://arxiv.org/abs/2402.00935)): pop-cosmos.
-- Dockhorn, Ritchie, Yu & Murray (2020) ([arXiv:2006.09396](https://arxiv.org/abs/2006.09396)): density deconvolution with normalising flows.
-- Hermans et al. (2021) ([arXiv:2110.06581](https://arxiv.org/abs/2110.06581)): overconfidence of amortised posteriors.
-- Hogg, Myers & Bovy (2010), *ApJ* 725, 2166 ([arXiv:1008.4146](https://arxiv.org/abs/1008.4146)).
-- Iampieri & Mastrogiovanni (2026) ([arXiv:2609.11885](https://arxiv.org/abs/2609.11885)): flow populations for binary black holes.
-- Leyde et al. (2024), *PRD* 109, 064056 ([arXiv:2311.12093](https://arxiv.org/abs/2311.12093)).
-- Rozet, Andry, Lanusse & Louppe (2024), *NeurIPS* ([arXiv:2405.13712](https://arxiv.org/abs/2405.13712)): DiEM.
-- Ruhe, Wong, Cranmer & Forré (2022) ([arXiv:2211.09008](https://arxiv.org/abs/2211.09008)).
-- ScatterPrism (2026), *JINST* 21, C07012 ([arXiv:2604.01313](https://arxiv.org/abs/2604.01313)).
-- Vandegar, Kagan, Wehenkel & Louppe (2021), *AISTATS* ([arXiv:2011.05836](https://arxiv.org/abs/2011.05836)): Neural Empirical Bayes.
-- Wang, Chakraborty, Qin & Bai (2024) ([arXiv:2406.05986](https://arxiv.org/abs/2406.05986)): Neural-g.
-- Yan & Sanders (2025), *MNRAS* ([arXiv:2505.16553](https://arxiv.org/abs/2505.16553)): denoising Milky Way survey data with normalising flows.
+  physical fidelity is still improving (ScatterPrism; {cite:alp}`xia2026`).

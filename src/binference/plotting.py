@@ -107,24 +107,31 @@ def plot_population(
 ):
     """Plot a population posterior: bands for 1-D bins, images for 2-D grids, bars for categories.
 
+    Overlays (``truth``, ``stack``) contribute only their shape: for rates (and rate
+    models) they are scaled to the posterior mean total; for the selected population
+    they are reweighted by the fit's selection (bins without a basis). 2-D grids show
+    the median and the relative uncertainty as images (an array of two axes) and take
+    no overlays.
+
     Parameters
     ----------
     result : PopulationResult or PointEstimate
     ax : matplotlib Axes, optional
+        Axes to draw on; ``None`` makes a new figure.
     which : {"density", "fractions", "rates", "selected"}
         Plot densities per unit volume (n(z)-style), fractions per bin, rates, or the
         selected population per bin (the singular spellings are accepted too).
     levels : sequence of float
         Central credible levels shown as nested bands.
-    truth, stack : array_like (K,), optional
-        True fractions and a naive stacked estimate to overlay. Only their
-        shape is used: for rates (and rate models) they are scaled to the
-        posterior mean total; for the selected population they are reweighted by the
-        fit's selection (bins without a basis). 2-D grids show the median and the
-        relative uncertainty as images (an array of two axes) and take no overlays.
-    color, sample_color : matplotlib colour, optional
-        Colours of the posterior and of the ``stack`` overlay (default: the style's;
-        see the module docstring).
+    truth : array_like (K,), optional
+        True fractions to overlay.
+    stack : array_like (K,), optional
+        A naive stacked estimate to overlay (see :meth:`Likelihoods.stack
+        <binference.Likelihoods.stack>`).
+    color : matplotlib colour, optional
+        Colour of the posterior; ``None`` takes the style's first colour.
+    sample_color : matplotlib colour, optional
+        Colour of the ``stack`` overlay; ``None`` takes the style's second colour.
     label : str, optional
         Legend label of the median (default "posterior median").
     alpha : float
@@ -302,8 +309,24 @@ def plot_corner(
     fig: Any = None,
     which: str = "fractions",
 ):
-    """Corner plot of the fractions (or ``which="rates"``, ...) in selected bins
-    (default: the most populated), in ``color`` (default: the style's)."""
+    """Corner plot of the fractions (or ``which="rates"``, ...) in selected bins.
+
+    Parameters
+    ----------
+    result : PopulationResult
+    idx : sequence of int, optional
+        Bins to show; ``None`` chooses the ``max_bins`` with the largest mean.
+    max_bins : int, optional
+        Number of bins shown when ``idx`` is ``None``.
+    n_hist : int, optional
+        Histogram bins per panel.
+    color : matplotlib colour, optional
+        Colour of the histograms; ``None`` takes the style's first colour.
+    fig : matplotlib Figure, optional
+        Figure to draw on; ``None`` makes a new one.
+    which : {"fractions", "rates", "density", "selected"}, optional
+        Quantity shown: fractions, rates, densities or the selected population.
+    """
     plt = _plt()
     color = _style_color("color", color, 0)
     X, idx, name = _chosen_bins(result, which, idx, max_bins)
@@ -337,7 +360,20 @@ def plot_trace(
     which: str = "fractions",
 ):
     """Trace plots of the fractions (or ``which="rates"``, ...) in selected bins, one
-    line per chain."""
+    line per chain.
+
+    Parameters
+    ----------
+    result : PopulationResult
+    idx : sequence of int, optional
+        Bins to show; ``None`` chooses the ``max_bins`` with the largest mean.
+    max_bins : int, optional
+        Number of bins shown when ``idx`` is ``None``.
+    fig : matplotlib Figure, optional
+        Figure to draw on; ``None`` makes a new one.
+    which : {"fractions", "rates", "density", "selected"}, optional
+        Quantity shown: fractions, rates, densities or the selected population.
+    """
     X, idx, name = _chosen_bins(result, which, idx, max_bins)
     C = X.reshape(result.n_chains, -1, result.K)
     fig, axes = _subplots(_plt(), fig, len(idx), 1, (8, 1.8 * len(idx)), sharex=True)
@@ -359,8 +395,22 @@ def plot_individual(
     color: Any = None,
     sample_color: Any = None,
 ):
-    """Compare object ``i``'s own likelihood (flat-prior posterior, in ``sample_color``)
-    with its shrunk posterior (in ``color``); colours default to the style's."""
+    """Compare object ``i``'s own likelihood (flat-prior posterior) with its shrunk posterior.
+
+    Parameters
+    ----------
+    result : PopulationResult or PointEstimate
+    i : int
+        Index of the object.
+    ax : matplotlib Axes, optional
+        Axes to draw on; ``None`` makes a new figure.
+    n_draws : int, optional
+        Population draws averaged for the shrunk posterior.
+    color : matplotlib colour, optional
+        Colour of the shrunk posterior; ``None`` takes the style's first colour.
+    sample_color : matplotlib colour, optional
+        Colour of the object's own likelihood; ``None`` takes the style's second colour.
+    """
     plt = _plt()
     color = _style_color("color", color, 0)
     sample_color = _style_color("sample_color", sample_color, 1)
@@ -411,8 +461,21 @@ def plot_sbc(
     *,
     color: Any = None,
 ):
-    """Rank histograms from :func:`binference.validation.sbc` (in ``color``, default the
-    style's) with a 99% uniformity band."""
+    """Rank histograms from :func:`binference.validation.sbc` with a 99% uniformity band.
+
+    Parameters
+    ----------
+    sbc_result : SBCResult
+    n_bins : int, optional
+        Histogram bins; ``None`` uses the default of :meth:`SBCResult.histogram
+        <binference.validation.SBCResult.histogram>`.
+    max_panels : int, optional
+        Most quantities shown.
+    fig : matplotlib Figure, optional
+        Figure to draw on; ``None`` makes a new one.
+    color : matplotlib colour, optional
+        Colour of the histograms; ``None`` takes the style's first colour.
+    """
     from scipy import stats
 
     plt = _plt()

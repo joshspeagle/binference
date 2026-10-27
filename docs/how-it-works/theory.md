@@ -120,7 +120,7 @@ population**. Two consequences follow:
   likelihoods are broader than the features of the population, which is
   exactly when error bars matter.
 - **The same iteration recurs across fields.** Iterative Bayesian unfolding,
-  Richardson–Lucy deconvolution, EM quantification (Saerens et al. 2002) and
+  Richardson–Lucy deconvolution, EM quantification {cite:p}`saerens2002` and
   the Shepp–Vardi algorithm are all this update. Stopping it early is an
   implicit regulariser, not a prior.
 
@@ -142,7 +142,7 @@ the same gap of the problem mix-SQP solves (below); see
 {class}`~binference.samplers.MAP` for the rule in full. With
 a $\mathrm{Dir}(\alpha)$ prior the MAP update adds $\alpha_k-1$ pseudo-counts. EM
 is slow when likelihoods are broad (a large fraction of missing information), so
-binference accelerates it with SQUAREM (Varadhan & Roland 2008).
+binference accelerates it with SQUAREM {cite:p}`varadhan2008`.
 
 The **fraction of missing information** (`PopulationModel.missing_information`) is
 $1-\lambda_{\min}(I_{\rm obs}, I_c)$, the rate of EM: $I_{\rm obs}$ is the
@@ -153,7 +153,7 @@ fraction at zero is an active constraint, not missing information), and with
 `include_prior=True` it adds a Dirichlet prior's term, as in the MAP EM.
 
 For $\alpha_k\ge1$ the log posterior is concave on the simplex, and binference
-uses mix-SQP instead (Kim et al. 2020). Each iteration solves a quadratic
+uses mix-SQP instead {cite:p}`kim2020`. Each iteration solves a quadratic
 model of the objective under $\rho\ge0$ as a non-negative least-squares
 problem, so it converges in a handful of iterations however broad the
 likelihoods are. A selection function makes the likelihood non-concave in
@@ -238,7 +238,7 @@ $$
 p(\rho\mid D)\propto p(\rho)\,\frac{\prod_i(\tilde L_i\cdot\rho)^{w_i}}{(S\cdot\rho)^W}.
 $$ (eq-S)
 
-The two classic mistakes (Mandel, Farr & Gair 2019) are renormalising each
+The two classic mistakes {cite:p}`mandel2019` are renormalising each
 object's likelihood over the detectable data *and* dividing by $S\cdot\rho$,
 or omitting the normaliser altogether. Both bias $\rho$ toward
 well-detected bins.
@@ -277,7 +277,7 @@ These priors are conjugate to the augmented model, so they work with every
 engine.
 
 - **`Dirichlet(alpha)`.** Uniform on the simplex for $\alpha=1$ (the default).
-  - `Dirichlet.reference()` uses $\alpha_k=1/K$ (Berger, Bernardo & Sun 2015),
+  - `Dirichlet.reference()` uses $\alpha_k=1/K$ {cite:p}`berger2015`,
     which matters when there are many bins and few objects, since $\alpha=1$
     adds $K$ pseudo-counts.
   - `from_base_measure` makes $\alpha_k$ proportional to the bin masses of a base
@@ -286,13 +286,13 @@ engine.
   - `from_counts(m, strength=λ)` encodes a reference sample with counts $m$
     as $\alpha=1+\lambda m$, a power prior that down-weights a reference that
     may not be representative.
-- **`GeneralizedDirichlet`** (Connor & Mosimann 1969) is a stick-breaking
+- **`GeneralizedDirichlet`** {cite:p}`connor1969` is a stick-breaking
   product of Betas. It allows positive correlations between bins and
   per-bin variances that a Dirichlet cannot express.
-- **`DirichletTree`** (Minka) places a Dirichlet at every node of a tree over
+- **`DirichletTree`** {cite:p}`minka1999` places a Dirichlet at every node of a tree over
   the bins, so bins that share a node co-vary. The log density is linear in
   the logs of leaf and node masses, so Gibbs and MAP stay closed-form.
-- **`PolyaTree`** (Lavine 1992) is the dyadic tree whose Beta concentrations
+- **`PolyaTree`** {cite:p}`lavine1992` is the dyadic tree whose Beta concentrations
   grow with depth $m$ as $c\,m^{p}$, centred on a base measure. Fluctuations
   shrink at finer scales, and $p=2$ gives continuous limits.
 
@@ -327,7 +327,7 @@ instead.
     null modes are the products of the per-axis ones, so for $r=2$ in 2-D the
     mixed surface $xy$ is not penalised either.
 - **`LogisticGP(kernel)`.** A Hilbert-space reduced-rank Gaussian process
-  (Solin & Särkkä 2020).
+  {cite:p}`solin2020`.
   - The basis is sines on a box larger than the grid,
     $\phi_j(x)=L^{-1/2}\sin\big(\pi j(x+L)/2L\big)$, and $s_j^2$ is the
     kernel's spectral density at frequency $\pi j/2L$.
@@ -358,8 +358,7 @@ $$
 
 which interpolates between the non-centred form ($\lambda_j=1$) and the centred
 form ($\lambda_j=0$). For a Gaussian likelihood with Fisher information $F_j$
-the best choice is $\lambda_j=1/(1+s_j^2F_j)$ (Papaspiliopoulos, Roberts &
-Sköld 2007; Gorinova et al. 2020). This equals $1/(-H_{jj})$, where $H$ is the
+the best choice is $\lambda_j=1/(1+s_j^2F_j)$ {cite:p}`papaspiliopoulos2007,gorinova2020`. This equals $1/(-H_{jj})$, where $H$ is the
 Hessian of the log posterior in whitened coordinates, so binference estimates it
 from finite differences of the gradient early in warm-up. The posterior is
 unchanged; only the coordinates the sampler moves in change.
@@ -417,7 +416,7 @@ as the likelihood itself.
 
 ## The engines
 
-- **NUTS** (Hoffman & Gelman 2014; Betancourt 2017), exact for every prior and
+- **NUTS** {cite:p}`hoffman2014,betancourt2017`, exact for every prior and
   the fallback of the default `method="auto"`.
   - Multinomial trajectory sampling with the generalised U-turn criterion
     and Stan's extra checks across merged subtrees.
@@ -440,7 +439,7 @@ as the likelihood itself.
 - **Laplace** fits a Gaussian at the unconstrained mode, using a
   finite-difference Hessian.
   - It is corrected by importance sampling from a Student-$t$ proposal with
-    Pareto-smoothed weights (Vehtari et al. 2024).
+    Pareto-smoothed weights {cite:p}`vehtari2024`.
   - Results with Pareto $\hat k\ge\min(1-1/\log_{10}S,\,0.7)$ for $S$
     proposals are flagged as approximate. This
     happens routinely for $K\gtrsim10$, because near-empty bins have one-sided
@@ -456,7 +455,7 @@ as the likelihood itself.
 ## Diagnostics and validation
 
 - **Convergence.** Rank-normalised split $\hat R$ and bulk and tail effective
-  sample sizes (Vehtari et al. 2021).
+  sample sizes {cite:p}`vehtari2021`.
 - **NUTS health.** Divergences, saturated tree depth and E-BFMI.
 - **Monte Carlo error.** Standard errors for posterior means.
 
@@ -467,10 +466,10 @@ inputs.
 The validation module answers a different question: is the *whole pipeline*
 calibrated?
 - `exact_posterior` integrates {eq}`eq-P` by quadrature for $K\le3$.
-- `sbc` runs simulation-based calibration (Talts et al. 2018): ranks of true
+- `sbc` runs simulation-based calibration {cite:p}`talts2018`: ranks of true
   parameters among posterior draws, including the joint log-likelihood as a
   test quantity, tested for uniformity by a histogram chi-square or an ECDF
-  test (Säilynoja et al. 2022).
+  test {cite:p}`sailynoja2022`.
 - `coverage` measures the frequentist coverage of credible intervals, for
   bins and for any functional.
 
@@ -484,27 +483,5 @@ the error bars. On a six-bin mock with errors comparable to the bin width it
 exceeds four posterior standard deviations at $N=20\,000$. Use bins narrower
 than the features you care about, add a smoothness prior to control the
 noise, and report coarse summaries as functionals of the fine posterior
-(`result.rebin`, `result.functional`). Stanley, Patil & Kuusela (2022) reach
+(`result.rebin`, `result.functional`). {cite:t}`stanley2022` reach
 the same conclusion for unfolding.
-
-## References
-
-- Berger, Bernardo & Sun (2015), *Bayesian Analysis* 10, 189: reference priors for the multinomial.
-- Betancourt (2017), arXiv:1701.02434: a conceptual introduction to Hamiltonian Monte Carlo.
-- Connor & Mosimann (1969), *JASA* 64, 194: the generalised Dirichlet.
-- Gorinova, Moore & Hoffman (2020), *ICML*: automatic reparameterisation.
-- Hoffman & Gelman (2014), *JMLR* 15, 1593: the No-U-Turn Sampler.
-- Hogg, Myers & Bovy (2010), *ApJ* 725, 2166: population inference from per-object samples.
-- Kim, Carbonetto, Stephens & Anitescu (2020), *Journal of Computational and Graphical Statistics* 29, 261: mix-SQP.
-- Lavine (1992), *Annals of Statistics* 20, 1222: Pólya trees.
-- Leistedt, Mortlock & Peiris (2016), *MNRAS* 460, 4258: hierarchical $n(z)$.
-- Mandel, Farr & Gair (2019), *MNRAS* 486, 1086: selection effects.
-- Papaspiliopoulos, Roberts & Sköld (2007), *Statistical Science* 22, 59: non-centred parametrisations.
-- Saerens, Latinne & Decaestecker (2002), *Neural Computation* 14, 21: EM for priors under shift.
-- Säilynoja, Bürkner & Vehtari (2022), *Statistics and Computing* 32, 32: ECDF tests of rank uniformity.
-- Solin & Särkkä (2020), *Statistics and Computing* 30, 419: Hilbert-space GPs.
-- Stanley, Patil & Kuusela (2022), *JINST* 17, P10013: binning in unfolding.
-- Talts et al. (2018), arXiv:1804.06788: simulation-based calibration.
-- Varadhan & Roland (2008), *Scandinavian Journal of Statistics* 35, 335: SQUAREM.
-- Vehtari et al. (2021), *Bayesian Analysis* 16, 667: rank-normalised $\hat R$ and ESS.
-- Vehtari et al. (2024), *JMLR* 25, 72: Pareto-smoothed importance sampling.

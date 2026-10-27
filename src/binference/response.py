@@ -30,9 +30,18 @@ from .warnings import InputWarning
 
 __all__ = ["Response"]
 
+#: With ``efficiency``, a warning is raised unless the matrix's columns sum to one within
+#: this.
+MIGRATION_ATOL = 1e-3
+
 
 class Response:
     """The probability of each measured bin, and of being observed, given the true bin.
+
+    A response tallied from events (:meth:`from_counts` and the constructors
+    built on it) records the events generated per true bin, :attr:`generated`,
+    which measure how well each column is known. It is :attr:`uncertain` and is
+    inferred jointly with the population; :meth:`fixed` takes it as known.
 
     Parameters
     ----------
@@ -53,11 +62,6 @@ class Response:
     open_ended : bool
         Whether the outer two of 1-D ``measured_bins`` also take every value
         below or above them (:meth:`index`).
-
-    A response tallied from events (:meth:`from_counts` and the constructors
-    built on it) records the events generated per true bin, :attr:`generated`,
-    which measure how well each column is known. It is :attr:`uncertain` and is
-    inferred jointly with the population; :meth:`fixed` takes it as known.
     """
 
     __slots__ = (
@@ -102,7 +106,7 @@ class Response:
             eff = np.asarray(efficiency, dtype=float).ravel()
             if eff.shape != (truth_bins.K,) or not np.all((eff >= 0) & (eff <= 1)):
                 raise ValueError("efficiency must give one probability per truth bin.")
-            if not np.allclose(col[col > 0], 1.0, atol=1e-3):
+            if not np.allclose(col[col > 0], 1.0, atol=MIGRATION_ATOL):
                 warn(
                     "With an explicit efficiency the matrix should be a migration matrix whose "
                     "columns sum to one; these columns do not, so the efficiency may be counted "
@@ -170,13 +174,18 @@ class Response:
             Events generated in true bin ``k`` and observed in measured bin ``j``.
         generated : array_like (K,)
             Events generated in each true bin, observed or not.
-        truth_bins, measured_bins, open_ended
-            As for :class:`Response`.
-        origin : str
+        truth_bins : Bins
+            The bins of the true value, as for :class:`Response`.
+        measured_bins : Bins, optional
+            The bins of the measured quantity, as for :class:`Response`.
+        open_ended : bool, optional
+            Whether the outer measured bins also take every value beyond them, as for
+            :class:`Response`.
+        origin : str, optional
             Where the tallies come from, as :meth:`PopulationResult.summary` reports it.
-        prior : float
+        prior : float, optional
             Concentration :math:`\\beta` of the Dirichlet prior on each cell of a column (the
-            ``J`` measured bins and the lost share); column :math:`k` has the posterior
+            ``J`` measured bins and the lost share). Column :math:`k` has the posterior
             :math:`\\mathrm{Dir}(\\beta + \\text{counts}_{\\cdot k},\\ \\beta + \\text{lost}_k)`.
             The default 1 is uniform; below 1, cells with no events give NUTS long tails
             (DECISIONS #81).
@@ -219,6 +228,10 @@ class Response:
     ) -> Response:
         r"""Tally the response from simulated events.
 
+        Events whose true value lies outside ``truth_bins`` are left out; a
+        warning says how many of them were observed, since measurements coming
+        from outside the truth range are not modelled.
+
         Parameters
         ----------
         true_values : array_like
@@ -227,19 +240,23 @@ class Response:
             Measured value of each event, aligned with ``true_values``; NaN (or,
             unless ``open_ended``, a value outside ``measured_bins``) marks an
             event that was not observed.
-        truth_bins, measured_bins, open_ended
-            As for :class:`Response`.
+        truth_bins : Bins
+            The bins of the true value, as for :class:`Response`.
+        measured_bins : Bins
+            The bins of the measured quantity, as for :class:`Response`.
+        open_ended : bool, optional
+            Whether the outer measured bins also take every value beyond them, as for
+            :class:`Response`.
         weights : array_like, optional
             Simulation weight of each event. The tallies are then expressed in
             effective events, :math:`(\sum w)^2/\sum w^2` per true bin, so that
             they measure how well each column is known whatever the scale of the
             weights.
-        origin, prior : str, float
-            As for :meth:`from_counts`.
-
-        Events whose true value lies outside ``truth_bins`` are left out; a
-        warning says how many of them were observed, since measurements coming
-        from outside the truth range are not modelled.
+        origin : str, optional
+            Where the tallies come from, as :meth:`PopulationResult.summary` reports it.
+        prior : float, optional
+            Concentration of the Dirichlet prior on each cell of a tallied column, as
+            for :meth:`from_counts`.
         """
         k = truth_bins.index(true_values)
         if open_ended:  # the same rule as Response.index
@@ -317,8 +334,9 @@ class Response:
             The classes, in order (default: the sorted distinct labels).
         n_bins : int
             Number of equal-count score bins when ``measured_bins`` is not given.
-        prior : float
-            As for :meth:`from_counts`.
+        prior : float, optional
+            Concentration of the Dirichlet prior on each cell of a tallied column, as
+            for :meth:`from_counts`.
         """
         y = np.asarray(labels).ravel()
         s = np.asarray(scores)
@@ -399,21 +417,41 @@ class Response:
         return None if np.allclose(eff, 1.0) else Selection(np.minimum(eff, 1.0), "on_measurement")
 
     def draw(self, n: int, rng: Any = None) -> np.ndarray:
-        """``(n, J, K)`` posterior draws of the matrix given the tallies alone."""
+        """``(n, J, K)`` posterior draws of the matrix given the tallies alone.
+
+        Parameters
+        ----------
+        n : int
+            Number of draws.
+        rng : int, numpy.random.Generator, or None
+            Random number generator.
+        """
         if not self.uncertain:
             raise ValueError("Only a response tallied from events has draws.")
         draws = _dirichlet_draw(self._dirichlet().T, as_generator(rng), size=n)
         return np.swapaxes(draws, -1, -2)[:, : self._matrix.shape[0]]
 
     def index(self, values: Any) -> np.ndarray:
-        """Measured bin of each value (``-1`` outside the measured bins, or for NaN)."""
+        """Measured bin of each value (``-1`` outside the measured bins, or for NaN).
+
+        Parameters
+        ----------
+        values : array_like
+            Measured values.
+        """
         if self.open_ended:
             e = self.measured_bins.edges[0]
             values = np.clip(np.asarray(values, dtype=float), e[0], e[-1])
         return self.measured_bins.index(values)
 
     def measured_fractions(self, rho: Any) -> np.ndarray:
-        """Expected share of observed objects in each measured bin, for true fractions ``rho``."""
+        """Expected share of observed objects in each measured bin, for true fractions ``rho``.
+
+        Parameters
+        ----------
+        rho : array_like (K,)
+            True fractions.
+        """
         q = self._matrix @ np.asarray(rho, dtype=float)
         return q / q.sum()
 
@@ -429,6 +467,15 @@ class Response:
         label shift is violated. With ``response_draws`` ``(n_draws, J, K)``, drawn
         with the fractions when the response is inferred jointly, each draw uses its
         own response and the tallies' covariance is left out (DECISIONS #81).
+
+        Parameters
+        ----------
+        counts : array_like (J,)
+            Observed objects per measured bin.
+        rho_draws : array_like (n_draws, K)
+            Draws of the fractions.
+        response_draws : array_like (n_draws, J, K), optional
+            Draws of an inferred response, one per draw of the fractions.
         """
         n = np.asarray(counts, dtype=float).ravel()
         draws = np.atleast_2d(np.asarray(rho_draws, dtype=float))

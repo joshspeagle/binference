@@ -105,6 +105,11 @@ def result_to_dict(result: PopulationResult) -> dict[str, Any]:
 
     Engine statistics that are neither numbers, strings nor numeric arrays (e.g. lists
     of NUTS metrics) are left out and named in ``meta["info_dropped"]``.
+
+    Parameters
+    ----------
+    result : PopulationResult
+        The result.
     """
     meta, arrays = _bins_to_parts(result.bins)
     meta.update(
@@ -160,6 +165,13 @@ def save_result(result: PopulationResult, path: str) -> None:
     A :meth:`Measure.transform <binference.Measure.transform>` axis is saved as
     a table of points, so it loads as a tabulated measure: the loaded bins
     compare unequal to the original ones.
+
+    Parameters
+    ----------
+    result : PopulationResult
+        The result.
+    path : str
+        File to write; ``.npz`` is appended when missing.
     """
     payload = result_to_dict(result)
     payload["meta"] = np.array(json.dumps(payload["meta"]))
@@ -171,6 +183,11 @@ def load_result(path: str) -> PopulationResult:
 
     The returned result is detached from its likelihoods; call
     ``result.attach(likelihoods)`` to use per-object methods.
+
+    Parameters
+    ----------
+    path : str
+        File written by :func:`save_result`.
     """
     from .results import PopulationResult
 
@@ -228,6 +245,11 @@ def to_datatree(result: PopulationResult):
     ``bin_center_<d>`` per axis of a grid), hyperparameter draws in the posterior,
     and the NUTS statistics under ArviZ's names (``acceptance_rate``, ``n_steps``,
     boolean ``diverging``). Requires xarray >= 2024.10.
+
+    Parameters
+    ----------
+    result : PopulationResult
+        The result.
     """
     try:
         import xarray as xr

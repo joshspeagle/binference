@@ -18,23 +18,21 @@ the prevalence changes. Methods divide into:
 - *classify and count* (CC) and its probabilistic version (PCC), which average hard or
   soft predictions;
 - *adjusted* methods (ACC, BBSE), which correct the counts with the confusion matrix
-  estimated on labelled data (Lipton, Wang & Smola 2018);
-- *likelihood* methods: EMQ or SLD (Saerens, Latinne & Decaestecker 2002), also called
+  estimated on labelled data {cite:p}`lipton2018`;
+- *likelihood* methods: EMQ or SLD {cite:p}`saerens2002`, also called
   MLLS, which iterates the class prevalences and the posteriors corrected for them;
-- *Bayesian* methods that sample the prevalence: BayesianCC (Ziegler & Czyż 2024),
-  which learns the confusion matrix jointly with the prevalence, and BayesianMAPLS and
-  BayesianKDEy in QuaPy.
+- *Bayesian* methods that sample the prevalence: BayesianCC {cite:p}`ziegler2024`,
+  which learns the confusion matrix jointly with the prevalence, and BayesianMAPLS, built on MAPLS {cite:p}`ye2024`, and BayesianKDEy in QuaPy.
 
 **Genetic stock identification** (GSI) estimates the proportions of source populations
 in a mixed fishery catch. Each fish's genotype has a likelihood under each baseline
 population's allele frequencies, and the mixture proportions are estimated by EM as a
 conditional maximum likelihood (SPAM, ONCOR) or by Gibbs sampling with a Dirichlet prior
-and latent assignments (BAYES, rubias). Microbial source tracking (SourceTracker, FEAST)
-and RNA-seq transcript quantification (salmon, kallisto) solve the same EM or Gibbs
+and latent assignments (BAYES, {cite:alp}`pella2001`; rubias, {cite:alp}`moran2019`). Microbial source tracking (SourceTracker, FEAST)
+and RNA-seq transcript quantification (salmon, {cite:alp}`patro2017`; kallisto) solve the same EM or Gibbs
 problem over reads.
 
-**Epidemiology** estimates true prevalence from an imperfect test. The Rogan–Gladen
-estimator corrects the apparent prevalence with the test's sensitivity and specificity,
+**Epidemiology** estimates true prevalence from an imperfect test. The Rogan–Gladen estimator {cite:p}`rogan1978` corrects the apparent prevalence with the test's sensitivity and specificity,
 which is ACC for two classes; Bayesian latent-class models put priors on sensitivity
 and specificity.
 
@@ -72,7 +70,7 @@ a mock classifier under prior shift.
   BayesianMAPLS samples $\sum_i\operatorname{logsumexp}_k(\log p(k\mid x_i)+
   \log\pi_{\text{test},k}-\log\pi_{\text{train},k})$ under a Dirichlet prior with NumPyro
   NUTS; BayesianKDEy uses class-conditional kernel density estimates of the classifier
-  outputs as $L_{ik}$; BayesianCC follows Ziegler & Czyż. Every confidence-aware method
+  outputs as $L_{ik}$; BayesianCC follows {cite:t}`ziegler2024`. Every confidence-aware method
   returns an estimate and a region from `predict_conf`, with regions that report their
   coverage, and `calibrate_temperature` chooses a likelihood temperature against
   validation coverage. Its inputs are features and a scikit-learn classifier; no
@@ -80,7 +78,7 @@ a mock classifier under prior shift.
   selection.
 - **mlquantify** (Python; BSD-3) implements 33 methods with bootstrap confidence
   regions. **qunfold** ([mirkobunse/qunfold](https://github.com/mirkobunse/qunfold))
-  implements quantification and unfolding methods in one framework (Bunse 2022),
+  implements quantification and unfolding methods in one framework {cite:p}`bunse2022`,
   including a likelihood maximiser with ordinal smoothness penalties, but reports no
   uncertainty. **labelshift** is the research code of BayesianCC; **abstention** provides
   calibration (temperature and bias-corrected temperature scaling) and label-shift
@@ -125,15 +123,15 @@ what a tallied response carries.
 
 - **Calibration.** The EM quantifier assumes calibrated posteriors, "which is not true of
   modern neural networks"; maximum likelihood with bias-corrected calibration
-  outperforms BBSE and RLLS (Alexandari, Kundaje & Shrikumar 2020). MLLS is consistent
-  only with calibration and an invertible confusion matrix (Garg et al. 2020). QuaPy's
+  outperforms BBSE and RLLS {cite:p}`alexandari2020`. MLLS is consistent
+  only with calibration and an invertible confusion matrix {cite:p}`garg2020`. QuaPy's
   temperature calibration is a response to classifier-derived likelihoods that are too
   confident.
 - **Bootstrap regions.** Standard bootstrap methods "cannot provide valid coverage
   guarantees under prior probability shift"; they "merely quantify the internal
-  variability of the quantifier" (Moreo & Salvati 2025).
+  variability of the quantifier" {cite:p}`moreo2025`.
 - **Classify and count** is biased under prior shift; in fisheries, proportional methods
-  (CML or BAYES) perform better than assigning each individual (Koljonen et al. 2005, as
+  (CML or BAYES) perform better than assigning each individual ({cite:alp}`koljonen2005`, as
   summarised by the Alaska Department of Fish and Game).
 - **Prior strength.** Informed priors give less biased results than flat ones "especially
   where there is little genetic [differentiation]", the analogue of broad likelihoods.
@@ -150,20 +148,4 @@ what a tallied response carries.
   it.
 - **Fields unaware of each other.** A 2023 comparison of ordinal quantifiers found
   methods "proposed by authors from very different research fields, such as data mining
-  and astrophysics, who were unaware of each others' developments" (Bunse et al. 2023).
-
-## References
-
-- Alexandari, Kundaje & Shrikumar (2020), *ICML* ([arXiv:1901.06852](https://arxiv.org/abs/1901.06852)): maximum likelihood with calibration for label shift.
-- Bunse (2022), *INFORMATIK 2022* ([doi:10.18420/inf2022_37](https://doi.org/10.18420/inf2022_37)): unification of quantification and unfolding.
-- Bunse, Moreo, Sebastiani & Senz (2023) ([arXiv:2310.09210](https://arxiv.org/abs/2310.09210)): ordinal quantification.
-- Garg, Wu, Balakrishnan & Lipton (2020), *NeurIPS* ([arXiv:2003.07554](https://arxiv.org/abs/2003.07554)): a unified view of label-shift estimation.
-- Lipton, Wang & Smola (2018) ([arXiv:1802.03916](https://arxiv.org/abs/1802.03916)): black-box shift estimation.
-- Moran & Anderson (2019), *Can. J. Fish. Aquat. Sci.* 76, 551 ([doi:10.1139/cjfas-2018-0016](https://doi.org/10.1139/cjfas-2018-0016)): rubias.
-- Moreo & Salvati (2025), [LQ 2025 proceedings](https://lq-2025.github.io/proceedings/CompleteVolume.pdf): bootstrap confidence regions for quantification.
-- Patro et al. (2017), *Nature Methods* 14, 417 ([doi:10.1038/nmeth.4197](https://doi.org/10.1038/nmeth.4197)): salmon.
-- Pella & Masuda (2001), *Fishery Bulletin* 99, 151: BAYES.
-- Rogan & Gladen (1978), *Am. J. Epidemiol.* 107, 71 ([doi:10.1093/oxfordjournals.aje.a112510](https://doi.org/10.1093/oxfordjournals.aje.a112510)): prevalence from an imperfect test.
-- Saerens, Latinne & Decaestecker (2002), *Neural Computation* 14, 21 ([doi:10.1162/089976602753284446](https://doi.org/10.1162/089976602753284446)): EM for class priors.
-- Ye, Tsuchida, Petersson & Barnes (2024), *WACV* ([doi:10.1109/WACV57701.2024.00111](https://doi.org/10.1109/WACV57701.2024.00111)): MAPLS.
-- Ziegler & Czyż (2024), *TMLR* ([arXiv:2302.09159](https://arxiv.org/abs/2302.09159)): Bayesian quantification with black-box estimators.
+  and astrophysics, who were unaware of each others' developments" {cite:p}`bunse2024`.

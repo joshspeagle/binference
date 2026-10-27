@@ -76,7 +76,7 @@ class PopulationModel:
         depending on their true bin; likelihood rows are multiplied by ``S_k``
         as well. :meth:`Selection.combined` gives both at once.
     bins : Bins, optional
-        Only used when ``likelihoods`` is a raw array.
+        Bins for a raw array of likelihoods; ignored otherwise.
 
     Notes
     -----
@@ -208,11 +208,22 @@ class PopulationModel:
     def draw_total(
         self, value: np.ndarray, rng: np.random.Generator, S: np.ndarray | None = None
     ) -> np.ndarray | None:
-        r"""Draws of the total :math:`\Lambda \mid \rho \sim \mathrm{Gamma}(W, S\cdot\rho)`,
-        one per row of fractions ``value`` ``(..., K)``: its exact posterior under
-        :math:`p(\Lambda) \propto 1/\Lambda` (DECISIONS #9, #78). ``S`` gives a
-        selection per row (draws of an uncertain one); by default
-        :attr:`total_exposure`, and ``None`` without it."""
+        r"""Draws of the total :math:`\Lambda \mid \rho \sim \mathrm{Gamma}(W, S\cdot\rho)`.
+
+        One draw per row of fractions ``value`` ``(..., K)``: its exact posterior under
+        :math:`p(\Lambda) \propto 1/\Lambda`. Returns ``None``
+        without an exposure.
+
+        Parameters
+        ----------
+        value : ndarray (..., K)
+            Fractions.
+        rng : Generator
+            Random number generator.
+        S : ndarray (..., K), optional
+            Selection per row (draws of an uncertain one); ``None`` uses
+            :attr:`total_exposure`.
+        """
         S = self.total_exposure if S is None else np.asarray(S)
         if S is None:
             return None
@@ -248,7 +259,13 @@ class PopulationModel:
 
     def selection_at(self, X: np.ndarray) -> np.ndarray | None:
         """The selection :math:`S` at unconstrained points ``X`` ``(..., dim)``, or ``None``
-        when it is fixed."""
+        when it is fixed.
+
+        Parameters
+        ----------
+        X : ndarray (..., dim)
+            Unconstrained points.
+        """
         if not self.selection_uncertain:
             return None
         return special.expit(np.asarray(X, dtype=float)[..., self.prior.dim :])
@@ -261,7 +278,13 @@ class PopulationModel:
 
     def response_at(self, X: np.ndarray) -> np.ndarray | None:
         """The response :math:`R` ``(..., J, K)`` at unconstrained points ``X``
-        ``(..., dim)``, or ``None`` when it is fixed."""
+        ``(..., dim)``, or ``None`` when it is fixed.
+
+        Parameters
+        ----------
+        X : ndarray (..., dim)
+            Unconstrained points.
+        """
         if self.response is None:
             return None
         J = self.response.measured_bins.K
@@ -315,7 +338,13 @@ class PopulationModel:
         return float(np.sum(a * logP)), (d @ helmert_basis(P.shape[1])).ravel()
 
     def effective_likelihoods(self, likelihoods: Likelihoods):
-        """Likelihood matrix of (new) objects with this model's selection applied."""
+        """Likelihood matrix of (new) objects with this model's selection applied.
+
+        Parameters
+        ----------
+        likelihoods : Likelihoods
+            Likelihoods of the objects, on this model's bins.
+        """
         L = likelihoods.values
         return L if self.selection_row is None else _scale_columns(L, self.selection_row)
 
@@ -376,6 +405,11 @@ class PopulationModel:
         :math:`\\mathrm{logit}\\,S`, and with an inferred response with the log-ratios of
         its columns; their densities given the injections or tallies are included.
         NUTS, Laplace and L-BFGS use it. Up to a constant.
+
+        Parameters
+        ----------
+        x : ndarray (dim,)
+            Unconstrained point.
         """
         x = np.asarray(x, dtype=float)
         d = self.prior.dim
@@ -408,6 +442,11 @@ class PopulationModel:
         """Log posterior density in the unconstrained coordinates ``x`` (with the Jacobian).
 
         See :meth:`log_density_unconstrained_and_grad`.
+
+        Parameters
+        ----------
+        x : ndarray (dim,)
+            Unconstrained point.
         """
         return self.log_density_unconstrained_and_grad(x)[0]
 
@@ -493,24 +532,48 @@ class PopulationModel:
         return counts + rng.multinomial(n_missed, q / q.sum())
 
     def to_value(self, x: np.ndarray) -> np.ndarray:
-        """Fractions (or rates, for rate priors) at unconstrained ``x``."""
+        """Fractions (or rates, for rate priors) at unconstrained ``x``.
+
+        Parameters
+        ----------
+        x : ndarray (dim,)
+            Unconstrained point.
+        """
         eta, _ = self.prior.forward(np.asarray(x, dtype=float)[: self.prior.dim])
         return self._value(eta)
 
     def to_rho(self, x: np.ndarray) -> np.ndarray:
-        """Population fractions at unconstrained ``x``."""
+        """Population fractions at unconstrained ``x``.
+
+        Parameters
+        ----------
+        x : ndarray (dim,)
+            Unconstrained point.
+        """
         v = self.to_value(x)
         return v / v.sum() if self.kind == "rates" else v
 
     def transform(self, X: np.ndarray) -> np.ndarray:
-        """Map many unconstrained draws ``(n, dim)`` to values ``(n, K)``."""
+        """Map many unconstrained draws ``(n, dim)`` to values ``(n, K)``.
+
+        Parameters
+        ----------
+        X : ndarray (n, dim)
+            Unconstrained draws.
+        """
         X = np.atleast_2d(np.asarray(X, dtype=float))
         return np.array([self.to_value(x) for x in X])
 
     def from_value(self, value: np.ndarray) -> np.ndarray:
         """An unconstrained point corresponding to fractions (or rates) ``value`` (and to
         the selection's :attr:`~Selection.values`, or the response's posterior means, when
-        they are inferred)."""
+        they are inferred).
+
+        Parameters
+        ----------
+        value : ndarray (K,)
+            Fractions or rates.
+        """
         x = self.prior.init_from_value(np.asarray(value, dtype=float))
         if self.selection_uncertain:
             return np.concatenate([x, special.logit(self.selection)])
@@ -529,11 +592,19 @@ class PopulationModel:
     ) -> float:
         """Marginal log-likelihood of the population (including the selection term).
 
-        With ``absolute=True`` the per-object log-scales of the likelihoods are
-        included, so values are comparable across binnings and models. ``S`` is a
-        value of an inferred selection (by default its :attr:`~Selection.values`), and
-        ``response`` ``(J, K)`` one of an inferred response (by default the rows of the
-        likelihoods: its posterior means).
+        Parameters
+        ----------
+        value : ndarray (K,)
+            Fractions or rates.
+        absolute : bool, optional
+            Include the per-object log-scales of the likelihoods, so values compare
+            across binnings and models.
+        S : ndarray (K,), optional
+            Value of an inferred selection; ``None`` uses its
+            :attr:`~Selection.values`.
+        response : ndarray (J, K), optional
+            Value of an inferred response; ``None`` uses the rows of the likelihoods
+            (its posterior means).
         """
         v = np.asarray(value, dtype=float)
         if response is not None:
@@ -567,6 +638,11 @@ class PopulationModel:
         the density is zero, +inf where it is unbounded and NaN where it is
         undefined (a Polya tree); NaN for priors without a closed-form density
         (logistic priors).
+
+        Parameters
+        ----------
+        value : ndarray (K,)
+            Fractions or rates.
         """
         if not self.prior.has_density:
             return np.nan
@@ -580,24 +656,57 @@ class PopulationModel:
         the unconstrained coordinates, so its mode is the MAP estimate on the
         simplex (``MAP(space="simplex")``); compare
         :meth:`log_density_unconstrained` (DECISIONS #15).
+
+        Parameters
+        ----------
+        value : ndarray (K,)
+            Fractions or rates.
         """
         return self.log_likelihood(value) + self.log_prior(value)
 
     def expected_counts(self, value: np.ndarray) -> np.ndarray:
-        r"""Expected latent counts :math:`\hat n_k = \sum_i w_i r_{ik}`."""
+        r"""Expected latent counts :math:`\hat n_k = \sum_i w_i r_{ik}`.
+
+        Parameters
+        ----------
+        value : ndarray (K,)
+            Fractions or rates.
+        """
         _, nhat, _ = kern.loglike_and_counts(self._L, self._w, np.asarray(value, float))
         return nhat
 
     def responsibilities(self, value: np.ndarray, idx: Any = None) -> np.ndarray:
-        r"""Per-object posteriors over bins given the population: :math:`r_{ik}`."""
+        r"""Per-object posteriors over bins given the population: :math:`r_{ik}`.
+
+        Parameters
+        ----------
+        value : ndarray (K,)
+            Fractions or rates.
+        idx : index, optional
+            Objects to use; ``None`` uses all of them.
+        """
         return kern.responsibilities(self._L, np.asarray(value, dtype=float), idx=idx)
 
     def sample_prior(self, n: int, rng: RNGLike = None) -> np.ndarray:
-        """Draws of fractions (or rates) from the prior."""
+        """Draws of fractions (or rates) from the prior.
+
+        Parameters
+        ----------
+        n : int
+            Number of draws.
+        rng : int, numpy.random.Generator, or None
+            Random number generator.
+        """
         return self.prior.sample(int(n), as_generator(rng))
 
     def prior_transform(self, u: np.ndarray) -> np.ndarray:
-        """Unit-hypercube transform to prior draws (for nested samplers)."""
+        """Unit-hypercube transform to prior draws (for nested samplers).
+
+        Parameters
+        ----------
+        u : ndarray (..., dim)
+            Points in the unit hypercube.
+        """
         return self.prior.prior_transform(np.asarray(u, dtype=float))
 
     # -------------------------------------------------------- diagnostics
@@ -613,6 +722,13 @@ class PopulationModel:
         (DECISIONS #56, #71). Self-consistency of the
         EM fixed point is necessary but not sufficient for optimality; this
         certificate checks the rest.
+
+        Parameters
+        ----------
+        value : ndarray (K,)
+            Fractions or rates.
+        include_prior : bool, optional
+            Include the prior's pseudo-counts in the optimality conditions.
         """
         v = np.asarray(value, dtype=float)
         s = kern.matvec(self._L, v)
@@ -658,6 +774,20 @@ class PopulationModel:
         concentrations below one outweighs the data). Computed on the support
         of ``value`` and on a random subset of at most ``max_objects`` objects, ``chunk``
         objects at a time.
+
+        Parameters
+        ----------
+        value : ndarray (K,)
+            Fractions or rates.
+        max_objects : int, optional
+            Largest random subset of objects used.
+        rng : int, Generator or None, optional
+            Random number generator for the subset; the default ``0`` makes it
+            reproducible.
+        include_prior : bool, optional
+            Add a Dirichlet prior's term, as the MAP EM does.
+        chunk : int, optional
+            Objects processed per block, which bounds memory.
         """
         v = np.asarray(value, dtype=float)
         N = self.N

@@ -122,6 +122,26 @@ jobs:
         env:
           OMP_NUM_THREADS: "1"
 
+  linkcheck:
+    # Weekly or by hand: external links break without any change here.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: pip install -e ".[docs,xarray]"
+      - run: sphinx-build -b linkcheck docs docs/_build/linkcheck
+        env:
+          BINFERENCE_DOCS_EXECUTE: "off"
+      - name: Check that every DOI in the bibliography is registered
+        if: ${{ !cancelled() }}
+        run: python docs/_scripts/check_dois.py
+
   docs:
     # Pushes to main also publish the site to GitHub Pages (deploy job below).
     needs: [lint, changes]
@@ -138,6 +158,8 @@ jobs:
       - run: pip install -e ".[docs,xarray]"
       - name: Check the brand assets and tokens against docs/_scripts/brand.py
         run: python docs/_scripts/brand.py --check
+      - name: Check the defaults page against the code and its docstrings
+        run: python docs/_scripts/defaults_table.py --check
       - name: Run the code of the README, installation page and guides
         run: python docs/_scripts/run_snippets.py README.md docs/start/install.md docs/guides/*.md
       # Executed notebooks are reused while the package, the plot style and the docs

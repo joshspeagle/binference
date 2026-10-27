@@ -106,7 +106,7 @@ at a time (results in `benchmarks/results/`):
 
 ## NUTS
 
-The No-U-Turn Sampler (Hoffman & Gelman 2014) runs on unconstrained
+The No-U-Turn Sampler {cite:p}`hoffman2014` runs on unconstrained
 coordinates: isometric log-ratios for simplex priors, whitened fields with
 log-hyperparameters for smoothness priors, and log-rates for rates. By
 default it runs four chains, each with 1000 warm-up and 1000 sampling
@@ -142,7 +142,7 @@ print(more.chains.shape, engine.result.chains.shape, more.info["step_size"].roun
 
 The data-augmentation Gibbs sampler alternates between drawing every
 object's bin given $\rho$ and drawing $\rho$ given the counts, as in
-Leistedt et al. (2016). It needs a conjugate prior (the Dirichlet family or
+{cite:t}`leistedt2016`. It needs a conjugate prior (the Dirichlet family or
 `GammaRates`) and integer weights. Selection is handled exactly, by also
 imputing the missed objects.
 
@@ -172,7 +172,7 @@ Three solvers share the work; {class}`~binference.samplers.MAP` gives the
 exact routing, and `est.info["algorithm"]` and `est.info["space"]` record the
 choice.
 
-- **mix-SQP** (Kim et al. 2020), a second-order method for mixture
+- **mix-SQP** {cite:p}`kim2020`, a second-order method for mixture
   proportions, wherever the problem is concave in its coordinates: Dirichlet
   priors with concentrations of at least one, including the default flat
   prior, which gives the maximum-likelihood estimate (with a selection, the

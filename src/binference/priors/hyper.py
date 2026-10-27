@@ -38,7 +38,13 @@ class Hyperprior:
 
 
 class Fixed(Hyperprior):
-    """A hyperparameter held fixed at ``value`` (not inferred)."""
+    """A hyperparameter held fixed at ``value`` (not inferred).
+
+    Parameters
+    ----------
+    value : float
+        The fixed value.
+    """
 
     fixed = True
 
@@ -55,7 +61,13 @@ class Fixed(Hyperprior):
 
 
 class HalfNormal(Hyperprior):
-    """Half-normal prior with scale ``scale`` on a positive hyperparameter."""
+    """Half-normal prior with scale ``scale`` on a positive hyperparameter.
+
+    Parameters
+    ----------
+    scale : float, optional
+        Scale of the half-normal.
+    """
 
     def __init__(self, scale: float = 1.0) -> None:
         if not scale > 0:
@@ -79,7 +91,15 @@ class HalfNormal(Hyperprior):
 
 
 class LogNormal(Hyperprior):
-    """Log-normal prior: ``log(theta) ~ Normal(mu, sigma)``."""
+    """Log-normal prior: ``log(theta) ~ Normal(mu, sigma)``.
+
+    Parameters
+    ----------
+    mu : float, optional
+        Mean of the log of the hyperparameter.
+    sigma : float, optional
+        Standard deviation of the log of the hyperparameter.
+    """
 
     def __init__(self, mu: float = 0.0, sigma: float = 1.0) -> None:
         if not sigma > 0:
@@ -102,7 +122,15 @@ class LogNormal(Hyperprior):
 
 
 class InverseGamma(Hyperprior):
-    """Inverse-gamma prior with shape ``a`` and scale ``b``."""
+    """Inverse-gamma prior with shape ``a`` and scale ``b``.
+
+    Parameters
+    ----------
+    a : float, optional
+        Shape.
+    b : float, optional
+        Scale.
+    """
 
     def __init__(self, a: float = 2.0, b: float = 1.0) -> None:
         if not (a > 0 and b > 0):
@@ -131,6 +159,13 @@ class InverseGamma(Hyperprior):
         Useful for GP length scales: put little mass below the resolution of
         the grid and above the size of the domain (Betancourt 2017, "Robust
         Gaussian processes in Stan").
+
+        Parameters
+        ----------
+        lower, upper : float
+            Values below and above which the prior puts mass ``tail``.
+        tail : float, optional
+            Prior mass below ``lower`` and above ``upper``.
         """
         if not 0 < lower < upper:
             raise ValueError("Need 0 < lower < upper.")
@@ -162,7 +197,15 @@ class InverseGamma(Hyperprior):
 
 
 class Gamma(Hyperprior):
-    """Gamma prior with shape ``a`` and rate ``b``."""
+    """Gamma prior with shape ``a`` and rate ``b``.
+
+    Parameters
+    ----------
+    a : float, optional
+        Shape.
+    b : float, optional
+        Rate.
+    """
 
     def __init__(self, a: float = 2.0, b: float = 1.0) -> None:
         if not (a > 0 and b > 0):

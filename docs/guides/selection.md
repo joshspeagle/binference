@@ -208,7 +208,7 @@ The inferred total accounts for the objects that were never detected.
 
 ## Common mistakes
 
-These are the two errors that Mandel, Farr & Gair (2019) warn about:
+These are the two errors that {cite:t}`mandel2019` warn about:
 
 - **Renormalising each object's likelihood** over the detectable region *and*
   dividing by $S\cdot\rho$, which corrects for selection twice. Pass the

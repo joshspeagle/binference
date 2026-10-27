@@ -64,7 +64,15 @@ class Measure:
         inverse: Callable[[np.ndarray], np.ndarray],
         name: str = "transform",
     ) -> Measure:
-        """A user map ``u = forward(z)`` with its inverse; both take and return arrays."""
+        """A user map ``u = forward(z)`` with its inverse; both take and return arrays.
+
+        Parameters
+        ----------
+        forward, inverse : callable
+            The map ``z -> u`` and its inverse, strictly increasing.
+        name : str, optional
+            Name shown for the measure.
+        """
         if not (callable(forward) and callable(inverse)):
             raise TypeError("forward and inverse must be callables.")
         return cls(name, forward, inverse, ("fn", forward, inverse))
@@ -77,6 +85,15 @@ class Measure:
 
         ``T(z) = integral of g from lo to z``, computed by the trapezoidal rule
         on ``n`` points and interpolated linearly, as is its inverse.
+
+        Parameters
+        ----------
+        g : callable
+            Positive density, evaluated on an array of ``z``.
+        lo, hi : float
+            Range of ``z`` the map covers.
+        n : int, optional
+            Points of the trapezoidal rule that tabulates the map.
         """
         z = np.linspace(float(lo), float(hi), int(n))
         dens = np.asarray(g(z), dtype=float)
@@ -86,7 +103,15 @@ class Measure:
 
     @classmethod
     def tabulated(cls, z: Any, u: Any, name: str = "tabulated") -> Measure:
-        """A piecewise-linear map through the points ``(z, u)``, both strictly increasing."""
+        """A piecewise-linear map through the points ``(z, u)``, both strictly increasing.
+
+        Parameters
+        ----------
+        z, u : array_like
+            Points of the map, at least two.
+        name : str, optional
+            Name shown for the measure.
+        """
         z = np.array(z, dtype=float)
         u = np.array(u, dtype=float)
         if z.ndim != 1 or z.shape != u.shape or z.size < 2:
@@ -104,7 +129,13 @@ class Measure:
 
     @classmethod
     def coerce(cls, measure: Measure | str) -> Measure:
-        """A :class:`Measure` from a measure or one of the names ``"linear"`` and ``"log"``."""
+        """A :class:`Measure` from a measure or one of the names ``"linear"`` and ``"log"``.
+
+        Parameters
+        ----------
+        measure : Measure or {"linear", "log"}
+            A measure or its name.
+        """
         if isinstance(measure, Measure):
             return measure
         if isinstance(measure, str) and measure in _NAMED:
@@ -118,11 +149,23 @@ class Measure:
         return self._key[0] == "named"
 
     def forward(self, z: Any) -> np.ndarray:
-        """``u = T(z)``."""
+        """``u = T(z)``.
+
+        Parameters
+        ----------
+        z : array_like
+            Values of the bin coordinate.
+        """
         return np.asarray(self._forward(np.asarray(z, dtype=float)), dtype=float)
 
     def inverse(self, u: Any) -> np.ndarray:
-        """``z = T^{-1}(u)``."""
+        """``z = T^{-1}(u)``.
+
+        Parameters
+        ----------
+        u : array_like
+            Values of the measure coordinate.
+        """
         return np.asarray(self._inverse(np.asarray(u, dtype=float)), dtype=float)
 
     def log_jacobian(self, z: Any) -> np.ndarray:
@@ -130,6 +173,11 @@ class Measure:
 
         Exact for linear, log and tabulated measures; a central difference for
         :meth:`transform`.
+
+        Parameters
+        ----------
+        z : array_like
+            Values of the bin coordinate.
         """
         z = np.asarray(z, dtype=float)
         if self is _NAMED["linear"]:

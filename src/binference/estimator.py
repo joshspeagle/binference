@@ -83,11 +83,23 @@ class PopulationEstimator:
         return Tags(estimator_type=None, target_tags=TargetTags(required=False))
 
     def get_params(self, deep: bool = True) -> dict[str, Any]:
-        """Constructor parameters (scikit-learn convention)."""
+        """Constructor parameters (scikit-learn convention).
+
+        Parameters
+        ----------
+        deep : bool, optional
+            Accepted for scikit-learn compatibility; has no effect.
+        """
         return {name: getattr(self, name) for name in self._get_param_names()}
 
     def set_params(self, **params: Any) -> PopulationEstimator:
-        """Set constructor parameters (scikit-learn convention)."""
+        """Set constructor parameters (scikit-learn convention).
+
+        Parameters
+        ----------
+        **params
+            Constructor parameters and their new values.
+        """
         valid = set(self._get_param_names())
         for k, v in params.items():
             if k not in valid:
@@ -101,7 +113,15 @@ class PopulationEstimator:
 
     # ------------------------------------------------------------- API
     def fit(self, X: Any, y: Any = None) -> PopulationEstimator:
-        """Infer the population from likelihoods ``X``; ``y`` is ignored."""
+        """Infer the population from likelihoods ``X``.
+
+        Parameters
+        ----------
+        X : Likelihoods or array_like (N, K)
+            Per-object likelihoods.
+        y : None, optional
+            Ignored; accepted for scikit-learn compatibility.
+        """
         kwargs = dict(self.engine_kwargs or {})
         self.result_: PopulationResult | PointEstimate = infer(
             X,
@@ -124,23 +144,51 @@ class PopulationEstimator:
             raise RuntimeError(f"This {type(self).__name__} is not fitted yet; call fit().")
 
     def predict_proba(self, X: Any) -> np.ndarray:
-        """Per-object posterior over bins under the inferred population."""
+        """Per-object posterior over bins under the inferred population.
+
+        Parameters
+        ----------
+        X : Likelihoods or array_like (N, K)
+            Likelihoods of the objects.
+        """
         self._check_fitted()
         return self.result_.predict_proba(X)
 
     def predict(self, X: Any) -> np.ndarray:
-        """Most probable bin of each object under the inferred population."""
+        """Most probable bin of each object under the inferred population.
+
+        Parameters
+        ----------
+        X : Likelihoods or array_like (N, K)
+            Likelihoods of the objects.
+        """
         return np.argmax(self.predict_proba(X), axis=1)
 
     def score(self, X: Any, y: Any = None) -> float:
-        """Mean log posterior-predictive density per object (higher is better)."""
+        """Mean log posterior-predictive density per object (higher is better).
+
+        Parameters
+        ----------
+        X : Likelihoods or array_like (N, K)
+            Per-object likelihoods.
+        y : None, optional
+            Ignored; accepted for scikit-learn compatibility.
+        """
         self._check_fitted()
         lp = self.result_.log_predictive(X)
         w = X.weights if isinstance(X, Likelihoods) else np.ones(lp.size)
         return float(np.dot(w, lp) / w.sum())
 
     def sample(self, n: int = 1, rng: RNGLike = None) -> np.ndarray:
-        """Draws of the population fractions from the fitted posterior."""
+        """Draws of the population fractions from the fitted posterior.
+
+        Parameters
+        ----------
+        n : int, optional
+            Number of population draws returned.
+        rng : int, Generator or None
+            Random number generator.
+        """
         self._check_fitted()
         res = self.result_
         if isinstance(res, PointEstimate):

@@ -230,9 +230,21 @@ def _log_gauss_rows(z: np.ndarray, r: np.ndarray, mu: np.ndarray, sig: np.ndarra
     return -0.5 * ((z - m) / s) ** 2 - np.log(s) - 0.5 * np.log(2 * np.pi)
 
 
-#: the outside-mass warning fires when more than OUTSIDE_SHARE of the objects have
-#: more than OUTSIDE_THRESHOLD of their mass outside the bins (DECISIONS #64)
-OUTSIDE_THRESHOLD, OUTSIDE_SHARE = 0.9, 0.1
+# DECISIONS #64
+#: An object with more than this share of its likelihood outside the bins is mostly
+#: outside.
+OUTSIDE_THRESHOLD = 0.9
+#: A warning is raised when more than this share of the objects are mostly outside the
+#: bins.
+OUTSIDE_SHARE = 0.1
+#: ``from_samples`` warns when more than this share of the objects have fewer than
+#: ``min_samples`` effective samples.
+FEW_SAMPLES_SHARE = 0.1
+#: A warning is raised when more than this share of posterior rows sum to one only under
+#: the other ``representation``.
+REPRESENTATION_SHARE = 0.5
+#: Relative tolerance within which a posterior row counts as summing to one.
+REPRESENTATION_RTOL = 1e-2
 
 
 def _record_outside(lk: Likelihoods, outside: np.ndarray, enabled: bool) -> None:
@@ -330,7 +342,8 @@ class Likelihoods:
         likelihood taken as flat within each) and are projected onto its
         components (DECISIONS #76).
     representation : {"density", "mass"}
-        ``"density"`` (default): each value is the likelihood evaluated in (or
+        Values per unit volume (``"density"``) or integrated over each bin
+        (``"mass"``). ``"density"`` (default): each value is the likelihood evaluated in (or
         averaged over) the bin. ``"mass"``: each value is the likelihood
         *integrated* over the bin (e.g. CDF differences); it is divided by the
         bin volume. The distinction only matters for unequal bin volumes.
@@ -345,10 +358,12 @@ class Likelihoods:
         Detection probability (or exposure) per bin, used by models unless
         overridden; see :doc:`/guides/selection`.
     selection_mode : {"on_measurement", "on_truth"}, optional
-        Required with an array or callable ``selection``: whether objects are
+        Whether the selection acts on the measurement or on the truth; required with
+        an array or callable ``selection``. ``"on_measurement"``: objects are
         selected on their measured data (or the likelihoods already include the
-        detection probability), or detected with a probability that depends on
-        their true value. See :class:`~binference.selection.Selection`.
+        detection probability); ``"on_truth"``: they are detected with a
+        probability that depends on their true value. See
+        :class:`~binference.selection.Selection`.
     drop_empty : bool
         Drop all-zero rows with a warning instead of raising.
     log : bool
@@ -552,7 +567,11 @@ class Likelihoods:
     def to_sparse(self, rtol: float = 0.0) -> Likelihoods:
         """Copy with sparse CSR storage, dropping entries below ``rtol`` (relative to row max).
 
-        ``0 <= rtol <= 1``: rows are normalised to a maximum of one, which is always kept.
+        Parameters
+        ----------
+        rtol : float, optional
+            Entries below this fraction of their row's maximum are dropped; in
+            ``[0, 1]``, and the maximum itself is always kept.
         """
         if not 0.0 <= rtol <= 1.0:
             raise ValueError(f"rtol must lie in [0, 1]; got {rtol}.")
@@ -563,7 +582,13 @@ class Likelihoods:
         return self._copy(norm=M)
 
     def subset(self, idx: Any) -> Likelihoods:
-        """Rows ``idx`` (any NumPy index) as a new object."""
+        """Rows ``idx`` (any NumPy index) as a new object.
+
+        Parameters
+        ----------
+        idx : int, slice, array_like of int or bool
+            Rows to keep.
+        """
         rows = np.arange(self.N)[idx]
         rows = np.atleast_1d(rows)
         vals = self._values[rows]
@@ -575,11 +600,28 @@ class Likelihoods:
         )
 
     def with_weights(self, weights: Any, fractional_weights: bool = False) -> Likelihoods:
-        """Copy with new object weights (``fractional_weights`` as for the constructor)."""
+        """Copy with new object weights.
+
+        Parameters
+        ----------
+        weights : array_like (N,)
+            Integer multiplicity of each object.
+        fractional_weights : bool, optional
+            Accept non-integer weights, which give a pseudo-likelihood.
+        """
         return self._copy(weights=_check_weights(weights, self.N, fractional_weights))
 
     def with_selection(self, selection: Any, selection_mode: str | None = None) -> Likelihoods:
-        """Copy with a (new) selection function attached (``None`` removes it)."""
+        """Copy with a (new) selection function attached.
+
+        Parameters
+        ----------
+        selection : array_like (K,), callable, Selection or None
+            Detection probability or exposure per bin; ``None`` removes the selection.
+        selection_mode : {"on_measurement", "on_truth"}, optional
+            Whether the new selection acts on the measurement or on the truth; required
+            with an array or callable ``selection``.
+        """
         sel = as_selection(selection, selection_mode, self._basis or self._bins)
         return self._copy(selection=sel)
 
@@ -593,6 +635,11 @@ class Likelihoods:
         (:meth:`from_gaussian`, :meth:`from_density`, :meth:`from_samples`) do
         this on the quadrature cells when given the :class:`~binference.Basis`
         directly. A selection is carried over to the components.
+
+        Parameters
+        ----------
+        basis : Basis
+            Basis whose ``bins`` or ``grid`` these likelihoods are on.
         """
         if not isinstance(basis, Basis):
             raise TypeError("basis must be a binference.Basis instance.")
@@ -625,6 +672,12 @@ class Likelihoods:
         rounding, each group is represented by its first row. Inference on the
         population is unchanged; Gibbs sampling then draws multinomial counts
         per unique row. Sparse storage stays sparse. Always returns a new object.
+
+        Parameters
+        ----------
+        decimals : int, optional
+            Round rows to this many decimals before merging; ``None`` merges exact
+            duplicates.
         """
         V = self._values
         if sp.issparse(V):
@@ -666,6 +719,14 @@ class Likelihoods:
         :class:`~binference.Basis` it is over the components (map it with
         ``lk.basis.to_bins``), under a flat interim prior unless ``interim``
         is given.
+
+        Parameters
+        ----------
+        interim : Density, "flat", callable, distribution or array_like (K,), optional
+            Prior the stacked posteriors are formed under; ``None`` uses the input's
+            interim prior.
+        interim_representation : {"mass", "density"}, optional
+            Whether an array ``interim`` holds masses or densities.
         """
         if interim is None:
             Pi = self.meta.get("interim_prior_masses")
@@ -686,7 +747,13 @@ class Likelihoods:
         return out / out.sum()
 
     def log_evidence_terms(self, rho: np.ndarray) -> np.ndarray:
-        r"""Per-object absolute log marginal likelihoods :math:`\log(L_i\cdot\rho)`, unweighted."""
+        r"""Per-object absolute log marginal likelihoods :math:`\log(L_i\cdot\rho)`, unweighted.
+
+        Parameters
+        ----------
+        rho : ndarray (K,)
+            Population fractions.
+        """
         s = np.asarray(self._values @ np.asarray(rho, dtype=float)).ravel()
         with np.errstate(divide="ignore"):
             return np.log(s) + self._log_scale
@@ -694,7 +761,17 @@ class Likelihoods:
     # ----------------------------------------------------------- constructors
     @classmethod
     def from_log(cls, log_values: Any, bins: Bins | None = None, **kwargs: Any) -> Likelihoods:
-        """Build from log-likelihoods (``-inf`` marks zero likelihood)."""
+        """Build from log-likelihoods (``-inf`` marks zero likelihood).
+
+        Parameters
+        ----------
+        log_values : array_like, shape (N, K)
+            Log-likelihoods.
+        bins : Bins or Basis, optional
+            The support; ``None`` gives categories.
+        **kwargs
+            Further arguments of :class:`Likelihoods`.
+        """
         lk = cls(log_values, bins, log=True, **kwargs)
         lk.meta["source"] = "log_values"
         return lk
@@ -746,8 +823,20 @@ class Likelihoods:
         interim_representation : {"mass", "density"}, optional
             How an array ``interim`` is read. Required for arrays on bins of
             unequal volume, where the two readings differ.
-        log : bool
+        log : bool, optional
             The values are logarithms (``-inf`` allowed; dense only).
+        weights : array_like (N,), optional
+            Integer multiplicity of each object; ``None`` gives every object weight one.
+        selection : array_like (K,), callable or Selection, optional
+            Detection probability or exposure per bin; ``None`` means no selection.
+        selection_mode : {"on_measurement", "on_truth"}, optional
+            Whether the selection acts on the measurement or on the truth; required with
+            an array or callable ``selection``.
+        drop_empty : bool, optional
+            Drop objects with zero likelihood in every bin, with a warning, instead of
+            raising.
+        fractional_weights : bool, optional
+            Accept non-integer weights, which give a pseudo-likelihood.
         """
         posterior = _check_kind(kind, interim)
         if representation is None:
@@ -850,6 +939,18 @@ class Likelihoods:
         warn_outside : bool
             Warn when many objects have most of their samples outside the bins
             (see :meth:`from_gaussian`).
+        weights : array_like (N,), optional
+            Integer multiplicity of each object; ``None`` gives every object weight one.
+        selection : array_like (K,), callable or Selection, optional
+            Detection probability or exposure per bin; ``None`` means no selection.
+        selection_mode : {"on_measurement", "on_truth"}, optional
+            Whether the selection acts on the measurement or on the truth; required with
+            an array or callable ``selection``.
+        drop_empty : bool, optional
+            Drop objects with zero likelihood in every bin, with a warning, instead of
+            raising.
+        fractional_weights : bool, optional
+            Accept non-integer weights, which give a pseudo-likelihood.
         """
         if bins.is_categorical:
             raise ValueError("from_samples needs ordered (grid) bins.")
@@ -900,7 +1001,7 @@ class Likelihoods:
             sparse = floor == 0 and S1.nnz < kern.SPARSE_FILL * n_obj * bins.K
         values = sp.csr_array(est) if sparse else (est.toarray() if sp.issparse(est) else est)
         short = n_eff < min_samples
-        if short.mean() > 0.1:
+        if short.mean() > FEW_SAMPLES_SHARE:
             warn(
                 f"{int(short.sum())} of {n_obj} objects have fewer than {min_samples} effective "
                 "samples inside the bins; their likelihoods will be noisy (more samples, wider "
@@ -944,6 +1045,11 @@ class Likelihoods:
         under ``rho``. Summed over objects, :math:`\sum_i V_i` is about the bias
         it puts in the total log-likelihood (Jensen); values above about one
         call for more samples (DECISIONS #31).
+
+        Parameters
+        ----------
+        rho : array_like (K,)
+            Population fractions.
         """
         if "sample_sum" not in self.meta:
             raise ValueError("sample_variance needs likelihoods built by from_samples.")
@@ -1012,6 +1118,24 @@ class Likelihoods:
         cov : array_like, shape (ndim, ndim) or (N, ndim, ndim), optional
             Full covariance matrices (symmetric positive definite), in place of
             ``sigma``.
+        tol : float, optional
+            Relative tolerance of the adaptive quadrature over each bin.
+        max_depth : int, optional
+            Most refinements of the adaptive quadrature.
+        warn_outside : bool, optional
+            Warn when many objects have most of their likelihood outside the bins.
+        weights : array_like (N,), optional
+            Integer multiplicity of each object; ``None`` gives every object weight one.
+        selection : array_like (K,), callable or Selection, optional
+            Detection probability or exposure per bin; ``None`` means no selection.
+        selection_mode : {"on_measurement", "on_truth"}, optional
+            Whether the selection acts on the measurement or on the truth; required with
+            an array or callable ``selection``.
+        drop_empty : bool, optional
+            Drop objects with zero likelihood in every bin, with a warning, instead of
+            raising.
+        fractional_weights : bool, optional
+            Accept non-integer weights, which give a pseudo-likelihood.
         """
         basis = bins if isinstance(bins, Basis) else None
         if basis is not None:  # evaluated on its quadrature cells, returned per component
@@ -1161,6 +1285,43 @@ class Likelihoods:
         each distribution's mass outside the active bins is recorded in
         ``meta["outside_fraction"]`` on 1-D bins (see :meth:`from_gaussian` for
         ``warn_outside``).
+
+        Parameters
+        ----------
+        density : callable or sequence of distributions
+            Per-object densities of ``z``, as above.
+        bins : Bins or Basis
+            Grid bins.
+            With a :class:`~binference.Basis`, likelihoods of its components.
+        kind : {"likelihood"}, optional
+            The densities are likelihoods. Exactly one of ``kind`` and ``interim``.
+        interim : Density, "flat", callable, distribution or array_like (K,), optional
+            The prior the posteriors were computed with, read by
+            :meth:`Density.coerce`.
+        interim_representation : {"mass", "density"}, optional
+            How an array ``interim`` is read (see :meth:`from_table`).
+        log : bool, optional
+            The function returns logarithms.
+        tol : float, optional
+            Relative tolerance of the adaptive quadrature over each bin.
+        max_depth : int, optional
+            Most refinements of the adaptive quadrature.
+        n_sub : int, optional
+            Fixed Gauss-Legendre points per bin and axis in place of adaptive quadrature.
+        weights : array_like (N,), optional
+            Integer multiplicity of each object; ``None`` gives every object weight one.
+        selection : array_like (K,), callable or Selection, optional
+            Detection probability or exposure per bin; ``None`` means no selection.
+        selection_mode : {"on_measurement", "on_truth"}, optional
+            Whether the selection acts on the measurement or on the truth; required with
+            an array or callable ``selection``.
+        drop_empty : bool, optional
+            Drop objects with zero likelihood in every bin, with a warning, instead of
+            raising.
+        fractional_weights : bool, optional
+            Accept non-integer weights, which give a pseudo-likelihood.
+        warn_outside : bool, optional
+            Warn when many objects have most of their likelihood outside the bins.
         """
         if bins.is_categorical:
             raise ValueError("from_density needs grid bins.")
@@ -1459,9 +1620,9 @@ def _check_posterior_representation(P, vol: np.ndarray, representation: str) -> 
         sums, alt, other = as_mass, as_dens, "density"
     else:
         sums, alt, other = as_dens, as_mass, "mass"
-    mismatched = ~np.isclose(sums, 1.0, rtol=1e-2)
-    looks_other = np.isclose(alt, 1.0, rtol=1e-2)
-    if np.mean(mismatched & looks_other) > 0.5:
+    mismatched = ~np.isclose(sums, 1.0, rtol=REPRESENTATION_RTOL)
+    looks_other = np.isclose(alt, 1.0, rtol=REPRESENTATION_RTOL)
+    if np.mean(mismatched & looks_other) > REPRESENTATION_SHARE:
         warn(
             f"Most posterior rows integrate to one only if interpreted as '{other}' values; "
             f"did you mean representation='{other}'? "

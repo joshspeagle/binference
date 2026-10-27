@@ -29,7 +29,7 @@ print(exact.std.round(4), res.std.round(4))
 
 ## Simulation-based calibration
 
-Simulation-based calibration (SBC; Talts et al. 2018) repeats three steps
+Simulation-based calibration (SBC; {cite:alp}`talts2018`) repeats three steps
 many times:
 1. draw a population from the prior;
 2. simulate a catalogue from that population;
@@ -66,7 +66,7 @@ fig = result.plot()
   bins.
 - **Tests.** `result.pvalues()` and `result.passed()` test each quantity's
   ranks with a chi-square on their histogram; `method="ecdf"` uses the ECDF
-  test with simultaneous bands of Säilynoja, Bürkner & Vehtari (2022)
+  test with simultaneous bands of {cite:t}`sailynoja2022`
   instead, which is more sensitive to bias. Neither test dominates the other:
   to require both, call `result.passed(method="chisquare")` and
   `result.passed(method="ecdf")`.
