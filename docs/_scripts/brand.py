@@ -59,8 +59,9 @@ TOKENS = {
     "tip": ("#0E7D6E", "#4CC2B0", "'In plain words' notes", "bg"),
     "warn": ("#9A6200", "#E8AE52", "warnings", "bg"),
     "danger": ("#B42318", "#F97066", "errors", "bg"),
-    "figure-ground": ("#FBFBFE", "#FBFBFE", "ground of tutorial plots, both themes", "ink"),
 }
+#: tutorial plots are drawn on the light page in both themes; the dark theme sets them on it
+FIGURE_GROUND = TOKENS["bg"][0]
 #: data colours: (light, dark, use); validated with the dataviz palette checks
 DATA = {
     "cat": (
@@ -101,7 +102,11 @@ TYPE = {
     "section": ("section headings", "display", 600, 20, 1.25),
     "text": ("running text", "body", 400, 16.5, 1.6),
     "code": ("code, numbers in tables", "mono", 400, 14, 1.5),
-    "caption": ("captions, labels", "body", 400, 14, 1.45),
+    "caption": ("captions", "body", 400, 14, 1.45),
+    "subsection": ("subsection headings", "display", 600, 17, 1.3),
+    "minor": ("minor headings", "body", 600, 15, 1.3),
+    "label": ("labels (upper case)", "body", 600, 12, 1.4),
+    "title-phone": ("page titles below 900 px", "display", 600, 28, 1.15),
 }
 #: other sizes in px: name: (value, use)
 SIZES = {
@@ -296,6 +301,7 @@ def tokens_css() -> str:
         for k, (_, face, w, px, lh) in TYPE.items()
     ]
     fixed += [f"  --b-{k}: {v}px;" for k, (v, _) in SIZES.items()]
+    fixed.append(f"  --b-figure-ground: {FIGURE_GROUND};")
     dark = colours(1)
     return (
         "/* Written by docs/_scripts/brand.py; edit the tokens there. */\n"
@@ -316,9 +322,9 @@ def matplotlibrc() -> str:
     cycle = ", ".join(f"'{c.lstrip('#')}'" for c in DATA["cat"][0])
     lines = {
         "figure.dpi": 144,
-        "figure.facecolor": light["figure-ground"],
-        "axes.facecolor": light["figure-ground"],
-        "savefig.facecolor": light["figure-ground"],
+        "figure.facecolor": light["bg"],
+        "axes.facecolor": light["bg"],
+        "savefig.facecolor": light["bg"],
         "axes.prop_cycle": f"cycler('color', [{cycle}])",
         "text.color": light["ink"],
         "axes.labelcolor": light["ink"],

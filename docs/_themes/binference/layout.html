@@ -3,8 +3,8 @@
 {%- set section = bnf_sections[bnf_section_index] if bnf_section_index is not none %}
 
 {%- block extrahead %}
-    <link rel="stylesheet" href="{{ pathto('_static/fonts/fonts.css', 1) }}">
-    <link rel="stylesheet" href="{{ pathto('_static/tokens.css', 1) }}">
+    <link rel="preload" href="{{ pathto('_static/fonts/AtkinsonHyperlegibleNext-latin.woff2', 1) }}" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="{{ pathto('_static/fonts/Sora-latin.woff2', 1) }}" as="font" type="font/woff2" crossorigin>
     <script>try { var t = localStorage.getItem("binference-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
     {{ super() }}
 {%- endblock %}

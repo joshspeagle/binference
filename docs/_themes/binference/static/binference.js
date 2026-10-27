@@ -1,5 +1,5 @@
-/* binference docs theme: theme toggle, phone menu, sidebar groups, outline marker and the
-   "/" search key. The saved theme is applied before paint by an inline script in layout.html. */
+/* binference docs theme: theme toggle, phone menu, sidebar groups and outline marker
+   (Sphinx's doctools.js handles the "/" search key). The saved theme is applied before paint by an inline script in layout.html. */
 (function () {
   var root = document.documentElement;
 
@@ -47,24 +47,16 @@
     });
   }
 
-  /* "/" focuses the search box unless the reader is typing. */
-  var search = document.querySelector(".searchbar input");
-  document.addEventListener("keydown", function (e) {
-    var t = e.target.tagName;
-    if (e.key === "/" && search && t !== "INPUT" && t !== "TEXTAREA" && !e.target.isContentEditable) {
-      e.preventDefault();
-      search.focus();
-    }
-  });
-
   /* On this page: mark the last section whose heading has passed under the top bar. */
-  var links = Array.prototype.slice.call(document.querySelectorAll(".toc > ul > li > ul > li > a"));
+  var links = Array.from(document.querySelectorAll(".toc > ul > li > ul > li > a")), shown = -1;
   if (!links.length) return;
   var targets = links.map(function (a) { return document.getElementById(decodeURIComponent(a.hash.slice(1))); });
   function mark() {
     var current = 0;
     targets.forEach(function (t, i) { if (t && t.getBoundingClientRect().top < 140) current = i; });
     if (innerHeight + scrollY >= document.body.scrollHeight - 2) current = links.length - 1;
+    if (current === shown) return;
+    shown = current;
     links.forEach(function (a, i) {
       a.classList.toggle("on", i === current);
       if (i === current) a.setAttribute("aria-current", "location"); else a.removeAttribute("aria-current");

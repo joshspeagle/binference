@@ -55,6 +55,9 @@ One brand hue, indigo, is the population: draws, bins, estimates and the mark. C
 an object or a sample, and nothing else. Neutrals lean toward indigo. Both themes are
 designed; the dark theme is not an inversion.
 
+Tutorial plots are drawn on the light `bg` in both themes; the dark theme sets each one on a
+panel of that colour (`--b-figure-ground`), so a plot never needs a dark version.
+
 Each contrast is the WCAG ratio against the token named in the last column: surfaces
 against the text on them, everything else against the page. Text needs 4.5 (AA), marks and
 large text 3; `sample` is for marks only, and coral text uses `sample-text`.
@@ -77,7 +80,6 @@ large text 3; `sample` is for marks only, and coral text uses `sample-text`.
 | `tip` | 'In plain words' notes | `#0E7D6E` | 4.9 | `#4CC2B0` | 8.5 | `bg` |
 | `warn` | warnings | `#9A6200` | 4.9 | `#E8AE52` | 9.3 | `bg` |
 | `danger` | errors | `#B42318` | 6.4 | `#F97066` | 6.6 | `bg` |
-| `figure-ground` | ground of tutorial plots, both themes | `#FBFBFE` | 15.4 | `#FBFBFE` | 1.2 | `ink` |
 | `cat-0…4` | categories, in this order | `#4A4FC4` `#C07C00` `#1A9E8C` `#8F2E74` `#5E8A1C` | | `#7C82E8` `#C4871C` `#25A390` `#9C4A8E` `#749E39` | | |
 | `seq-0…4` | sequential, one hue | `#E2E3F8` `#B8BBEE` `#8186DE` `#4C53C2` `#2A2F8F` | | `#1F2257` `#33388C` `#5259C7` `#8A90EC` `#C9CCFA` | | |
 | `div-0…4` | diverging, grey middle | `#2A2F8F` `#8186DE` `#E4E4EA` `#E0A848` `#8A5600` | | `#C9CCFA` `#5C63C9` `#3A3B4E` `#C48A2A` `#F2C77A` | | |
@@ -99,7 +101,11 @@ monotonically in lightness.
 | section headings | Sora | 600 | 20 px | 1.25 |
 | running text | Atkinson Hyperlegible Next | 400 | 16.5 px | 1.6 |
 | code, numbers in tables | Atkinson Hyperlegible Mono | 400 | 14 px | 1.5 |
-| captions, labels | Atkinson Hyperlegible Next | 400 | 14 px | 1.45 |
+| captions | Atkinson Hyperlegible Next | 400 | 14 px | 1.45 |
+| subsection headings | Sora | 600 | 17 px | 1.3 |
+| minor headings | Atkinson Hyperlegible Next | 600 | 15 px | 1.3 |
+| labels (upper case) | Atkinson Hyperlegible Next | 600 | 12 px | 1.4 |
+| page titles below 900 px | Sora | 600 | 28 px | 1.15 |
 <!-- type:end -->
 
 Atkinson Hyperlegible was designed by the Braille Institute so that letters that look alike

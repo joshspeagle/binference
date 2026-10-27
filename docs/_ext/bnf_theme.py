@@ -27,12 +27,11 @@ class PlainWords(BaseAdmonition):
         return super().run()
 
 
-def _sections(app) -> list[dict]:
-    env = app.env
-    toctrees = list(env.get_doctree(app.config.root_doc).findall(addnodes.toctree))
+def _sections(app, env) -> None:
+    toctrees = list(env.master_doctree.findall(addnodes.toctree))
     captioned = [t for t in toctrees if t.get("caption")]
     if captioned:
-        return [
+        app.bnf_sections = [
             {
                 "caption": t["caption"],
                 "docname": t["entries"][0][1],
@@ -40,13 +39,15 @@ def _sections(app) -> list[dict]:
             }
             for t in captioned
         ]
+        return
     entries = [d for t in toctrees for _, d in t["entries"]]
-    return [{"caption": env.titles[d].astext(), "docname": d, "docs": [d]} for d in entries]
+    app.bnf_sections = [
+        {"caption": env.titles[d].astext(), "docname": d, "docs": [d]} for d in entries
+    ]
 
 
 def _page_context(app, pagename, templatename, context, doctree):
-    sections = _sections(app)
-    context["bnf_sections"] = sections
+    sections = context["bnf_sections"] = app.bnf_sections
     parents, top = app.builder.relations, pagename
     while top in parents and parents[top][0] not in (app.config.root_doc, None):
         top = parents[top][0]
@@ -63,6 +64,9 @@ def _page_context(app, pagename, templatename, context, doctree):
 
 def setup(app):
     app.add_directive("plain-words", PlainWords)
+    # last, so the theme wins over the extensions' stylesheets at equal specificity
+    app.add_css_file("binference.css", priority=900)
     app.add_js_file("binference.js", loading_method="defer")
+    app.connect("env-updated", _sections)
     app.connect("html-page-context", _page_context)
     return {"parallel_read_safe": True, "parallel_write_safe": True}
