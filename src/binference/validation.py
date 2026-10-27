@@ -5,7 +5,7 @@
 * :func:`sbc` runs simulation-based calibration (Talts et al. 2018): if the
   inference is calibrated, the rank of the true value among posterior draws is
   uniform. Ranks are computed for every bin fraction and for the joint
-  log-likelihood (Modrak et al. 2023), and their uniformity is tested by a
+  log-likelihood (Modrák et al. 2025), and their uniformity is tested by a
   rank-histogram chi-square or the ECDF test of Säilynoja et al. (2022).
 * :func:`coverage` measures the empirical coverage of credible intervals for
   bin fractions and user-defined functionals.
@@ -203,8 +203,8 @@ class SBCResult:
         Parameters
         ----------
         n_bins : int, optional
-            Histogram bins; ``None`` gives ``min(20, n_simulations // 5, n_draws + 1)``,
-            at least 2.
+            Histogram bins; ``None`` takes the smallest of ``SBC_MAX_BINS``,
+            ``n_simulations // SBC_SIMULATIONS_PER_BIN`` and ``n_draws + 1``, at least 2.
         """
         edges = self._edges(n_bins)
         return np.stack([np.histogram(r, bins=edges)[0] for r in self.ranks.T])
@@ -218,8 +218,8 @@ class SBCResult:
         Parameters
         ----------
         n_bins : int, optional
-            Histogram bins; ``None`` gives ``min(20, n_simulations // 5, n_draws + 1)``,
-            at least 2.
+            Histogram bins; ``None`` takes the smallest of ``SBC_MAX_BINS``,
+            ``n_simulations // SBC_SIMULATIONS_PER_BIN`` and ``n_draws + 1``, at least 2.
         """
         per_bin = np.histogram(np.arange(self.n_draws + 1), bins=self._edges(n_bins))[0]
         return per_bin * self.ranks.shape[0] / (self.n_draws + 1)
@@ -234,8 +234,7 @@ class SBCResult:
         Parameters
         ----------
         n_bins : int, optional
-            Histogram bins for ``method="chisquare"`` (default
-            ``min(20, n_simulations // 5, n_draws + 1)``, at least 2).
+            Histogram bins for ``method="chisquare"``; ``None`` as for :meth:`histogram`.
         method : {"chisquare", "ecdf"}, optional
             Chi-square test of the rank histogram or ECDF test of the ranks.
             ``"chisquare"``: Pearson's chi-square test of the rank histogram.

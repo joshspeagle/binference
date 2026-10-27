@@ -33,7 +33,7 @@ __all__ = [
 
 #: Quantiles whose indicators define the tail ESS.
 TAIL_QUANTILES = (0.05, 0.95)
-#: Largest Pareto k-hat at which importance sampling is reliable, reached from about
+#: Pareto k-hat at or above which importance sampling is unreliable, reached from about
 #: 2,000 weights; with n weights the limit is min(1 - 1/log10(n), K_HAT_MAX).
 K_HAT_MAX = 0.7
 #: Pareto smoothing needs at least this many importance weights.

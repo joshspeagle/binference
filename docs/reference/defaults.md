@@ -4,7 +4,8 @@ This page lists the thresholds and run-time defaults that the code sets as named
 constants; each function's parameter defaults are in its signature on the
 {doc}`API pages <api/index>`. The tables are generated from the code. Every engine
 takes `rng=None`, which draws fresh entropy from the operating system: pass a seed for
-reproducible draws.
+reproducible draws. Names that start with an underscore are internal: they are listed to
+explain behaviour, not as settings to change.
 
 <!-- defaults:start -->
 
@@ -14,6 +15,7 @@ reproducible draws.
 |---|---|---|---|
 | `EXTEND_TARGET` | `1.2` | `binference.inference` | An extension of a Gibbs run aims for this many times `target_ess`. |
 | `EXTEND_MAX_FACTOR` | `3` | `binference.inference` | One extension of a Gibbs run adds at most this many times the draws so far. |
+| `EXTEND_MIN_FACTOR` | `0.5` | `binference.inference` | One extension of a Gibbs run adds at least this many times the draws so far. |
 | `PROBE_PROPOSALS` | `1000` | `binference.inference` | Proposals of the first pass that can stop a Laplace trial early. |
 | `PROBE_DRAWS` | `500` | `binference.inference` | Draws of the first pass that can stop a Laplace trial early. |
 | `PROBE_ESS_SHARE` | `0.5` | `binference.inference` | A Laplace trial stops when its first pass projects an importance ESS below this share of `target_ess`. |
@@ -23,7 +25,7 @@ reproducible draws.
 | Name | Value | Module | What it controls |
 |---|---|---|---|
 | `TAIL_QUANTILES` | `(0.05, 0.95)` | `binference.diagnostics` | Quantiles whose indicators define the tail ESS. |
-| `K_HAT_MAX` | `0.7` | `binference.diagnostics` | Largest Pareto k-hat at which importance sampling is reliable, reached from about 2,000 weights; with n weights the limit is min(1 - 1/log10(n), K_HAT_MAX). |
+| `K_HAT_MAX` | `0.7` | `binference.diagnostics` | Pareto k-hat at or above which importance sampling is unreliable, reached from about 2,000 weights; with n weights the limit is min(1 - 1/log10(n), K_HAT_MAX). |
 | `PSIS_MIN_WEIGHTS` | `5` | `binference.diagnostics` | Pareto smoothing needs at least this many importance weights. |
 | `PSIS_TAIL` | `(0.2, 3)` | `binference.diagnostics` | The generalised Pareto is fitted to the ceil(min(a n, b sqrt(n))) largest of n weights, for (a, b) these. |
 | `N_DRAWS` | `500` | `binference.results` | Population draws the per-object methods use by default. |
@@ -42,12 +44,12 @@ reproducible draws.
 | `_INIT_BUFFER` | `75` | `binference.samplers._nuts_core` | Iterations of the first fast phase of Stan-style warm-up. |
 | `_BASE_WINDOW` | `25` | `binference.samplers._nuts_core` | Iterations of the first slow window of Stan-style warm-up; each next one is twice as long. |
 | `_TERM_BUFFER` | `50` | `binference.samplers._nuts_core` | Iterations of the last fast phase of Stan-style warm-up. |
-| `INTERIOR_START_ITER` | `50` | `binference.samplers.base` | Most regularised EM steps of the start of MAP, L-BFGS and Gibbs when `init` is `None`. |
+| `INTERIOR_START_ITER` | `50` | `binference.samplers.base` | Most regularised EM steps of the start of Gibbs and of MAP's EM and L-BFGS paths when `init` is `None`. |
 | `PROPOSAL_FACTOR` | `2` | `binference.samplers.laplace` | Importance proposals per draw when `n_proposals` is `None`. |
 | `EIGEN_FLOOR` | `1e-08` | `binference.samplers.laplace` | Eigenvalues of a Hessian that is not positive definite are raised to this times the largest (at least one). |
 | `_TARGET_ACCEPT` | `0.8` | `binference.samplers.nuts` | `target_accept` when it is `None`, except for logistic priors. |
 | `_TARGET_ACCEPT_LOGISTIC` | `0.9` | `binference.samplers.nuts` | `target_accept` for logistic priors when it is `None`. |
-| `_DENSE_MAX_DIM` | `200` | `binference.samplers.nuts` | `metric="auto"` is dense for logistic priors up to this many dimensions. |
+| `_DENSE_MAX_DIM` | `200` | `binference.samplers.nuts` | `metric="auto"` is dense for logistic priors up to this many dimensions, and up to this many the warm-up curvature is averaged over every chain's point, not taken at one. |
 | `_HESSIAN_MAX_DIM` | `500` | `binference.samplers.nuts` | Up to this many dimensions, warm-up starts the metric from the curvature at the mode. |
 | `_CENTRING_MAX_SD` | `0.28` | `binference.samplers.nuts` | Logistic priors stay non-centred when the median spread of the modes' log-scales given the field exceeds this. |
 | `_GEOMETRY_ITER` | `25` | `binference.samplers.nuts` | Warm-up iteration of the partial centring of logistic priors, or the first slow window's start if that is earlier. |
@@ -76,6 +78,7 @@ reproducible draws.
 | `OUTSIDE_SHARE` | `0.1` | `binference.likelihoods` | A warning is raised when more than this share of the objects are mostly outside the bins. |
 | `FEW_SAMPLES_SHARE` | `0.1` | `binference.likelihoods` | `from_samples` warns when more than this share of the objects have fewer than `min_samples` effective samples. |
 | `REPRESENTATION_SHARE` | `0.5` | `binference.likelihoods` | A warning is raised when more than this share of posterior rows sum to one only under the other `representation`. |
+| `REPRESENTATION_RTOL` | `0.01` | `binference.likelihoods` | Relative tolerance within which a posterior row counts as summing to one. |
 | `MIGRATION_ATOL` | `0.001` | `binference.response` | With `efficiency`, a warning is raised unless the matrix's columns sum to one within this. |
 
 ## Selection

@@ -12,8 +12,8 @@ from ..model import PopulationModel
 
 __all__ = ["Engine"]
 
-#: Most regularised EM steps of the start of MAP, L-BFGS and Gibbs when ``init`` is
-#: ``None``.
+#: Most regularised EM steps of the start of Gibbs and of MAP's EM and L-BFGS paths when
+#: ``init`` is ``None``.
 INTERIOR_START_ITER = 50
 
 

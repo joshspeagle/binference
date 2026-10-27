@@ -104,6 +104,7 @@ jobs:
         env:
           BINFERENCE_DOCS_EXECUTE: "off"
       - name: Check that every DOI in the bibliography is registered
+        if: ${{ !cancelled() }}
         run: python docs/_scripts/check_dois.py
 
   docs:

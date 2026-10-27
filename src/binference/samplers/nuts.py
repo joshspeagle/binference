@@ -25,7 +25,8 @@ __all__ = ["NUTS"]
 _TARGET_ACCEPT = 0.8
 #: ``target_accept`` for logistic priors when it is ``None``.
 _TARGET_ACCEPT_LOGISTIC = 0.9
-#: ``metric="auto"`` is dense for logistic priors up to this many dimensions.
+#: ``metric="auto"`` is dense for logistic priors up to this many dimensions, and up to
+#: this many the warm-up curvature is averaged over every chain's point, not taken at one.
 _DENSE_MAX_DIM = 200
 #: Up to this many dimensions, warm-up starts the metric from the curvature at the mode.
 _HESSIAN_MAX_DIM = 500

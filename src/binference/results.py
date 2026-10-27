@@ -1931,7 +1931,8 @@ class PopulationResult(_IndividualMixin):
         method : str, optional
             Engine of the reference fit; ``None`` reuses this fit's.
         n_samples : int, optional
-            Draws of the reference fit; ``None`` reuses this fit's.
+            Draws of the reference fit; ``None`` reuses this fit's, except that
+            ``method="auto"`` sets its own run length.
         rng : int, Generator or None
             Random number generator.
         **engine_kwargs

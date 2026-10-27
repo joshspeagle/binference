@@ -36,6 +36,8 @@ METHODS = {
 EXTEND_TARGET = 1.2
 #: One extension of a Gibbs run adds at most this many times the draws so far.
 EXTEND_MAX_FACTOR = 3
+#: One extension of a Gibbs run adds at least this many times the draws so far.
+EXTEND_MIN_FACTOR = 0.5
 #: Proposals of the first pass that can stop a Laplace trial early.
 PROBE_PROPOSALS = 1000
 #: Draws of the first pass that can stop a Laplace trial early.
@@ -242,7 +244,10 @@ class Auto(Engine):
             if ess >= self.target_ess and not result._mixing_problems():
                 return True
             done = result.chains.shape[1]
-            need = ceil(done * max(EXTEND_TARGET * self.target_ess / max(ess, 1.0) - 1.0, 0.5))
+            need = ceil(
+                done
+                * max(EXTEND_TARGET * self.target_ess / max(ess, 1.0) - 1.0, EXTEND_MIN_FACTOR)
+            )
             if done + need > self.max_gibbs_draws:
                 return False
             # bounded, so a poor first projection costs less

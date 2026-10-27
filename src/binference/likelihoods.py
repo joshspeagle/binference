@@ -243,6 +243,8 @@ FEW_SAMPLES_SHARE = 0.1
 #: A warning is raised when more than this share of posterior rows sum to one only under
 #: the other ``representation``.
 REPRESENTATION_SHARE = 0.5
+#: Relative tolerance within which a posterior row counts as summing to one.
+REPRESENTATION_RTOL = 1e-2
 
 
 def _record_outside(lk: Likelihoods, outside: np.ndarray, enabled: bool) -> None:
@@ -1618,8 +1620,8 @@ def _check_posterior_representation(P, vol: np.ndarray, representation: str) -> 
         sums, alt, other = as_mass, as_dens, "density"
     else:
         sums, alt, other = as_dens, as_mass, "mass"
-    mismatched = ~np.isclose(sums, 1.0, rtol=1e-2)
-    looks_other = np.isclose(alt, 1.0, rtol=1e-2)
+    mismatched = ~np.isclose(sums, 1.0, rtol=REPRESENTATION_RTOL)
+    looks_other = np.isclose(alt, 1.0, rtol=REPRESENTATION_RTOL)
     if np.mean(mismatched & looks_other) > REPRESENTATION_SHARE:
         warn(
             f"Most posterior rows integrate to one only if interpreted as '{other}' values; "
