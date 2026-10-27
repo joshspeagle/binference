@@ -4,7 +4,7 @@ Astronomers infer population distributions from catalogues in which each object'
 quantity is measured with its own, often large, error: the redshift distribution
 $n(z)$ of a galaxy sample, the colour–magnitude diagram of the stars in the Milky Way,
 the occurrence rate of planets as a function of period and radius, luminosity and mass
-functions, and distributions of orbital eccentricities. Hogg, Myers & Bovy (2010) set
+functions, and distributions of orbital eccentricities. {cite:t}`hogg2010` set
 out the general method: take per-object likelihood functions, or samples of per-object
 posteriors drawn under a known uninformative prior, and fit the population as "a kind of
 heteroscedastic deconvolution", which they note applies to "magnitudes, parallaxes, or
@@ -19,9 +19,9 @@ codes can return likelihoods, for example BPZ run without its prior; machine-lea
 codes return posteriors under the redshift distribution of their training sample, an
 *implicit* interim prior. The common practice is to sum the $p(z)$ ("stacking"). The
 hierarchical alternative puts a prior on the histogram heights of $n(z)$ and infers
-them together with each galaxy's redshift (Leistedt, Mortlock & Peiris 2016).
+them together with each galaxy's redshift {cite:p}`leistedt2016`.
 
-**Stellar populations.** Leistedt & Hogg (2017) modelled the colour–magnitude diagram
+**Stellar populations.** {cite:t}`leistedt2017` modelled the colour–magnitude diagram
 of 1.4 million Gaia TGAS stars as a mixture of fixed kernels with amplitudes on the
 simplex. Because the kernels are fixed, each star's likelihood in each kernel,
 marginalised over its distance, is computed once; the population and the stars' kernel
@@ -30,13 +30,13 @@ which are marginalized out". Resolved stellar populations are also fitted as bin
 colour–magnitude ("Hess") diagrams: the counts in each cell are Poisson with mean
 $\sum_j r_j c_{ij}$, a weighted sum of template diagrams.
 
-**Occurrence rates and distribution functions.** Foreman-Mackey, Hogg & Morton (2014)
+**Occurrence rates and distribution functions.** {cite:t}`foremanmackey2014`
 treated a planet catalogue as a draw from an inhomogeneous Poisson process with
 observable rate $Q(w)\,\Gamma(w)$, the survey completeness times the occurrence-rate
 density, modelled $\Gamma$ as a piecewise-constant function with a Gaussian-process
 prior on the log step heights, and used per-planet posterior samples with the interim
 prior divided out. Luminosity- and mass-function codes use the same Poisson-process
-likelihood with a selection function (Loredo 2004; Kelly, Fan & Vestergaard 2008).
+likelihood with a selection function {cite:p}`loredo2004,kelly2008`.
 
 ## In binference's terms
 
@@ -54,20 +54,20 @@ likelihood with a selection function (Loredo 2004; Kelly, Fan & Vestergaard 2008
 | expected numbers, occurrence rates | `result.rates`, `result.total`, `priors.GammaRates` |
 
 The model needs bin averages of each likelihood ([theory](../how-it-works/theory.md#objects-bins-and-likelihoods)).
-Leistedt et al. (2016) and the HSC Y3 analysis integrate each likelihood over the
+{cite:t}`leistedt2016` and the HSC Y3 analysis integrate each likelihood over the
 histogram bins; RAIL's summarizers evaluate each PDF at grid points instead.
 `from_gaussian` and `from_density` compute the bin averages, and `from_table` asks
 whether a table holds values per bin or masses (`representation=`)
 ({doc}`../guides/inputs`).
 
-Posterior samples enter as Hogg et al.'s importance-sampling estimate: each object's
+Posterior samples enter as {cite:author}`hogg2010`'s importance-sampling estimate: each object's
 samples are histogrammed onto the bins, each weighted by the inverse of the interim
 prior.
 binference stores each object's effective number of samples, and `result.check()` warns
 when the Monte Carlo noise of these estimates is large enough to bias the total
 log-likelihood. The Poisson-process likelihood of occurrence-rate studies is the rate
 form of the same model: under the scale-free prior $p(\Lambda)\propto1/\Lambda$ on the
-total it reduces to the normalised likelihood in fractions (Mandel, Farr & Gair 2019),
+total it reduces to the normalised likelihood in fractions {cite:p}`mandel2019`,
 which is how binference obtains `result.total` and `result.rates` from a fit of
 fractions ({doc}`../guides/selection`). The {doc}`quick start
 <../tutorials/01_quickstart>` fits a redshift distribution, the {doc}`selection tutorial
@@ -85,34 +85,32 @@ fractions ({doc}`../guides/selection`). The {doc}`quick start
   flat Dirichlet prior with latent bin labels, which is binference's baseline model. It
   evaluates each PDF at grid points, applies no interim-prior correction, and holds all
   data in memory. Its originators found that the scheme "yielded underestimated error
-  bars, likely due to the restricted covariance structure of the Dirichlet" (Rau et al.
-  2022), and the HSC Y3 analysis put the under-coverage at about 20% from "numerical
-  experience" (Rau et al. 2023). RAIL's other summarizers (SOM, NZDir, SOMPZ) reweight
+  bars, likely due to the restricted covariance structure of the Dirichlet" {cite:p}`rau2022`, and the HSC Y3 analysis put the under-coverage at about 20% from "numerical
+  experience" {cite:p}`rau2023`. RAIL's other summarizers (SOM, NZDir, SOMPZ) reweight
   spectroscopic calibration samples in colour space rather than use per-galaxy PDFs.
-- **Leistedt, Mortlock & Peiris (2016)** sampled the hierarchical model with a two-step
+- **{cite:t}`leistedt2016`** sampled the hierarchical model with a two-step
   Gibbs sampler on binned likelihoods, drawing $10^4$ samples in about ten minutes on a
   laptop. Their code is in
   [Photoz-tools](https://github.com/ixkael/Photoz-tools) (last push 2020) and
   [BHM-nz](https://github.com/Harry45/BHM-nz) (2023). A 2026 KiDS application still
   used a subset of $10^5$ galaxies because running on all of them "would be too slow"
-  (Kyriacou et al. 2026).
-- **CHIPPR** (Malz & Hogg 2022) is the only photo-$z$ code found that divides out the
+  {cite:p}`kyriacou2026`.
+- **CHIPPR** {cite:p}`malz2022` is the only photo-$z$ code found that divides out the
   interim prior. It models $n(z)$ as a log-space histogram with a squared-exponential
   hyperprior and samples it with emcee; its README calls it "stale" and "a prototype",
   and its demonstration notebook is for Python 2.7
   ([aimalz/chippr](https://github.com/aimalz/chippr)).
 - **Survey calibration pipelines** obtain wider, more realistic errors by other routes.
   DES SOMPZ samples $n(z)$ realisations with a three-step Dirichlet ("3sDir") that
-  inflates the variance to include sample variance (Sánchez et al. 2020; Myles et al.
-  2021); KiDS calibrates with self-organising maps and passes Gaussian priors on
+  inflates the variance to include sample variance {cite:p}`sanchez2020,myles2021`; KiDS calibrates with self-organising maps and passes Gaussian priors on
   per-bin shifts to cosmology; HSC Y3 combines photometry with clustering
-  cross-correlations under a logistic Gaussian-process prior (Rau et al. 2023); Euclid
+  cross-correlations under a logistic Gaussian-process prior {cite:p}`rau2020,rau2023`; Euclid
   studied stacked posteriors corrected with the PIT histogram of a spectroscopic sample
-  (Ilbert et al. 2021). These work from colour cells, calibration samples and
+  {cite:p}`ilbert2021`. These work from colour cells, calibration samples and
   clustering rather than from per-galaxy likelihoods.
 - **Downstream formats.** $n(z)$ ensembles are passed to cosmology as
   [qp](https://github.com/LSSTDESC/qp) ensembles, as FITS realisation files ranked by
-  hyperrank (CosmoSIS `nz_multirank`; Cordero et al. 2022), or compressed into shift,
+  hyperrank (CosmoSIS `nz_multirank`; {cite:alp}`cordero2022`), or compressed into shift,
   PCA or GP priors ([nz_prior](https://github.com/LSSTDESC/nz_prior)).
 
 ### frankenz
@@ -165,29 +163,28 @@ binference:
 ### Colour–magnitude diagrams and other densities
 
 - **Starlight** ([ixkael/Starlight](https://github.com/ixkael/Starlight)), the code of
-  Leistedt & Hogg (2017), is binference's baseline model almost exactly; its last commit
+  {cite:t}`leistedt2017`, is binference's baseline model almost exactly; its last commit
   was in 2017 and it was never released as a package.
-- **Extreme deconvolution** (XD; Bovy, Hogg & Roweis 2011) fits a Gaussian mixture with
+- **Extreme deconvolution** (XD; {cite:alp}`bovy2011`) fits a Gaussian mixture with
   free means and covariances to data with Gaussian errors and returns the
   maximum-likelihood mixture, with no posterior uncertainty. The reference C code
   ([jobovy/extreme-deconvolution](https://github.com/jobovy/extreme-deconvolution)) is
   maintained but not on PyPI; astroML's `XDGMM` lacks projection matrices; only
   [pygmmis](https://github.com/pmelchior/pygmmis) handles truncation, and only with a
   completeness known over the whole feature space. Fixing XD's means and covariances and
-  fitting only the amplitudes gives binference's model; Leistedt & Hogg's fixed kernels
+  fitting only the amplitudes gives binference's model; {cite:author}`leistedt2017`'s fixed kernels
   are this case, sampled by conjugate Gibbs sampling.
 - **StarFormationHistories.jl** ([cgarling/StarFormationHistories.jl](https://github.com/cgarling/StarFormationHistories.jl);
   Julia) fits Hess-diagram counts with a Poisson likelihood ratio and offers a MAP fit
   with inverse-Hessian errors, HMC and MCMC. Its version 2.0.0 added quantiles of
   per-sample cumulative quantities, which "account for the correlations between time
   bins", and fitted background templates, because "contaminants such as background
-  galaxies and foreground stars otherwise bias the fit". PANCAKE (Zheng et al. 2025)
+  galaxies and foreground stars otherwise bias the fit". PANCAKE {cite:p}`zheng2025`
   instead fits Poisson Hess diagrams with a mean-squared-error loss.
 
 ### Occurrence rates and distribution functions
 
-- **exopop** ([dfm/exopop](https://github.com/dfm/exopop)), the code of Foreman-Mackey,
-  Hogg & Morton (2014), combines completeness, interim-prior importance weights, a
+- **exopop** ([dfm/exopop](https://github.com/dfm/exopop)), the code of {cite:t}`foremanmackey2014`, combines completeness, interim-prior importance weights, a
   piecewise-constant rate density and a GP prior with marginalised hyperparameters,
   sampled by elliptical slice sampling. It was "written specifically for our paper" and
   last touched in 2014.
@@ -208,7 +205,7 @@ binference:
 
 ## How binference relates
 
-**Shared.** binference's model is the one in Leistedt et al. (2016), Starlight,
+**Shared.** binference's model is the one in {cite:t}`leistedt2016`, Starlight,
 frankenz's hierarchical sampler, RAIL's `VarInfStackSummarizer` and PosteriorStacker's
 histogram mode, and its `Gibbs` engine is their sampler.
 
@@ -230,70 +227,41 @@ files or nz_prior (results save to `.npz` and convert to an xarray `DataTree`).
 
 ## Pitfalls known in astronomy
 
-- **Stacking.** "The stacked estimator is always excessively broad" (Malz & Hogg 2022);
+- **Stacking.** "The stacked estimator is always excessively broad" {cite:p}`malz2022`;
   stacking recovers $n(z)$ only with "perfectly informative data" or a "perfectly
-  informative prior", and "must be abandoned" (Malz 2021). Euclid's stacked posteriors
-  missed the accuracy requirement by five to ten times before correction (Ilbert et al.
-  2021), and Rubin's first data-preview paper still reports stacked $n(z)$ without an
-  uncertainty band (Zhang et al. 2025). The stack is one EM step from the interim prior
+  informative prior", and "must be abandoned" {cite:p}`malz2021`. Euclid's stacked posteriors
+  missed the accuracy requirement by five to ten times before correction {cite:p}`ilbert2021`, and Rubin's first data-preview paper still reports stacked $n(z)$ without an
+  uncertainty band {cite:p}`zhang2026`. The stack is one EM step from the interim prior
   ({doc}`../guides/pitfalls`).
 - **Posteriors used as likelihoods.** A misspecified interim prior was "disastrous" for
-  every estimator CHIPPR tested (Malz & Hogg 2022), and the stacked PDFs of
-  machine-learning codes "show the imprint of the training sample" (Zhang et al. 2025).
+  every estimator CHIPPR tested {cite:p}`malz2022`, and the stacked PDFs of
+  machine-learning codes "show the imprint of the training sample" {cite:p}`zhang2026`.
 - **Shot noise only.** Dirichlet resampling of calibration counts "is only propagating
-  shot noise", while sample variance can be "an order of magnitude larger" (Sánchez et
-  al. 2020); DES Y3's Dirichlet step "only reproduces the variance expected from Poisson
-  noise" (Myles et al. 2021).
-- **Approximate error bars.** The mean-field Dirichlet scheme under-covers (Rau et al.
-  2022, 2023), and bootstrapped maximum-likelihood intervals for luminosity functions
-  "can be too narrow" (Kelly, Fan & Vestergaard 2008).
+  shot noise", while sample variance can be "an order of magnitude larger" {cite:p}`sanchez2020`; DES Y3's Dirichlet step "only reproduces the variance expected from Poisson
+  noise" {cite:p}`myles2021`.
+- **Approximate error bars.** The mean-field Dirichlet scheme under-covers {cite:p}`rau2022,rau2023`, and bootstrapped maximum-likelihood intervals for luminosity functions
+  "can be too narrow" {cite:p}`kelly2008`.
 - **Correlated bins.** Broad likelihoods make adjacent bins strongly anti-correlated, and
   the naive histogram estimator "fails in the regime of strong inter-bin correlations or
-  quasi-empty bins" (Leistedt et al. 2016). Derived quantities must be computed per
+  quasi-empty bins" {cite:p}`leistedt2016`. Derived quantities must be computed per
   draw, not from per-bin quantiles.
 - **Binning.** Over-smoothing with coarse bins "can lead to posteriors that can be too
-  narrow" (Rau et al. 2022), and RAIL's example notebook warns that `VarInfStack` "tends
+  narrow" {cite:p}`rau2022`, and RAIL's example notebook warns that `VarInfStack` "tends
   to get a little wonky if you use too many bins".
 - **Importance sampling from posterior samples** "could be a high variance estimator",
   depending on the number of samples and the interim prior, whose support must be
-  broader than the population's (Foreman-Mackey et al. 2014). Few samples can suffice:
-  50 per star were "only slightly worse" than $10^5$ (Hogg et al. 2010).
+  broader than the population's {cite:p}`foremanmackey2014`. Few samples can suffice:
+  50 per star were "only slightly worse" than $10^5$ {cite:p}`hogg2010`.
 - **Selection.** Dividing a histogram by the detection efficiency is "not motivated
-  probabilistically" and biased (Foreman-Mackey et al. 2014). Selection functions should
+  probabilistically" and biased {cite:p}`foremanmackey2014`. Selection functions should
   be expressed in observed attributes and defined beyond the region where objects are
-  catalogued (Rix et al. 2021). Mandel, Farr & Gair (2019) name the two classic mistakes
+  catalogued {cite:p}`rix2021`. {cite:t}`mandel2019` name the two classic mistakes
   ({doc}`../guides/selection`).
 - **Contamination and systematics** can dwarf counting noise: correcting Kepler
   candidates for reliability moved the Earth-analogue rate for GK stars from 0.034 to
-  0.015 (Bryson et al. 2020), and isochrone systematics in colour–magnitude fitting run
-  "2–4 times larger than the random uncertainties" (Zheng et al. 2025).
-- **Overestimated errors** "typically cause excessive deconvolution" (Leistedt & Hogg
-  2017).
+  0.015 {cite:p}`bryson2020`, and isochrone systematics in colour–magnitude fitting run
+  "2–4 times larger than the random uncertainties" {cite:p}`zheng2025`.
+- **Overestimated errors** "typically cause excessive deconvolution" {cite:p}`leistedt2017`.
 - **Objects with no support.** A 2026 occurrence-rate script replaces $\log 0$ by zero
   and so silently drops such objects; binference raises an error for a likelihood row of
   zeros unless `drop_empty=True` is passed.
-
-## References
-
-- Bovy, Hogg & Roweis (2011), *Annals of Applied Statistics* 5, 1657 ([arXiv:0905.2979](https://arxiv.org/abs/0905.2979)): extreme deconvolution.
-- Bryson et al. (2020), *AJ* ([arXiv:1906.03575](https://arxiv.org/abs/1906.03575)): Kepler occurrence rates with reliability.
-- Cordero et al. (2022), *MNRAS* ([arXiv:2109.09636](https://arxiv.org/abs/2109.09636)): hyperrank.
-- Foreman-Mackey, Hogg & Morton (2014), *ApJ* 795, 64 ([arXiv:1406.3020](https://arxiv.org/abs/1406.3020)): exoplanet occurrence rates.
-- Hogg, Myers & Bovy (2010), *ApJ* 725, 2166 ([arXiv:1008.4146](https://arxiv.org/abs/1008.4146)): population inference from per-object samples.
-- Ilbert et al. (2021), *A&A* ([arXiv:2101.02228](https://arxiv.org/abs/2101.02228)): Euclid preparation XI, $n(z)$ from stacked posteriors.
-- Kelly, Fan & Vestergaard (2008), *ApJ* ([arXiv:0805.2946](https://arxiv.org/abs/0805.2946)): Bayesian luminosity functions.
-- Kyriacou et al. (2026) ([arXiv:2605.15078](https://arxiv.org/abs/2605.15078)): hierarchical $n(z)$ for KiDS+VIKING-450.
-- Leistedt & Hogg (2017), *AJ* 154, 222 ([arXiv:1703.08112](https://arxiv.org/abs/1703.08112)): hierarchical colour–magnitude diagram.
-- Leistedt, Mortlock & Peiris (2016), *MNRAS* 460, 4258 ([arXiv:1602.05960](https://arxiv.org/abs/1602.05960)): hierarchical $n(z)$.
-- Loredo (2004), *AIP Conf. Proc.* ([arXiv:astro-ph/0409387](https://arxiv.org/abs/astro-ph/0409387)): source uncertainties and selection in surveys.
-- Malz (2021), *PRD* 103, 083502 ([arXiv:2101.04675](https://arxiv.org/abs/2101.04675)): the case against stacking.
-- Malz & Hogg (2022), *ApJ* 928, 127 ([arXiv:2007.12178](https://arxiv.org/abs/2007.12178)): CHIPPR.
-- Mandel, Farr & Gair (2019), *MNRAS* ([arXiv:1809.02063](https://arxiv.org/abs/1809.02063)): selection effects.
-- Myles et al. (2021), *MNRAS* ([arXiv:2012.08566](https://arxiv.org/abs/2012.08566)): DES Y3 redshift calibration.
-- Rau, Wilson & Mandelbaum (2020), *MNRAS* ([arXiv:1904.09988](https://arxiv.org/abs/1904.09988)): logistic GP for $n(z)$.
-- Rau et al. (2022), *MNRAS* ([arXiv:2101.01184](https://arxiv.org/abs/2101.01184)): composite likelihood for redshift calibration.
-- Rau et al. (2023), *MNRAS* ([arXiv:2211.16516](https://arxiv.org/abs/2211.16516)): HSC Y3 redshift distributions.
-- Rix et al. (2021) ([arXiv:2106.07653](https://arxiv.org/abs/2106.07653)): selection functions.
-- Sánchez, Raveri, Alarcon & Bernstein (2020), *MNRAS* ([arXiv:2004.09542](https://arxiv.org/abs/2004.09542)): 3sDir.
-- Zhang et al. (2025) ([arXiv:2510.07370](https://arxiv.org/abs/2510.07370)): photo-$z$ for Rubin Data Preview 1.
-- Zheng et al. (2025) ([arXiv:2505.04534](https://arxiv.org/abs/2505.04534)): PANCAKE.

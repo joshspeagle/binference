@@ -74,11 +74,10 @@ smoothness priors, and rates ({doc}`../guides/index`).
 The interface follows patterns that users of other inference packages praise:
 
 - **emcee**: plain inputs and a sampler object that can be run again to continue
-  (Foreman-Mackey et al. 2013, 2019). binference's engines resume: a second
+  {cite:p}`foremanmackey2013,foremanmackey2019`. binference's engines resume: a second
   `engine.run(n)` continues the chains without a new warm-up.
 - **scikit-learn**: hyperparameters in the constructor, `fit` returning `self`, learned
-  attributes with a trailing underscore, `get_params` and `set_params` (Buitinck et al.
-  2013). {class}`~binference.PopulationEstimator` follows these conventions without
+  attributes with a trailing underscore, `get_params` and `set_params` {cite:p}`buitinck2013`. {class}`~binference.PopulationEstimator` follows these conventions without
   depending on scikit-learn. Full compliance does not fit, because the input is a
   likelihood matrix rather than a feature matrix.
 - **dynesty and nautilus**: configured objects instead of piles of keyword arguments,
@@ -88,7 +87,7 @@ The interface follows patterns that users of other inference packages praise:
   diagnostics that failed and, where it can, a remedy ({doc}`../guides/results`).
 - **ArviZ 1.x**: results that other tools read. `result.to_datatree()` returns an xarray
   `DataTree` in ArviZ's layout, and `result.samples` stays a plain array.
-- **SPEC 7**: one `rng` argument that accepts a seed or a `numpy.random.Generator`, with
+- **SPEC 7** {cite:p}`vanderwalt2023`: one `rng` argument that accepts a seed or a `numpy.random.Generator`, with
   a separate stream per chain; binference rejects legacy `RandomState` objects.
 - **tinygp**: expose the model as functions that other samplers can call.
   {class}`~binference.PopulationModel` provides the log posterior and its gradient in
@@ -97,17 +96,8 @@ The interface follows patterns that users of other inference packages praise:
 
 Validation follows the statistical-software literature: exact posteriors for small
 problems, Geweke's "getting it right" test for the Gibbs sampler, and simulation-based
-calibration (Talts et al. 2018) that ranks the joint log-likelihood as well as each
+calibration {cite:p}`talts2018` that ranks the joint log-likelihood as well as each
 fraction, because parameter ranks alone "could never detect large classes of problems
-including when the posterior is equal to the prior" (Modrák et al. 2023). binference
+including when the posterior is equal to the prior" {cite:p}`modrak2025`. binference
 ships the exact posterior, simulation-based calibration and coverage as user-facing
 tools ({doc}`../guides/validation`).
-
-## References
-
-- Buitinck et al. (2013) ([arXiv:1309.0238](https://arxiv.org/abs/1309.0238)): API design for machine-learning software.
-- Foreman-Mackey et al. (2013) ([arXiv:1202.3665](https://arxiv.org/abs/1202.3665)) and (2019), *JOSS* 4, 1864 ([arXiv:1911.07688](https://arxiv.org/abs/1911.07688)): emcee.
-- Modrák et al. (2023), *Bayesian Analysis* ([arXiv:2211.02383](https://arxiv.org/abs/2211.02383)): simulation-based calibration of derived quantities.
-- [SPEC 7](https://scientific-python.org/specs/spec-0007/): seeding pseudo-random number generation.
-- Talts et al. (2018) ([arXiv:1804.06788](https://arxiv.org/abs/1804.06788)): simulation-based calibration.
-- Zhang, Cui, Sen & Toh (2024), *JMLR* 25(8) ([arXiv:2208.07514](https://arxiv.org/abs/2208.07514)): NPMLE at Gaia scale.

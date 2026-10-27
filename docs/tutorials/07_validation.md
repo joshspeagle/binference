@@ -50,7 +50,7 @@ and selection mode.
 
 ## Simulation-based calibration
 
-SBC (Talts et al. 2018) checks the whole loop: prior, simulator and
+SBC {cite:p}`talts2018` checks the whole loop: prior, simulator and
 inference. Draw a population from the prior, simulate a catalogue, fit it,
 and record where the true value falls among the posterior draws. Over many
 repetitions these ranks are uniform if, and only if, the pipeline is

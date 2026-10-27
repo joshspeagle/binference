@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import os
 import sys
 from pathlib import Path
+
+from sphinxcontrib.bibtex.plugin import register_plugin
+from sphinxcontrib.bibtex.style.referencing import BracketStyle
+from sphinxcontrib.bibtex.style.referencing.author_year import AuthorYearReferenceStyle
 
 sys.path.insert(0, os.path.abspath("../src"))
 sys.path.insert(0, os.path.abspath("_ext"))
@@ -30,6 +35,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
     "sphinx_design",
+    "sphinxcontrib.bibtex",
 ]
 
 exclude_patterns = [
@@ -54,6 +60,29 @@ nb_execution_timeout = 900
 nb_execution_raise_on_error = True
 nb_execution_show_tb = True
 nb_merge_streams = True
+
+# -- Bibliography -------------------------------------------------------------
+bibtex_bibfiles = ["references.bib"]
+bibtex_default_style = "plain"
+
+
+# author-year citations in round brackets, "(Hogg et al. 2010; Malz 2021)"
+def _round(sep: str = ", ") -> BracketStyle:
+    return BracketStyle(left="(", right=")", sep=sep)
+
+
+@dataclasses.dataclass
+class _RoundAuthorYear(AuthorYearReferenceStyle):
+    bracket_parenthetical: BracketStyle = dataclasses.field(default_factory=lambda: _round("; "))
+    bracket_textual: BracketStyle = dataclasses.field(default_factory=_round)
+    bracket_author: BracketStyle = dataclasses.field(default_factory=_round)
+    bracket_label: BracketStyle = dataclasses.field(default_factory=_round)
+    bracket_year: BracketStyle = dataclasses.field(default_factory=_round)
+    author_year_sep: str = " "
+
+
+register_plugin("sphinxcontrib.bibtex.style.referencing", "author_year_round", _RoundAuthorYear)
+bibtex_reference_style = "author_year_round"
 
 # -- API reference ------------------------------------------------------------
 autosummary_generate = True

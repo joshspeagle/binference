@@ -112,6 +112,7 @@ fields/index
 :hidden:
 
 reference/api/index
+reference/bibliography
 reference/changelog
 reference/citing
 ```

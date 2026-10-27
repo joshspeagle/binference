@@ -44,7 +44,7 @@ The common shortcuts are "classify and count" (take each object's most
 probable class) and "probabilistic classify and count" (average the
 probabilities). Both are biased toward the training prior. binference divides the
 training prior out and infers the prevalence with uncertainty. This is the
-Bayesian version of the EM method of Saerens et al. (2002):
+Bayesian version of the EM method of {cite:t}`saerens2002`:
 
 ```{code-cell} python
 lk = binference.Likelihoods.from_table(probs, mock.bins, interim=train_prior)
