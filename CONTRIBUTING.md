@@ -69,7 +69,7 @@ pytest --cov=binference         # coverage report
 pip install -e ".[docs]"
 sphinx-build -W --keep-going -b html docs docs/_build/html
 # the code of the README, installation page and guides
-python docs/_scripts/run_snippets.py README.md docs/start/install.md docs/guides/*.md
+python docs/_scripts/run_snippets.py README.md docs/start/install.md docs/guides/*.md docs/guides/inputs/*.md
 # external links and the bibliography's DOIs (CI runs these weekly)
 BINFERENCE_DOCS_EXECUTE=off sphinx-build -b linkcheck docs docs/_build/linkcheck
 python docs/_scripts/check_dois.py

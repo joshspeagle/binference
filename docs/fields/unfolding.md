@@ -48,7 +48,7 @@ builds these rows, one per measured bin weighted by its count, and accounts for 
 efficiency $\epsilon_k=\sum_bR_{bk}$. The {class}`~binference.Response` comes from a
 known matrix, from tallied events, or from the simulated events themselves, where a
 missed event plays the role of RooUnfold's `Miss`; a response tallied from a finite
-simulation is inferred with the spectrum ({doc}`../guides/inputs` gives the
+simulation is inferred with the spectrum ({doc}`../guides/inputs/binned` gives the
 details). Regularisation is a
 prior, not an iteration count: `LogisticGP` or `LogisticRandomWalk` infer how smooth the
 spectrum is ({doc}`../guides/priors`). The total and the expected counts per true
@@ -121,7 +121,7 @@ approximate), and does not read ROOT histograms.
   coverage ... due to the inherent bias"; an iteratively bias-corrected bootstrap
   restored nearly nominal coverage {cite:p}`kuusela2015`. binference's
   {func}`~binference.validation.coverage` measures the coverage of an analysis on
-  simulations ({doc}`../guides/validation`).
+  simulations ({doc}`../guides/checking`).
 - **Wide bins.** The response "depends on the unknown shape of the true spectrum", and
   regularising with wide bins introduces "a non-trivial bias"; the remedy is to unfold
   on fine bins and build intervals for functionals of them {cite:p}`stanley2022`. In binference: fine bins with a smoothness prior, coarse summaries through

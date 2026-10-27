@@ -1,4 +1,6 @@
-# Performance
+# Scale up
+
+This page says what makes a fit slow or large, and how to make it faster and smaller.
 
 ## What costs time
 
@@ -59,7 +61,7 @@ The engines spend these differently:
    weighted row. Binned photometry, discrete measurements and unfolding data
    often shrink by orders of magnitude, and inference is unchanged.
 4. **Choose bins deliberately.** Cost grows with $K$, but bins much wider than
-   the population's features cause binning bias ({doc}`pitfalls`). A
+   the population's features cause {term}`binning bias` ({doc}`bins`). A
    smoothness prior lets you use fine bins without noisy results.
 5. **Draw what you need.** If the effective sample sizes are well above what
    you need, shorten a NUTS run: `method="nuts", n_samples=500, n_warmup=500`
@@ -69,7 +71,7 @@ The engines spend these differently:
 6. **Scale up gracefully.** For very large problems, `method="map"` gives the
    estimate in seconds, and `method="laplace"` adds approximate error bars. The
    default, `method="auto"`, already uses Gibbs or Laplace where they are
-   accurate and faster than NUTS ([how it chooses](engines.md)).
+   accurate and faster than NUTS ({doc}`engines`).
 7. **Threads.** NumPy's BLAS may use several threads for the matrix–vector
    products. For many small fits, set `OMP_NUM_THREADS=1` and run the fits in
    parallel instead.
@@ -84,13 +86,13 @@ per-object methods (`assignment_probabilities`, `predict_proba`,
 chunk's rows. The exception is a response inferred with the population, whose
 rows differ per draw: those methods hold one $N\times K$ block per draw used.
 
-## Roadmap
+## Not yet offered
 
 On four cores with BLAS threads, a fused kernel compiled with numba (one pass
 over the rows, in parallel) was slower than this NumPy path for $N\le2\times10^5$
 and 16% faster at $N=10^6$, $K=50$; float32 storage changed the time by less
 than 10% and let the expected counts drift by up to $5\times10^{-4}$ (relative)
-at $N=10^6$. Neither is offered (DECISIONS #77). The NumPy implementation keeps installation trivial. An optional JAX backend
+at $N=10^6$. Neither is offered: the NumPy implementation keeps installation trivial. An optional JAX backend
 (vectorised chains, GPUs) is on the roadmap for problems with $10^8$
 likelihood entries and beyond; see the
 [implementation plan](../design/implementation-plan.md).

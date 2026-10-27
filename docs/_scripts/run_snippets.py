@@ -1,6 +1,6 @@
 """Execute the code of Markdown pages, in order, one namespace per page.
 
-Usage: python docs/_scripts/run_snippets.py docs/guides/*.md docs/tutorials/*.md
+Usage: python docs/_scripts/run_snippets.py docs/guides/*.md docs/guides/inputs/*.md
 Blocks fenced as ```python or ```{code-cell} python run; other fences do not, nor
 do blocks whose fence says "skip" (```python skip), for sketches with placeholder data.
 """
@@ -29,8 +29,11 @@ def run_page(path: str) -> bool:
         if "skip" in m.group(1).split():
             continue
         code = m.group(2)
-        # drop MyST cell options such as ":tags: [hide-input]"
+        # drop MyST cell options: ":tags: [hide-input]" lines or a "---" YAML block
         lines = code.splitlines(keepends=True)
+        if lines and lines[0].strip() == "---":
+            end = next(j for j in range(1, len(lines)) if lines[j].strip() == "---")
+            del lines[: end + 1]
         while lines and re.match(r"^:[\w-]+:", lines[0]):
             lines.pop(0)
         code = "".join(lines)

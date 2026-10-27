@@ -100,4 +100,4 @@ calibration {cite:p}`talts2018` that ranks the joint log-likelihood as well as e
 fraction, because parameter ranks alone "could never detect large classes of problems
 including when the posterior is equal to the prior" {cite:p}`modrak2025`. binference
 ships the exact posterior, simulation-based calibration and coverage as user-facing
-tools ({doc}`../guides/validation`).
+tools ({doc}`../guides/checking`).

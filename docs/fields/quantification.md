@@ -38,7 +38,7 @@ and specificity.
 
 ## In binference's terms
 
-The {doc}`user guide <../guides/inputs>` describes two routes from a classifier to
+The {doc}`binned-inputs guide <../guides/inputs/binned>` describes two routes from a classifier to
 the population, with the conditions under which each is exact.
 
 - **Route A: posteriors and the training prevalence.**

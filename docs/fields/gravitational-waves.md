@@ -43,7 +43,7 @@ mass distribution with a selection measured by injections.
   onto the bins with the PE prior divided out, which is the binned form of the
   per-event term above. The interim prior is a {class}`~binference.Density`; ragged
   sample counts and importance weights are accepted, and each event's effective number
-  of samples is stored ({doc}`../guides/inputs`).
+  of samples is stored ({doc}`../guides/inputs/samples`).
 - **Selection** acts on the measured data, so it is `selection_mode="on_measurement"`:
   each event's likelihood is used as is and divided by the detectable fraction, with
   $S_k$ the detection probability averaged over bin $k$
@@ -69,7 +69,7 @@ Monte Carlo noise at all; only likelihoods built from samples do. Second, the
 binned Monte Carlo estimate is linear in $\rho$, so its variance is a cheap quadratic
 form in $\rho$: `lk.sample_variance(rho)` returns each object's relative variance
 $V_i(\rho)$ (with its effective number of samples), and `result.check()` warns when $\sum_iV_i>1$, the per-event part of the
-LVK's variance criterion ({doc}`../guides/inputs`).
+LVK's variance criterion ({doc}`../guides/inputs/samples`).
 
 ## Methods and software
 

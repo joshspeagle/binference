@@ -58,7 +58,7 @@ The model needs bin averages of each likelihood ([theory](../how-it-works/theory
 histogram bins; RAIL's summarizers evaluate each PDF at grid points instead.
 `from_gaussian` and `from_density` compute the bin averages, and `from_table` asks
 whether a table holds values per bin or masses (`representation=`)
-({doc}`../guides/inputs`).
+({doc}`../guides/inputs/index`).
 
 Posterior samples enter as {cite:author}`hogg2010`'s importance-sampling estimate: each object's
 samples are histogrammed onto the bins, each weighted by the inverse of the interim
@@ -152,9 +152,9 @@ binference:
   interim prior biased $\rho$ by up to 12.6 posterior standard deviations and cut the
   coverage of 68% and 95% intervals to 0.29 and 0.52; dividing out the interim prior
   removed the bias. Using the bin integral of each likelihood where the model needs the
-  bin average biased $\rho$ as well ({doc}`../guides/pitfalls`). binference
+  bin average biased $\rho$ as well ({doc}`../guides/troubleshooting`). binference
   requires the interim prior for posteriors and asks what a table holds
-  ({doc}`../guides/inputs`).
+  ({doc}`../guides/inputs/index`).
 - **Software defects** (runs that never resumed, a `reset()` that left old samples,
   legacy random state, bins frozen at exactly zero, no input validation) are each
   covered by a test in binference: engines resume (`engine.run(a); engine.run(b)`),
@@ -215,7 +215,7 @@ approximations flagged as such ({doc}`../guides/engines`); the two selection mod
 completeness measured by injections and inferred with the population; smoothness priors;
 rates and totals; per-draw derived quantities (`result.functional`, `result.rebin`); a
 check of the within-bin flatness assumption (`result.binning_bias`); and
-simulation-based calibration and coverage tools ({doc}`../guides/validation`).
+simulation-based calibration and coverage tools ({doc}`../guides/checking`).
 
 **Not done.** binference propagates only the uncertainty that its model contains: a
 Dirichlet or logistic prior over independent objects sees shot noise, not the sample
@@ -232,7 +232,7 @@ files or nz_prior (results save to `.npz` and convert to an xarray `DataTree`).
   informative prior", and "must be abandoned" {cite:p}`malz2021`. Euclid's stacked posteriors
   missed the accuracy requirement by five to ten times before correction {cite:p}`ilbert2021`, and Rubin's first data-preview paper still reports stacked $n(z)$ without an
   uncertainty band {cite:p}`zhang2026`. The stack is one EM step from the interim prior
-  ({doc}`../guides/pitfalls`).
+  ({doc}`../guides/troubleshooting`).
 - **Posteriors used as likelihoods.** A misspecified interim prior was "disastrous" for
   every estimator CHIPPR tested {cite:p}`malz2022`, and the stacked PDFs of
   machine-learning codes "show the imprint of the training sample" {cite:p}`zhang2026`.

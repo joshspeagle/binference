@@ -1,10 +1,10 @@
-# Inference engines
+# Choose an engine
 
-{func}`binference.infer` builds the model and runs an engine in one call. The
-default, `method="auto"`, picks the engine from rules measured on a benchmark
-matrix (below). NUTS samples the exact posterior and works with every prior;
-the other engines trade generality or accuracy for speed, or answer a
-different question.
+{func}`binference.infer` builds the model and runs an {term}`engine` in one call. The
+default, `method="auto"`, picks the engine for you, and most analyses should keep it.
+This page says when to override it, and how to pass options to an engine. What each
+engine computes, and when it is exact, is in the
+[theory](../how-it-works/theory.md#the-engines).
 
 ```python
 import numpy as np
@@ -14,17 +14,17 @@ mock = binference.simulate.mock_1d(600, binference.Bins.linear(0, 3, 12), rng=5)
 lk = mock.likelihoods
 ```
 
-## Choosing an engine
+## The engines
 
-| `method=` | what you get | exact? | use it when |
-|---|---|---|---|
-| `"auto"` (default) | Gibbs, Laplace or NUTS | yes, or flagged | you have no reason to choose (below) |
-| `"nuts"` | posterior draws | yes | always a good choice; mixes well even with broad likelihoods |
-| `"gibbs"` | draws plus joint latent labels | yes | conjugate priors and narrow likelihoods; you want joint labels |
-| `"map"` / `"em"` | a point estimate with a certificate (`"em"`: by EM itself rather than mix-SQP) | n/a | quick looks, initialisation, very large problems |
-| `"laplace"` | importance-corrected Gaussian draws | approximately | very large $N$ with few bins; check the Pareto $\hat k$ |
-| `"vb"` | mean-field variational draws | no | speed when error bars do not matter (they are too narrow) |
-| `"bootstrap"` | sampling distribution of the MAP | no (frequentist) | comparison with frequentist intervals |
+| `method=` | use it when |
+|---|---|
+| `"auto"` (default) | you have no reason to choose |
+| `"nuts"` | always a good choice; it mixes well even with broad likelihoods |
+| `"gibbs"` | the prior is conjugate and the likelihoods narrow, or you want joint labels |
+| `"map"` / `"em"` | a quick look, a starting point, or a very large problem |
+| `"laplace"` | very many objects in few bins; check its Pareto $\hat k$ |
+| `"vb"` | speed matters and error bars do not (they are too narrow) |
+| `"bootstrap"` | you want frequentist intervals to compare with |
 
 ```python
 res = binference.infer(lk, method="nuts", rng=1, n_samples=500, n_warmup=500)
@@ -34,94 +34,58 @@ print(res.mean[:4].round(3), gib.mean[:4].round(3), est.rho[:4].round(3))
 ```
 
 Extra keyword arguments go to the engine, e.g. `n_chains`, `n_warmup`,
-`target_accept` or `n_jobs` for NUTS. `n_samples` is the number of draws
-**per chain** for NUTS, Gibbs and `"auto"` (whose Laplace draws as many as
-four chains would), and the total for the other samplers.
-`rng` accepts a seed or a `numpy.random.Generator`, and the same seed gives
-the same draws.
+`target_accept` or `n_jobs` for NUTS. For NUTS, Gibbs and `"auto"`, `n_samples` is the
+number of draws **per chain**; auto's Laplace draws as many as four chains would. For
+the other samplers it is the total. `rng` accepts a seed or a
+`numpy.random.Generator`, and the same seed gives the same draws.
 
-## How `method="auto"` chooses
+## What auto does
 
-`method="auto"` tries, in order:
+{term}`Auto <auto>` runs Gibbs where Gibbs mixes well, then importance-corrected
+Laplace where its check passes, and NUTS otherwise. {class}`binference.inference.Auto`
+states the exact rules. They come from a benchmark of every engine against long
+reference runs ({doc}`theory <../how-it-works/theory>`).
 
-1. **Gibbs** where it mixes well, for a conjugate prior and integer weights:
-   a selection (not a smoothed injection selection) or response inferred
-   jointly, or a fraction of missing information at the MAP that is low. It
-   runs long enough for a target effective sample size, from the
-   autocorrelation time $(1+f)/(1-f)$, and is extended until that size and
-   $\hat R$ pass; if that would take too many draws, auto moves on. An
-   explicit `n_samples` fixes the run length: auto then keeps Gibbs whatever
-   length it would need and does not extend it, so check the result (`infer`
-   does by default).
-2. **Laplace**, importance-corrected, kept when its Pareto $\hat k$ check
-   passes with enough effective draws. For very large inputs, or when no
-   other engine takes the options given, it is kept anyway, and flagged
-   approximate if it fails.
-3. **NUTS** otherwise.
+- **What it chose.** The choice and its reason are in `result.info["auto_method"]`
+  and `result.info["auto_reason"]`. Where auto computed the MAP to choose, the result
+  keeps it as `result.best`.
+- **Its thresholds** (`target_ess`, `gibbs_max_missing`, `max_gibbs_draws`,
+  `nnz_limit`) go to `infer` like any other option, e.g.
+  `binference.infer(lk, target_ess=1000)`.
+- **Engine options rule out engines** that do not take them. `target_accept` or
+  `n_jobs` leave only NUTS, and `n_warmup` leaves Gibbs or NUTS. Options that no
+  candidate takes raise an error.
+- **An explicit `n_samples`** fixes the length of a Gibbs run, so check the result;
+  `infer` does by default.
 
-The choice and its reason are in `result.info["auto_method"]` and
-`result.info["auto_reason"]`; where auto computed the MAP to choose, the result
-keeps it as `result.best`. {class}`binference.inference.Auto` states the
-exact rules; their thresholds (`target_ess`, `gibbs_max_missing`,
-`max_gibbs_draws`, `nnz_limit`) are options that go to `infer` like any other, e.g.
-`binference.infer(lk, target_ess=1000)`. Engine options rule out the engines
-that do not take them: `target_accept` or `n_jobs` leave only NUTS, `n_warmup`
-leaves Gibbs or NUTS, and options that no candidate takes raise an error. Pass
-`method=` to choose yourself. {class}`~binference.PopulationEstimator` uses
-`method="auto"` too.
+{class}`~binference.PopulationEstimator` uses `method="auto"` too.
 
-The rules come from `benchmarks/matrix.py`: 18 mock catalogues, each varying
-one factor around a baseline (1-D, 20 bins, 1000 objects, Gaussian errors one
-bin wide): error widths of 0.3 and 3 bins, 100 and 10,000 objects, 10 and 50
-bins, sparse and spiky populations, selection on the truth and on the
-measurement, posteriors with a correct and a wrong interim prior, 20 and 200
-samples per object, an 8×8 grid, classifier outputs, and a photo-z-like set
-(30 bins, 5000 objects, aliased and outlying likelihoods). Each was fitted with
-the priors that apply (flat and $\alpha=0.1$ Dirichlet, random walk, GP, Pólya
-tree), 43 combinations in all, and each engine at its defaults was compared with
-a reference NUTS run of 20,000 draws. Measured on one thread per fit, four fits
-at a time (results in `benchmarks/results/`):
+## When to override auto
 
-| engine | largest mean error (reference s.d.) | s.d. ratio | smallest bulk ESS per second |
-|---|---|---|---|
-| NUTS | 0.08 | 0.69–1.19 | 0.1–339, median 80 |
-| Gibbs | 0.94 | 0.24–1.75 | 0.6–791, median 14 |
-| Laplace, check passed (4 of 43) | 0.05 | 0.96–1.04 | 1751–6607 |
-| Laplace, check failed (39 of 43) | 8.1 | 0.05–7.3 | |
-| VB | 2.6 | 0.00–1.05 | |
+Pass `method=` to choose yourself:
 
-- **NUTS** was within 0.08 s.d. of the reference in every mean. Its s.d. ratios
-  outside 0.9–1.1 are near-empty bins under the random-walk prior, whose
-  posteriors are heavy-tailed. It is slow with Dirichlet concentrations below
-  one (0.1: 2–5 ESS per second, 859 s on the photo-z set).
-- **Gibbs** beat NUTS in all 5 combinations where the missing information $f$
-  was at most 0.976 (103–791 ESS per second against NUTS's 2–336) and in 3 of
-  the 21 where it was 0.994 or more (0.6–67 against 0.1–339). The threshold 0.98 lies in that gap; the
-  run length then makes up for the autocorrelation.
-- **Laplace** passed its check only with the Pólya tree, and there agreed with
-  the reference to 0.05 s.d. in 0.6–1.1 s. Where the check failed its errors
-  reached 8 s.d.; the importance ESS requirement also rejects the two fits whose
-  $\hat k$ passed with fewer than 400 effective draws (one had quantiles 0.9
-  s.d. off).
+- **You need a quick look, or the problem is huge.** Use `method="map"`: a point
+  estimate in seconds. `method="laplace"` adds approximate error bars.
+- **Auto keeps Laplace on a very large input and flags it approximate.** If you can
+  afford it, run `method="nuts"` on the full data or on a subset to check it.
+- **NUTS reports divergences.** Raise `target_accept`, or change the prior
+  ({doc}`troubleshooting`).
+- **You want joint labels for every object.** Use `method="gibbs"` with
+  `store_labels=True`, or `result.sample_assignments` from any engine.
+- **You want frequentist intervals.** Use `method="bootstrap"`; its draws are not a
+  posterior.
 
 ## NUTS
 
-The No-U-Turn Sampler {cite:p}`hoffman2014` runs on unconstrained
-coordinates: isometric log-ratios for simplex priors, whitened fields with
-log-hyperparameters for smoothness priors, and log-rates for rates. By
-default it runs four chains, each with 1000 warm-up and 1000 sampling
-iterations, starting near the posterior mode.
+{term}`NUTS` {cite:p}`hoffman2014` runs four chains by default, each with 1000
+{term}`warm-up` and 1000 sampling iterations. `binference.infer` checks its
+diagnostics and warns about any problem ({doc}`checking`).
 
-- **Warm-up** adapts the step size and the mass matrix. For smoothness priors
-  it also re-parametrises the prior and starts a dense mass matrix from the
-  local curvature ([theory](../how-it-works/theory.md#smoothness-the-logistic-family)).
-- **Diagnostics** are computed automatically: $\hat R$, effective sample
-  sizes, divergences, tree depth and E-BFMI. `binference.infer(check=True)`, the
-  default, warns about any problem.
-- **Parallel chains.** `n_jobs=-1` runs the chains in separate processes.
-  They use the same random streams as a serial run, so the draws agree up to
-  floating-point rounding. In scripts on macOS and Windows, put the call
-  under `if __name__ == "__main__":`.
+- **Parallel chains.** `n_jobs=-1` runs the chains in separate processes. They use
+  the same random streams as a serial run, so the draws agree up to floating-point
+  rounding. In scripts on macOS and Windows, put the call under
+  `if __name__ == "__main__":`.
+- **Divergences.** Raise `target_accept`, for example to 0.95.
 
 Use the engine class directly to resume a run, stream draws, or inspect
 adaptation:
@@ -138,18 +102,12 @@ for positions in engine.sample(5):         # a generator over iterations
 print(more.chains.shape, engine.result.chains.shape, more.info["step_size"].round(3))
 ```
 
-## Gibbs sampling
+## Gibbs
 
-The data-augmentation Gibbs sampler alternates between drawing every
-object's bin given $\rho$ and drawing $\rho$ given the counts, as in
-{cite:t}`leistedt2016`. It needs a conjugate prior (the Dirichlet family or
-`GammaRates`) and integer weights. Selection is handled exactly, by also
-imputing the missed objects.
-
-Gibbs sampling is exact, but its autocorrelation grows with the **fraction
-of missing information**: when likelihoods are broader than the bins,
-successive draws are strongly correlated. Check the effective sample size,
-or ask the model directly:
+{term}`Gibbs` needs a {term}`conjugate prior` (the Dirichlet family or `GammaRates`) and
+integer weights. It mixes slowly when the {term}`missing information` is near one, which
+happens when likelihoods are broader than the bins. Check the effective sample size, or
+ask the model:
 
 ```python
 print("missing information:", round(model.missing_information(est.rho), 2))
@@ -157,47 +115,27 @@ print("Gibbs bulk ESS:", gib.diagnostics["ess_bulk"].min().round(0),
       "from", gib.n_draws, "draws")
 ```
 
-A missing-information fraction near one means Gibbs will mix slowly: its
-autocorrelation time is roughly $(1+f)/(1-f)$ iterations. Use NUTS. When a
-Gibbs run fails its checks, {meth}`~binference.PopulationResult.check` reports
-this number in its hint. `store_labels=True` keeps the latent labels for joint inference on
-individual objects, although {meth}`~binference.PopulationResult.sample_assignments`
-gives joint draws from any engine's output, as exact as its draws of $\rho$.
+If the missing information is near one, use NUTS. When a Gibbs run fails its checks,
+{meth}`~binference.PopulationResult.check` reports this number in its hint.
+`store_labels=True` keeps every object's bin in every draw.
+{meth}`~binference.PopulationResult.sample_assignments` gives such joint draws from any
+engine's output.
 
 ## Point estimates
 
-`method="map"` returns a {class}`~binference.PointEstimate`.
+`method="map"` returns a {class}`~binference.PointEstimate`. Three solvers share the
+work: {term}`mix-SQP`, EM and {term}`L-BFGS`. {class}`~binference.samplers.MAP` gives the
+routing, and the [theory](../how-it-works/theory.md#point-estimates-em-is-iterated-stacking)
+explains it.
 
-Three solvers share the work; {class}`~binference.samplers.MAP` gives the
-exact routing, and `est.info["algorithm"]` and `est.info["space"]` record the
-choice.
-
-- **mix-SQP** {cite:p}`kim2020`, a second-order method for mixture
-  proportions, wherever the problem is concave in its coordinates: Dirichlet
-  priors with concentrations of at least one, including the default flat
-  prior, which gives the maximum-likelihood estimate (with a selection, the
-  flat prior only), and `GammaRates` with shapes of at least one once the
-  total rate is profiled out. It converges in a
-  handful of iterations even when likelihoods are much broader than the bins,
-  where EM needs thousands.
-- **SQUAREM-accelerated EM** for the other conjugate priors whose density is
-  bounded on the simplex. EM is "iterated stacking", and its fixed point is
-  the maximum-likelihood or MAP population. If it stops before converging, the
-  warning reports the fraction of missing information, which sets its speed.
-- **L-BFGS in unconstrained coordinates** for priors whose density is
-  unbounded at the edge of the simplex (where the simplex mode can sit at an
-  exact zero), non-conjugate priors, and a selection or response inferred
-  with the population.
-- **The certificate** is the KKT optimality gap, which should be about zero.
-  `MAP(tol=1e-8)` bounds it for EM, bounds the same gap of the problem mix-SQP
-  solves (the observed fractions under selection, the composition for rates),
-  and bounds the largest gradient over the total weight for L-BFGS. An L-BFGS
+- **The choice** is recorded in `est.info["algorithm"]` and `est.info["space"]`.
+- **The certificate** is the {term}`KKT gap`, `est.kkt_gap`, which should be about
+  zero. `MAP(tol=...)` bounds it ({doc}`defaults <../reference/defaults>`). An L-BFGS
   estimate has `est.kkt_gap` NaN and keeps its largest absolute gradient in
-  `est.info["grad_norm"]`. A run that can no longer improve its objective in
-  floating point is accepted below `1e3 * tol`. `est.log_posterior` is
-  always the density of the fractions or rates, `model.log_posterior(est.value)`;
-  L-BFGS also stores the density in its own coordinates as
-  `est.info["log_density_unconstrained"]`.
+  `est.info["grad_norm"]`.
+- **`est.log_posterior`** is always the density of the fractions or rates,
+  `model.log_posterior(est.value)`. L-BFGS also stores the density in its own
+  coordinates as `est.info["log_density_unconstrained"]`.
 
 ```python
 print(est, est.kkt_gap < 1e-6, est.converged)
@@ -207,22 +145,13 @@ print(lap.approximate, round(lap.info["k_hat"], 2))
 
 ## Approximations
 
-- **`"laplace"`** fits a Gaussian at the unconstrained mode and corrects it by
-  Pareto-smoothed importance sampling. If the diagnostic $\hat k$ reaches
-  $\min(1-1/\log_{10}S,\,0.7)$ for $S$ proposals (0.7 from about 2,000), the
-  correction is unreliable and the result is flagged `approximate`. This is
-  common with ten or more bins, because nearly empty bins have one-sided
-  tails.
-- **`"vb"`** (mean-field variational Bayes) is very fast but treats each
-  object's bin as independent of $\rho$, so its intervals are too narrow,
-  often by a factor of several when likelihoods are broad. It always warns
-  and is flagged `approximate`.
-- **`"bootstrap"`** resamples objects (`scheme="nonparametric"`) or reweights
-  them (`scheme="bayesian"`) and refits the MAP. Integer weights count
-  objects, so a compressed row of weight 5 stands for five objects that are
-  resampled one by one. For rate models the number of objects varies between
-  replicates (Poisson resampling), so the total rate does too. The result is
-  the sampling distribution of an estimator, not a posterior.
+- **`"laplace"`** is {term}`approximate` when its {term}`Pareto k-hat` check fails, which
+  is common with ten or more bins. Auto keeps it only when the check passes.
+- **`"vb"`** always warns, and its intervals are too narrow, often several times so
+  when likelihoods are broad.
+- **`"bootstrap"`** resamples objects (`scheme="nonparametric"`) or reweights them
+  (`scheme="bayesian"`), and refits the MAP. A compressed row of weight 5 is resampled
+  as five objects. Its draws describe an estimator, not a posterior.
 
 ## Scikit-learn style
 

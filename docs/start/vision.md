@@ -25,7 +25,7 @@ What binference adds is the design below, applied to every field's inputs.
 
 1. **Correct by construction.** The constructors ask what is passed:
    likelihood or posterior, which interim prior, mass or density, which
-   measure ({doc}`../guides/inputs`). `from_table` refuses a table whose
+   measure ({doc}`../guides/inputs/index`). `from_table` refuses a table whose
    kind is not stated, and warns when rows do not look like the declared
    representation. The plain `Likelihoods(values, bins)`, and a bare array
    passed to `infer`, are read as likelihood densities.
@@ -43,7 +43,7 @@ What binference adds is the design below, applied to every field's inputs.
 4. **Self-validating.** `infer` runs `result.check()` after every Gibbs and
    NUTS fit; other results, and point estimates with their optimality gap,
    are checked by calling `check()`. Simulation-based calibration and
-   coverage tools ship in the package ({doc}`../guides/validation`).
+   coverage tools ship in the package ({doc}`../guides/checking`).
 5. **A light core** ({doc}`install`); plotting and export are optional extras.
 6. **One way to read a result.** Every engine that draws returns a
    {class}`~binference.PopulationResult` with the same methods, and

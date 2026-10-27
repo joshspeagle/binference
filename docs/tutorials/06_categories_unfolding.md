@@ -165,7 +165,7 @@ diagnostics ourselves. The R-hat and effective sample sizes are fine, and
 divergent transitions, if any, are rare. `infer` would flag even one; an
 isolated divergence is usually harmless. Many divergences, or divergences
 that persist with a higher `target_accept`, would mean the sampler cannot
-explore part of the posterior ({doc}`/guides/pitfalls`).
+explore part of the posterior ({doc}`/guides/troubleshooting`).
 
 ```{code-cell} python
 truth = mu.truth.rho

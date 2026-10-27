@@ -113,7 +113,7 @@ result may be biased.
 : **When.** `result.binning_bias()` finds bins whose fraction shifts on a finer basis.
   **Cause.** The population is not flat within those bins.
   **Fix.** Fit with `binference.Basis(bins, order=...)` or narrower bins. See
-  [is the binning fine enough?](../guides/results.md#is-the-binning-fine-enough)
+  [check the binning](../guides/bins.md#check-the-binning)
 
 `2-D plots show no truth, stack or label; they are ignored.`
 : **When.** `plot_population` draws a 2-D grid and gets `truth`, `stack` or `label`.
@@ -146,7 +146,7 @@ just noisy.
   - the same two messages `of the selection` or `of the response's efficiencies`, for a
     selection or response inferred with the population.
   - `<n> divergent transitions (<x>% of draws)`: NUTS met a region it cannot explore.
-    Try `target_accept=0.95`; see the {doc}`pitfalls guide <../guides/pitfalls>`.
+    Try `target_accept=0.95`; see the {doc}`troubleshooting guide <../guides/troubleshooting>`.
   - `E-BFMI = <x> < 0.3 in some chain`: NUTS explores the energy distribution poorly.
     A longer warm-up or another prior may help.
   - `<x>% of NUTS iterations hit the maximum tree depth`: trajectories are cut short.
@@ -270,7 +270,7 @@ and says what was expected. These are the errors met most often:
 `A selection function needs an explicit selection_mode: ...`
 : A selection array or function was passed without `selection_mode`. Say whether the
   selection acts on the truth or on the measurement; see
-  [three ways selection can act](../guides/selection.md#three-ways-selection-can-act).
+  [say how the selection acts](../guides/selection.md#say-how-the-selection-acts).
 
 `Say what the input is: kind='likelihood' for likelihoods, or interim=<prior> for posteriors ...`
 : `from_table` or `from_density` needs exactly one of `kind` and `interim`.

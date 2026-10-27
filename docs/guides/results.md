@@ -1,10 +1,10 @@
-# Working with results
+# Read a result
 
 Sampling engines return a {class}`~binference.PopulationResult`; `method="map"`
-returns a {class}`~binference.PointEstimate`. A result holds posterior draws of the
-population, the model they came from, and diagnostics. Everything else is
-computed from the draws, so uncertainties propagate correctly into any
-derived quantity.
+returns a {class}`~binference.PointEstimate`. A result holds posterior {term}`draws
+<draw>` of the population, the model they came from, and diagnostics. Everything else
+is computed from the draws, so uncertainties carry over into any derived quantity.
+Before you use a result, check it ({doc}`checking`).
 
 ```python
 import numpy as np
@@ -23,16 +23,27 @@ X = result.samples              # (n_draws, K) draws of the fractions, chains po
 C = result.chains               # (n_chains, n_draws_per_chain, K)
 mean, sd = result.mean, result.std
 lo, hi = result.interval(0.68)               # equal-tailed; kind="hdi" for HDIs
-dens = result.density()                      # per unit bin volume (an n(z))
+dens = result.density()                      # fractions per unit bin volume
 cov = result.cov()                           # (K, K): neighbouring bins anti-correlate
 print(X.shape, C.shape, np.round(result.corr()[5, 4:7], 2))
 print(result.summary())
 ```
 
-**Use the draws, not the marginals.** Bins are correlated, often strongly
-negatively for neighbours, so error bars on sums or ratios of bins cannot be
-built from per-bin standard deviations. Compute any derived quantity per draw
-instead:
+The summary has one row per bin:
+
+- `mean`, `sd`, `median`: of the bin's fraction over the draws;
+- `q16`, `q84`: the bounds of the central 68% {term}`credible interval`
+  (`summary(level=...)` changes it);
+- `ess_bulk`, `rhat`: the bin's {term}`effective sample size` and {term}`R-hat`
+  ({doc}`checking`);
+- `support`: the bin's objects' worth of data ({doc}`bins`).
+
+Its title names the engine, the number of draws and the kind of input. An approximate
+result says so there.
+
+**Use the draws, not the marginals.** Bins are correlated, and neighbours often
+strongly anti-correlated. Error bars on sums or ratios of bins therefore cannot be built
+from per-bin standard deviations. Compute any derived quantity per draw instead:
 
 ```python
 zbar = result.functional(lambda rho: rho @ bins.centers)          # mean of the population
@@ -43,26 +54,21 @@ coarse = result.rebin(mapping)          # (n_draws, 5): fractions in 5 coarse bi
 print(coarse.mean(axis=0).round(3), coarse.std(axis=0).round(3))
 ```
 
-`result.rates` holds draws of the expected counts per bin and `result.total`
-their sum: sampled for rate models, and for fractions drawn exactly from each
-fraction draw given the number of objects and the selection (see
-{doc}`selection`). Pass `which="rates"` to `quantile`, `interval` and
+`result.rates` holds draws of the {term}`rates`, the expected counts per bin, and
+`result.total` their sum. Rate models sample them. For fractions, they are drawn
+exactly from each draw of $\rho$, given the number of objects and the selection
+({doc}`selection`). Pass `which="rates"` to `quantile`, `interval` and
 `summary`. Convergence diagnostics for rate models are computed on the rates,
 so they also cover the total.
 
-With a selection function, `result.selected` holds draws of the **selected** population,
-$\phi = S\circ\rho/(S\cdot\rho)$: the bins of the objects that are observed, with each
-draw's own $S$ when the selection is inferred (`which="selected"` works wherever
-`which=` does). Two numbers say how much of $\rho$ the data actually determine.
-`result.data_support` gives each bin's objects' worth of likelihood,
-$\sum_i w_i\ell_{ik}$ with every object's likelihood (times a selection on the truth)
-normalised over the bins; the
-summary shows it as `support`, and a bin with less than about one object's worth is set
-by the prior (`check(support_min=1)` flags such bins). `result.prior_information_ratio()`
-is Efron's ratio of prior to data information, $\mathrm{tr}(-H_\text{prior})/
-\mathrm{tr}(-H_\text{data})$ in the sampled coordinates at the mean of the draws: small when
-the data dominate, near one or more when the prior does. It is NaN when the data show no
-curvature, and comparable only between fits with the same family of prior.
+With a selection function, `result.selected` holds draws of the
+{term}`selected population`, $\phi=S\circ\rho/(S\cdot\rho)$: the bins of the objects
+that are observed. When the selection is inferred, each draw uses its own $S$.
+`which="selected"` works wherever `which=` does.
+
+Two numbers say how much of $\rho$ the data determine. `result.data_support` gives
+each bin's objects' worth of data ({doc}`bins`). `result.prior_information_ratio()`
+compares the prior's information with the data's ({doc}`priors`).
 
 ```python
 print(result.data_support.round(1), round(result.prior_information_ratio(), 3))
@@ -70,9 +76,9 @@ print(result.data_support.round(1), round(result.prior_information_ratio(), 3))
 
 ## Individual objects
 
-The hierarchical model also says something about each object: its posterior
-over bins given **its own data and the population**. This is narrower than its
-likelihood wherever the population is informative (shrinkage).
+The model also says something about each object: its {term}`hierarchical posterior`
+over bins, given **its own data and the population**. It is narrower than the object's
+likelihood wherever the population is informative ({term}`shrinkage`).
 
 ```python
 p = result.assignment_probabilities(idx=[0, 1, 2])       # (3, K), rows sum to one
@@ -81,10 +87,10 @@ values = result.sample_values(idx=[0], n_draws=1000, rng=0)              # true-
 print(p.round(2)[0], labels.shape, values.mean().round(3), mock.truth.values[0].round(3))
 ```
 
-`sample_assignments` gives joint draws of $(\rho, z)$ that are exact given exact draws
-of $\rho$; draws from an approximation (VB, Laplace, the bootstrap) carry its
-approximation over. `sample_values` then draws a true value inside the drawn
-bin from the object's own likelihood, since the population is flat within a
+`sample_assignments` gives joint draws of $\rho$ and the objects' bins $k_i$. They are
+exact when the draws of $\rho$ are exact. Draws from an approximation (VB, Laplace,
+the bootstrap) carry its error over. `sample_values` then draws a true value inside
+the drawn bin from the object's own likelihood, since the population is flat within a
 bin. It uses what each input knows within bins:
 
 - Gaussians (`from_gaussian`): exact truncated draws, and Gibbs sweeps over the axes
@@ -112,50 +118,30 @@ print(result.log_predictive(new).round(3))     # log p(d_new | D), for model com
 ```
 
 Every result also carries its **best fit**, `result.best`: the estimate of
-`binference.samplers.MAP` with its defaults (the mode of $\rho$ on the simplex for
-conjugate priors whose density is bounded there, such as Dirichlet concentrations of at
-least one; in the unconstrained coordinates otherwise and with a jointly inferred
-selection or response), computed on first use. After `load`, attach a model built with
-the fit's prior to get it.
+`binference.samplers.MAP` with its defaults, computed on first use
+([point estimates](engines.md#point-estimates)). After `load`, attach a model built
+with the fit's prior to get it.
 Per-object answers at it carry a `_best` suffix: `assignment_probabilities_best`,
 `sample_assignments_best`, `sample_values_best`, `realized_counts_best`,
 `predict_proba_best` and `log_predictive_best`. They ignore the uncertainty of the
 population, which the methods without the suffix include.
 
-To check the per-object posteriors against held-out truth, use the **leave-one-out**
-posteriors, each object's posterior under the population fitted without it.
-`assignment_probabilities_loo` gets them from the posterior draws by Pareto-smoothed
-importance sampling and returns the Pareto $\hat k$ per object; it warns about objects
-whose $\hat k$ is too large to trust, which need a refit without them.
+To check the per-object posteriors against held-out truth, use the
+{term}`leave-one-out` posteriors: each object's posterior under the population fitted
+without it. `assignment_probabilities_loo` gets them from the posterior draws by
+Pareto-smoothed importance sampling, and returns the {term}`Pareto k-hat` per object.
+It warns about objects whose $\hat k$ is too large to trust; refit without them.
 
 ```python
 p_loo, k_hat = result.assignment_probabilities_loo(idx=[0, 1, 2])
 print(p_loo.round(2)[0], k_hat.round(2))
 ```
 
-## Is the binning fine enough?
-
-Every fit assumes the population flat (in the measure coordinate) within each bin. With
-many objects that assumption, not the data, can set the bin masses.
-`result.binning_bias()` refits the same data on linear B-spline components over the
-same bins (`binference.Basis(bins, order=1)`) and reports per bin the shift of the mean
-fraction, the fit's posterior s.d. and their ratio `z`, and warns when $|z| > 2$
-anywhere. Gaussian likelihoods rebuild themselves; for other inputs pass
-`build(bins_or_basis)`, which returns your data's likelihoods on what it is given. For
-the flagged bins, `n_crit` is the number of objects at which the shift equals the
-statistical error: on a pilot sample, how many objects these bins can take.
-
-```python
-check = result.binning_bias(rng=1)
-print(np.round(check.z, 1))
-```
-
 ## Population versus realised sample
 
-$\rho$ describes the population the objects came from, including the "shot
-noise" of having only $N$ of them. Sometimes you need the histogram of
-**these** objects instead, for example the redshifts of a particular lens
-sample:
+$\rho$ describes the population the objects came from. For the histogram of **these**
+objects, the {term}`realised sample`, draw it
+([why they differ](../how-it-works/theory.md#population-versus-realised-sample)):
 
 ```python
 counts = result.realized_counts(n_draws=500, rng=0)     # (500, K) draws of the realised histogram
@@ -164,35 +150,9 @@ print(counts.sum(axis=1)[:3])
 print(counts.std(axis=0)[:5].round(1), population_counts.std(axis=0)[:5].round(1))
 ```
 
-With precise measurements the realised histogram is almost known, while the
-population fractions still carry multinomial uncertainty. With an absolute selection,
-`realized_counts(full=True)` also counts the objects it missed, drawn per draw from
-their negative-binomial number and the bins $\propto\rho\circ(1-S)$: the histogram of
-the full sample.
-
-## Diagnostics
-
-```python
-d = result.diagnostics                     # dict: rhat, ess_bulk, ess_tail, n_divergent, ...
-print(d["rhat"].max().round(3), d["ess_bulk"].min().round(0), d.get("n_divergent"))
-problems = result.check()                  # warns and returns messages
-print(problems)
-```
-
-`check()` flags $\hat R>1.01$ (split, so also for a single chain), bulk or tail ESS
-below 100 per chain for any Markov chain (also draws wrapped with
-`PopulationResult.from_samples`), NUTS divergences, saturated trees and E-BFMI below
-0.3, unreliable importance weights, and an optimiser that did not converge.
-These raise a `ConvergenceWarning`. Problems with the inputs raise an `InputWarning`
-instead: Monte Carlo noise of likelihoods built from samples, and binned counts that the
-response does not describe (a posterior predictive p-value below `predictive_p_min`, by
-default $10^{-3}$, over `predictive_draws=200` draws; see {doc}`inputs`).
-`check(strict=True)` raises a `binference.DiagnosticsError` instead. Where it can, the warning ends with a
-hint: a higher `target_accept` after divergences, `method="gibbs"` for
-conjugate priors with very small concentrations, and, when Gibbs mixes
-slowly, the fraction of missing information that explains why. A result
-from an approximate engine is marked `result.approximate`, and its summary
-says so.
+With an absolute selection,
+`realized_counts(full=True)` adds the objects the selection missed
+([selection and rates](selection.md#the-objects-the-catalogue-missed)).
 
 ## Plots
 
@@ -232,7 +192,6 @@ print(est.rho.round(3)[:5], est.kkt_gap, round(est.log_likelihood, 2))
 print(est.assignment_probabilities(idx=[0]).round(2))
 ```
 
-A {class}`~binference.PointEstimate` offers the same per-object methods,
-evaluated at the point. `est.check()` warns when the optimiser did not converge or the
-KKT gap (per object) exceeds `kkt_max=1e-4`. `est.laplace()` turns it into an approximate
-posterior.
+A {class}`~binference.PointEstimate` offers the same per-object methods, evaluated at
+the point. `est.laplace()` turns it into an approximate posterior. {doc}`checking` says
+how to check it.

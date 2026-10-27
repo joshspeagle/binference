@@ -16,16 +16,16 @@ other indices are declared where they are used. The {doc}`glossary` defines the 
 | $K$ | number of bins | `bins.K` | [theory](../how-it-works/theory.md#objects-bins-and-likelihoods) |
 | $B_k$ | bin $k$ | `bins.edges`, `bins.labels` | [theory](../how-it-works/theory.md#objects-bins-and-likelihoods) |
 | $v_k$ | volume of bin $k$ | `bins.volumes` | [theory](../how-it-works/theory.md#objects-bins-and-likelihoods) |
-| $u=T(z)$ | measure coordinate, in which the population is flat within a bin | `Measure`, `bins.u_edges` | [inputs](../guides/inputs.md#measures-flat-in-which-coordinate) |
+| $u=T(z)$ | measure coordinate, in which the population is flat within a bin | `Measure`, `bins.u_edges` | [inputs](../guides/inputs/advanced.md#measures-flat-in-which-coordinate) |
 | $\ell_i(z)$ | likelihood function of object $i$, $p(d_i\mid z)$ | `density=` of `from_density` | [theory](../how-it-works/theory.md#objects-bins-and-likelihoods) |
 | $L_{ik}$ | bin-averaged likelihood | `Likelihoods` | [theory](../how-it-works/theory.md#objects-bins-and-likelihoods) |
-| $\bar L_{ik}$ | $L_{ik}$ normalised to a row maximum of one | `lk.values` | [inputs](../guides/inputs.md#likelihood-matrices) |
+| $\bar L_{ik}$ | $L_{ik}$ normalised to a row maximum of one | `lk.values` | [inputs](../guides/inputs/tables.md) |
 | $w_i$ | weight (multiplicity) of object $i$ | `lk.weights` | [theory](../how-it-works/theory.md#objects-bins-and-likelihoods) |
 | $W$ | total weight, $\sum_iw_i$ | `lk.W` | [theory](../how-it-works/theory.md#objects-bins-and-likelihoods) |
 | $\pi(z)$ | interim prior | `interim=` | [theory](../how-it-works/theory.md#likelihoods-versus-posteriors) |
 | $P_{ik}$ | mass of object $i$'s posterior in bin $k$ | the table of `from_table(..., interim=)` | [theory](../how-it-works/theory.md#likelihoods-versus-posteriors) |
 | $\Pi_k$ | mass of the interim prior in bin $k$ | `Density.masses` | [theory](../how-it-works/theory.md#likelihoods-versus-posteriors) |
-| $\omega_s$ | importance weight of sample or draw $s$ | `sample_weights=` | [inputs](../guides/inputs.md#posterior-samples) |
+| $\omega_s$ | importance weight of sample or draw $s$ | `sample_weights=` | [inputs](../guides/inputs/samples.md) |
 | $n_{\rm draw}$ | number of draws or importance weights | `n_draws`, `n_proposals` | [engines](../guides/engines.md#approximations) |
 
 ## The population
@@ -51,16 +51,16 @@ other indices are declared where they are used. The {doc}`glossary` defines the 
 | Symbol | Meaning | Code name | Where defined |
 |---|---|---|---|
 | $S_k$ | selection: probability that an object in bin $k$ is observed, or its exposure | `Selection.values` | [theory](../how-it-works/theory.md#selection-effects) |
-| $S^{\rm truth}(z)$, $S^{\rm meas}(d)$ | the two parts of a combined selection | `Selection.combined(on_truth=, on_measurement=)` | [selection](../guides/selection.md#three-ways-selection-can-act) |
+| $S^{\rm truth}(z)$, $S^{\rm meas}(d)$ | the two parts of a combined selection | `Selection.combined(on_truth=, on_measurement=)` | [selection](../guides/selection.md#say-how-the-selection-acts) |
 | $\phi_k$ | selected population: $S_k\rho_k/S\cdot\rho$ | `result.selected` | [theory](../how-it-works/theory.md#point-estimates-em-is-iterated-stacking) |
 | $\chi_k$ | composition of the rates in mix-SQP | | [theory](../how-it-works/theory.md#point-estimates-em-is-iterated-stacking) |
 | $M$ | number of objects the selection missed | | [theory](../how-it-works/theory.md#selection-effects) |
 | $m_k$ | missed objects in bin $k$ | `realized_counts(full=True)` | [theory](../how-it-works/theory.md#selection-effects) |
 | $n^{\rm inj}_k$, $n^{\rm rec}_k$ | injected and recovered objects in bin $k$ | `selection.injections` | [selection](../guides/selection.md#selection-measured-by-injections) |
 | $\tau_S$ | step scale of the random walk on logit $S$ | `smooth=` of `from_injections` | [selection](../guides/selection.md#selection-measured-by-injections) |
-| $J$ | number of measured bins | `response.measured_bins.K` | [inputs](../guides/inputs.md#binned-measurements-and-classifiers) |
-| $R_{jk}$ | response: probability of measured bin $j$ and observation, given true bin $k$ | `response.matrix` | [inputs](../guides/inputs.md#binned-measurements-and-classifiers) |
-| $\epsilon_k$ | efficiency: probability that an object in true bin $k$ is observed | `response.efficiency` | [inputs](../guides/inputs.md#binned-measurements-and-classifiers) |
+| $J$ | number of measured bins | `response.measured_bins.K` | [inputs](../guides/inputs/binned.md) |
+| $R_{jk}$ | response: probability of measured bin $j$ and observation, given true bin $k$ | `response.matrix` | [inputs](../guides/inputs/binned.md) |
+| $\epsilon_k$ | efficiency: probability that an object in true bin $k$ is observed | `response.efficiency` | [inputs](../guides/inputs/binned.md) |
 
 ## Priors
 
@@ -89,9 +89,9 @@ other indices are declared where they are used. The {doc}`glossary` defines the 
 | $c_{\rm box}$ | size of the Gaussian-process box relative to $\Delta$ | `boundary_factor=` | [theory](../how-it-works/theory.md#smoothness-the-logistic-family) |
 | $n_{\rm basis}$ | number of sines per axis | `n_basis=` | [theory](../how-it-works/theory.md#smoothness-the-logistic-family) |
 | $f_{\rm ker}$ | resolution factor of a kernel | | [defaults](defaults.md) |
-| $\psi_k(z)$ | component $k$ of a `Basis` | `Basis` | [inputs](../guides/inputs.md#within-bin-shape-and-internal-resolution-basis) |
-| $\beta_k$ | fraction of the population in component $k$ | `result.component_draws` | [inputs](../guides/inputs.md#within-bin-shape-and-internal-resolution-basis) |
-| $A_{jk}$ | mass of component $k$ in bin or cell $j$ | `basis.matrix` | [inputs](../guides/inputs.md#within-bin-shape-and-internal-resolution-basis) |
+| $\psi_k(z)$ | component $k$ of a `Basis` | `Basis` | [inputs](../guides/inputs/advanced.md#shape-within-bins-basis) |
+| $\beta_k$ | fraction of the population in component $k$ | `result.component_draws` | [inputs](../guides/inputs/advanced.md#shape-within-bins-basis) |
+| $A_{jk}$ | mass of component $k$ in bin or cell $j$ | `basis.matrix` | [inputs](../guides/inputs/advanced.md#shape-within-bins-basis) |
 
 ## Coordinates, engines and diagnostics
 
@@ -103,8 +103,8 @@ other indices are declared where they are used. The {doc}`glossary` defines the 
 | $\hat R$ | split R-hat | `diagnostics.rhat`, `result.diagnostics["rhat"]` | [theory](../how-it-works/theory.md#diagnostics-and-validation) |
 | ESS | effective sample size, bulk or tail | `diagnostics.ess`, `result.diagnostics["ess_bulk"]` | [theory](../how-it-works/theory.md#diagnostics-and-validation) |
 | $\hat k$ | Pareto shape of importance weights | `diagnostics.psis`, `result.info["k_hat"]` | [theory](../how-it-works/theory.md#the-engines) |
-| $V_i(\rho)$ | relative Monte Carlo variance of a likelihood from samples | `lk.sample_variance` | [inputs](../guides/inputs.md#posterior-samples) |
-| $n_{\rm sim}$ | number of simulated data sets | `n_simulations=` | [validation](../guides/validation.md#simulation-based-calibration) |
+| $V_i(\rho)$ | relative Monte Carlo variance of a likelihood from samples | `lk.sample_variance` | [inputs](../guides/inputs/samples.md) |
+| $n_{\rm sim}$ | number of simulated data sets | `n_simulations=` | [validation](../guides/checking.md#simulation-based-calibration) |
 
 ## Symbols on older pages
 

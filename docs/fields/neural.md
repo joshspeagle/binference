@@ -49,7 +49,7 @@ with a network. binference's smooth parameterisations are the logistic priors, a
 Gaussian random walk or a Gaussian process on $\log\rho$ whose hyperparameters are
 inferred, sampled with NUTS so that the density comes with a posterior
 ({doc}`../guides/priors`); `binference.Basis` with `order=1` gives a continuous,
-piecewise-linear density on refined components ({doc}`../guides/inputs`). Posterior
+piecewise-linear density on refined components ({doc}`../guides/inputs/advanced`). Posterior
 samples enter through `Likelihoods.from_samples`, which histograms them once with the
 interim prior divided out, rather than re-estimating a Monte Carlo average at every
 step of training.
@@ -99,7 +99,7 @@ samples is the same.
 
 **Added.** For populations that bins can represent, binference gives an exact
 likelihood without Monte Carlo bias and a posterior over the smooth density, checked
-with simulation-based calibration ({doc}`../guides/validation`).
+with simulation-based calibration ({doc}`../guides/checking`).
 
 **Not done.** binference has no flows, diffusion or flow-matching models, no
 importance-weighted training objectives, no unbinned densities in many dimensions, and
