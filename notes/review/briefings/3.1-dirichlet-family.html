@@ -1,0 +1,637 @@
+<title>Dirichlet Family</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Literata:opsz,wght@7..72,500;7..72,600&display=swap">
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [["$", "$"], ["\\(", "\\)"]], displayMath: [["$$", "$$"]] },
+    svg: { fontCache: "global" },
+    options: { skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"] }
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
+<style>
+/* Layout: sticky section index on the left, one reading column; a level switch shows the overview, the code tour or the deep dive; explorers span the column. */
+:root {
+  --bg: #f6f7f9; --surface: #ffffff; --ink: #18202b; --muted: #5a6573; --rule: #d9dee5;
+  --accent: #1f5fa8;   /* ink blue: the model and exact quantities */
+  --warm: #b4691f;     /* amber: unbounded densities, boundary trouble */
+  --good: #2e7d4f; --alt: #8a3b8f; --code-bg: #eef1f5;
+  --neg: #b23a48;      /* negative correlation */
+  --font-display: "Literata", Georgia, serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
+    --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; --neg: #e2808c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151b; --surface: #181d25; --ink: #e3e8ef; --muted: #98a3b1; --rule: #2b333e;
+  --accent: #7fb0ea; --warm: #e0a15e; --good: #6cc391; --alt: #c98bd0; --code-bg: #1e242d; --neg: #e2808c; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+.page { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 40px; }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-top: 40px; font-size: 13.5px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+nav.toc a { color: var(--muted); text-decoration: none; display: flex; gap: 8px; padding: 4px 8px; border-radius: 4px; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink); background: var(--code-bg); outline: none; }
+nav.toc .n { font-family: var(--font-mono); width: 1.6em; color: var(--muted); }
+main { min-width: 0; padding-top: 40px; }
+header.top { border-bottom: 1px solid var(--rule); padding-bottom: 22px; }
+.eyebrow { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 2.3rem; line-height: 1.15; margin: 6px 0 12px; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.55rem; margin: 0 0 8px; text-wrap: balance; }
+h3 { font-size: 1rem; font-weight: 600; margin: 22px 0 6px; }
+.lede { max-width: 66ch; color: var(--muted); margin: 0; }
+section { padding: 34px 0 10px; border-bottom: 1px solid var(--rule); scroll-margin-top: 16px; }
+section > p, section > ul, section > ol, .lvl > p, .lvl > ul, .lvl > ol { max-width: 68ch; }
+.sec-head { display: flex; align-items: baseline; gap: 12px; }
+.sec-head .n { font-family: var(--font-mono); color: var(--muted); font-size: 14px; }
+.files { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; overflow-wrap: anywhere; }
+pre.src { margin: 10px 0 14px; padding: 12px 14px; overflow-x: auto; background: var(--code-bg); border: 1px solid var(--rule); border-radius: 6px; font-family: var(--font-mono); font-size: 12.8px; line-height: 1.5; max-width: 860px; }
+pre.src .cm { color: var(--muted); }
+.callout { border: 1px solid var(--rule); background: var(--surface); padding: 12px 16px; border-radius: 6px; max-width: 68ch; margin: 12px 0; }
+.callout.warn { border-color: var(--warm); }
+.callout.warn strong { color: var(--warm); }
+table.tbl { border-collapse: collapse; font-size: 13.5px; margin: 10px 0; }
+.tblwrap { overflow-x: auto; }
+table.tbl th, table.tbl td { padding: 6px 12px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+table.tbl th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+table.tbl td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.explorer { margin: 20px 0 10px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 18px; }
+.explorer h3 { margin-top: 0; font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px 20px; margin: 10px 0 14px; }
+.controls label { display: grid; gap: 2px; font-size: 13px; color: var(--muted); }
+.controls .val { font-family: var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--accent); height: 28px; }
+select { font: inherit; width: 100%; padding: 6px; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); color: var(--ink); }
+.ex-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; align-items: start; }
+.ex-grid > div { min-width: 0; }
+canvas { width: 100%; display: block; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 10px; font-size: 13.5px; }
+.stats b { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+.note { font-size: 13.5px; color: var(--muted); max-width: 70ch; }
+.badge { display: inline-block; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.badge.ok { color: var(--good); } .badge.warn { color: var(--warm); }
+.levels { display: inline-flex; border: 1px solid var(--rule); border-radius: 999px; padding: 3px; gap: 2px; background: var(--surface); margin-top: 14px; flex-wrap: wrap; }
+.levels button { font: inherit; font-size: 13.5px; border: 0; background: transparent; color: var(--muted); padding: 5px 14px; border-radius: 999px; cursor: pointer; }
+.levels button[aria-pressed="true"] { background: var(--accent); color: var(--bg); font-weight: 600; }
+.levels-note { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+.lvl { border-left: 2px solid var(--rule); padding-left: 16px; margin: 14px 0; }
+.lvl > .tag { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.lvl.l2 { border-left-color: var(--accent); }
+.lvl.l3 { border-left-color: var(--alt); }
+body.show-1 .l2, body.show-1 .l3, body.show-2 .l3 { display: none; }
+.qs { list-style: none; padding: 0; display: grid; gap: 10px; max-width: 74ch; }
+.qs li { border: 1px solid var(--rule); background: var(--surface); padding: 10px 14px; border-radius: 6px; }
+.qs .def { display: block; font-size: 14px; color: var(--muted); margin-top: 4px; }
+.qs .def b { color: var(--ink); font-weight: 500; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; max-width: 100%; padding: 2px 0; }
+@media (max-width: 860px) {
+  .page { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  nav.toc { z-index: 5; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--rule); margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  nav.toc .eyebrow { display: none; }
+  nav.toc ol { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+  nav.toc ol::-webkit-scrollbar { display: none; }
+  nav.toc a { white-space: nowrap; border: 1px solid var(--rule); border-radius: 999px; padding: 6px 12px; }
+  main { padding-top: 20px; }
+  h1 { font-size: 1.7rem; } h2 { font-size: 1.3rem; }
+  section { padding-top: 26px; scroll-margin-top: 64px; }
+  .explorer { padding: 14px 12px; }
+}
+</style>
+
+<div class="page">
+<nav class="toc" aria-label="Sections"><div class="eyebrow" style="padding:0 8px 8px">Step 3.1</div><ol>
+<li><a href="#map"><span class="n">0</span>The family</a></li>
+<li><a href="#dir"><span class="n">1</span>Dirichlet</a></li>
+<li><a href="#trees"><span class="n">2</span>Trees</a></li>
+<li><a href="#gd"><span class="n">3</span>Generalised D.</a></li>
+<li><a href="#polya"><span class="n">4</span>Pólya trees</a></li>
+<li><a href="#engines"><span class="n">5</span>What engines use</a></li>
+<li><a href="#edge"><span class="n">6</span>Small α, edges</a></li>
+<li><a href="#bins"><span class="n">7</span>Bins and geometry</a></li>
+<li><a href="#qs"><span class="n">?</span>Your calls</a></li>
+</ol></nav>
+<main>
+<header class="top"><div class="eyebrow">binference walkthrough · Phase 3 · priors</div>
+<h1>The Dirichlet family</h1>
+<p class="lede">Dirichlet, generalised Dirichlet, Dirichlet trees and Pólya trees, from first principles, then through the code in <code>priors/dirichlet.py</code> and <code>priors/base.py</code> as it stands on <code>main</code> after the landing. Every number on this page was measured on the current code (setup with each figure).</p>
+<div class="levels" role="group" aria-label="Depth">
+  <button type="button" id="lv1" data-l="1" aria-pressed="false">Overview</button>
+  <button type="button" id="lv2" data-l="2" aria-pressed="true">+ Code tour</button>
+  <button type="button" id="lv3" data-l="3" aria-pressed="false">+ Deep dive</button>
+</div>
+<p class="levels-note">The overview is the ideas and the decisions. The code tour adds the implementation, function by function. The deep dive adds the derivations.</p>
+</header>
+
+<!-- ============================================================ 0 -->
+<section id="map"><div class="sec-head"><span class="n">§0</span><h2>The family on one page</h2></div>
+<p>All four priors are one construction. Put the bins at the leaves of a tree. At every internal node, split the node's mass among its children with an independent Dirichlet. A bin's fraction is the product of the branch shares on its path from the root. That is a <b>Dirichlet tree</b> (Dennis 1991). The other three are particular trees:</p>
+<div class="tblwrap"><table class="tbl">
+<tr><th>Prior</th><th>Tree</th><th>Concentrations</th><th>What it adds over Dirichlet</th></tr>
+<tr><td>Dirichlet(α)</td><td>one node, K children</td><td>α<sub>k</sub></td><td>the baseline: one concentration per bin, all correlations negative</td></tr>
+<tr><td>GeneralizedDirichlet(a, b)</td><td>a chain ("caterpillar"): bin 1 vs the rest, bin 2 vs the rest, …</td><td>Beta(a<sub>k</sub>, b<sub>k</sub>) per step</td><td>2(K−1) parameters instead of K; correlations can be positive</td></tr>
+<tr><td>DirichletTree(tree, α)</td><td>any tree you give</td><td>one per branch</td><td>bins in a group move together</td></tr>
+<tr><td>PolyaTree(c, power, base)</td><td>balanced binary tree over ordered 1-D bins</td><td>c·m<sup>p</sup>·2G₀(child)/G₀(parent) at depth m</td><td>multi-scale smoothness that stays conjugate</td></tr>
+</table></div>
+<p>Because each split is an independent Dirichlet, the whole tree stays <b>conjugate</b>: given latent bin counts, each split's posterior is Dirichlet(α + counts below each branch). That is why Gibbs, EM, mix-SQP (for the Dirichlet) and mean-field VB work in closed form for every member, and why <code>method="auto"</code> can route all of them to Gibbs.</p>
+<div class="lvl l2"><div class="tag">Code tour</div>
+<p>The code mirrors this: <code>Dirichlet</code> has its own bound class, and the other three are subclasses of <code>_TreePrior</code> that only build a <code>_TreeStructure</code>; one bound class, <code>_BoundTree</code>, does all the numerics for every tree. Both bound classes inherit the ILR coordinates from <code>_SimplexBound</code>, which inherits the engine interface from <code>BoundPrior</code>.</p>
+<pre class="src">PopulationPrior            <span class="cm"># what the user writes: arguments only</span>
+├─ Dirichlet ──bind(bins)──▶ _BoundDirichlet ─┐
+└─ _TreePrior                                  ├─ _SimplexBound  <span class="cm"># ILR coordinates, Jacobian</span>
+   ├─ DirichletTree   ─┐                       │      └─ BoundPrior  <span class="cm"># the engine interface</span>
+   ├─ GeneralizedDirichlet ─ _structure(bins) ─▶ _TreeStructure ─▶ _BoundTree ─┘
+   └─ PolyaTree       ─┘</pre>
+</div>
+</section>
+
+<!-- ============================================================ 1 -->
+<section id="dir"><div class="sec-head"><span class="n">§1</span><h2>The Dirichlet</h2></div>
+<p>Draw K independent Gamma(α<sub>k</sub>, 1) variables and divide by their sum: the result is Dirichlet(α). The density on the simplex is</p>
+<div class="eq">$$p(\rho\mid\alpha)=\frac{\Gamma(A)}{\prod_k\Gamma(\alpha_k)}\prod_k \rho_k^{\alpha_k-1},\qquad A=\sum_k\alpha_k .$$</div>
+<p>The mean is α/A, so the <i>shape</i> of α sets the expected population and its <i>total</i> A sets how tightly draws cluster around it (like A pseudo-objects). With α<sub>k</sub> &lt; 1 the density goes to infinity at the faces where ρ<sub>k</sub> = 0, and draws pile up near the corners: most bins nearly empty, a few holding the mass.</p>
+<p>One property surprises people: <b>every correlation is negative</b>, and for symmetric α it is exactly −1/(K−1), whatever α is. Concentration changes how far draws spread, not how bins co-vary. With K = 8 we measured −0.14 for both α = 1 and α = 0.1 (40,000 draws each). That is why neighbouring bins in a smooth population need a different prior.</p>
+
+<div class="explorer" id="ex-dir">
+<h3>Explorer: Dirichlet draws on the 3-bin simplex</h3>
+<div class="controls">
+<label for="d-a1">α₁ <span class="val" id="d-a1v"></span><input type="range" id="d-a1" min="-3" max="3" step="0.05" value="0"></label>
+<label for="d-a2">α₂ <span class="val" id="d-a2v"></span><input type="range" id="d-a2" min="-3" max="3" step="0.05" value="0"></label>
+<label for="d-a3">α₃ <span class="val" id="d-a3v"></span><input type="range" id="d-a3" min="-3" max="3" step="0.05" value="0"></label>
+<label for="d-sym">Link the three <select id="d-sym"><option value="1" selected>symmetric (one α)</option><option value="0">separate</option></select></label>
+</div>
+<div class="ex-grid">
+<div><canvas id="d-cv" width="520" height="460" aria-label="Simplex with Dirichlet draws"></canvas></div>
+<div>
+<div class="stats" id="d-stats"></div>
+<p class="note">3,000 draws, made the way the package makes them (<code>_dirichlet_draw</code>: Gamma variates in log space, so α as small as 0.05 never gives exact zeros). The corners are the bins; a point near corner k has most of its mass in bin k. Slide α below 1 and the draws leave the middle for the edges and corners.</p>
+</div>
+</div>
+</div>
+
+<div class="lvl l2"><div class="tag">Code tour · <code>Dirichlet</code>, <code>_BoundDirichlet</code></div>
+<p><b>Construction.</b> <code>Dirichlet(alpha)</code> takes a scalar, a length-K array or <code>"reference"</code> (α = 1/K, resolved when bound). Three named constructors cover the usual sources of α:</p>
+<ul>
+<li><code>Dirichlet.reference(K)</code>: α = 1/K (Berger, Bernardo & Sun 2015).</li>
+<li><code>Dirichlet.from_counts(counts, strength=1, base=1)</code>: α = base + strength·counts, a reference sample as pseudo-counts.</li>
+<li><code>Dirichlet.from_base_measure(concentration, base)</code>: α<sub>k</sub> = concentration·B<sub>k</sub> with B the bin masses of a base density (flat in the bins' measure by default). This is the one that stays consistent when bins are merged.</li>
+</ul>
+<p><b>Binding</b> resolves α against the bins and precomputes A and the normalising constant once:</p>
+<pre class="src">class _BoundDirichlet(_SimplexBound):
+    def __init__(self, prior, bins, alpha):
+        super().__init__(prior, bins)
+        self.alpha = alpha
+        self.pseudocounts = alpha - 1.0            <span class="cm"># what EM's M-step adds</span>
+        self.A = float(alpha.sum())
+        self._const = gammaln(self.A) - gammaln(alpha).sum()
+
+    def _lp_eta(self, rho, log_rho):               <span class="cm"># density in softmax logits η</span>
+        lp = float(np.dot(self.alpha, log_rho)) + self._const
+        return lp, self.alpha - self.A * rho       <span class="cm"># and its gradient in η</span></pre>
+<p>Note <code>_lp_eta</code> uses α, not α − 1: it is the density of the <i>logits</i> η, which includes the Jacobian ∏ρ<sub>k</sub> of the softmax (deep dive below). The conjugate methods are one line each: <code>posterior_sample</code> draws Dir(α + counts), <code>map_from_counts</code> returns (counts + α − 1)₊ normalised, <code>vb_update</code> returns α + counts.</p>
+<p><b>Draws.</b> <code>_dirichlet_draw</code> normalises Gamma variates in log space with <code>softmax</code>. For shapes below 1, <code>_log_gamma_variates</code> uses Gamma(a) = Gamma(a+1)·U<sup>1/a</sup> in logs; plain draws underflow to exactly 0 for about 12% of Gamma(0.003) variates, and an exact zero would make a bin's log-likelihood −∞.</p>
+</div>
+
+<div class="lvl l3"><div class="tag">Deep dive · the ILR coordinates and the Jacobian</div>
+<p>Gradient-based engines (NUTS, L-BFGS, Laplace) need unconstrained coordinates. All simplex priors share one map, in <code>_SimplexBound</code>:</p>
+<div class="eq">$$x\in\mathbb R^{K-1}\;\xrightarrow{\;V\;}\;\eta=Vx\in\mathbb R^K\;\xrightarrow{\text{softmax}}\;\rho,\qquad V=\text{Helmert basis},\;V^\top V=I,\;\mathbf 1^\top V=0 .$$</div>
+<p>V spans the sum-zero subspace, so η is a centred log-ratio and the map is one-to-one. The density of x is the density of ρ times the Jacobian of x ↦ ρ, which is √K · ∏<sub>k</sub> ρ<sub>k</sub>:</p>
+<div class="eq">$$\log p(x)=\log p(\rho)+\sum_k\log\rho_k+\tfrac12\log K .$$</div>
+<p>For the Dirichlet the ∑ log ρ<sub>k</sub> cancels the −1 in the exponents, which is why <code>_lp_eta</code> has α·log ρ and the constant ½ log K lives in <code>_log_jac_const</code>. The gradient with respect to η is α − A·ρ (differentiate α·log softmax(η)); with respect to x it is Vᵀ(α − Aρ + ∂ℓ/∂η), the likelihood's gradient added before the one matrix product, in <code>log_prior_and_grad</code>.</p>
+<p>In x the density is bounded for every α &gt; 0: as ρ<sub>k</sub> → 0, log p(x) ~ α<sub>k</sub> log ρ<sub>k</sub> → −∞ at a rate set by α<sub>k</sub>. Small α<sub>k</sub> means a slowly decaying tail toward log ρ<sub>k</sub> = −∞, which is the NUTS difficulty of §6, not a singularity.</p>
+</div>
+</section>
+
+<!-- ============================================================ 2 -->
+<section id="trees"><div class="sec-head"><span class="n">§2</span><h2>Dirichlet trees</h2></div>
+<p>A tree gives you correlation structure the Dirichlet cannot. Put bins 0–3 under one node and 4–7 under another: the root split decides how much mass goes left or right, and every bin on the side that gains mass gains together. With all branch concentrations 2 and K = 8, bins 0 and 1 (same side) correlate +0.10 and bins 0 and 7 (opposite sides) −0.33 (40,000 draws). A Dirichlet with the same mean can only give −0.14 everywhere.</p>
+<p>The tree is still a distribution on the simplex with mean and variance you can read off: the mean of a bin is the product of the mean branch shares on its path. With equal concentrations per node the mean is uniform over each node's children, not over the bins: an unbalanced tree gives its shallow bins more prior mass.</p>
+
+<div class="explorer" id="ex-tree">
+<h3>Explorer: one tree, any member of the family (K = 8)</h3>
+<div class="controls">
+<label for="t-kind">Prior <select id="t-kind">
+<option value="dir">Dirichlet(α)</option>
+<option value="two" selected>Tree: [[0,1,2,3],[4,5,6,7]], all α</option>
+<option value="gdd">GeneralizedDirichlet(a) (b by default)</option>
+<option value="gd1">GeneralizedDirichlet(a, b = 1)</option>
+<option value="polya">PolyaTree(c, power)</option>
+</select></label>
+<label for="t-a">α, a or c <span class="val" id="t-av"></span><input type="range" id="t-a" min="-2" max="2.3" step="0.05" value="0.3"></label>
+<label for="t-p">power (Pólya) <span class="val" id="t-pv"></span><input type="range" id="t-p" min="0" max="3" step="0.25" value="2"></label>
+</div>
+<div class="ex-grid">
+<div><canvas id="t-tree" width="520" height="300" aria-label="Tree with branch concentrations"></canvas></div>
+<div><canvas id="t-corr" width="420" height="300" aria-label="Correlation matrix of the bin fractions"></canvas></div>
+</div>
+<div class="stats" id="t-stats"></div>
+<p class="note">Left: the tree, each branch labelled with its concentration. Right: the 8 × 8 correlation matrix of the bin fractions from 6,000 draws (blue positive, red negative; the diagonal is left blank). The badge applies the package's own test for an unbounded density on the simplex (§6).</p>
+</div>
+
+<div class="lvl l2"><div class="tag">Code tour · <code>_TreeStructure</code></div>
+<p>A user writes a tree as nested lists, <code>[[0, 1], [2, [3, 4]]]</code>. <code>_parse_nested</code> walks it in pre-order into a flat list of nodes (parents before children), each a list of <code>("leaf", k)</code> or <code>("node", c)</code> children, and refuses nodes with fewer than two children. <code>_TreeStructure</code> then flattens all branches into one array of <b>slots</b>, so every numerical operation is a matrix product instead of a recursion:</p>
+<div class="tblwrap"><table class="tbl">
+<tr><th>Array</th><th>Shape</th><th>Meaning</th></tr>
+<tr><td><code>slot_alpha</code></td><td>(S,)</td><td>the concentration of every branch, node by node</td></tr>
+<tr><td><code>ptr</code></td><td>(C+1,)</td><td>slots of node c are <code>ptr[c]:ptr[c+1]</code> (CSR-style)</td></tr>
+<tr><td><code>slot_mem</code></td><td>(S, K)</td><td>which bins lie under each branch</td></tr>
+<tr><td><code>node_mem</code></td><td>(C, K)</td><td>which bins lie under each internal node</td></tr>
+<tr><td><code>A_node</code></td><td>(C,)</td><td>total concentration of each node's branches</td></tr>
+<tr><td><code>leaf_coef</code>, <code>node_coef</code></td><td>(K,), (C−1,)</td><td>exponents of the density on the simplex (deep dive)</td></tr>
+<tr><td><code>slot_nodes</code></td><td>(S, C−1)</td><td>which non-root nodes lie under each branch</td></tr>
+</table></div>
+<p>With these, composing branch shares θ into bin fractions is one line, <code>exp(log θ @ slot_mem)</code> (with exact zeros carried through), and counting a bin histogram up the tree is <code>slot_mem @ counts</code>. Validation happens here too: leaves must be exactly 0..K−1 once each, every non-root node needs exactly one parent.</p>
+<pre class="src">class _BoundTree(_SimplexBound):
+    def sample(self, n, rng):                       <span class="cm"># one Dirichlet per node, then compose</span>
+        theta = self.tree.draw_theta(self.tree.slot_alpha, rng, size=n)
+        return np.maximum(self.tree.compose(theta), _TINY)
+
+    def posterior_sample(self, counts, rng, exposure=None):
+        t = self.tree                               <span class="cm"># conjugacy: branch α + counts below it</span>
+        return np.maximum(t.compose(t.draw_theta(t.slot_alpha + t.slot_counts(counts), rng)), _TINY)</pre>
+</div>
+
+<div class="lvl l3"><div class="tag">Deep dive · the tree's density on the simplex</div>
+<p>Let θ<sub>s</sub> be the share of branch s at its node c(s), so θ restricted to a node is Dirichlet(α<sub>s</sub>) and nodes are independent. Write ρ<sub>c</sub> for the total fraction under node c (ρ<sub>root</sub> = 1). The branch share is θ<sub>s</sub> = ρ<sub>child(s)</sub>/ρ<sub>c(s)</sub>. Changing variables from the θ's (∑(m<sub>c</sub>−1) = K−1 free coordinates) to ρ, node by node from the leaves up, the Jacobian of node c's split is ρ<sub>c</sub><sup>−(m<sub>c</sub>−1)</sup>, and collecting powers gives</p>
+<div class="eq">$$\log p(\rho)=\text{const}+\sum_{k}(\alpha_{\mathrm{pa}(k),k}-1)\log\rho_k+\sum_{c\ne\text{root}}\bigl(\alpha_{\mathrm{pa}(c),c}-A_c\bigr)\log\rho_c ,$$</div>
+<p>which is the module docstring's formula, with <code>leaf_coef</code> = α<sub>pa(k),k</sub> − 1 and <code>node_coef</code> = α<sub>pa(c),c</sub> − A<sub>c</sub>. It is linear in the logs of leaf and node masses, so <code>log_density</code> is two dot products and its gradient two matrix products. Setting every node to one level recovers the Dirichlet; the caterpillar with a<sub>k</sub> = α<sub>k</sub>, b<sub>k</sub> = ∑<sub>j&gt;k</sub>α<sub>j</sub> makes every node coefficient zero, which is the classical proof that the generalised Dirichlet contains the Dirichlet.</p>
+<p><b>The mode.</b> In branch coordinates the log-density times the likelihood of counts n is ∑<sub>s</sub> x<sub>s</sub> log θ<sub>s</sub> with x<sub>s</sub> = (n + leaf_coef summed under s) + (node_coef summed over nodes under s). Each node's θ is then maximised independently by θ<sub>s</sub> ∝ max(x<sub>s</sub>, 0), which is exactly <code>map_from_counts</code>. When some x<sub>s</sub> is negative the maximum sits on the boundary, θ<sub>s</sub> = 0: the density is unbounded there (§6).</p>
+</div>
+</section>
+
+<!-- ============================================================ 3 -->
+<section id="gd"><div class="sec-head"><span class="n">§3</span><h2>The generalised Dirichlet</h2></div>
+<p>Connor & Mosimann (1969) break a stick: V<sub>1</sub> ~ Beta(a<sub>1</sub>, b<sub>1</sub>) takes a share for bin 1, V<sub>2</sub> takes a share of the rest for bin 2, and so on. In tree terms it is a chain: each node splits off one bin and passes the remainder down. Two parameters per step instead of one per bin let the variance of each step be set separately from its mean, and correlations can become positive.</p>
+<p><b>The default reproduces Dir(a)</b>: <code>GeneralizedDirichlet(a)</code> sets b<sub>k</sub> = (K − 1 − k)·a, and its log-density equals Dirichlet(a)'s to machine precision (checked on 5 random points, K = 8). <b>Setting b yourself changes the mean.</b> With a = b = 1 the mean halves at every step, (0.50, 0.25, 0.125, …, 0.008, 0.008) for K = 8, with correlations from −0.66 to +0.41 (40,000 draws). That is rarely what someone writing <code>GeneralizedDirichlet(1, 1)</code> expects; the question at the end asks whether the API should guard it.</p>
+<div class="lvl l2"><div class="tag">Code tour · <code>GeneralizedDirichlet._structure</code></div>
+<pre class="src">for k in range(K - 1):
+    right = ("leaf", order[K - 1]) if k == K - 2 else ("node", k + 1)
+    nodes.append([("leaf", order[k]), right])     <span class="cm"># bin k vs the rest</span>
+    alphas.append(np.array([a[k], b[k]]))</pre>
+<p>The stick is broken in bin order unless <code>order</code> permutes it. On a 2-D grid the bin order is the flattened row-major order, so "the rest" after a bin is not a geometric neighbourhood (§7).</p>
+</div>
+</section>
+
+<!-- ============================================================ 4 -->
+<section id="polya"><div class="sec-head"><span class="n">§4</span><h2>Pólya trees</h2></div>
+<p>A Pólya tree (Ferguson 1974; Lavine 1992) is a balanced binary Dirichlet tree on an ordered axis: split the range in two, split each half in two, and so on. Each split is a Beta whose concentration grows with depth m as c·m<sup>p</sup>. Coarse splits are free to vary; fine splits are held close to the base measure G₀. The result is a prior that is rough at large scales and smooth at small ones, and still conjugate. With power p = 2 the infinite tree gives absolutely continuous densities (Lavine 1992); with p = 0 every level is equally variable.</p>
+<p>The binned version in binference: K bins split into index halves (the left half takes the extra bin when a range is odd), split concentrations c·m<sup>p</sup>·2G₀(child)/G₀(parent) so that the prior mean is G₀ at every level. The default c = 1, p = 2, flat G₀ on 8 bins gives Beta(1, 1) at the root, Beta(4, 4) at depth 2 and Beta(9, 9) at depth 3 (read from <code>slot_alpha</code>). Neighbouring bins then correlate +0.72 and bins at opposite ends −0.60 (40,000 draws), the multi-scale smoothness the Dirichlet lacks.</p>
+
+<div class="explorer" id="ex-polya">
+<h3>Explorer: Pólya-tree draws on 16 bins</h3>
+<div class="controls">
+<label for="p-c">c <span class="val" id="p-cv"></span><input type="range" id="p-c" min="-2" max="2" step="0.05" value="0"></label>
+<label for="p-p">power <span class="val" id="p-pv"></span><input type="range" id="p-p" min="0" max="3" step="0.25" value="2"></label>
+<label for="p-base">Base measure G₀ <select id="p-base"><option value="flat" selected>flat</option><option value="peak">peaked in the middle</option><option value="decay">decaying</option></select></label>
+</div>
+<div class="ex-grid">
+<div><canvas id="p-cv-draws" width="560" height="300" aria-label="Pólya tree draws as histograms"></canvas></div>
+<div><div class="tblwrap"><table class="tbl" id="p-levels"></table></div><div class="stats" id="p-stats"></div></div>
+</div>
+<p class="note">Six draws (thin lines) and the base measure (dashed) as fractions per bin. The table gives the Beta concentration of each depth (for a flat G₀ both children of a split share it). Raise the power and the fine structure smooths out while the coarse shape still varies.</p>
+</div>
+
+<div class="lvl l2"><div class="tag">Code tour · <code>PolyaTree._structure</code></div>
+<pre class="src">def build(lo, hi, level):                 <span class="cm"># bins lo..hi-1 under one node</span>
+    mid = (lo + hi + 1) // 2              <span class="cm"># left half takes the extra bin</span>
+    for j, (clo, chi) in enumerate(((lo, mid), (mid, hi))):
+        ...                                <span class="cm"># a leaf, or recurse at level + 1</span>
+        a[j] = self.c * level**self.power * 2.0 * mass(clo, chi) / mass(lo, hi)</pre>
+<p>It refuses categorical and N-D bins, and base measures with a zero-mass bin. Overflow of <code>level**power</code> at extreme powers is caught by the final positivity check.</p>
+</div>
+</section>
+
+<!-- ============================================================ 5 -->
+<section id="engines"><div class="sec-head"><span class="n">§5</span><h2>What each engine asks of a prior</h2></div>
+<p>Every bound prior answers the same questions, declared on <code>BoundPrior</code>. The Dirichlet family answers all of them, which is why every engine runs on it:</p>
+<div class="tblwrap"><table class="tbl">
+<tr><th>Method</th><th>Used by</th><th>Dirichlet</th><th>Trees</th></tr>
+<tr><td><code>forward</code>, <code>log_prior_and_grad</code></td><td>NUTS, Laplace, L-BFGS</td><td colspan="2">shared ILR map (<code>_SimplexBound</code>); <code>_lp_eta</code> per class</td></tr>
+<tr><td><code>log_density</code>, <code>grad_log_density</code></td><td>MAP on the simplex, KKT gap</td><td>xlogy(α−1, ρ)</td><td>two dot products (§2 deep dive)</td></tr>
+<tr><td><code>posterior_sample</code></td><td>Gibbs</td><td>Dir(α + n)</td><td>Dir per node, α + counts below each branch</td></tr>
+<tr><td><code>map_from_counts</code></td><td>EM M-step</td><td>(n + α − 1)₊ normalised</td><td>per node, θ ∝ max(x, 0)</td></tr>
+<tr><td><code>pseudocounts</code></td><td>mix-SQP routing, missing information</td><td>α − 1</td><td>None (mix-SQP is Dirichlet-only)</td></tr>
+<tr><td><code>vb_update</code> … <code>vb_mean</code></td><td>mean-field VB</td><td>α + n, digammas</td><td>per node</td></tr>
+<tr><td><code>prior_transform</code></td><td>nested samplers</td><td>stick-breaking via <code>betaincinv</code></td><td>one stick-breaking per node</td></tr>
+<tr><td><code>unbounded_density</code></td><td>MAP routing, NUTS warnings</td><td>any α<sub>k</sub> &lt; 1</td><td>any branch coefficient &lt; 0</td></tr>
+</table></div>
+<div class="lvl l2"><div class="tag">Code tour · how MAP picks a solver for these priors</div>
+<p><code>MAP</code> reads two of these answers. With <code>pseudocounts</code> ≥ 0 (Dirichlet with all α ≥ 1; with a selection, only α = 1) it runs mix-SQP. Otherwise, if <code>unbounded_density()</code> is False, SQUAREM-accelerated EM on the simplex; if True, L-BFGS in the ILR coordinates, where the density is bounded and the "mode on the simplex" (which may be a corner) is replaced by the mode in x. The default Pólya tree is in the last group (§6), so its best fit is the L-BFGS mode in x.</p>
+</div>
+</section>
+
+<!-- ============================================================ 6 -->
+<section id="edge"><div class="sec-head"><span class="n">§6</span><h2>Small concentrations and unbounded densities</h2></div>
+<p>A density on the simplex is unbounded when some exponent of the tree formula is negative. For the Dirichlet that means some α<sub>k</sub> &lt; 1. For trees the test is subtler, because a node coefficient α<sub>pa(c),c</sub> − A<sub>c</sub> is usually negative and the leaves under it compensate. <code>_BoundTree.unbounded_density</code> collects, for each branch, the leaf and node exponents below it; any negative total means the density blows up as that branch's share goes to zero.</p>
+<div class="tblwrap"><table class="tbl">
+<tr><th>Prior (K = 8)</th><th>Unbounded on the simplex?</th><th>Neighbour corr.</th><th>Far-end corr.</th></tr>
+<tr><td>Dirichlet(1)</td><td><span class="badge ok">bounded</span></td><td class="num">−0.14</td><td class="num">−0.14</td></tr>
+<tr><td>Dirichlet(0.1)</td><td><span class="badge warn">unbounded</span></td><td class="num">−0.14</td><td class="num">−0.14</td></tr>
+<tr><td>GeneralizedDirichlet(1) (= Dir(1))</td><td><span class="badge ok">bounded</span></td><td class="num">−0.14</td><td class="num">−0.14</td></tr>
+<tr><td>GeneralizedDirichlet(1, 1)</td><td><span class="badge warn">unbounded</span></td><td class="num">−0.66</td><td class="num">−0.23</td></tr>
+<tr><td>DirichletTree two groups, α = 2</td><td><span class="badge warn">unbounded</span></td><td class="num">+0.10</td><td class="num">−0.33</td></tr>
+<tr><td>PolyaTree() (c = 1, p = 2)</td><td><span class="badge warn">unbounded</span></td><td class="num">+0.72</td><td class="num">−0.60</td></tr>
+<tr><td>PolyaTree(power = 0)</td><td><span class="badge warn">unbounded</span></td><td class="num">+0.13</td><td class="num">−0.24</td></tr>
+<tr><td>PolyaTree(c = 10)</td><td><span class="badge ok">bounded</span></td><td class="num">+0.82</td><td class="num">−0.71</td></tr>
+</table></div>
+<p class="note">40,000 prior draws per row; neighbour = bins 0 and 1, far end = bins 0 and 7. "Unbounded" is <code>unbounded_density()</code> on the current code.</p>
+<p>Unbounded does not mean improper: the prior still integrates to one, and in the ILR coordinates every one of these densities is bounded. It has two practical effects:</p>
+<ul>
+<li><b>Point estimates.</b> The mode on the simplex can sit on a face, with some fractions exactly zero, so MAP uses L-BFGS in x for these priors (§5).</li>
+<li><b>NUTS.</b> Bins without data drift toward log ρ → −∞ along slowly decaying tails. At Dirichlet(0.1) with K = 20, 27.5% of prior components are below 10⁻⁶ and the median smallest component is 8 × 10⁻¹⁶ (20,000 draws). A sampler has to walk tens of units in log space to cover that.</li>
+</ul>
+<p>Since the landing this matters less in practice: <code>method="auto"</code> sends every conjugate prior to Gibbs when the missing information is at most 0.98, and Gibbs draws small concentrations exactly. The open question from step 2.1, what NUTS should do with small concentrations, is still yours (below).</p>
+</section>
+
+<!-- ============================================================ 7 -->
+<section id="bins"><div class="sec-head"><span class="n">§7</span><h2>How these priors read the bins</h2></div>
+<p>Each member sees a different part of the bins' geometry, and none sees all of it:</p>
+<div class="tblwrap"><table class="tbl">
+<tr><th>Prior</th><th>Uses</th><th>Ignores</th></tr>
+<tr><td>Dirichlet(α), symmetric</td><td>nothing: equal mean fraction per bin</td><td>widths, order, neighbours; on unequal bins the implied density is ∝ 1/width</td></tr>
+<tr><td>Dirichlet.from_base_measure</td><td>bin masses of a base density in the measure coordinate</td><td>order and neighbours</td></tr>
+<tr><td>GeneralizedDirichlet</td><td>an order (bin order, or <code>order</code>)</td><td>widths; on N-D grids the row-major order is geometrically arbitrary</td></tr>
+<tr><td>DirichletTree</td><td>the groups you give</td><td>everything else</td></tr>
+<tr><td>PolyaTree</td><td>the order, and the base measure for its mean</td><td>splits by bin index, not by base-measure mass; 1-D only</td></tr>
+</table></div>
+<p>A symmetric Dirichlet is not consistent under merging bins: merge two bins of Dir(1) and the merged bin is Beta(2, K−2), not the Dir(1) you would write for K − 1 bins. <code>from_base_measure</code> is consistent, because merging adds the α's. This and the default α (1 or 1/K) belong to step 3.5.</p>
+</section>
+
+<!-- ============================================================ ? -->
+<section id="qs" style="border-bottom:0"><div class="sec-head"><span class="n">?</span><h2>Your calls</h2></div>
+<p>Each has the default the code uses now. Answer any subset; the rest stay parked in <code>QUESTIONS.md</code>.</p>
+<ul class="qs">
+<li><b>1. Small concentrations under NUTS</b> (parked since step 2.1). Options: leave it to <code>method="auto"</code>, which sends conjugate priors to Gibbs; reparametrise (tree-matched coordinates, question 2); or add a tail-aware metric in NUTS.<span class="def">Default and recommendation: <b>leave it to auto</b>, and revisit with the benchmark matrix in step 4.2 if a NUTS-only case needs it.</span></li>
+<li><b>2. Tree-matched coordinates.</b> Every tree prior uses the Helmert ILR basis, whose directions mix bins regardless of the tree. A balance basis built from the tree's own splits makes each split one coordinate, so the posterior factorises split by split.<span class="def">Default: <b>Helmert for all</b>. Recommendation: test balance coordinates on the Pólya and two-group cases with the benchmark matrix in step 4.2 before changing.</span></li>
+<li><b>3. GeneralizedDirichlet(a, b) with b given changes the mean.</b> GD(1, 1) has means halving per bin.<span class="def">Default: <b>as is, documented in the docstring</b>. Option: a <code>mean=</code>/<code>concentration=</code> constructor that sets a and b from a target mean, as <code>from_base_measure</code> does for the Dirichlet.</span></li>
+<li><b>4. Pólya trees: split by index or by mass, and N-D.</b> Splits are at index midpoints, so with a non-flat base measure the two halves can carry very different G₀ mass, and N-D grids are refused.<span class="def">Default: <b>index halves, 1-D only</b>. Options: split at base-measure medians; a k-d (alternating-axis) tree for N-D grids, as a deferred issue.</span></li>
+<li><b>5. One source of geometry for every prior</b> (raised in step 2.2). GD order on N-D grids is the row-major order; the random walk and GP use the measure coordinate.<span class="def">Default: <b>as is</b>. Recommendation: on N-D grids require an explicit <code>order</code> for GeneralizedDirichlet (an error, not a silent row-major order), and settle the rest with step 3.2's smoothness priors.</span></li>
+</ul>
+</section>
+</main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  // ---------------------------------------------------------------- level switch
+  var KEY = "dirfam-level";
+  function setLevel(l) {
+    document.body.classList.remove("show-1", "show-2", "show-3");
+    document.body.classList.add("show-" + l);
+    ["1", "2", "3"].forEach(function (k) { document.getElementById("lv" + k).setAttribute("aria-pressed", String(k === String(l))); });
+    try { localStorage.setItem(KEY, String(l)); } catch (e) {}
+  }
+  var start = "2";
+  try { start = localStorage.getItem(KEY) || "2"; } catch (e) {}
+  setLevel(start);
+  document.querySelectorAll(".levels button").forEach(function (b) {
+    b.addEventListener("click", function () { setLevel(b.dataset.l); if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise(); });
+  });
+
+  // ---------------------------------------------------------------- random numbers
+  var seed = 12345;
+  function rand() { seed = (seed * 1664525 + 1013904223) >>> 0; return (seed + 0.5) / 4294967296; }
+  function normal() { return Math.sqrt(-2 * Math.log(rand())) * Math.cos(2 * Math.PI * rand()); }
+  function logGamma1(a) { // log of a Gamma(a, 1) draw, Marsaglia-Tsang; small shapes in log space
+    if (a < 1) return logGamma1(a + 1) + Math.log(rand()) / a;
+    var d = a - 1 / 3, c = 1 / Math.sqrt(9 * d);
+    for (;;) {
+      var x, v;
+      do { x = normal(); v = 1 + c * x; } while (v <= 0);
+      v = v * v * v; var u = rand();
+      if (Math.log(u) < 0.5 * x * x + d - d * v + d * Math.log(v)) return Math.log(d * v);
+    }
+  }
+  function dirichlet(alpha) { // softmax of log-gamma variates, floored at 1e-300 like _dirichlet_draw
+    var lg = alpha.map(logGamma1), m = Math.max.apply(null, lg), s = 0, out = [];
+    for (var i = 0; i < lg.length; i++) { out[i] = Math.exp(lg[i] - m); s += out[i]; }
+    return out.map(function (x) { return Math.max(x / s, 1e-300); });
+  }
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function setupCanvas(cv) {
+    var r = window.devicePixelRatio || 1, w = cv.clientWidth || cv.width, h = w * cv.height / cv.width;
+    cv.style.height = h + "px"; cv.width = Math.round(w * r); cv.height = Math.round(h * r);
+    var ctx = cv.getContext("2d"); ctx.setTransform(r, 0, 0, r, 0, 0); return { ctx: ctx, w: w, h: h };
+  }
+  function fmt(x, d) { return (x >= 0 ? "" : "−") + Math.abs(x).toFixed(d); }
+  function corrMatrix(X) {
+    var n = X.length, K = X[0].length, mu = new Array(K).fill(0), C = [];
+    X.forEach(function (x) { for (var k = 0; k < K; k++) mu[k] += x[k] / n; });
+    var sd = new Array(K).fill(0);
+    X.forEach(function (x) { for (var k = 0; k < K; k++) sd[k] += (x[k] - mu[k]) * (x[k] - mu[k]); });
+    sd = sd.map(Math.sqrt);
+    for (var i = 0; i < K; i++) { C[i] = []; for (var j = 0; j < K; j++) {
+      var s = 0; X.forEach(function (x) { s += (x[i] - mu[i]) * (x[j] - mu[j]); }); C[i][j] = s / (sd[i] * sd[j]); } }
+    return { mu: mu, C: C };
+  }
+
+  // ---------------------------------------------------------------- explorer 1: simplex
+  var dA = ["d-a1", "d-a2", "d-a3"].map(function (id) { return document.getElementById(id); });
+  var dSym = document.getElementById("d-sym");
+  function alphasDir() {
+    var v = dA.map(function (el) { return Math.pow(10, Number(el.value) / 3 * 1.3); });
+    if (dSym.value === "1") { v = [v[0], v[0], v[0]]; dA[1].value = dA[0].value; dA[2].value = dA[0].value; }
+    return v;
+  }
+  function drawDir() {
+    var a = alphasDir();
+    dA.forEach(function (el, i) { document.getElementById(el.id + "v").textContent = a[i].toPrecision(2); });
+    var cv = document.getElementById("d-cv"), g = setupCanvas(cv), ctx = g.ctx, w = g.w, h = g.h;
+    ctx.clearRect(0, 0, w, h);
+    var pad = 30, side = Math.min(w - 2 * pad, (h - 2 * pad) * 2 / Math.sqrt(3));
+    var x0 = (w - side) / 2, y0 = h - pad, P = [[x0, y0], [x0 + side, y0], [x0 + side / 2, y0 - side * Math.sqrt(3) / 2]];
+    ctx.strokeStyle = css("--rule"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(P[0][0], P[0][1]);
+    ctx.lineTo(P[1][0], P[1][1]); ctx.lineTo(P[2][0], P[2][1]); ctx.closePath(); ctx.stroke();
+    ctx.fillStyle = css("--muted"); ctx.font = "12px " + css("--font-mono");
+    ctx.fillText("bin 1", P[0][0] - 12, P[0][1] + 18); ctx.fillText("bin 2", P[1][0] - 22, P[1][1] + 18); ctx.fillText("bin 3", P[2][0] - 16, P[2][1] - 8);
+    seed = 777; var n = 3000, tiny = 0, X = [];
+    ctx.fillStyle = css("--accent"); ctx.globalAlpha = 0.45;
+    for (var i = 0; i < n; i++) {
+      var r = dirichlet(a); X.push(r); if (Math.min(r[0], r[1], r[2]) < 1e-6) tiny++;
+      var px = r[0] * P[0][0] + r[1] * P[1][0] + r[2] * P[2][0], py = r[0] * P[0][1] + r[1] * P[1][1] + r[2] * P[2][1];
+      ctx.fillRect(px - 1, py - 1, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+    var A = a[0] + a[1] + a[2], cm = corrMatrix(X);
+    var exact = -Math.sqrt(a[0] * a[1] / ((A - a[0]) * (A - a[1])));
+    var unb = a.some(function (x) { return x < 1; });
+    document.getElementById("d-stats").innerHTML =
+      "<span>mean <b>(" + a.map(function (x) { return (x / A).toFixed(2); }).join(", ") + ")</b></span>" +
+      "<span>corr(1, 2) <b>" + fmt(cm.C[0][1], 2) + "</b> (exact " + fmt(exact, 2) + ")</span>" +
+      "<span>draws with a fraction &lt; 10⁻⁶ <b>" + (100 * tiny / n).toFixed(1) + "%</b></span>" +
+      "<span><span class='badge " + (unb ? "warn'>unbounded density" : "ok'>bounded density") + "</span></span>";
+  }
+  dA.concat([dSym]).forEach(function (el) { el.addEventListener("input", drawDir); });
+
+  // ---------------------------------------------------------------- trees
+  // a tree: nodes[c] = {ch: [{leaf: k} | {node: c'}], a: [alphas]}; node 0 is the root
+  function nodeFromNested(nested, alphaFn, nodes, level) {
+    var idx = nodes.length, node = { ch: [], a: [], level: level }; nodes.push(node);
+    nested.forEach(function (c) {
+      if (typeof c === "number") node.ch.push({ leaf: c }); else node.ch.push({ node: nodeFromNested(c, alphaFn, nodes, level + 1) });
+    });
+    node.a = node.ch.map(function () { return alphaFn(level); });
+    return idx;
+  }
+  function leavesUnder(nodes, c) {
+    var out = []; nodes[c].ch.forEach(function (x) { if ("leaf" in x) out.push(x.leaf); else out = out.concat(leavesUnder(nodes, x.node)); });
+    return out;
+  }
+  function polyaTree(K, c, p, g0) {
+    var nodes = [], cum = [0]; g0.forEach(function (x) { cum.push(cum[cum.length - 1] + x); });
+    function build(lo, hi, level) {
+      var idx = nodes.length, node = { ch: [], a: [], level: level }; nodes.push(node);
+      var mid = Math.floor((lo + hi + 1) / 2);
+      [[lo, mid], [mid, hi]].forEach(function (r) {
+        if (r[1] - r[0] === 1) node.ch.push({ leaf: r[0] }); else node.ch.push({ node: build(r[0], r[1], level + 1) });
+        node.a.push(c * Math.pow(level, p) * 2 * (cum[r[1]] - cum[r[0]]) / (cum[hi] - cum[lo]));
+      });
+      return idx;
+    }
+    build(0, K, 1); return nodes;
+  }
+  function gdTree(K, a, bFn) {
+    var nodes = [];
+    for (var k = 0; k < K - 1; k++) nodes.push({ ch: [{ leaf: k }, k === K - 2 ? { leaf: K - 1 } : { node: k + 1 }], a: [a, bFn(k)], level: k + 1 });
+    return nodes;
+  }
+  function treeDraw(nodes, K) {
+    var rho = new Array(K).fill(0);
+    (function walk(c, mass) {
+      var th = dirichlet(nodes[c].a);
+      nodes[c].ch.forEach(function (x, j) { if ("leaf" in x) rho[x.leaf] = mass * th[j]; else walk(x.node, mass * th[j]); });
+    })(0, 1);
+    return rho;
+  }
+  function unbounded(nodes, K) { // the package's test: any branch's collected exponent < 0
+    var A = nodes.map(function (n) { return n.a.reduce(function (s, x) { return s + x; }, 0); });
+    var leafCoef = new Array(K), nodeCoef = new Array(nodes.length).fill(0);
+    nodes.forEach(function (n) { n.ch.forEach(function (x, j) { if ("leaf" in x) leafCoef[x.leaf] = n.a[j] - 1; else nodeCoef[x.node] = n.a[j] - A[x.node]; }); });
+    function under(c) { // sum of leaf and non-root node coefficients in node c's subtree, c included
+      var s = nodeCoef[c]; nodes[c].ch.forEach(function (x) { s += ("leaf" in x) ? leafCoef[x.leaf] : under(x.node); }); return s;
+    }
+    var bad = false;
+    nodes.forEach(function (n) { n.ch.forEach(function (x) { var coef = ("leaf" in x) ? leafCoef[x.leaf] : under(x.node); if (coef < 0) bad = true; }); });
+    return bad;
+  }
+
+  // ---------------------------------------------------------------- explorer 2: tree + correlations
+  var tKind = document.getElementById("t-kind"), tA = document.getElementById("t-a"), tP = document.getElementById("t-p");
+  function currentTree() {
+    var K = 8, v = Math.pow(10, Number(tA.value) / 2.3 * 1.3), p = Number(tP.value), kind = tKind.value, nodes;
+    if (kind === "dir") nodes = [{ ch: [0, 1, 2, 3, 4, 5, 6, 7].map(function (k) { return { leaf: k }; }), a: new Array(8).fill(v), level: 1 }];
+    else if (kind === "two") { nodes = []; nodeFromNested([[0, 1, 2, 3], [4, 5, 6, 7]], function () { return v; }, nodes, 1); }
+    else if (kind === "gdd") nodes = gdTree(K, v, function (k) { return (K - 1 - k) * v; });
+    else if (kind === "gd1") nodes = gdTree(K, v, function () { return 1; });
+    else nodes = polyaTree(K, v, p, new Array(K).fill(1 / K));
+    return { nodes: nodes, K: K, v: v, p: p, kind: kind };
+  }
+  function drawTree() {
+    var T = currentTree(), nodes = T.nodes, K = T.K;
+    document.getElementById("t-av").textContent = T.v.toPrecision(2);
+    document.getElementById("t-pv").textContent = T.kind === "polya" ? T.p.toFixed(2) : "(Pólya only)";
+    tP.disabled = T.kind !== "polya";
+    // layout: leaves on the bottom row, internal nodes above the mean of their leaves, depth by level
+    var cv = document.getElementById("t-tree"), g = setupCanvas(cv), ctx = g.ctx, w = g.w, h = g.h;
+    ctx.clearRect(0, 0, w, h);
+    var depth = 0; (function d(c, l) { depth = Math.max(depth, l); nodes[c].ch.forEach(function (x) { if ("node" in x) d(x.node, l + 1); }); })(0, 1);
+    var top = 22, bot = h - 34, dy = (bot - top) / depth, lx = function (k) { return 24 + (w - 48) * (k + 0.5) / K; };
+    var pos = []; (function place(c, l) {
+      var ls = leavesUnder(nodes, c), x = ls.reduce(function (s, k) { return s + lx(k); }, 0) / ls.length;
+      pos[c] = [x, top + (l - 1) * dy]; nodes[c].ch.forEach(function (ch) { if ("node" in ch) place(ch.node, l + 1); });
+    })(0, 1);
+    ctx.lineWidth = 1.2; ctx.font = "11px " + css("--font-mono"); ctx.textAlign = "center";
+    nodes.forEach(function (n, c) {
+      n.ch.forEach(function (x, j) {
+        var to = ("leaf" in x) ? [lx(x.leaf), bot] : pos[x.node];
+        ctx.strokeStyle = css("--rule"); ctx.beginPath(); ctx.moveTo(pos[c][0], pos[c][1]); ctx.lineTo(to[0], to[1]); ctx.stroke();
+        ctx.fillStyle = css("--accent");
+        // labels sit near the child end, where sibling branches are furthest apart
+        var t = ("leaf" in x) ? 0.78 : 0.5, mx = pos[c][0] + t * (to[0] - pos[c][0]), my = pos[c][1] + t * (to[1] - pos[c][1]);
+        var dx = to[0] === pos[c][0] ? 0 : (to[0] < pos[c][0] ? -1 : 1) * (("leaf" in x) ? 4 : 10);
+        ctx.fillText(n.a[j] < 10 ? n.a[j].toPrecision(2) : n.a[j].toFixed(0), mx + dx, my);
+      });
+    });
+    ctx.fillStyle = css("--ink");
+    nodes.forEach(function (n, c) { ctx.beginPath(); ctx.arc(pos[c][0], pos[c][1], 3.5, 0, 7); ctx.fill(); });
+    ctx.fillStyle = css("--muted");
+    for (var k = 0; k < K; k++) ctx.fillText(String(k), lx(k), bot + 16);
+    // correlations
+    seed = 4242; var X = []; for (var i = 0; i < 6000; i++) X.push(treeDraw(nodes, K));
+    var cm = corrMatrix(X), cv2 = document.getElementById("t-corr"), g2 = setupCanvas(cv2), c2 = g2.ctx;
+    c2.clearRect(0, 0, g2.w, g2.h);
+    var s = Math.min((g2.w - 40) / K, (g2.h - 30) / K), ox = 26, oy = 6;
+    var pos1 = css("--accent"), neg1 = css("--neg");
+    for (var a = 0; a < K; a++) for (var b = 0; b < K; b++) {
+      if (a === b) continue; var r = cm.C[a][b];
+      c2.globalAlpha = Math.min(1, Math.abs(r) * 1.4 + 0.04); c2.fillStyle = r >= 0 ? pos1 : neg1;
+      c2.fillRect(ox + b * s + 1, oy + a * s + 1, s - 2, s - 2);
+    }
+    c2.globalAlpha = 1; c2.fillStyle = css("--muted"); c2.font = "11px " + css("--font-mono"); c2.textAlign = "center";
+    for (var k2 = 0; k2 < K; k2++) { c2.fillText(String(k2), ox + (k2 + 0.5) * s, oy + K * s + 14); c2.fillText(String(k2), ox - 10, oy + (k2 + 0.6) * s); }
+    var unb = unbounded(nodes, K);
+    document.getElementById("t-stats").innerHTML =
+      "<span>mean <b>(" + cm.mu.map(function (x) { return x.toFixed(3); }).join(", ") + ")</b></span>" +
+      "<span>corr(0, 1) <b>" + fmt(cm.C[0][1], 2) + "</b></span><span>corr(0, 7) <b>" + fmt(cm.C[0][7], 2) + "</b></span>" +
+      "<span><span class='badge " + (unb ? "warn'>unbounded density" : "ok'>bounded density") + "</span></span>";
+  }
+  [tKind, tA, tP].forEach(function (el) { el.addEventListener("input", drawTree); });
+
+  // ---------------------------------------------------------------- explorer 3: Pólya draws
+  var pC = document.getElementById("p-c"), pP = document.getElementById("p-p"), pB = document.getElementById("p-base");
+  function baseMeasure(kind, K) {
+    var g = [];
+    for (var k = 0; k < K; k++) { var z = (k + 0.5) / K;
+      g.push(kind === "peak" ? Math.exp(-0.5 * Math.pow((z - 0.5) / 0.15, 2)) + 0.02 : kind === "decay" ? Math.exp(-3 * z) : 1); }
+    var s = g.reduce(function (a, b) { return a + b; }, 0); return g.map(function (x) { return x / s; });
+  }
+  function drawPolya() {
+    var K = 16, c = Math.pow(10, Number(pC.value)), p = Number(pP.value), g0 = baseMeasure(pB.value, K);
+    document.getElementById("p-cv").textContent = c.toPrecision(2); document.getElementById("p-pv").textContent = p.toFixed(2);
+    var nodes = polyaTree(K, c, p, g0), cv = document.getElementById("p-cv-draws"), g = setupCanvas(cv), ctx = g.ctx, w = g.w, h = g.h;
+    ctx.clearRect(0, 0, w, h);
+    seed = 99; var draws = []; for (var i = 0; i < 6; i++) draws.push(treeDraw(nodes, K));
+    var ymax = Math.max.apply(null, draws.map(function (d) { return Math.max.apply(null, d); }).concat([Math.max.apply(null, g0)])) * 1.1;
+    var L = 40, R = w - 10, T = 10, B = h - 28, X = function (k) { return L + (R - L) * k / K; }, Y = function (v) { return B - (B - T) * v / ymax; };
+    ctx.strokeStyle = css("--rule"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(L, T); ctx.lineTo(L, B); ctx.lineTo(R, B); ctx.stroke();
+    ctx.fillStyle = css("--muted"); ctx.font = "11px " + css("--font-mono"); ctx.textAlign = "right";
+    [0, 0.5, 1].forEach(function (f) { ctx.fillText((f * ymax).toFixed(2), L - 4, Y(f * ymax) + 4); });
+    ctx.textAlign = "center"; [0, 4, 8, 12, 16].forEach(function (k) { ctx.fillText(String(k), X(k), B + 16); });
+    function step(vals, color, width, dash) {
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash); ctx.beginPath();
+      vals.forEach(function (v, k) { if (k === 0) ctx.moveTo(X(k), Y(v)); else ctx.lineTo(X(k), Y(v)); ctx.lineTo(X(k + 1), Y(v)); });
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    var cols = [css("--accent"), css("--alt"), css("--good"), css("--warm"), css("--neg"), css("--muted")];
+    draws.forEach(function (d, i) { step(d, cols[i], 1.3, []); });
+    step(g0, css("--ink"), 1.6, [5, 4]);
+    var rows = "<tr><th>depth</th><th>Beta concentrations (flat G₀)</th></tr>";
+    for (var m = 1; m <= 4; m++) { var a = c * Math.pow(m, p); rows += "<tr><td class='num'>" + m + "</td><td class='num'>(" + a.toPrecision(3) + ", " + a.toPrecision(3) + ")</td></tr>"; }
+    document.getElementById("p-levels").innerHTML = rows;
+    var unb = unbounded(nodes, K);
+    document.getElementById("p-stats").innerHTML = "<span><span class='badge " + (unb ? "warn'>unbounded density" : "ok'>bounded density") + "</span></span>";
+  }
+  [pC, pP, pB].forEach(function (el) { el.addEventListener("input", drawPolya); });
+
+  function all() { drawDir(); drawTree(); drawPolya(); }
+  all();
+  var t; window.addEventListener("resize", function () { clearTimeout(t); t = setTimeout(all, 150); });
+  if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", all);
+})();
+</script>
