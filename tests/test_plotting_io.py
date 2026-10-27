@@ -60,6 +60,38 @@ def test_corner_trace_individual_sbc(res1d):
     plt.close("all")
 
 
+def test_plots_take_population_and_sample_colours_from_the_style_cycle(res1d, small_1d):
+    from matplotlib.colors import same_color
+
+    from binference.plotting import plot_individual
+
+    cycle = mpl.cycler(color=["#123456", "#abcdef"])
+    with plt.rc_context({"axes.prop_cycle": cycle, "text.color": "#654321"}):
+        ax = res1d.plot(truth=small_1d.truth.rho, stack=small_1d.likelihoods.stack())
+        median, truth, stack = ax.get_lines()
+        assert same_color(median.get_color(), "#123456")
+        assert same_color(ax.collections[0].get_facecolor()[0][:3], "#123456")
+        assert same_color(stack.get_color(), "#abcdef")
+        assert same_color(truth.get_color(), "#654321") and truth.get_linestyle() == "--"
+        own, shrunk = plot_individual(res1d, 0).get_lines()
+        assert same_color(own.get_color(), "#abcdef")
+        assert same_color(shrunk.get_color(), "#123456")
+    plt.close("all")
+
+
+def test_sample_color_and_color_override_the_style(res1d, small_1d):
+    from binference.plotting import plot_individual
+
+    ax = res1d.plot(stack=small_1d.likelihoods.stack(), color="red", sample_color="green")
+    median, stack = ax.get_lines()
+    assert (median.get_color(), stack.get_color()) == ("red", "green")
+    own, _ = plot_individual(res1d, 0, sample_color="green").get_lines()
+    assert own.get_color() == "green"
+    with pytest.raises(ValueError, match="sample_color"):
+        res1d.plot(sample_color="not a colour")
+    plt.close("all")
+
+
 def test_save_load_round_trip(res1d, small_1d, tmp_path):
     path = tmp_path / "res.npz"
     res1d.save(path)
