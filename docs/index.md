@@ -79,7 +79,7 @@ Every public class and function.
 :link: fields/index
 :link-type: doc
 The same model in astronomy, gravitational waves, unfolding, empirical Bayes,
-quantification and neural deconvolution.
+quantification, ecology and neural deconvolution.
 :::
 ::::
 

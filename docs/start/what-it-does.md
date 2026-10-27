@@ -142,7 +142,7 @@ differently.
 | {doc}`particle physics <../fields/unfolding>` | an event in a detector | the true spectrum |
 | {doc}`statistics <../fields/empirical-bayes>` | a unit with a noisy estimate | the prior $g$, or mixing distribution |
 | {doc}`machine learning <../fields/quantification>` | a classified item | the class prevalence |
-| {doc}`genetics <../fields/quantification>` | an individual | the mixture proportions |
+| {doc}`genetics <../fields/ecology>` | an individual | the mixture proportions |
 
 The {doc}`Fields <../fields/index>` pages give the full table of names, with each
 field's methods and software. The fields' point estimators are stages of one iteration,
