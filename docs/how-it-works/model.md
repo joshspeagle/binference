@@ -2,8 +2,7 @@
 
 What does binference assume about the objects and their population, and which posterior
 does it compute? This page states the model in full, gives its equivalent form with one
-latent label per object, and lists every assumption in one place. The symbols are those
-of the {doc}`notation page <../reference/notation>`.
+latent label per object, and lists every assumption in one place.
 
 ```{plain-words}
 Each object says how well each bin explains its data. The population says how common
@@ -26,7 +25,7 @@ $v_k$: widths in one dimension, areas or volumes on a grid, and one for a catego
   L_{ik}=\frac{1}{v_k}\int_{B_k}\ell_i(z)\,dz .
   $$ (eq-L)
 
-  With a {term}`measure` $u=T(z)$, such as $\log z$, the average is taken in $u$
+  With a {term}`measure` $u=T(z)$, such as $\log z$, binference averages in $u$
   instead ([measures](../guides/inputs.md#measures-flat-in-which-coordinate)).
 - Optional {term}`weights` $w_i>0$, with total $W=\sum_iw_i$, count identical objects.
   Without weights every $w_i=1$ and $W=N$.
@@ -62,7 +61,8 @@ Three properties keep this tractable for very large $N$:
 - **Concavity.** The log-likelihood $\log p(D\mid\rho)=\sum_iw_i\log(L_i\cdot\rho)$ is
   concave on the simplex. Finding its maximum is therefore a convex problem.
 - **Invariance.** Multiplying a row $L_i$ by a constant leaves the posterior unchanged.
-- **Cheap gradients.** Two matrix–vector products give everything. The gradient is
+- **Cheap gradients.** Two matrix–vector products give the log-likelihood, its gradient
+  and the expected counts. The gradient is
   $\partial\log p(D\mid\rho)/\partial\rho_k=\sum_iw_iL_{ik}/(L_i\cdot\rho)$, and the
   {term}`expected counts` are
 
@@ -96,8 +96,8 @@ $$ (eq-resp)
 
 These {term}`responsibilities` are object $i$'s posterior over bins when the population
 is $\rho$. The expected counts are their weighted sum, $\hat n_k=\sum_iw_ir_{ik}$.
-Joint draws of the labels can be made afterwards from any draw of $\rho$, so every
-engine's output supports them.
+Any draw of $\rho$ gives joint draws of the labels afterwards, so every engine's output
+supports them.
 
 ### Population versus realised sample
 
@@ -107,10 +107,10 @@ posterior includes the noise of having drawn only $N$ objects. The
 $n_k=\sum_iw_i\mathbb 1[k_i=k]$ describes the objects actually observed. With perfect
 measurements $n$ is known exactly, while $\rho$ is still uncertain.
 
-Which one to report depends on the question. A lensing kernel depends on the realised
-redshifts of the lens sample. An occurrence rate or a luminosity function is a property
-of the population. `result.samples` holds draws of $\rho$, and
-`result.realized_counts()` draws of $n$.
+A lensing kernel, for example, depends on the realised redshifts of the lens sample,
+while an occurrence rate is a property of the population. The
+[results guide](../guides/results.md#population-versus-realised-sample) shows how to get
+each.
 
 ### Individual objects
 
@@ -148,7 +148,7 @@ $$
 
 The data then constrain the product $\Pi\odot\rho$ rather than $\rho$. The extra factor
 $(\Pi\cdot\rho)^W$ also rewards mass where the interim prior is large. As the data
-become uninformative, the estimate collapses onto the mode of the interim prior.
+become uninformative, the estimate tends to the mode of the interim prior.
 
 Averaging the posteriors $P_{ik}$ over objects is known as {term}`stacking`. It is one
 step, started from the interim prior, of the iteration that finds the most probable
@@ -163,15 +163,16 @@ $L_{ik}$ is an average over the bin, a value per unit volume. Inputs come in two
 - `"mass"`: values integrated over the bin, such as differences of a cumulative
   distribution, or histograms of samples.
 
-Likelihood masses are divided by $v_k$. For posteriors, both the posterior and the
-interim prior are converted to masses before taking their ratio. With equal bins the
+binference divides likelihood masses by $v_k$. For posteriors, it converts both the
+posterior and the interim prior to masses before taking their ratio. With equal bins the
 choice changes each row by a constant, which is harmless. With unequal bins the wrong
 choice biases $\rho$ towards wide bins.
 
 ## Selection effects
 
-Let $S_k$ be the probability that an object in bin $k$ enters the catalogue: the
-{term}`selection`. The likelihood depends on what the selection acts on, its
+Let $S(z)$ be the probability that an object with true value $z$ enters the catalogue:
+the {term}`selection`. $S_k$ is its average over bin $k$, which stands for $S(z)$ when
+the selection is roughly constant within the bin. The likelihood depends on what the selection acts on, its
 {term}`selection mode`:
 
 - **`"on_measurement"`.** Selection acts on the measured data, such as a flux limit on
@@ -181,9 +182,8 @@ Let $S_k$ be the probability that an object in bin $k$ enters the catalogue: the
   measurement noise, such as a completeness map in the true parameter. Then
   $p(d_i,\text{detected}\mid z)=S(z)\,\ell_i(z)$, so $\tilde L_{ik}=S_kL_{ik}$.
 
-The two modes give different likelihoods, so binference requires the mode whenever a
-selection is given. The {doc}`selection guide <../guides/selection>` explains how to
-tell them apart and how to combine them.
+The {doc}`selection guide <../guides/selection>` explains how to tell the two modes
+apart, how to combine them, and why binference requires one.
 
 **Fractions.** Let the expected total number of objects $\Lambda$ be unknown. The
 detected objects then form a Poisson process with expected number $\Lambda\,(S\cdot\rho)$.
@@ -214,8 +214,8 @@ selection. Gibbs draws them, and EM adds their expected number
 $W\rho_k(1-S_k)/(S\cdot\rho)$ to the expected counts.
 
 **Rates.** With {term}`rates` $\lambda_k$, the expected number of objects in bin $k$,
-the data are an inhomogeneous Poisson process. An {term}`exposure` is absorbed into $S$,
-which must then be absolute:
+the data are an inhomogeneous Poisson process. $S$ absorbs an {term}`exposure` and must
+then be absolute:
 
 $$
 p(\lambda\mid D)\propto p(\lambda)\,e^{-S\cdot\lambda}\prod_i(\tilde L_i\cdot\lambda)^{w_i}.
@@ -275,11 +275,7 @@ show how to check it or what to do when it fails.
 Assumption 4 is a modelling choice. Suppose the population is not flat within the bins,
 and the bins are coarse compared with the measurement errors. Then {eq}`eq-L` weights
 the wrong parts of each bin. The resulting bias does not shrink as $N$ grows, so it
-eventually dominates the error bars. binference's slow tests fit a continuous bimodal
-population on six bins with errors of 0.6 to 1.2 bin widths. At $N=20\,000$ the error
-of the worst fraction exceeds four posterior standard deviations.
-
-Use bins narrower than the features you care about, and a smoothness prior to control
-the noise. Report coarse summaries as functionals of the fine posterior (`result.rebin`,
-`result.functional`). `result.binning_bias()` estimates the bias of a fit.
-{cite:t}`stanley2022` reach the same conclusion for unfolding.
+eventually dominates the error bars, as a slow test shows
+([validation](validation.md#binning-bias)). The
+[pitfalls guide](../guides/pitfalls.md#bins-that-are-too-coarse) says how to choose
+bins that avoid it.

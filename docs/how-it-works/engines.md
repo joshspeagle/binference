@@ -25,29 +25,29 @@ candidate of `method="auto"`.
 - **Trajectories.** It uses multinomial sampling along each trajectory and the
   generalised U-turn criterion, with Stan's extra checks across merged subtrees.
 - **Starting points.** Chains start at the mode of the unconstrained density, plus
-  Gaussian jitter. They can run in parallel processes, with the same random streams as
-  a serial run.
+  Gaussian jitter. Chains can run in parallel processes. They then use the same random
+  streams as a serial run.
 - **Step size.** Dual averaging adapts the step size during {term}`warm-up` to a target
   acceptance statistic. The target is higher for logistic priors, whose hyperparameters
   make the geometry harder ([defaults](../reference/defaults.md#engines)).
 - **Metric.** Warm-up follows Stan's windows: a fast phase, slow windows that double in
   length, and a final fast phase. Each slow window estimates the metric from the draws
-  it holds. The metric is diagonal, or dense for logistic priors up to a number of
-  dimensions given in the [defaults](../reference/defaults.md#engines).
+  it holds. The metric is diagonal, or dense for logistic priors. The dense metric has a
+  dimension limit in the [defaults](../reference/defaults.md#engines).
 - **Curvature.** For logistic priors, early in warm-up the engine also starts the
   metric from the finite-difference curvature $H$ of the log density. Each later window
   then shrinks its estimate towards the previous metric. Simplex and rate priors keep
   Stan's adaptation unchanged: at single points their curvature is a poor guide to the
   scales of nearly empty bins.
-- **Records.** Each run records its {term}`divergences <divergence>`, the share of
-  iterations that reach the maximum {term}`tree depth`, the {term}`E-BFMI` of each chain
-  and the adapted step sizes ([validation](validation.md)).
+- **Records.** Each run records its {term}`divergences <divergence>` and the share of
+  iterations that reach the maximum {term}`tree depth`. It also records the
+  {term}`E-BFMI` of each chain and the adapted step sizes ([validation](validation.md)).
 
 ### Partial centring
 
 The whitened form of a logistic prior ([the logistic family](priors.md#the-logistic-family))
-suits weak data and fails with strong data. With strong data the scales $s_j(\theta)$
-and the coefficients $\xi_j$ trade off along a curved ridge. During warm-up NUTS
+samples well when the data are weak. With strong data the posteriors of $s_j(\theta)$
+and $\xi_j$ are strongly and non-linearly correlated. During warm-up NUTS
 therefore re-parametrises each coefficient $c_j=s_j\xi_j$ as
 
 $$
@@ -61,12 +61,12 @@ $1/(-H_{jj})$, with $H$ the Hessian of the log density in whitened coordinates. 
 estimates it from finite differences of the gradient at the chains' positions. The
 posterior is unchanged; only the coordinates the sampler moves in change.
 
-Centring is safe only where the data pin the scales $s_j$ down. Otherwise the centred
+Centring is safe only where the data determine the scales $s_j$. Otherwise the centred
 coordinates have a funnel of their own. With few modes per hyperparameter, such as a
-handful of bins, the field constrains the hyperparameters weakly. NUTS then keeps every
-mode non-centred, when the median spread of $\log s_j$ given the field exceeds a limit
-in the [defaults](../reference/defaults.md#engines). That spread comes from the
-curvature of the log density in the hyperparameters at a fixed field. `info["centring"]`
+handful of bins, the log-fractions $\eta$ constrain the hyperparameters weakly. NUTS
+then keeps every mode non-centred, when the median spread of $\log s_j$ given $\eta$
+exceeds a limit in the [defaults](../reference/defaults.md#engines). That spread comes
+from the curvature of the log density in the hyperparameters at a fixed $\eta$. `info["centring"]`
 holds the weights $\gamma_j$ used, and results are reported in the non-centred
 coordinates.
 
@@ -95,11 +95,11 @@ EM steps. With `store_labels=True` it keeps joint draws of the labels.
 
 Gibbs is exact, but its successive draws are correlated. The correlation grows with the
 [missing information](point-estimates.md#missing-information) $f$. In the slowest
-direction the lag-one autocorrelation is about $f$, so the
+direction the lag-one autocorrelation is about $f$, so the integrated
 {term}`autocorrelation time` is about
 
 $$
-\tau\approx\frac{1+f}{1-f}.
+\tau_{\rm int}\approx\frac{1+f}{1-f}.
 $$
 
 $f$ rises towards one as the likelihoods widen compared with the bins. The figures show
@@ -111,8 +111,8 @@ tags: [remove-input]
 mystnb:
   image:
     alt: >-
-      A curve of the missing information against the likelihood width in bins, on a
-      logarithmic axis from 0.05 to 3 bins. It rises from about 0.1 to nearly 1 by half
+      A curve of the missing information against the likelihood width in bins. The
+      width axis is logarithmic, from 0.05 to 3 bins. It rises from about 0.1 to nearly 1 by half
       a bin width and stays there. Three marked points at 0.1, 0.3 and 1 bin widths carry
       their predicted autocorrelation times.
   figure:
@@ -120,7 +120,7 @@ mystnb:
       Missing information $f$ at the most probable population, against the width of
       the likelihoods in bins. Mock catalogues of 1,000 objects in ten bins, one for each
       width. The marked widths are those of the traces below, with their predicted
-      autocorrelation times $(1+f)/(1-f)$.
+      autocorrelation times $\tau_{\rm int}\approx(1+f)/(1-f)$.
     name: fig-missing-information
 ---
 import warnings
@@ -150,18 +150,18 @@ def missing(model):
     return model.missing_information(MAP(model).run().rho)
 
 
-widths = np.geomspace(0.05, 3.0, 25)
-f = np.array([missing(model_for(w)) for w in widths])
 marked = (0.1, 0.3, 1.0)
-models = {w: model_for(w) for w in marked}
-fm = {w: missing(m) for w, m in models.items()}
+widths = np.union1d(np.geomspace(0.05, 3.0, 25), marked)
+models = {w: model_for(w) for w in widths}
+f = np.array([missing(models[w]) for w in widths])
+fm = dict(zip(widths, f))
 
 fig, ax = plt.subplots(figsize=(4.8, 3.4), constrained_layout=True)
 ax.plot(widths, f, color="C0")
 for w in marked:
     ax.plot(w, fm[w], "o", color="C0", ms=7)
     tau = (1 + fm[w]) / (1 - fm[w])
-    ax.annotate(f"τ ≈ {tau:.0f}", (w, fm[w]), xytext=(8, -16), textcoords="offset points",
+    ax.annotate(rf"$\tau_{{\rm int}}$ ≈ {tau:.0f}", (w, fm[w]), xytext=(8, -16), textcoords="offset points",
                 color=INK2)
 ax.set_xscale("log")
 ax.set_xticks([0.05, 0.1, 0.3, 1, 3], ["0.05", "0.1", "0.3", "1", "3"])
@@ -186,7 +186,9 @@ mystnb:
       Gibbs traces of the slowest-mixing bin for the three marked widths: the first 400
       of 4,000 iterations of one chain. Each label gives the predicted autocorrelation
       time $(1+f)/(1-f)$ and the time measured on all 4,000 iterations. The prediction
-      describes the slowest direction, so it bounds the time of any one bin.
+      describes the slowest direction, so it bounds the time of any one bin. A run of
+      about 20 autocorrelation times, as at 1 bin width, underestimates the measured
+      time.
     name: fig-gibbs-traces
 ---
 fig, axes = plt.subplots(3, 1, figsize=(4.8, 6.0), sharex=True, constrained_layout=True)
@@ -198,7 +200,8 @@ for ax, w in zip(axes, marked):
     k = int(np.argmax(taus))
     ax.plot(chain[:400, k], color="C0", lw=1.2)
     ax.set_title(
-        f"width {w:g} bin{'s' if w != 1 else ''}: predicted τ {(1 + fm[w]) / (1 - fm[w]):.0f}, "
+        f"width {w:g} bin{'s' if w != 1 else ''}: " + r"$\tau_{\rm int}$"
+        + f" predicted {(1 + fm[w]) / (1 - fm[w]):.0f}, "
         f"measured {taus[k]:.0f}",
         fontsize=12, loc="left", color=INK2,
     )
@@ -206,9 +209,6 @@ for ax, w in zip(axes, marked):
 axes[-1].set_xlabel("iteration")
 plt.show()
 ```
-
-When $f$ is near one, run Gibbs much longer or use NUTS. When a Gibbs run fails its
-checks, {meth}`~binference.PopulationResult.check` reports $f$ and $\tau$ in its hint.
 
 ## Laplace with importance sampling
 
@@ -238,8 +238,8 @@ fast summary of the well-populated bins, not a replacement for NUTS.
 ## Mean-field VB
 
 {term}`Mean-field VB` {cite:p}`blei2017` approximates the posterior of the augmented
-form by $q(\rho)\prod_iq(k_i)$. Coordinate ascent alternates two closed-form updates
-for a conjugate prior:
+form by variational factors $q$, as $q(\rho)\prod_iq(k_i)$. Coordinate ascent
+alternates two closed-form updates for a conjugate prior:
 
 $$
 q(k_i=k)\propto L_{ik}\exp\mathbb E_q[\log\rho_k],
@@ -248,14 +248,13 @@ q(\rho)=\mathrm{Dir}\Big(\alpha+\sum_iw_i\,q(k_i)\Big),
 $$
 
 with the conjugate update of the other members of the family or of rates in place of the
-Dirichlet. With a selection, the expected missed objects are plugged in at the current
-mean, a further approximation. Iterations stop when the largest change of the mean falls
+Dirichlet. With a selection, binference sets the expected missed objects from the
+current mean, a further approximation. Iterations stop when the largest change of the mean falls
 below a tolerance relative to its largest value.
 
 Factorising the labels from the population ignores exactly the coupling that broad
-likelihoods create. Its intervals are therefore too narrow, by a factor of several when
-$f$ is near one. Every result is flagged approximate, with a warning. This is the
-algorithm of RAIL's `VarInfStackSummarizer`.
+likelihoods create. Mean-field VB's intervals are therefore too narrow, by a factor of
+several when $f$ is near one. Every result is flagged approximate, with a warning.
 
 ## Bootstrap
 

@@ -31,7 +31,7 @@ basis
 bin
   One of the $K$ cells $B_1,\dots,B_K$ that partition the true value $z$. A bin is an
   interval, a cell of a grid, or a category. See
-  [theory](../how-it-works/model.md#objects-bins-and-likelihoods).
+  [the model](../how-it-works/model.md#objects-bins-and-likelihoods).
 
 bin volume
   $v_k$: the width of bin $k$ in one dimension, its area or volume on a grid, and one
@@ -41,7 +41,7 @@ bin volume
 bin-averaged likelihood
   $L_{ik}$: the likelihood of object $i$ averaged over bin $k$. It is the only per-object
   input the model uses, and only its shape across the bins matters. See
-  [theory](../how-it-works/model.md#objects-bins-and-likelihoods).
+  [the model](../how-it-works/model.md#objects-bins-and-likelihoods).
 
 binned measurement
   A measurement that records only the measured bin of each object, such as a
@@ -52,7 +52,7 @@ binned measurement
 binning bias
   The bias from assuming the population is flat within each bin. It does not shrink as
   objects are added. `result.binning_bias()` measures it; see
-  [theory](../how-it-works/model.md#binning-bias).
+  [the model](../how-it-works/model.md#binning-bias).
 
 bootstrap
   An engine that refits the {term}`MAP` estimate to resampled or reweighted objects.
@@ -194,7 +194,7 @@ KKT gap
   How far a point estimate is from the optimality conditions of its problem. It is zero
   at the optimum and infinite where an object has zero likelihood.
   `PointEstimate.kkt_gap` reports it; see
-  [point estimates](../how-it-works/point-estimates.md#em-is-iterated-stacking).
+  [the certificate](../how-it-works/point-estimates.md#the-certificate).
 
 label
   $k_i$: the bin that object $i$ truly lies in. The model treats it as unknown; `Gibbs`

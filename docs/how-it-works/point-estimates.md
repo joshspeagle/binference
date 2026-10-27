@@ -38,7 +38,7 @@ posteriors computed under the current population**. Two consequences follow.
 
 Conjugate priors keep the update in closed form. A $\mathrm{Dir}(\alpha)$ prior adds
 $\alpha_k-1$ pseudo-counts to $\hat n_k$ before normalising. With a selection, the
-expected counts include the missed objects, $W\rho_k(1-S_k)/(S\cdot\rho)$
+expected counts include the missed objects
 ([selection effects](model.md#selection-effects)). For rates with a
 $\mathrm{Gamma}(a_k,b_k)$ prior, the update is
 $\lambda_k\leftarrow(\hat n_k+a_k-1)/(S_k+b_k)$. binference accelerates EM with
@@ -55,8 +55,8 @@ $$
 
 Here $I_{\rm obs}$ is the observed information in the isometric log-ratios of $\rho$,
 and $I_c$ the information the labels would give if they were known. The smallest
-generalised eigenvalue picks the direction about which the data say least, relative to
-known labels. Near that direction each EM step removes only a share $1-f$ of the
+generalised eigenvalue picks the direction with the least information relative to known
+labels. Near that direction each EM step removes only a share $1-f$ of the
 remaining error {cite:p}`dempster1977`.
 
 - $f$ is near 0 when the likelihoods are narrow compared with the bins, and near 1 when
@@ -101,12 +101,12 @@ $S_k+b_k$ in place of $S_k$ and a Dirichlet term $\sum_k(a_k-1)\log\chi_k$.
 The other cases maximise the density in {term}`unconstrained coordinates` with
 {term}`L-BFGS`:
 
-- priors whose density is unbounded at the edge of the simplex, such as concentrations
-  below one or a Pólya tree, where the mode on the simplex can sit at an exact zero;
-- priors that are not conjugate, such as the logistic family;
-- a selection or response inferred with the population.
+- Priors whose density is unbounded at the edge of the simplex, such as concentrations
+  below one or a Pólya tree. Their mode on the simplex can be exactly zero.
+- Priors that are not conjugate, such as the logistic family.
+- A selection or response inferred with the population.
 
-{class}`~binference.samplers.MAP` states the exact routing. `est.info["algorithm"]` and
+{class}`~binference.samplers.MAP` lists which solver each case uses. `est.info["algorithm"]` and
 `est.info["space"]` record the choice.
 
 ## The certificate
@@ -117,7 +117,7 @@ $$
 g_k=\frac1W\sum_i\frac{w_iL_{ik}}{L_i\cdot\hat\rho}\le1,\quad\text{with equality where }\hat\rho_k>0 .
 $$
 
-With a prior or a selection, the gradient of their terms is added to $g_k$. binference
+A prior or a selection adds the gradient of its terms to $g_k$. binference
 reports the optimality gap $\max_kg_k-1$, the {term}`KKT gap`, for every estimate from
 EM or mix-SQP (`PointEstimate.kkt_gap`). It is infinite where an object has zero
 likelihood. A fixed point of EM is necessary for optimality but not sufficient; the gap
@@ -129,22 +129,21 @@ $\max_k S_k^{-1}\,\partial\log p/\partial\lambda_k$ and
 $|\lambda\cdot\nabla_\lambda\log p|/(S\cdot\lambda)$, so it does not depend on the units
 of the exposure.
 
-`MAP(tol=)` bounds the gap for EM, and the same gap of the problem mix-SQP solves. For
-L-BFGS it bounds the largest absolute gradient divided by $\max(1,W)$, kept in
-`est.info["grad_norm"]`, and `est.kkt_gap` is NaN. A run that can no longer improve its
-objective in floating point counts as converged within a looser bound
-([defaults](../reference/defaults.md#engines)).
+`MAP(tol=)` bounds the KKT gap for EM and mix-SQP; for mix-SQP the gap is that of its
+transformed problem. {class}`~binference.samplers.MAP` states the bound for L-BFGS and
+for runs stopped by round-off.
 
 ## Two coordinate systems, two modes
 
 The same posterior has a density in each coordinate system. The two densities differ by
 the Jacobian of the map between the coordinates ([coordinates](priors.md#coordinates)),
-so they have different modes:
+so they have different modes.
 
-| density | coordinates | Jacobian | mode | used by |
-|---|---|---|---|---|
-| `PopulationModel.log_posterior(value)` | fractions $\rho$ on the simplex (rates $\lambda$) | no | `MAP(space="simplex")` | EM, mix-SQP, and the `log_posterior` of every point estimate |
-| `PopulationModel.log_density_unconstrained(x)` | unconstrained $x$ | yes | `MAP(space="unconstrained")` | NUTS, Laplace, L-BFGS |
+- `PopulationModel.log_posterior` is the density of the fractions (or rates), without a
+  Jacobian. Its mode is `MAP(space="simplex")`, which EM and mix-SQP find. Every point
+  estimate reports this density as `log_posterior`.
+- `PopulationModel.log_density_unconstrained` is the density of $x$, with the Jacobian.
+  Its mode is `MAP(space="unconstrained")`. NUTS, Laplace and L-BFGS use it.
 
 `log_posterior` is NaN for priors without a closed-form density on the simplex, the
 logistic family. Take a $\mathrm{Dir}(\alpha)$ prior and objects with known labels,
@@ -160,17 +159,17 @@ mystnb:
   image:
     alt: >-
       Two stacked panels. The top panel shows a skewed density of the fraction rho 1
-      between 0 and 0.8, with its peak at 0.125 marked as the simplex mode and a second
-      line at 0.2 marked as the unconstrained mode. The bottom panel shows the density
-      of the isometric log-ratio x, which is nearly symmetric, with its peak at the
-      unconstrained mode and the simplex mode to its left. A shaded band marks the same
+      between 0 and 0.7. Its peak at 0.125 is marked as the simplex mode, and a second
+      line at 0.2 as the unconstrained mode. The bottom panel shows the nearly symmetric
+      density of the isometric log-ratio x. Its peak is the unconstrained mode, with the
+      simplex mode to its left. A shaded band marks the same
       central 68 per cent interval in both panels.
   figure:
     caption: >-
-      One posterior in two coordinates. Two bins, one object certainly in bin 1, seven
-      certainly in bin 2, and a flat prior: the fraction of bin 1 has a
-      Beta(2, 8) posterior (top). Its isometric log-ratio $x$ has the density below.
-      Each panel's peak is its own mode; the shaded central 68% interval holds the same
+      One posterior in two coordinates. Two bins hold one object certainly in bin 1 and
+      seven certainly in bin 2, under a flat prior. The fraction of bin 1 then has a
+      Beta(2, 8) posterior (top), and its isometric log-ratio $x$ the density below.
+      Each panel's peak is its own mode. The shaded central 68% interval holds the same
       draws in both.
     name: fig-two-modes
 ---

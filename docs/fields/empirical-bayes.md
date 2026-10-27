@@ -138,7 +138,7 @@ layer; and it has no f-modelling estimators.
   overlapping likelihoods.
 - **EM is slow near the optimum and never revives a zeroed weight.** A fixed point with
   $w_k=0$ need not be optimal, so self-consistency is necessary but not sufficient; the
-  KKT gap is the check ([theory](../how-it-works/point-estimates.md#em-is-iterated-stacking)).
+  KKT gap is the check ([theory](../how-it-works/point-estimates.md#the-certificate)).
 - **Deconvolution is slow.** Nonparametric rates are "very slow" {cite:p}`efron2016`, so
   individual bin fractions are often prior-dominated and strongly anti-correlated;
   well-identified functionals (cumulative fractions, coarse sums, moments) are the

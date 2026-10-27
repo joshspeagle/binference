@@ -51,6 +51,7 @@ other indices are declared where they are used. The {doc}`glossary` defines the 
 | Symbol | Meaning | Code name | Where defined |
 |---|---|---|---|
 | $S_k$ | selection: probability that an object in bin $k$ is observed, or its exposure | `Selection.values` | [model](../how-it-works/model.md#selection-effects) |
+| $\tilde L_{ik}$ | detected-object likelihood: $S_kL_{ik}$ on the truth, $L_{ik}$ on the measurement | | [model](../how-it-works/model.md#selection-effects) |
 | $S^{\rm truth}(z)$, $S^{\rm meas}(d)$ | the two parts of a combined selection | `Selection.combined(on_truth=, on_measurement=)` | [selection](../guides/selection.md#three-ways-selection-can-act) |
 | $\phi_k$ | selected population: $S_k\rho_k/S\cdot\rho$ | `result.selected` | [point estimates](../how-it-works/point-estimates.md#mix-sqp) |
 | $\chi_k$ | composition of the rates in mix-SQP | | [point estimates](../how-it-works/point-estimates.md#mix-sqp) |
@@ -103,6 +104,7 @@ other indices are declared where they are used. The {doc}`glossary` defines the 
 | $\hat R$ | split R-hat | `diagnostics.rhat`, `result.diagnostics["rhat"]` | [validation](../how-it-works/validation.md#diagnostics-of-one-run) |
 | ESS | effective sample size, bulk or tail | `diagnostics.ess`, `result.diagnostics["ess_bulk"]` | [validation](../how-it-works/validation.md#diagnostics-of-one-run) |
 | $\hat k$ | Pareto shape of importance weights | `diagnostics.psis`, `result.info["k_hat"]` | [engines](../how-it-works/engines.md#laplace-with-importance-sampling) |
+| $\tau_{\rm int}$ | integrated autocorrelation time of a chain | `diagnostics.autocorr_time` | [engines](../how-it-works/engines.md#mixing-and-missing-information) |
 | $V_i(\rho)$ | relative Monte Carlo variance of a likelihood from samples | `lk.sample_variance` | [inputs](../guides/inputs.md#posterior-samples) |
 | $n_{\rm sim}$ | number of simulated data sets | `n_simulations=` | [validation](../how-it-works/validation.md#simulation-based-calibration) |
 

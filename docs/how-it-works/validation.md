@@ -27,23 +27,13 @@ your own analysis.
 - **Optimisation.** The [KKT gap](point-estimates.md#the-certificate) says how far a
   point estimate is from the optimum.
 
-`result.check()` turns these into warnings, each against a threshold in the
-[defaults](../reference/defaults.md#results-and-diagnostics). It flags:
-
-- $\hat R$ or ESS per chain out of range;
-- divergences, a low E-BFMI, and too many iterations at the maximum tree depth;
-- a large $\hat k$, and an optimiser that did not converge.
-
-It also checks the inputs. Likelihoods from samples whose summed Monte Carlo variance is
-large are flagged.
-For binned counts with more measured than true bins, a {term}`posterior predictive
-p-value` tests the counts against the response. `infer` runs the check after NUTS and
-Gibbs by default. `PointEstimate.check()` checks the KKT gap and convergence of a point
-estimate.
+`result.check()` turns these into warnings; the
+[results guide](../guides/results.md#diagnostics) lists what it flags, and the
+[defaults](../reference/defaults.md#results-and-diagnostics) hold its thresholds.
 
 These diagnostics cannot tell whether the posterior itself is right: whether the
-likelihoods, the prior and the engine together give calibrated answers. That is the job
-of calibration.
+likelihoods, the prior and the engine together give calibrated answers. Calibration
+checks that.
 
 ## Calibration
 
@@ -73,9 +63,10 @@ Two tests check the ranks of each quantity for uniformity:
 
 - **chi-square:** Pearson's test of the rank histogram, the more sensitive to errors of
   width;
-- **ECDF** {cite:p}`sailynoja2022`: with $C_j$ the number of ranks at most $j$, each
-  $C_j$ is binomial with $n_{\rm sim}$ trials and probability $(j+1)/(n_{\rm draw}+1)$.
-  The statistic is the smallest two-sided binomial tail probability over $j$. Its
+- **ECDF** {cite:p}`sailynoja2022`: let $C_m$ be the number of ranks at most rank
+  $m$. Each $C_m$ is binomial with $n_{\rm sim}$ trials and probability
+  $(m+1)/(n_{\rm draw}+1)$. The statistic is the smallest two-sided binomial tail
+  probability over $m$. Its
   p-value is computed exactly from the joint law of the counts. This test is the more
   sensitive to bias.
 
@@ -91,67 +82,36 @@ binomial standard error of the nominal rate.
 
 ## The statistical tests
 
-binference's slow tests (`pytest -m slow`) run these checks on the engines themselves.
-CI runs them every week, by hand, and on pull requests labelled `slow`. Unless stated,
-the SBC tests use four bins on $[0,1]$ and 40 objects per catalogue, with Gaussian errors
-of 0.2. Both rank tests must pass at a Bonferroni-corrected level of $10^{-3}$.
+binference's slow tests (`pytest -m slow`, mostly in
+[tests/test_slow.py](https://github.com/joshspeagle/binference/blob/main/tests/test_slow.py))
+run these checks on the engines themselves. The {doc}`contributing guide
+<../contributing>` says when CI runs them.
 
-**Simulation-based calibration.**
+- **Simulation-based calibration.** SBC runs for NUTS and Gibbs with Dirichlet-family,
+  random-walk and rate priors. It covers known and inferred selections, an inferred
+  response, and the importance-corrected Laplace approximation. Most cases use four
+  bins on $[0,1]$ and 40 objects with Gaussian errors of 0.2. Both rank tests must pass
+  at a Bonferroni-corrected level of $10^{-3}$.
+- **Negative controls.** These show that the checks can fail. SBC rejects a Gibbs
+  pipeline whose posteriors are about 18% too narrow, and mean-field VB fails SBC.
+- **Coverage.** The 68% and 95% Gibbs intervals of every bin and of the mean value
+  cover the truth at their nominal rates. The tolerance is four binomial standard
+  errors.
+- **Geweke tests.** "Getting it right" tests {cite:p}`geweke2004` check that the Gibbs
+  conditionals are exact, for the Dirichlet family and Gamma rates, with and without a
+  selection. A Gibbs kernel that forgets the missed objects fails them.
+- **Agreement between engines.** NUTS and Gibbs agree within a few Monte Carlo errors,
+  also with an inferred selection or response. Four
+  [benchmark](auto.md#the-benchmark-behind-the-rules) combinations are refitted against
+  stored reference posteriors, and auto must pick the benchmark's engine.
+- **Recovery and known biases.** Fits with an interim prior divided out, and with a
+  selection on the truth, recover the true population with calibrated errors. Using
+  posteriors as likelihoods is biased by more than eight posterior standard deviations
+  ([likelihoods versus posteriors](model.md#likelihoods-versus-posteriors)). Mean-field
+  VB's standard deviations are less than half those of NUTS when $f$ exceeds 0.9.
 
-- NUTS with the flat Dirichlet, and with a first-order random walk of fixed scale (200
-  simulations).
-- NUTS with a second-order random walk whose scale is inferred (50 simulations).
-- Gibbs with the flat Dirichlet (1,000 simulations) and a generalised Dirichlet (500).
-- Gibbs with a known selection on the truth and on the measurement, with Gamma rates and
-  an exposure, and with the Pólya tree (200 each).
-- The importance-corrected Laplace approximation with the flat Dirichlet (200).
-- A selection inferred from injections, with the population: Gibbs with the flat
-  Dirichlet (200 simulations) and NUTS with a random walk (60). These rank the
-  fractions and the detection probabilities.
-- A response inferred from tallied events, with the population, by Gibbs (150
-  simulations). This ranks the fractions and the efficiencies.
+### Binning bias
 
-**Negative controls.** Each shows that a check can fail.
-
-- SBC rejects a Gibbs pipeline whose posteriors are about 18% too narrow, made by
-  counting half the objects twice.
-- Mean-field VB fails SBC, as expected; the test is marked to fail.
-- The Geweke test below detects a Gibbs kernel that forgets the missed objects under a
-  selection.
-
-**Coverage.** Gibbs with the flat Dirichlet is run on 1,000 simulations. The 68% and 95%
-intervals of every bin and of the mean value cover the truth at their nominal rates,
-within four binomial standard errors.
-
-**Exactness of the Gibbs conditionals.** "Getting it right" tests {cite:p}`geweke2004`
-compare two ways of simulating the population and the data jointly. One draws from the
-prior and the data model; the other alternates the Gibbs conditionals with draws of the
-data. Their means must agree within 4.5 standard errors. They run for the Dirichlet with
-and without a selection, a generalised Dirichlet, a Dirichlet tree, and Gamma rates with
-an exposure.
-
-**Agreement between engines.**
-
-- Gibbs and NUTS agree in every bin's mean and standard deviation, within five combined
-  Monte Carlo errors, on 5,000 objects in 15 bins.
-- NUTS and Gibbs agree within four combined errors on a selection inferred from
-  injections, and on a response inferred from tallies.
-- Four combinations of the [benchmark](auto.md#the-benchmark-behind-the-rules) are
-  refitted and compared with stored reference posteriors of 20,000 NUTS draws. Every
-  mean and standard deviation must agree within four combined Monte Carlo errors.
-  `method="auto"` must pick the engine the benchmark chose.
-
-**Recovery and known biases.**
-
-- Posteriors with an interim prior divided out (80 catalogues of 800 objects), and
-  catalogues with a selection on the truth (100 of 600), recover the true population:
-  the errors of the posterior means, whitened by the posterior covariance, have unit
-  variance within four standard errors.
-- Posteriors used as likelihoods, without dividing out the interim prior, are biased
-  by more than eight posterior standard deviations on 20,000 objects; the correct fit
-  stays within four ([likelihoods versus posteriors](model.md#likelihoods-versus-posteriors)).
-- A continuous population on coarse bins shows a [binning bias](model.md#binning-bias)
-  of more than four posterior standard deviations at 20,000 objects.
-- Mean-field VB on 3,000 objects in 15 bins, where $f$ exceeds 0.9, gives standard
-  deviations less than half those of NUTS, while its means stay within one NUTS
-  standard deviation.
+One recovery test shows the [binning bias](model.md#binning-bias). It fits a continuous
+bimodal population on six bins, with errors of 0.6 to 1.2 bin widths. At
+$N=20\,000$ the error of the worst fraction exceeds four posterior standard deviations.
