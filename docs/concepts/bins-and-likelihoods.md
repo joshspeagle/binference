@@ -181,5 +181,5 @@ The answers, one per bin, are all it needs.
 
 - Do it: the {doc}`inputs guide <../guides/inputs>`.
 - See it: the tutorial {doc}`../tutorials/02_inputs`.
-- Derivation: [objects, bins and likelihoods](../how-it-works/theory.md#objects-bins-and-likelihoods)
-  on the theory page.
+- Derivation: [objects, bins and likelihoods](../how-it-works/model.md#objects-bins-and-likelihoods)
+  in How it works.

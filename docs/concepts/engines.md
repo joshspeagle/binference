@@ -83,7 +83,7 @@ population is.
 **Auto.** The default engine tries Gibbs where Gibbs mixes well enough, running it
 longer to make up for correlated draws. It then tries Laplace where its check passes,
 and NUTS otherwise. {class}`~binference.inference.Auto` gives the thresholds. The rules, and the benchmark
-behind them, are in the {doc}`engines guide <../guides/engines>`.
+behind them, are in {doc}`how auto chooses <../how-it-works/auto>`.
 
 ## Seeing them on one problem
 
@@ -182,4 +182,4 @@ bootstrap answers a different question.
 
 - Do it: the {doc}`engines guide <../guides/engines>`.
 - See it: the tutorial {doc}`../tutorials/03_engines`.
-- Derivation: [the engines](../how-it-works/theory.md#the-engines) on the theory page.
+- Derivation: [the engines](../how-it-works/engines.md) in How it works.

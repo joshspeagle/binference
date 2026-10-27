@@ -147,7 +147,7 @@ differently.
 The {doc}`Fields <../fields/index>` pages give the full table of names, with each
 field's methods and software. The fields' point estimators are stages of one iteration,
 {term}`EM`, derived in
-[the theory](../how-it-works/theory.md#point-estimates-em-is-iterated-stacking).
+[the theory](../how-it-works/point-estimates.md#em-is-iterated-stacking).
 
 ## Next
 

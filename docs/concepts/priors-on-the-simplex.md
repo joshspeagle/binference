@@ -135,5 +135,4 @@ prior says that neighbouring bins should look alike.
 
 - Do it: the {doc}`priors guide <../guides/priors>`.
 - See it: the tutorial {doc}`../tutorials/04_priors`.
-- Derivation: [the Dirichlet family](../how-it-works/theory.md#the-dirichlet-family) on
-  the theory page.
+- Derivation: [the Dirichlet family](../how-it-works/priors.md#the-dirichlet-family-as-trees) in How it works.

@@ -175,5 +175,5 @@ mixed in. Take that guess out before you ask what the population is.
   their interim prior.
 - See it: the tutorial {doc}`../tutorials/02_inputs` repeats
   {ref}`the drift figure <fig-interim-drift>` with a photometric-redshift mock.
-- Derivation: [likelihoods versus posteriors](../how-it-works/theory.md#likelihoods-versus-posteriors)
-  on the theory page.
+- Derivation: [likelihoods versus posteriors](../how-it-works/model.md#likelihoods-versus-posteriors)
+  in How it works.

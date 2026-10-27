@@ -10,7 +10,7 @@ likelihoods, posteriors, samples, binned measurements or classifier outputs.
   `PLAN.md` (current position), the last entries of `LOG.md`, and `QUESTIONS.md`.
 - Every settled choice is in `notes/review/DECISIONS.md`; the landing of the v0.1 branch
   on `main` follows `notes/review/landing-plan.md` (tracking issue #4).
-- Design background: `docs/design/spec.md`, `docs/how-it-works/theory.md`.
+- Design background: `docs/design/spec.md`, `docs/how-it-works/model.md`.
 
 ## Layout
 
@@ -83,7 +83,7 @@ All code reaches `main` through a pull request that closes an issue (DECISIONS #
   (SPEC 7). float64 unless a decision says otherwise.
 - Expose every tunable with a sensible default (DECISIONS #16).
 - Type hints on public signatures; NumPy-style docstrings in the notation of
-  `docs/how-it-works/theory.md`.
+  `docs/how-it-works/model.md`.
 
 ## Tests
 

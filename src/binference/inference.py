@@ -57,38 +57,13 @@ def _default_draws(engine: type) -> int:
 
 
 class Auto(Engine):
-    r"""Picks Gibbs, Laplace or NUTS from rules set by the benchmark matrix (DECISIONS #88).
+    r"""Picks Gibbs, Laplace or NUTS from rules set by a benchmark of the engines.
 
-    The candidates, in order, keeping only engines that take every option in
-    ``engine_kwargs``:
-
-    1. Gibbs for a selection (not a smoothed injection selection) or response inferred
-       jointly with a conjugate prior and integer weights.
-    2. Gibbs for a conjugate prior with integer weights when the fraction of missing
-       information at the MAP, :math:`f`, is at most ``gibbs_max_missing``, and the
-       run it needs is at most ``max_gibbs_draws`` per chain. It runs
-       :math:`\lceil t\,(1+f)/(1-f) / n_\mathrm{chains} \rceil` draws per chain (at
-       least the usual 1000), for a smallest bulk ESS of about :math:`t` =
-       ``target_ess``.
-
-       Without ``n_samples``, either Gibbs run is then extended until every bulk ESS
-       (of the population, and of an inferred selection or response) reaches
-       :math:`t` and the run passes the :math:`\hat R` and ESS limits of
-       :meth:`~binference.PopulationResult.check` (runs that store labels keep their
-       length). If that is projected to need more than ``max_gibbs_draws`` draws per
-       chain, its draws are discarded and the next candidate runs (a jointly inferred
-       selection or response can mix much more slowly than :math:`f` predicts); when
-       Gibbs is the only candidate it is kept, and the reason says it did not mix.
-    3. Importance-corrected Laplace, kept when its Pareto :math:`\hat k` check passes
-       and its importance ESS is at least ``target_ess``, or when the likelihoods have
-       more than ``nnz_limit`` stored entries, or when it is the only candidate left;
-       in those two cases a result that did not pass is flagged approximate (a short
-       importance ESS with a warning of its own).
-    4. NUTS.
-
+    It tries Gibbs where it mixes well, then importance-corrected Laplace where its
+    check passes, then NUTS, keeping only engines that take every option in
+    ``engine_kwargs``. :doc:`/how-it-works/auto` states the rules and the benchmark.
     The result records the choice and the reason in ``info["auto_method"]`` and
-    ``info["auto_reason"]``. Where rule 2 computed the MAP without a warning, the
-    result keeps it as :attr:`~binference.PopulationResult.best`.
+    ``info["auto_reason"]``.
 
     Parameters
     ----------
@@ -332,7 +307,7 @@ def infer(
         :class:`~binference.selection.Selection`).
     method : {"auto", "nuts", "gibbs", "map", "em", "laplace", "vb", "bootstrap"}
         Inference engine. ``"auto"`` (default) picks Gibbs, Laplace or NUTS from
-        rules set by the benchmark matrix (:class:`Auto`, DECISIONS #88); its
+        rules set by a benchmark of the engines (:class:`Auto`); its
         options ``target_ess``, ``gibbs_max_missing``, ``max_gibbs_draws`` and
         ``nnz_limit`` go in ``engine_kwargs``, and the choice and its reason are in
         ``result.info["auto_method"]`` and ``result.info["auto_reason"]``.

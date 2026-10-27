@@ -3,7 +3,7 @@
 These pages explain the ideas behind binference in words and pictures, before any
 formula is needed. Each page answers one question and asks you to run no code. The
 {doc}`tutorials <../tutorials/index>` and {doc}`guides <../guides/index>` show the code,
-and {doc}`How it works <../how-it-works/theory>` gives the mathematics.
+and {doc}`How it works <../how-it-works/index>` gives the mathematics.
 
 Read the pages in this order. Each builds on the one before it.
 

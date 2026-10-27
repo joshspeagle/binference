@@ -121,7 +121,7 @@ Not done:
   exactly that case.
 - **EM cannot move a fraction away from zero.** A fixed point with $w_k=0$ need not be
   optimal. Self-consistency is therefore necessary but not sufficient; the KKT gap is
-  the check ([theory](../how-it-works/theory.md#point-estimates-em-is-iterated-stacking)).
+  the check ([theory](../how-it-works/point-estimates.md#em-is-iterated-stacking)).
 - **Deconvolution converges slowly.** Its nonparametric convergence rates are "very
   slow" {cite:p}`efron2016`. Single bin fractions are then often prior-dominated and
   anti-correlated. Report well-identified functionals instead: cumulative fractions,

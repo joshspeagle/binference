@@ -52,4 +52,4 @@ divides out ([pitfalls](../guides/pitfalls.md#feeding-posteriors-in-as-likelihoo
   binference has no covariate-dependent populations.
 - **Model correlated objects.** The model multiplies the objects' likelihoods, so it
   treats their data as independent given the population
-  ([theory](../how-it-works/theory.md#the-population-model)).
+  ([theory](../how-it-works/model.md#the-population-model)).
