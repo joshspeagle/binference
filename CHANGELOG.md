@@ -81,8 +81,9 @@ First development version.
   warning.
 - Plot colours follow the active matplotlib style instead of fixed hex colours; new
   `sample_color` argument on `plot_population` and `plot_individual`; `color` defaults to
-  the style and is added to `plot_individual` and `plot_sbc`; 2-D maps ramp to the
-  population colour; `POSTERIOR_COLOR`, `STACK_COLOR` and `INK` are removed (DECISIONS #98).
+  the style and is added to `plot_individual` and `plot_sbc`; 2-D maps and the corner
+  plot's 2-D histograms are drawn on ramps to the population colour (relative uncertainty
+  to the text colour) instead of viridis, magma and Blues; `POSTERIOR_COLOR`, `STACK_COLOR` and `INK` are removed (DECISIONS #98).
 
 ### Fixed (phase-wide review)
 

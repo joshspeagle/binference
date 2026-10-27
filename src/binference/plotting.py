@@ -4,7 +4,8 @@ Colours follow the active matplotlib style. The population (medians, bands, bars
 histograms) takes the first colour of ``axes.prop_cycle``, or ``color``; what the objects'
 own data say (the stack, an object's own likelihood) takes the second, or
 ``sample_color``; reference lines, error bars and the truth (dashed) take ``text.color``.
-2-D maps ramp from ``axes.facecolor`` to the population colour.
+2-D medians ramp from a pale tint of the population colour to the colour, and relative
+uncertainties likewise in ``text.color``; masked bins show the axes background.
 """
 
 from __future__ import annotations
@@ -21,25 +22,32 @@ __all__ = ["plot_corner", "plot_individual", "plot_population", "plot_sbc", "plo
 
 
 def _style_color(name: str, value: Any, slot: int):
-    """``value`` checked as a colour, or colour ``slot`` of the style's cycle when None.
+    """``value`` as RGBA (a list of them for per-bar colours), or colour ``slot`` of the
+    style's cycle when None.
 
     Resolved now, not left as "C0": a figure drawn after leaving a style context would
     otherwise colour its lines from another cycle than its bars and bands.
     """
-    from matplotlib.colors import is_color_like, to_hex
+    from matplotlib.colors import is_color_like, to_rgba
 
     if value is None:
-        return to_hex(f"C{slot}")
-    if not is_color_like(value):
-        raise ValueError(f"{name} must be a matplotlib colour or None, got {value!r}.")
-    return value
+        value = f"C{slot}"
+    if is_color_like(value):
+        return to_rgba(value)
+    if isinstance(value, list | tuple) and value and all(is_color_like(c) for c in value):
+        return [to_rgba(c) for c in value]
+    raise ValueError(
+        f"{name} must be a matplotlib colour, a list of them, or None, got {value!r}."
+    )
 
 
-def _ramp(plt, color):
-    """A sequential colormap from the axes background to ``color``."""
-    from matplotlib.colors import LinearSegmentedColormap
+def _ramp(ax, color):
+    """A sequential colormap from a pale tint of ``color`` (over the axes background, so
+    zero differs from a masked bin) to ``color``."""
+    from matplotlib.colors import LinearSegmentedColormap, to_rgba
 
-    return LinearSegmentedColormap.from_list("ramp", [plt.rcParams["axes.facecolor"], color])
+    ground, ink = np.array(to_rgba(ax.get_facecolor())), np.array(to_rgba(color))
+    return LinearSegmentedColormap.from_list("ramp", [0.85 * ground + 0.15 * ink, ink])
 
 
 def _tidy(ax) -> None:
@@ -252,14 +260,14 @@ def _plot_2d(result, X, plt, ax, color):
         _, ax = plt.subplots(1, ncol, figsize=(5 * ncol, 4), squeeze=False)
         ax = ax[0]
     axes = np.atleast_1d(ax)
-    im = axes[0].pcolormesh(ex, ey, med.T, shading="flat", cmap=_ramp(plt, color))
+    im = axes[0].pcolormesh(ex, ey, med.T, shading="flat", cmap=_ramp(axes[0], color))
     plt.colorbar(im, ax=axes[0], label="posterior median")
     axes[0].set_xlabel("axis 0")
     axes[0].set_ylabel("axis 1")
     if sd is not None and len(axes) > 1:
         with np.errstate(divide="ignore", invalid="ignore"):
             rel = np.where(med > 0, sd / med, np.nan)
-        grey = _ramp(plt, plt.rcParams["text.color"])
+        grey = _ramp(axes[1], plt.rcParams["text.color"])
         im2 = axes[1].pcolormesh(ex, ey, rel.T, shading="flat", cmap=grey)
         plt.colorbar(im2, ax=axes[1], label="relative uncertainty (sd / median)")
         axes[1].set_xlabel("axis 0")
@@ -298,7 +306,6 @@ def plot_corner(
     (default: the most populated), in ``color`` (default: the style's)."""
     plt = _plt()
     color = _style_color("color", color, 0)
-    ramp = _ramp(plt, color)
     X, idx, name = _chosen_bins(result, which, idx, max_bins)
     n = len(idx)
     fig, axes = _subplots(plt, fig, n, n, (2.2 * n, 2.2 * n))
@@ -312,7 +319,7 @@ def plot_corner(
                 a.hist(X[:, ki], bins=n_hist, color=color, histtype="step")
                 a.set_yticks([])
             else:
-                a.hist2d(X[:, kj], X[:, ki], bins=n_hist, cmap=ramp)
+                a.hist2d(X[:, kj], X[:, ki], bins=n_hist, cmap=_ramp(a, color))
             if i == n - 1:
                 a.set_xlabel(f"{name}[{kj}]")
             if j == 0 and i > 0:

@@ -82,9 +82,14 @@ def test_plots_take_population_and_sample_colours_from_the_style_cycle(res1d, sm
 
 
 def test_sample_color_and_color_override_the_style(res1d, small_1d):
+    from matplotlib.colors import same_color
+
     ax = res1d.plot(stack=small_1d.likelihoods.stack(), color="red", sample_color="green")
     median, stack = ax.get_lines()
-    assert (median.get_color(), stack.get_color()) == ("red", "green")
+    assert same_color(median.get_color(), "red") and same_color(stack.get_color(), "green")
+    with plt.rc_context({"axes.prop_cycle": mpl.cycler(color=["#123456", "#abcdef"])}):
+        ax = res1d.plot(color="C1")  # resolved inside the style, not when drawn later
+    assert same_color(ax.get_lines()[0].get_color(), "#abcdef")
     with pytest.raises(ValueError, match="sample_color"):
         res1d.plot(sample_color="not a colour")
     plt.close("all")
