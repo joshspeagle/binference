@@ -9,7 +9,7 @@ Quick start
 -----------
 >>> import binference
 >>> mock = binference.simulate.mock_1d(500, rng=1)
->>> result = binference.infer(mock.likelihoods, rng=2, n_samples=200, n_warmup=200)
+>>> result = binference.infer(mock.likelihoods, rng=2)
 >>> result.summary()  # doctest: +SKIP
 
 Main entry points

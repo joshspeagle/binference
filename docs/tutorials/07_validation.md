@@ -63,10 +63,10 @@ grid = binference.Bins.linear(0.0, 1.0, 4)
 simulate = binference.simulate.prior_predictive(prior, grid, n_objects=50, noise=0.25)
 
 def fit_gibbs(lk, rng):
-    return binference.infer(lk, prior, method="gibbs", rng=rng, n_chains=1,
-                        n_warmup=200, n_samples=1000, check=False)
+    return binference.infer(lk, prior, method="gibbs", rng=rng, n_chains=4,
+                        n_warmup=100, n_samples=500, check=False)
 
-result = sbc(simulate, fit_gibbs, n_simulations=150, n_draws=49, rng=0)
+result = sbc(simulate, fit_gibbs, n_simulations=150, n_draws=19, rng=0)
 print("uniformity p-values:", {n: round(float(v), 3) for n, v in zip(result.names, result.pvalues(10))})
 fig = result.plot()
 ```
@@ -93,7 +93,7 @@ def fit_vb(lk, rng):
         warnings.simplefilter("ignore", binference.ApproximationWarning)
         return binference.infer(lk, prior, method="vb", rng=rng, n_samples=1000)
 
-bad = sbc(simulate, fit_vb, n_simulations=150, n_draws=49, rng=0)
+bad = sbc(simulate, fit_vb, n_simulations=150, n_draws=19, rng=0)
 print("uniformity p-values:", {n: round(float(v), 4) for n, v in zip(bad.names, bad.pvalues(10))})
 fig = bad.plot()
 ```

@@ -49,10 +49,11 @@ priors need ordered bins.
 
 - **The NPMLE.** With a flat Dirichlet prior the posterior mode is the maximum-likelihood
   estimate, so `binference.infer(lk, method="map")` computes the NPMLE on the grid. For
-  Dirichlet priors with concentrations of at least one it uses mix-SQP (Kim et al.
-  2020), and EM otherwise ({doc}`../user-guide/engines`); `method="em"` runs
-  SQUAREM-accelerated EM. The result carries its KKT gap, the largest violation of the
-  optimality conditions, which is zero at the optimum (`binference.diagnostics.kkt_gap`).
+  this prior it uses mix-SQP (Kim et al. 2020); `method="em"` runs SQUAREM-accelerated
+  EM instead. The solvers for other priors are in
+  [Point estimates](../user-guide/engines.md#point-estimates). The result carries its KKT
+  gap, the largest violation of the optimality conditions, which is zero at the optimum
+  (`binference.diagnostics.kkt_gap`).
 - **The Dirichlet-penalised mixture** of ashr, $\sum_iw_i\log(\sum_k\pi_kL_{ik})+
   \sum_k(\alpha_k-1)\log\pi_k$, is the MAP of the same model with a Dirichlet prior.
 - **Smooth $g$.** `LogisticRandomWalk` and `LogisticGP` put a Gaussian prior on

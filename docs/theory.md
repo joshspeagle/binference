@@ -131,8 +131,10 @@ g_k=\frac1W\sum_i\frac{w_iL_{ik}}{L_i\cdot\hat\rho}\le1,\quad\text{with equality
 $$
 
 so binference reports the **optimality gap** $\max_kg_k-1$ for every point
-estimate (`PointEstimate.kkt_gap`); it is infinite where an object has zero
-likelihood. For rates, with $G$ the gradient of the log posterior in $\lambda$,
+estimate found by EM or mix-SQP (`PointEstimate.kkt_gap`); it is infinite where an
+object has zero likelihood. L-BFGS estimates have their own check
+([point estimates](user-guide/engines.md#point-estimates)). For rates, with $G$ the gradient of the
+log posterior in $\lambda$,
 the conditions are $G_k\le0$ with equality where $\hat\lambda_k>0$, and the gap is
 the larger of $\max_kG_k/S_k$ and $|\lambda\cdot G|/(S\cdot\lambda)$, so it does
 not depend on the exposure's units. `MAP(tol=)` bounds this gap for EM and

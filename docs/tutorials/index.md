@@ -1,8 +1,8 @@
 # Tutorials
 
 These notebooks are executed every time the documentation is built, so the
-outputs below are exactly what the code produces. Each takes about a minute
-or less on a laptop.
+outputs below are exactly what the code produces. Each runs in under two
+minutes on a shared four-core container with one BLAS thread per process.
 
 ```{toctree}
 :maxdepth: 1

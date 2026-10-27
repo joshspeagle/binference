@@ -69,11 +69,11 @@ result.plot(truth=mock.truth.rho)
 ```
 
 ```text
-binference fractions posterior (nuts, 4000 draws)
-       bin       mean         sd     median        q16       q84  ess_bulk    rhat
-  [0, 0.1)   0.005989   0.003696   0.005572   0.002163  0.009778      2117       1
-[0.1, 0.2)    0.01365    0.00797    0.01306   0.005212   0.02178      1873   1.001
-[0.2, 0.3)    0.02388      0.013    0.02345   0.009582   0.03735      1768   1.001
+binference fractions posterior (nuts, 4000 draws; inputs: gaussian)
+       bin       mean         sd     median        q16        q84  ess_bulk    rhat  support
+  [0, 0.1)   0.007314    0.00378   0.007038   0.003495    0.01107      2807   1.002    32.63
+[0.1, 0.2)    0.01177   0.007868    0.01064   0.003529    0.02018      2063   1.001    47.69
+[0.2, 0.3)    0.02166    0.01302    0.02049   0.007953    0.03498      1845   1.001    68.66
 ...
 ```
 

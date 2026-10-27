@@ -304,14 +304,15 @@ def infer(
     method : {"auto", "nuts", "gibbs", "map", "em", "laplace", "vb", "bootstrap"}
         Inference engine. ``"auto"`` (default) picks Gibbs, Laplace or NUTS from
         rules set by the benchmark matrix (:class:`Auto`, DECISIONS #88); its
-        options ``target_ess``, ``gibbs_max_missing`` and ``nnz_limit`` go in
-        ``engine_kwargs``, and the choice and its reason are in
+        options ``target_ess``, ``gibbs_max_missing``, ``max_gibbs_draws`` and
+        ``nnz_limit`` go in ``engine_kwargs``, and the choice and its reason are in
         ``result.info["auto_method"]`` and ``result.info["auto_reason"]``.
         ``"nuts"`` samples the exact posterior with any prior; ``"em"`` is MAP by
         EM on the simplex (``algorithm="em"``) rather than mix-SQP; it needs a
         conjugate prior, and a jointly inferred selection or response runs L-BFGS.
     n_samples : int, optional
-        Draws per chain (NUTS, Gibbs) or in total (Laplace, VB, bootstrap).
+        Draws per chain (NUTS, Gibbs, and ``"auto"``) or in total (Laplace, VB,
+        bootstrap). Under ``"auto"`` it fixes the run length (see :class:`Auto`).
     rng : int, numpy.random.Generator, or None
         Random number generator or seed (SPEC 7).
     progress : bool
@@ -334,9 +335,9 @@ def infer(
     >>> bins = binference.Bins.linear(0.0, 1.0, 5)
     >>> z = rng.uniform(0, 1, 300)
     >>> lk = binference.Likelihoods.from_gaussian(z + rng.normal(0, 0.05, 300), 0.05, bins)
-    >>> res = binference.infer(lk, rng=0, n_samples=200, n_warmup=200)
-    >>> res.samples.shape
-    (800, 5)
+    >>> res = binference.infer(lk, rng=0)
+    >>> res.mean.shape
+    (5,)
     """
     if isinstance(likelihoods, PopulationModel):
         if any(v is not None for v in (prior, selection, selection_mode, bins)):

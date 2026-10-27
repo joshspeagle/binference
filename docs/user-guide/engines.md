@@ -49,7 +49,10 @@ the same draws.
    jointly, or a fraction of missing information at the MAP that is low. It
    runs long enough for a target effective sample size, from the
    autocorrelation time $(1+f)/(1-f)$, and is extended until that size and
-   $\hat R$ pass; if that would take too many draws, auto moves on.
+   $\hat R$ pass; if that would take too many draws, auto moves on. An
+   explicit `n_samples` fixes the run length: auto then keeps Gibbs whatever
+   length it would need and does not extend it, so check the result (`infer`
+   does by default).
 2. **Laplace**, importance-corrected, kept when its Pareto $\hat k$ check
    passes with enough effective draws. For very large inputs, or when no
    other engine takes the options given, it is kept anyway, and flagged
@@ -188,9 +191,10 @@ choice.
 - **The certificate** is the KKT optimality gap, which should be about zero.
   `MAP(tol=1e-8)` bounds it for EM, bounds the same gap of the problem mix-SQP
   solves (the observed fractions under selection, the composition for rates),
-  and bounds the largest gradient over the total weight for L-BFGS. A run that
-  can no longer improve its objective in floating point is accepted below
-  `1e3 * tol`. `est.log_posterior` is
+  and bounds the largest gradient over the total weight for L-BFGS. An L-BFGS
+  estimate has `est.kkt_gap` NaN and keeps its largest absolute gradient in
+  `est.info["grad_norm"]`. A run that can no longer improve its objective in
+  floating point is accepted below `1e3 * tol`. `est.log_posterior` is
   always the density of the fractions or rates, `model.log_posterior(est.value)`;
   L-BFGS also stores the density in its own coordinates as
   `est.info["log_density_unconstrained"]`.

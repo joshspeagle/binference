@@ -153,3 +153,9 @@ $\hat R$ and the effective sample sizes are fine. Divergences that persist
 with a higher `target_accept` mark a region the sampler cannot explore, such
 as the funnel described above: change the prior or its hyperprior rather
 than ignore them.
+
+A low E-BFMI (below 0.3) means that NUTS moves slowly through the energy
+distribution, so it may under-explore the tails of the posterior. A longer
+warm-up or another prior may help: a raised `target_accept` does not change
+the energy geometry that causes it. Otherwise compare the fit with a longer
+run before you rely on its tails.

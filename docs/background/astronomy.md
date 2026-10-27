@@ -155,7 +155,8 @@ binference:
   coverage of 68% and 95% intervals to 0.29 and 0.52; dividing out the interim prior
   removed the bias. Using the bin integral of each likelihood where the model needs the
   bin average biased $\rho$ as well ({doc}`../user-guide/pitfalls`). binference
-  requires the interim prior for posteriors and an explicit representation for tables.
+  requires the interim prior for posteriors and asks what a table holds
+  ({doc}`../user-guide/inputs`).
 - **Software defects** (runs that never resumed, a `reset()` that left old samples,
   legacy random state, bins frozen at exactly zero, no input validation) are each
   covered by a test in binference: engines resume (`engine.run(a); engine.run(b)`),

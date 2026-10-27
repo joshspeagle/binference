@@ -45,10 +45,10 @@ simulate = binference.simulate.prior_predictive(prior, binference.Bins.linear(0,
                                             n_objects=40, noise=0.2)
 
 def fit(lk, rng):
-    return binference.infer(lk, prior, method="gibbs", rng=rng, n_chains=1,
-                        n_warmup=100, n_samples=400, check=False)
+    return binference.infer(lk, prior, method="gibbs", rng=rng, n_chains=4,
+                        n_warmup=100, n_samples=600, check=False)
 
-result = sbc(simulate, fit, n_simulations=40, n_draws=49, rng=0)
+result = sbc(simulate, fit, n_simulations=40, n_draws=19, rng=0)
 print(result.names, result.pvalues().round(2), result.passed())
 fig = result.plot()
 ```

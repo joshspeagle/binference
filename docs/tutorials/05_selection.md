@@ -64,7 +64,7 @@ lk = binference.Likelihoods.from_gaussian(obs_x, sigma, bins)
 fit = binference.infer(
     lk, binference.priors.GammaRates(shape=1.0, rate=1e-3),
     selection=binference.Selection(n_stars * completeness, "on_truth", scale="exposure"),
-    rng=1, n_samples=500, n_warmup=500,
+    rng=1,
 )
 idx = bins.index(obs_x)                                               # -1 outside the bins
 naive = np.bincount(idx[idx >= 0], minlength=bins.K) / n_stars        # detected / stars
