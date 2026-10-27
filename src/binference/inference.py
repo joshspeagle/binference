@@ -123,8 +123,13 @@ class Auto(Engine):
         self._map: tuple[Any, float] | None = None  # the MAP and its missing information
 
     def candidates(self, n_samples: int | None = None) -> list[tuple[str, str, int | None]]:
-        """(engine, reason, Gibbs draws per chain) in the order they are tried, for runs
-        of ``n_samples`` draws per chain (None: the engines' own lengths)."""
+        """(engine, reason, Gibbs draws per chain) in the order they are tried.
+
+        Parameters
+        ----------
+        n_samples : int, optional
+            Draws per chain of the runs; ``None`` uses the engines' own lengths.
+        """
         m, kw = self.model, self.engine_kwargs
         out: list[tuple[str, str, int | None]] = []
         if Gibbs.unsupported(m) is None and set(kw) <= set(_options(Gibbs)):
@@ -163,8 +168,11 @@ class Auto(Engine):
     def run(self, n_samples: int | None = None) -> PopulationResult:
         """Run the first candidate that applies (see the class docstring).
 
-        ``n_samples`` is the number of draws per chain; Laplace returns as many in
-        total as NUTS's default four chains would (4000 by default).
+        Parameters
+        ----------
+        n_samples : int, optional
+            Draws per chain; ``None`` lets auto set the run length. Laplace returns as
+            many in total as NUTS's default four chains would (4000 by default).
         """
         plan = self.candidates(n_samples)
         rejected: list[str] = []  # why earlier candidates were not kept

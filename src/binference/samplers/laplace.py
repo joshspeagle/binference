@@ -137,7 +137,13 @@ class Laplace(Engine):
         return x0, cov, H
 
     def run(self, n_samples: int = 4000) -> PopulationResult:
-        """Draw ``n_samples`` (approximately) from the posterior."""
+        """Draw ``n_samples`` (approximately) from the posterior.
+
+        Parameters
+        ----------
+        n_samples : int, optional
+            Draws returned in total.
+        """
         m = self.model
         x0, _, lam, U, cov = self._mode_and_eigen()
         d = x0.size

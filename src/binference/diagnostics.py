@@ -66,8 +66,13 @@ def autocorr_function(x: Any) -> np.ndarray:
 def autocorr_time(x: Any, c: float = 5.0) -> float:
     """Integrated autocorrelation time with Sokal's adaptive window.
 
-    ``x`` is a 1-D chain or an ``(n_chains, n_draws)`` array (autocorrelation
-    functions are averaged over chains, as in emcee).
+    Parameters
+    ----------
+    x : array_like (n_draws,) or (n_chains, n_draws)
+        Draws; autocorrelation functions are averaged over chains, as in emcee.
+    c : float, optional
+        Window factor: the window is the smallest lag at least ``c`` times the
+        running estimate of the time.
     """
     f = autocorr_function(x)
     taus = 2.0 * np.cumsum(f) - 1.0
@@ -152,9 +157,10 @@ def ess(x: Any, kind: str = "bulk") -> float:
     ----------
     x : array_like, shape (n_draws,) or (n_chains, n_draws)
     kind : {"bulk", "tail", "mean"}
-        ``"bulk"``: rank-normalised split-chain ESS; ``"tail"``: minimum of the
-        ESS of the 5% and 95% quantile indicators; ``"mean"``: ESS of the raw
-        (split) draws, appropriate for the Monte Carlo error of the mean.
+        Bulk, tail or mean ESS. ``"bulk"``: rank-normalised split-chain ESS;
+        ``"tail"``: minimum of the ESS of the 5% and 95% quantile indicators;
+        ``"mean"``: ESS of the raw (split) draws, appropriate for the Monte Carlo
+        error of the mean.
     """
     a = _split(_as_chains(x))
     if kind == "bulk":
@@ -317,6 +323,15 @@ def kkt_gap(model: Any, value: Any, include_prior: bool = True) -> float:
     """First-order optimality violation of a point estimate.
 
     See :meth:`binference.PopulationModel.kkt_gap`.
+
+    Parameters
+    ----------
+    model : PopulationModel
+        The model.
+    value : array_like (K,)
+        Fractions or rates.
+    include_prior : bool, optional
+        Include the prior's pseudo-counts in the optimality conditions.
     """
     return model.kkt_gap(np.asarray(value, dtype=float), include_prior=include_prior)
 

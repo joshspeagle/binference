@@ -119,6 +119,8 @@ jobs:
       - run: pip install -e ".[docs,xarray]"
       - name: Check the brand assets and tokens against docs/_scripts/brand.py
         run: python docs/_scripts/brand.py --check
+      - name: Check the defaults page against the code and its docstrings
+        run: python docs/_scripts/defaults_table.py --check
       - name: Run the code of the README, home page, installation page and guides
         run: python docs/_scripts/run_snippets.py README.md docs/index.md docs/start/install.md docs/guides/*.md
       # Executed notebooks are reused until the tutorials, the package, the plot style or the docs

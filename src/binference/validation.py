@@ -93,6 +93,17 @@ def exact_posterior(
     probabilities to 0.005 for concentrations of 0.5 and above (at 0.2 the
     mass below a 6e-9 quantile is 22% off). ``max_elements`` bounds the size of
     the (objects x nodes) blocks evaluated at once (audit G-5).
+
+    Parameters
+    ----------
+    model : PopulationModel, Likelihoods or array_like (N, K)
+        The model, or likelihoods to build one from with ``prior``.
+    prior : PopulationPrior, optional
+        Population prior; ``None`` gives ``Dirichlet(1.0)``.
+    n_grid : int, optional
+        Gauss-Legendre nodes per stick coordinate.
+    max_elements : int, optional
+        Largest block of objects times nodes evaluated at once.
     """
     if not isinstance(model, PopulationModel):
         model = PopulationModel(model, prior)
@@ -174,7 +185,14 @@ class SBCResult:
         return np.linspace(0, self.n_draws + 1, n_bins + 1)
 
     def histogram(self, n_bins: int | None = None) -> np.ndarray:
-        """Rank histograms, shape ``(n_quantities, n_bins)``."""
+        """Rank histograms, shape ``(n_quantities, n_bins)``.
+
+        Parameters
+        ----------
+        n_bins : int, optional
+            Histogram bins; ``None`` gives ``min(20, n_simulations // 5, n_draws + 1)``,
+            at least 2.
+        """
         edges = self._edges(n_bins)
         return np.stack([np.histogram(r, bins=edges)[0] for r in self.ranks.T])
 
@@ -183,6 +201,12 @@ class SBCResult:
 
         Bins hold different numbers of the ``n_draws + 1`` possible ranks unless
         ``n_bins`` divides ``n_draws + 1`` (audit G-1).
+
+        Parameters
+        ----------
+        n_bins : int, optional
+            Histogram bins; ``None`` gives ``min(20, n_simulations // 5, n_draws + 1)``,
+            at least 2.
         """
         per_bin = np.histogram(np.arange(self.n_draws + 1), bins=self._edges(n_bins))[0]
         return per_bin * self.ranks.shape[0] / (self.n_draws + 1)
@@ -199,7 +223,8 @@ class SBCResult:
         n_bins : int, optional
             Histogram bins for ``method="chisquare"`` (default
             ``min(20, n_simulations // 5, n_draws + 1)``, at least 2).
-        method : {"chisquare", "ecdf"}
+        method : {"chisquare", "ecdf"}, optional
+            Chi-square test of the rank histogram or ECDF test of the ranks.
             ``"chisquare"``: Pearson's chi-square test of the rank histogram.
             ``"ecdf"``: the ECDF test of Säilynoja, Bürkner & Vehtari (2022).
             With :math:`S` simulations and :math:`M` = ``n_draws``, the count
@@ -230,8 +255,19 @@ class SBCResult:
     def passed(
         self, alpha: float = 0.01, n_bins: int | None = None, *, method: str = "chisquare"
     ) -> bool:
-        """True if no quantity rejects uniformity at Bonferroni-corrected level ``alpha``
-        (each p-value from :meth:`pvalues` above ``alpha / n_quantities``)."""
+        """True if no quantity rejects uniformity at Bonferroni-corrected level ``alpha``.
+
+        Each p-value from :meth:`pvalues` must lie above ``alpha / n_quantities``.
+
+        Parameters
+        ----------
+        alpha : float, optional
+            Significance level, Bonferroni-corrected over the quantities.
+        n_bins : int, optional
+            Histogram bins for ``method="chisquare"``, as for :meth:`pvalues`.
+        method : {"chisquare", "ecdf"}, optional
+            Chi-square test of the rank histogram or ECDF test of the ranks.
+        """
         p = self.pvalues(n_bins, method=method)
         return bool(np.all(p > alpha / p.size))
 
@@ -312,10 +348,10 @@ def sbc(
     n_simulations : int
         Number of simulated data sets.
     n_draws : int
-        Posterior draws used for ranking (thinned evenly from each fit; they
+        Posterior draws ranked per fit, thinned evenly from its draws. They
         should be roughly independent, i.e. fewer than the ESS: a warning
         names how many fits have a smallest bulk ESS below it, since
-        autocorrelated draws make the rank histograms look over-dispersed).
+        autocorrelated draws make the rank histograms look over-dispersed.
     log_likelihood : bool
         Also rank the joint log-likelihood of the true population.
     rng : int, Generator or None
@@ -391,8 +427,24 @@ def coverage(
 
     ``functionals`` maps names to functions of the fractions, or of the rates
     for rate models (e.g. a mean
-    redshift); their intervals are checked alongside every bin fraction. ``simulate``,
-    ``fit``, ``rng`` and ``progress`` are as in :func:`sbc`.
+    redshift); their intervals are checked alongside every bin fraction.
+
+    Parameters
+    ----------
+    simulate : callable
+        ``simulate(rng) -> (likelihoods, truth)``, as in :func:`sbc`.
+    fit : callable
+        ``fit(likelihoods, rng) -> result``, as in :func:`sbc`.
+    n_simulations : int, optional
+        Number of simulated data sets.
+    levels : sequence of float, optional
+        Credible levels whose coverage is measured.
+    functionals : dict, optional
+        Named functions of the fractions (or rates) whose intervals are also checked.
+    rng : int, Generator or None
+        Random number generator (SPEC 7).
+    progress : bool, optional
+        Show a progress bar.
     """
     levels_arr = np.asarray(levels, dtype=float)
     functionals = functionals or {}

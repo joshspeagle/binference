@@ -76,7 +76,7 @@ class PopulationModel:
         depending on their true bin; likelihood rows are multiplied by ``S_k``
         as well. :meth:`Selection.combined` gives both at once.
     bins : Bins, optional
-        Only used when ``likelihoods`` is a raw array.
+        Bins for a raw array of likelihoods; ignored otherwise.
 
     Notes
     -----
@@ -208,11 +208,22 @@ class PopulationModel:
     def draw_total(
         self, value: np.ndarray, rng: np.random.Generator, S: np.ndarray | None = None
     ) -> np.ndarray | None:
-        r"""Draws of the total :math:`\Lambda \mid \rho \sim \mathrm{Gamma}(W, S\cdot\rho)`,
-        one per row of fractions ``value`` ``(..., K)``: its exact posterior under
-        :math:`p(\Lambda) \propto 1/\Lambda` (DECISIONS #9, #78). ``S`` gives a
-        selection per row (draws of an uncertain one); by default
-        :attr:`total_exposure`, and ``None`` without it."""
+        r"""Draws of the total :math:`\Lambda \mid \rho \sim \mathrm{Gamma}(W, S\cdot\rho)`.
+
+        One draw per row of fractions ``value`` ``(..., K)``: its exact posterior under
+        :math:`p(\Lambda) \propto 1/\Lambda` (DECISIONS #9, #78). Returns ``None``
+        without an exposure.
+
+        Parameters
+        ----------
+        value : ndarray (..., K)
+            Fractions.
+        rng : Generator
+            Random number generator.
+        S : ndarray (..., K), optional
+            Selection per row (draws of an uncertain one); ``None`` uses
+            :attr:`total_exposure`.
+        """
         S = self.total_exposure if S is None else np.asarray(S)
         if S is None:
             return None
@@ -529,11 +540,19 @@ class PopulationModel:
     ) -> float:
         """Marginal log-likelihood of the population (including the selection term).
 
-        With ``absolute=True`` the per-object log-scales of the likelihoods are
-        included, so values are comparable across binnings and models. ``S`` is a
-        value of an inferred selection (by default its :attr:`~Selection.values`), and
-        ``response`` ``(J, K)`` one of an inferred response (by default the rows of the
-        likelihoods: its posterior means).
+        Parameters
+        ----------
+        value : ndarray (K,)
+            Fractions or rates.
+        absolute : bool, optional
+            Include the per-object log-scales of the likelihoods, so values compare
+            across binnings and models.
+        S : ndarray (K,), optional
+            Value of an inferred selection; ``None`` uses its
+            :attr:`~Selection.values`.
+        response : ndarray (J, K), optional
+            Value of an inferred response; ``None`` uses the rows of the likelihoods
+            (its posterior means).
         """
         v = np.asarray(value, dtype=float)
         if response is not None:
@@ -589,7 +608,15 @@ class PopulationModel:
         return nhat
 
     def responsibilities(self, value: np.ndarray, idx: Any = None) -> np.ndarray:
-        r"""Per-object posteriors over bins given the population: :math:`r_{ik}`."""
+        r"""Per-object posteriors over bins given the population: :math:`r_{ik}`.
+
+        Parameters
+        ----------
+        value : ndarray (K,)
+            Fractions or rates.
+        idx : index, optional
+            Objects to use; ``None`` uses all of them.
+        """
         return kern.responsibilities(self._L, np.asarray(value, dtype=float), idx=idx)
 
     def sample_prior(self, n: int, rng: RNGLike = None) -> np.ndarray:
@@ -613,6 +640,13 @@ class PopulationModel:
         (DECISIONS #56, #71). Self-consistency of the
         EM fixed point is necessary but not sufficient for optimality; this
         certificate checks the rest.
+
+        Parameters
+        ----------
+        value : ndarray (K,)
+            Fractions or rates.
+        include_prior : bool, optional
+            Include the prior's pseudo-counts in the optimality conditions.
         """
         v = np.asarray(value, dtype=float)
         s = kern.matvec(self._L, v)
@@ -658,6 +692,20 @@ class PopulationModel:
         concentrations below one outweighs the data). Computed on the support
         of ``value`` and on a random subset of at most ``max_objects`` objects, ``chunk``
         objects at a time.
+
+        Parameters
+        ----------
+        value : ndarray (K,)
+            Fractions or rates.
+        max_objects : int, optional
+            Largest random subset of objects used.
+        rng : int, Generator or None, optional
+            Random number generator for the subset; the default ``0`` makes it
+            reproducible.
+        include_prior : bool, optional
+            Add a Dirichlet prior's term, as the MAP EM does.
+        chunk : int, optional
+            Objects processed per block, which bounds memory.
         """
         v = np.asarray(value, dtype=float)
         N = self.N

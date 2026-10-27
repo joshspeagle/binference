@@ -146,7 +146,8 @@ class MAP(Engine):
     ----------
     model : PopulationModel
     space : {"auto", "simplex", "unconstrained"}
-        ``"simplex"`` maximises the density of the fractions (requires a
+        Coordinates the mode is found in. ``"simplex"`` maximises the density
+        of the fractions (requires a
         conjugate prior); ``"unconstrained"`` the density in unconstrained
         coordinates (always interior); ``"auto"`` picks ``"simplex"`` unless
         the prior density is unbounded at the boundary (concentrations or
@@ -155,7 +156,7 @@ class MAP(Engine):
         inferred jointly. The choice is in ``info["space"]`` and the solver in
         ``info["algorithm"]``.
     tol : float
-        Tolerance on first-order optimality: the KKT gap
+        Tolerance on first-order optimality. It bounds the KKT gap
         (:meth:`~binference.PopulationModel.kkt_gap`) for EM, and for mix-SQP
         the same gap of the problem it solves (in the observed fractions under
         selection, the composition for rates); the largest absolute gradient
@@ -167,7 +168,7 @@ class MAP(Engine):
     accelerate : bool
         Use SQUAREM acceleration (EM only).
     algorithm : {"auto", "mixsqp", "em"}
-        Simplex-space algorithm: ``"auto"`` uses mix-SQP where it applies
+        Solver on the simplex. ``"auto"`` uses mix-SQP where it applies
         (Dirichlet prior with concentrations >= 1, or exactly 1 with
         selection; GammaRates with shapes >= 1), EM on the simplex otherwise,
         and L-BFGS in the unconstrained space. ``"mixsqp"`` and ``"em"`` solve on

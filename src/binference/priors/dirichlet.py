@@ -112,7 +112,13 @@ class Dirichlet(PopulationPrior):
 
     @classmethod
     def reference(cls, K: int | None = None) -> Dirichlet:
-        """Reference prior ``alpha = 1/K`` (resolved when bound if ``K`` is omitted)."""
+        """Reference prior ``alpha = 1/K``.
+
+        Parameters
+        ----------
+        K : int, optional
+            Number of bins; ``None`` takes it from the bins when the prior is bound.
+        """
         return cls("reference") if K is None else cls(1.0 / K)
 
     @classmethod
@@ -125,6 +131,15 @@ class Dirichlet(PopulationPrior):
         representative (for a coherent model of an unrepresentative reference
         use a reference-centred :class:`~binference.priors.LogisticNormal` or
         :class:`~binference.priors.LogisticRandomWalk` with ``mean=log(reference)``).
+
+        Parameters
+        ----------
+        counts : array_like (K,)
+            Counts of the reference sample in each bin.
+        strength : float, optional
+            Weight of the reference counts in ``alpha``.
+        base : float, optional
+            Concentration added to every bin.
         """
         c = np.asarray(counts, dtype=float)
         if np.any(c < 0):
@@ -139,6 +154,13 @@ class Dirichlet(PopulationPrior):
         :meth:`Density.coerce <binference.Density.coerce>` accepts; an array is
         read as masses per bin). The default is flat in the measure coordinate,
         proportional to bin volumes on linear bins.
+
+        Parameters
+        ----------
+        concentration : float, optional
+            Total concentration, spread over the bins by the base measure.
+        base : Density, str, callable or array_like, optional
+            Base measure whose bin masses shape ``alpha``.
         """
         check_positive(concentration, "concentration")
         obj = cls(1.0)
@@ -496,9 +518,11 @@ class GeneralizedDirichlet(_TreePrior):
 
     Parameters
     ----------
-    a, b : float or array_like (K-1,)
-        Beta parameters. ``b=None`` gives the Dirichlet-equivalent
-        ``b_k = (K - 1 - k) * a`` for scalar ``a``.
+    a : float or array_like (K-1,), optional
+        First Beta parameter of each stick.
+    b : float or array_like (K-1,), optional
+        Second Beta parameter of each stick. ``None`` gives the
+        Dirichlet-equivalent ``b_k = (K - 1 - k) * a`` for scalar ``a``.
     order : sequence of int, optional
         Permutation of the bins defining the stick-breaking order.
     """

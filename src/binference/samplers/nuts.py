@@ -264,6 +264,7 @@ class NUTS(Engine):
         (smoothness) priors with at most 200 unconstrained dimensions, whose
         hyperparameters correlate with the field, and a diagonal one otherwise.
     reparametrize : bool
+        Partially centre the basis coefficients of logistic priors during warm-up.
         For logistic priors, switch each basis coefficient between the
         non-centred and centred forms according to how strongly the data
         constrain it (partial non-centring with weights ``1 / -H_jj`` from the
@@ -614,7 +615,13 @@ class NUTS(Engine):
             self._close_pool()
 
     def run(self, n_samples: int = 1000) -> PopulationResult:
-        """Warm up (first call only), draw ``n_samples`` per chain, and return all draws so far."""
+        """Warm up (first call only), draw ``n_samples`` per chain, and return all draws so far.
+
+        Parameters
+        ----------
+        n_samples : int, optional
+            Draws per chain after warm-up.
+        """
         for _ in self.sample(int(n_samples)):
             pass
         return self.result

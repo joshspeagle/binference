@@ -94,7 +94,13 @@ class MeanFieldVB(Engine):
         return state, it, converged
 
     def run(self, n_samples: int = 4000) -> PopulationResult:
-        """Fit and return ``n_samples`` independent draws from the variational posterior."""
+        """Fit and return ``n_samples`` independent draws from the variational posterior.
+
+        Parameters
+        ----------
+        n_samples : int, optional
+            Draws from the variational posterior.
+        """
         state, it, converged = self.fit()
         draws = self.model.prior.vb_sample(state, int(n_samples), self.rng)
         warn(

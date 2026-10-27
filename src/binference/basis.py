@@ -47,7 +47,7 @@ class Basis:
     resolution : int or sequence of int
         Components per reporting bin along each axis (default 1).
     oversample : int, optional
-        Quadrature cells per component and axis used to integrate likelihoods
+        Quadrature cells per component and axis. They integrate likelihoods
         and selection functions against the components (default 1 for order 0,
         where the integrals are exact; for order 1, 8 in 1-D, 4 in 2-D and 2
         in more dimensions).

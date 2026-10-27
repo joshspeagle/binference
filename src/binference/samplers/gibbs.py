@@ -47,16 +47,16 @@ class Gibbs(Engine):
     thin : int
         Keep every ``thin``-th draw.
     store_labels : bool or array_like of int
-        Store joint label draws for all objects (``True``; unit weights only)
-        or for the given object indices (sorted and deduplicated, as
-        ``result.label_index`` records).
+        Store joint draws of the objects' bins. ``True`` stores them for all
+        objects (unit weights only), an array for the given object indices
+        (sorted and deduplicated, as ``result.label_index`` records).
     init : array_like (K,), optional
-        Positive fractions or rates around which the chains start: each chain
+        Positive fractions or rates around which the chains start. Each chain
         starts from its own draw of the population's conditional given the
         expected counts there, as by default around a few EM steps.
     chunk : int or None
-        Objects processed per block when drawing labels from dense likelihoods (bounds
-        memory); ``None`` processes all at once. Sparse likelihoods are processed at once,
+        Objects processed per block when drawing labels from dense likelihoods, which
+        bounds memory; ``None`` processes all at once. Sparse likelihoods are processed at once,
         in memory proportional to their nonzeros.
     """
 
@@ -246,7 +246,13 @@ class Gibbs(Engine):
                     self._labels.append(labs[:, :n_done])
 
     def run(self, n_samples: int = 1000) -> PopulationResult:
-        """Burn in (first call only), draw ``n_samples`` per chain, and return all draws so far."""
+        """Burn in (first call only), draw ``n_samples`` per chain, and return all draws so far.
+
+        Parameters
+        ----------
+        n_samples : int, optional
+            Draws per chain after burn-in.
+        """
         for _ in self.sample(int(n_samples)):
             pass
         return self.result

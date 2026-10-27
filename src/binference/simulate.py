@@ -132,7 +132,16 @@ def _as_density(density: Any, bins: Bins) -> Density:
 def population(bins: Bins, density: Any = "bimodal", tol: float = 1e-6) -> np.ndarray:
     """Population fractions per bin from a density name, :class:`Density`, callable or masses.
 
-    Densities are integrated over each bin by adaptive quadrature to ``tol``.
+    Parameters
+    ----------
+    bins : Bins
+        The bins.
+    density : str, Density, callable or array_like (K,), optional
+        A named density, a :class:`~binference.Density`, a callable or masses. The
+        names are ``"bimodal"``, ``"gaussian"``, ``"uniform"`` and ``"steep"`` on
+        1-D bins, ``"banana"`` and ``"gaussian"`` on 2-D grids.
+    tol : float, optional
+        Tolerance of the adaptive quadrature over each bin.
     """
     return _as_density(density, bins).masses(bins, tol=tol)
 
@@ -198,7 +207,7 @@ def mock_1d(
     n_objects : int
         Number of *observed* objects (after selection).
     bins : Bins, optional
-        Defaults to 30 equal bins on [0, 3].
+        Bins of the mock; ``None`` gives 30 equal bins on [0, 3].
     density : str, callable, or array_like (K,)
         True population: a named density ("bimodal", "gaussian", "uniform",
         "steep"), a callable density, or bin fractions (values then uniform
@@ -374,9 +383,22 @@ def mock_2d(
 ) -> Mock:
     """A 2-D mock catalogue (e.g. a colour-magnitude-like ridge) with Gaussian errors.
 
-    ``noise`` gives the per-axis standard deviation (fixed or a ``(lo, hi)``
-    range drawn independently per object and axis). Defaults to a 20 x 20 grid
-    on the unit square.
+    Parameters
+    ----------
+    n_objects : int, optional
+        Number of *observed* objects (after selection).
+    bins : Bins, optional
+        Grid of the mock; ``None`` gives a 20 x 20 grid on the unit square.
+    density : str, callable or array_like (K,), optional
+        True population: a named density, a callable density or bin fractions,
+        as for :func:`mock_1d`.
+    noise : float or (lo, hi), optional
+        Measurement standard deviation per axis, fixed or drawn uniformly per object
+        and axis.
+    selection : array_like (K,), optional
+        Per-bin detection probability depending on the *true* bin.
+    rng : int, Generator or None
+        Random number generator (SPEC 7).
     """
     gen = as_generator(rng)
     if bins is None:
@@ -411,6 +433,26 @@ def mock_categorical(
     ``mock.measurements["feature"]`` it gives route C
     (:meth:`Likelihoods.from_binned`). The test-set prevalence ``prevalence``
     (default: a skewed vector) differs from the training prior (label shift).
+
+    Parameters
+    ----------
+    n_objects : int, optional
+        Number of objects in the target set.
+    n_classes : int, optional
+        Number of classes.
+    prevalence : array_like (n_classes,), optional
+        Class fractions of the target set; ``None`` gives fractions rising as the
+        square of the class index.
+    train_prior : array_like (n_classes,), optional
+        Class prior the classifier was trained with; ``None`` is uniform.
+    separation : float, optional
+        Distance between the class means of the feature.
+    temperature : float, optional
+        Divisor of the classifier's log-likelihoods; one is calibrated.
+    n_validation : int, optional
+        Objects in the labelled validation set.
+    rng : int, Generator or None
+        Random number generator (SPEC 7).
     """
     if not temperature > 0:
         raise ValueError(f"temperature must be positive; got {temperature}.")
@@ -470,6 +512,23 @@ def mock_unfolding(
     population uniform within each true bin, ``mock.response`` is a
     :class:`Response` and ``mock.likelihoods`` is built with
     :meth:`Likelihoods.from_binned` (its efficiency becomes the selection function).
+
+    Parameters
+    ----------
+    n_objects : int, optional
+        Number of events before detection.
+    n_true : int, optional
+        Number of true bins.
+    n_reco : int, optional
+        Number of measured bins.
+    slope : float, optional
+        Decay rate of the exponential spectrum.
+    resolution : float, optional
+        Standard deviation of the Gaussian smearing.
+    efficiency : (float, float), optional
+        Detection efficiency at the two ends of the range.
+    rng : int, Generator or None
+        Random number generator (SPEC 7).
     """
     gen = as_generator(rng)
     tb = Bins.linear(0.0, 1.0, n_true)
@@ -560,7 +619,7 @@ def prior_predictive(
         :math:`T` the given values.
     max_objects : float
         For rates, the largest expected number of objects :math:`S\cdot\lambda`
-        a draw may have; every object is simulated, so a draw beyond it raises
+        a draw may have. Every object is simulated, so a draw beyond it raises
         (as the vague default :class:`~binference.priors.GammaRates` does).
 
     Returns

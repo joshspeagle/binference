@@ -420,8 +420,9 @@ class LogisticRandomWalk(PopulationPrior):
         reference fractions. Defaults to a density flat in the measure
         coordinate, so differences penalise the log-density.
     trend_scale : float
-        Prior standard deviation of the root-mean-square size, across the grid,
-        of each unpenalised polynomial mode (a linear trend of root-mean-square
+        Prior size of the unpenalised polynomial trends. It is the standard
+        deviation of the root-mean-square size, across the grid, of each such
+        mode (a linear trend of root-mean-square
         size ``t`` changes the log-density by about ``3.5 t`` end to end),
         whatever the number of bins.
     """
@@ -536,8 +537,8 @@ class LogisticGP(PopulationPrior):
         axis on 2-D grids); increase it for shorter length scales, which also
         lowers the default length-scale prior.
     boundary_factor : float
-        Ratio of the approximation box to the grid half-width (default 3: the
-        centred covariance is within 4% of the exact kernel's for length
+        Ratio of the approximation box to the grid half-width. With the default
+        3, the centred covariance is within 4% of the exact kernel's for length
         scales up to the range, where 1.5 pulled the edge bins towards the
         mean).
     """

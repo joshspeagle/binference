@@ -64,8 +64,9 @@ class Bins:
         :meth:`grid` for N-dimensional grids and :meth:`categories` for
         unordered categories.
     measure : Measure or {"linear", "log"}, optional
-        The within-bin coordinate. Default linear; hand-built edges that look
-        geometric then raise an :class:`~binference.InputWarning`.
+        Coordinate in which the population is flat within a bin. Default linear;
+        hand-built edges that look geometric then raise an
+        :class:`~binference.InputWarning`.
     mask : array_like of bool, optional
         Which bins are part of the support (default: all).
 
@@ -168,14 +169,34 @@ class Bins:
     # ------------------------------------------------------------ constructors
     @classmethod
     def linear(cls, lo: float, hi: float, n: int, mask: Any = None) -> Bins:
-        """``n`` equal-width bins spanning ``[lo, hi]``, linear measure."""
+        """``n`` equal-width bins spanning ``[lo, hi]``, linear measure.
+
+        Parameters
+        ----------
+        lo, hi : float
+            Outer edges.
+        n : int
+            Number of bins.
+        mask : array_like of bool, optional
+            Which bins are part of the support (default: all).
+        """
         if n < 1:
             raise ValueError("n must be at least 1.")
         return cls(np.linspace(lo, hi, int(n) + 1), measure="linear", mask=mask)
 
     @classmethod
     def log(cls, lo: float, hi: float, n: int, mask: Any = None) -> Bins:
-        """``n`` logarithmically spaced bins spanning ``[lo, hi]`` (``lo > 0``), log measure."""
+        """``n`` logarithmically spaced bins spanning ``[lo, hi]`` (``lo > 0``), log measure.
+
+        Parameters
+        ----------
+        lo, hi : float
+            Outer edges.
+        n : int
+            Number of bins.
+        mask : array_like of bool, optional
+            Which bins are part of the support (default: all).
+        """
         if lo <= 0:
             raise ValueError("Logarithmic bins need lo > 0.")
         if n < 1:
@@ -191,6 +212,13 @@ class Bins:
         With ``measure="log"`` the edges are geometric midpoints and stay
         positive. With non-uniform spacing the returned :attr:`centers` (the
         midpoints of the bins in ``u``) need not equal the input values.
+
+        Parameters
+        ----------
+        centers : array_like
+            At least two strictly increasing values.
+        measure : Measure or {"linear", "log"}, optional
+            Coordinate in which the edges sit midway between the centres.
         """
         m = Measure.coerce(measure)
         c = np.asarray(centers, dtype=float).ravel()
@@ -214,6 +242,16 @@ class Bins:
         :meth:`unflatten` to recover the grid shape. ``measure`` is one measure
         for every axis or a sequence with one per axis; ``mask`` has the grid's
         shape.
+
+        Parameters
+        ----------
+        *edges : array_like
+            Strictly increasing edges of each axis.
+        measure : Measure, str or sequence, optional
+            Coordinate in which the population is flat within a cell, for every axis
+            or one per axis; ``None`` is linear.
+        mask : array_like of bool, optional
+            Which cells are part of the support, in the grid's shape (default: all).
         """
         if len(edges) == 0 or (hasattr(edges[0], "__len__") and len(edges[0]) == 0):
             raise ValueError("grid() needs one array of edges per axis.")

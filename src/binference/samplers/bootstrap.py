@@ -31,6 +31,21 @@ class Bootstrap(Engine):
     The result is the sampling distribution of an estimator, not a posterior:
     it is flagged ``approximate=True``. Useful for frequentist intervals and
     comparisons with unfolding / empirical-Bayes practice.
+
+    Parameters
+    ----------
+    model : PopulationModel
+    scheme : {"nonparametric", "bayesian"}, optional
+        Resample objects (``"nonparametric"``) or reweight them with Dirichlet weights
+        (``"bayesian"``).
+    tol : float, optional
+        KKT tolerance of each replicate's MAP fit.
+    max_iter : int, optional
+        Most iterations of each replicate's MAP fit.
+    rng : int, Generator or None
+        Random number generator (SPEC 7).
+    progress : bool, optional
+        Show a progress bar.
     """
 
     name = "bootstrap"
@@ -70,7 +85,13 @@ class Bootstrap(Engine):
         return g if rates else g * (w.sum() / g.sum())
 
     def run(self, n_samples: int = 200) -> PopulationResult:
-        """Return ``n_samples`` bootstrap replicates of the estimate."""
+        """Return ``n_samples`` bootstrap replicates of the estimate.
+
+        Parameters
+        ----------
+        n_samples : int, optional
+            Number of bootstrap replicates.
+        """
         m = self.model
         w = m.likelihoods.weights
         integer = is_integer_array(w)

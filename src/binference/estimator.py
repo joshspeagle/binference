@@ -83,7 +83,13 @@ class PopulationEstimator:
         return Tags(estimator_type=None, target_tags=TargetTags(required=False))
 
     def get_params(self, deep: bool = True) -> dict[str, Any]:
-        """Constructor parameters (scikit-learn convention)."""
+        """Constructor parameters (scikit-learn convention).
+
+        Parameters
+        ----------
+        deep : bool, optional
+            Accepted for scikit-learn compatibility; has no effect.
+        """
         return {name: getattr(self, name) for name in self._get_param_names()}
 
     def set_params(self, **params: Any) -> PopulationEstimator:
@@ -101,7 +107,15 @@ class PopulationEstimator:
 
     # ------------------------------------------------------------- API
     def fit(self, X: Any, y: Any = None) -> PopulationEstimator:
-        """Infer the population from likelihoods ``X``; ``y`` is ignored."""
+        """Infer the population from likelihoods ``X``.
+
+        Parameters
+        ----------
+        X : Likelihoods or array_like (N, K)
+            Per-object likelihoods.
+        y : None, optional
+            Ignored; accepted for scikit-learn compatibility.
+        """
         kwargs = dict(self.engine_kwargs or {})
         self.result_: PopulationResult | PointEstimate = infer(
             X,
@@ -133,14 +147,30 @@ class PopulationEstimator:
         return np.argmax(self.predict_proba(X), axis=1)
 
     def score(self, X: Any, y: Any = None) -> float:
-        """Mean log posterior-predictive density per object (higher is better)."""
+        """Mean log posterior-predictive density per object (higher is better).
+
+        Parameters
+        ----------
+        X : Likelihoods or array_like (N, K)
+            Per-object likelihoods.
+        y : None, optional
+            Ignored; accepted for scikit-learn compatibility.
+        """
         self._check_fitted()
         lp = self.result_.log_predictive(X)
         w = X.weights if isinstance(X, Likelihoods) else np.ones(lp.size)
         return float(np.dot(w, lp) / w.sum())
 
     def sample(self, n: int = 1, rng: RNGLike = None) -> np.ndarray:
-        """Draws of the population fractions from the fitted posterior."""
+        """Draws of the population fractions from the fitted posterior.
+
+        Parameters
+        ----------
+        n : int, optional
+            Number of population draws returned.
+        rng : int, Generator or None
+            Random number generator (SPEC 7).
+        """
         self._check_fitted()
         res = self.result_
         if isinstance(res, PointEstimate):

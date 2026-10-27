@@ -11,6 +11,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / "docs" / "_scripts" / "defaults_t
 def test_the_defaults_page_states_the_defaults_of_the_code():
     if not SCRIPT.exists():  # an sdist ships the tests without the docs
         pytest.skip("docs/ is not present")
+    pytest.importorskip("numpydoc")  # a docs dependency; the docs job runs the check too
     spec = importlib.util.spec_from_file_location("defaults_table", SCRIPT)
     script = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(script)

@@ -34,6 +34,11 @@ __all__ = ["Response"]
 class Response:
     """The probability of each measured bin, and of being observed, given the true bin.
 
+    A response tallied from events (:meth:`from_counts` and the constructors
+    built on it) records the events generated per true bin, :attr:`generated`,
+    which measure how well each column is known. It is :attr:`uncertain` and is
+    inferred jointly with the population; :meth:`fixed` takes it as known.
+
     Parameters
     ----------
     matrix : array_like (J, K)
@@ -53,11 +58,6 @@ class Response:
     open_ended : bool
         Whether the outer two of 1-D ``measured_bins`` also take every value
         below or above them (:meth:`index`).
-
-    A response tallied from events (:meth:`from_counts` and the constructors
-    built on it) records the events generated per true bin, :attr:`generated`,
-    which measure how well each column is known. It is :attr:`uncertain` and is
-    inferred jointly with the population; :meth:`fixed` takes it as known.
     """
 
     __slots__ = (
@@ -170,13 +170,18 @@ class Response:
             Events generated in true bin ``k`` and observed in measured bin ``j``.
         generated : array_like (K,)
             Events generated in each true bin, observed or not.
-        truth_bins, measured_bins, open_ended
-            As for :class:`Response`.
-        origin : str
+        truth_bins : Bins
+            The bins of the true value, as for :class:`Response`.
+        measured_bins : Bins, optional
+            The bins of the measured quantity, as for :class:`Response`.
+        open_ended : bool, optional
+            Whether the outer measured bins also take every value beyond them, as for
+            :class:`Response`.
+        origin : str, optional
             Where the tallies come from, as :meth:`PopulationResult.summary` reports it.
-        prior : float
+        prior : float, optional
             Concentration :math:`\\beta` of the Dirichlet prior on each cell of a column (the
-            ``J`` measured bins and the lost share); column :math:`k` has the posterior
+            ``J`` measured bins and the lost share). Column :math:`k` has the posterior
             :math:`\\mathrm{Dir}(\\beta + \\text{counts}_{\\cdot k},\\ \\beta + \\text{lost}_k)`.
             The default 1 is uniform; below 1, cells with no events give NUTS long tails
             (DECISIONS #81).
@@ -219,6 +224,10 @@ class Response:
     ) -> Response:
         r"""Tally the response from simulated events.
 
+        Events whose true value lies outside ``truth_bins`` are left out; a
+        warning says how many of them were observed, since measurements coming
+        from outside the truth range are not modelled.
+
         Parameters
         ----------
         true_values : array_like
@@ -227,19 +236,23 @@ class Response:
             Measured value of each event, aligned with ``true_values``; NaN (or,
             unless ``open_ended``, a value outside ``measured_bins``) marks an
             event that was not observed.
-        truth_bins, measured_bins, open_ended
-            As for :class:`Response`.
+        truth_bins : Bins
+            The bins of the true value, as for :class:`Response`.
+        measured_bins : Bins
+            The bins of the measured quantity, as for :class:`Response`.
+        open_ended : bool, optional
+            Whether the outer measured bins also take every value beyond them, as for
+            :class:`Response`.
         weights : array_like, optional
             Simulation weight of each event. The tallies are then expressed in
             effective events, :math:`(\sum w)^2/\sum w^2` per true bin, so that
             they measure how well each column is known whatever the scale of the
             weights.
-        origin, prior : str, float
-            As for :meth:`from_counts`.
-
-        Events whose true value lies outside ``truth_bins`` are left out; a
-        warning says how many of them were observed, since measurements coming
-        from outside the truth range are not modelled.
+        origin : str, optional
+            Where the tallies come from, as :meth:`PopulationResult.summary` reports it.
+        prior : float, optional
+            Concentration of the Dirichlet prior on each cell of a tallied column, as
+            for :meth:`from_counts`.
         """
         k = truth_bins.index(true_values)
         if open_ended:  # the same rule as Response.index
@@ -317,8 +330,9 @@ class Response:
             The classes, in order (default: the sorted distinct labels).
         n_bins : int
             Number of equal-count score bins when ``measured_bins`` is not given.
-        prior : float
-            As for :meth:`from_counts`.
+        prior : float, optional
+            Concentration of the Dirichlet prior on each cell of a tallied column, as
+            for :meth:`from_counts`.
         """
         y = np.asarray(labels).ravel()
         s = np.asarray(scores)
@@ -429,6 +443,15 @@ class Response:
         label shift is violated. With ``response_draws`` ``(n_draws, J, K)``, drawn
         with the fractions when the response is inferred jointly, each draw uses its
         own response and the tallies' covariance is left out (DECISIONS #81).
+
+        Parameters
+        ----------
+        counts : array_like (J,)
+            Observed objects per measured bin.
+        rho_draws : array_like (n_draws, K)
+            Draws of the fractions.
+        response_draws : array_like (n_draws, J, K), optional
+            Draws of an inferred response, one per draw of the fractions.
         """
         n = np.asarray(counts, dtype=float).ravel()
         draws = np.atleast_2d(np.asarray(rho_draws, dtype=float))
