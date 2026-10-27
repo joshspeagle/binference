@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from collections.abc import Callable, Sequence
 from functools import partial
 from typing import TYPE_CHECKING, Any
@@ -1500,7 +1501,7 @@ class PopulationResult(_IndividualMixin):
                     if per_chain < ess_min:
                         msgs.append(
                             f"min {kind} ESS{what} = {ess:.0f} "
-                            f"({per_chain:.1f} per chain < {ess_min:.0f})"
+                            f"({math.floor(per_chain * 10) / 10:.1f} per chain < {ess_min:.0f})"
                         )
         return msgs
 
@@ -1925,8 +1926,7 @@ class PointEstimate(_IndividualMixin):
         KKT gap (per object; see :meth:`PopulationModel.kkt_gap`) exceeds ``kkt_max``.
 
         Estimates found by L-BFGS in unconstrained coordinates have no KKT gap (NaN); for
-        them the check is ``converged``, which holds when the largest gradient divided by
-        ``max(1, W)`` fell below the solver's ``tol`` (kept in ``info["grad_norm"]``).
+        them the check is ``converged`` (see ``tol`` of :class:`~binference.samplers.MAP`).
 
         The default is ten times the round-off floor at which MAP stops (DECISIONS #12).
         Returns the messages (empty if the estimate looks fine).

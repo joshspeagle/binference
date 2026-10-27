@@ -32,10 +32,11 @@ First development version.
   unconverged optimisers and raises `DiagnosticsError` when strict; `summary` reports
   the mixing of the quantity it summarises; `which=` takes `"fraction(s)"`/`"rate(s)"`
   everywhere, including `functional`, `rebin`, `cov`, `corr`, `plot_corner` and
-  `plot_trace`; `method="em"` runs EM on the simplex, and an explicit `MAP(algorithm=)` raises
-  where it cannot run instead of falling back to L-BFGS (#100); `sample_assignments`, `sample_values` and
-  `realized_counts` default to 500 draws; `binference.plotting` and `binference.io`
-  load on first use; `result.plot_individual`; `PopulationEstimator` works with
+  `plot_trace`; `method="em"` runs EM on the simplex, and an explicit
+  `MAP(algorithm=)` raises where it cannot run instead of falling back to L-BFGS
+  (#100); `sample_assignments`, `sample_values` and `realized_counts` default to 500
+  draws; `binference.plotting` and `binference.io` load on first use;
+  `result.plot_individual`; `PopulationEstimator` works with
   scikit-learn model selection (`Likelihoods.shape`); the xarray export uses ArviZ's
   statistic names, numeric bin centres and hyperparameter draws.
 - `infer` defaults to `method="auto"` (was `"nuts"`; DECISIONS #14, #88): Gibbs for

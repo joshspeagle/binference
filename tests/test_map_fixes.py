@@ -148,11 +148,12 @@ def test_an_explicit_simplex_algorithm_never_silently_runs_lbfgs():
     lk = _mock(n=300, K=8).likelihoods
     # a non-conjugate prior, or the unconstrained space, cannot run EM or mix-SQP
     with pytest.raises(ValueError, match="algorithm='em'"):
-        MAP(PopulationModel(lk, P.LogisticRandomWalk()), algorithm="em").run()
+        MAP(PopulationModel(lk, P.LogisticRandomWalk()), algorithm="em")
     with pytest.raises(ValueError, match="algorithm='mixsqp'"):
-        MAP(PopulationModel(lk, P.Dirichlet(1.0)), algorithm="mixsqp", space="unconstrained").run()
-    with pytest.raises(ValueError, match="conjugate"):
-        binference.infer(lk, P.LogisticGP(), method="em")
+        MAP(PopulationModel(lk, P.Dirichlet(1.0)), algorithm="mixsqp", space="unconstrained")
+    # and mix-SQP refuses a prior it cannot take before warning about anything
+    with pytest.raises(ValueError, match="concentrations >= 1"):
+        MAP(PopulationModel(lk, P.Dirichlet(0.5)), algorithm="mixsqp")
     # below one, auto picks L-BFGS, but asking for EM runs EM on the simplex (and warns)
     with pytest.warns(binference.InputWarning, match="unbounded"):
         est = binference.infer(lk, P.Dirichlet(0.5), method="em")
@@ -162,9 +163,8 @@ def test_an_explicit_simplex_algorithm_never_silently_runs_lbfgs():
 def test_the_ess_message_never_rounds_the_per_chain_value_up_to_the_limit():
     with warnings.catch_warnings():  # a short run; only the message's format is tested
         warnings.simplefilter("ignore", ConvergenceWarning)
-        res = binference.infer(_mock(n=300, K=4).likelihoods, method="gibbs", n_samples=200, rng=0)
-    d = dict(res.diagnostics)
-    d["ess_tail"] = np.full_like(np.asarray(d["ess_tail"], float), 399.0)
-    res._cache["diagnostics"] = d
-    msgs = [m for m in res._mixing_problems() if "tail ESS" in m]
-    assert msgs and "(99.8 per chain < 100)" in msgs[0]
+        res = binference.infer(_mock(n=100, K=3).likelihoods, method="gibbs", n_samples=20, rng=0)
+    for ess, shown in ((399.0, "99.7"), (399.9, "99.9")):  # 99.75 and 99.975 per chain
+        res._cache["diagnostics"] = dict(res.diagnostics, ess_tail=np.full(3, ess))
+        msgs = [m for m in res._mixing_problems() if "tail ESS" in m]
+        assert msgs and f"({shown} per chain < 100)" in msgs[0]
