@@ -1,0 +1,221 @@
+<title>binference Docs Content Plan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400&family=Literata:opsz,wght@7..72,600&display=swap">
+<style>
+/* Layout: a working document. One column of prose with full-width tables; a sticky contents list on wide screens. */
+:root{--bg:#F5F5F2;--panel:#FFFFFF;--fg:#1D1D20;--fg2:#5A5A62;--rule:#DADAD5;--accent:#2F5BB8;--mark:#FCEFC7;--ok:#2E7D4F;
+  --serif:'Literata',Georgia,serif;--sans:'IBM Plex Sans',system-ui,sans-serif;--mono:'IBM Plex Mono',ui-monospace,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#131315;--panel:#1B1B1E;--fg:#EAEAEC;--fg2:#A3A3AB;--rule:#2F2F35;--accent:#8EAAF0;--mark:#4A3D12;--ok:#7FCB9C;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#131315;--panel:#1B1B1E;--fg:#EAEAEC;--fg2:#A3A3AB;--rule:#2F2F35;--accent:#8EAAF0;--mark:#4A3D12;--ok:#7FCB9C;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:16px/1.6 var(--sans);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 72px}
+.wrap{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:200px minmax(0,1fr);gap:40px}
+nav.toc{position:sticky;top:calc(16px + env(safe-area-inset-top,0px));align-self:start;font-size:.88rem}
+nav.toc ol{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+nav.toc a{color:var(--fg2);text-decoration:none}nav.toc a:hover{color:var(--fg)}
+nav.toc a:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+main{min-width:0}
+h1{font:600 clamp(1.8rem,3.4vw,2.4rem)/1.15 var(--serif);margin:0 0 .5rem;text-wrap:balance}
+h2{font:600 1.45rem/1.25 var(--serif);margin:3rem 0 .6rem;padding-top:.4rem;border-top:1px solid var(--rule);scroll-margin-top:12px}
+h3{font:600 1.05rem/1.3 var(--sans);margin:1.6rem 0 .4rem}
+p,li{max-width:46rem}
+.lede{color:var(--fg2);font-size:1.05rem}
+code{font:.88em var(--mono);background:color-mix(in srgb,var(--fg) 7%,transparent);padding:1px 4px;border-radius:3px;overflow-wrap:anywhere}
+a{color:var(--accent)}
+.tbl{overflow-x:auto;margin:.8rem 0;border:1px solid var(--rule);background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:.9rem;min-width:620px}
+th,td{text-align:left;vertical-align:top;padding:8px 10px;border-bottom:1px solid var(--rule)}
+th{font-weight:600;font-size:.8rem;letter-spacing:.03em;color:var(--fg2);background:color-mix(in srgb,var(--fg) 4%,transparent)}
+tr:last-child td{border-bottom:none}
+td.id,th.id{font-family:var(--mono);white-space:nowrap;width:1%}
+.sec{font-weight:600}
+.new{font:600 .7rem/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--ok);border:1px solid currentColor;padding:2px 5px;border-radius:2px;margin-left:6px;white-space:nowrap}
+.int{font:600 .7rem/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--accent);border:1px solid currentColor;padding:2px 5px;border-radius:2px;white-space:nowrap}
+.sta{font:600 .7rem/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2);border:1px solid currentColor;padding:2px 5px;border-radius:2px;white-space:nowrap}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:12px;margin:.8rem 0}
+.card{background:var(--panel);border:1px solid var(--rule);padding:14px 16px}
+.card b{display:block;margin-bottom:.2rem}
+.card p{margin:0;font-size:.92rem;color:var(--fg2)}
+.num{font:600 1.6rem/1 var(--serif);display:block;margin-bottom:.3rem;font-variant-numeric:tabular-nums}
+.path{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:.3rem 0 1rem;font-size:.9rem}
+.path span{background:var(--panel);border:1px solid var(--rule);padding:3px 8px}
+.path i{font-style:normal;color:var(--fg2)}
+.q{background:var(--panel);border:1px solid var(--rule);border-left:3px solid var(--accent);padding:12px 16px;margin:.8rem 0}
+.q b{display:block}
+.q .def{color:var(--fg2);font-size:.92rem;margin:.3rem 0 0}
+ol.steps{padding-left:1.3rem}ol.steps li{margin:.35rem 0}
+@media (max-width:860px){.wrap{grid-template-columns:1fr}nav.toc{position:static;border:1px solid var(--rule);background:var(--panel);padding:12px 16px}
+  nav.toc ol{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}}
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="Contents"><ol>
+  <li><a href="#audit">1 · What the audit found</a></li>
+  <li><a href="#rules">2 · Readers and writing rules</a></li>
+  <li><a href="#map">3 · Site map</a></li>
+  <li><a href="#paths">4 · Reader paths</a></li>
+  <li><a href="#visuals">5 · Figures and explainers</a></li>
+  <li><a href="#tooling">6 · Tooling</a></li>
+  <li><a href="#order">7 · Order of work</a></li>
+  <li><a href="#calls">8 · Your calls</a></li>
+</ol></nav>
+<main>
+<h1>Docs content plan</h1>
+<p class="lede">Step 2 of the docs phase (issue #99). It rests on three audits of the current site: accuracy against the code,
+structure and writing, and visuals and tooling. Read it alongside the logo round. Your answers to section 8 and your logo choice
+are the two gates before the build starts.</p>
+
+<h2 id="audit">1 · What the audit found</h2>
+<div class="cards">
+  <div class="card"><span class="num">36</span><b>wrong or stale statements</b><p>Each one was reproduced against the code. Five examples publish fits that did not converge.</p></div>
+  <div class="card"><span class="num">3</span><b>code bugs</b><p>An explicit MAP algorithm could silently run L-BFGS, and the ESS message rounded the per-chain value up to the limit. Fixed in PR #101.</p></div>
+  <div class="card"><span class="num">11</span><b>equal menu entries</b><p>One flat list of pages, including internal ones. There is no glossary and no layer of concepts between the pitch and the maths.</p></div>
+  <div class="card"><span class="num">3–7</span><b>copies of one fact</b><p>About ten facts each live in several places, and one copy has already drifted.</p></div>
+  <div class="card"><span class="num">26</span><b>figures</b><p>All are notebook PNGs, with file paths as alt text and text 4–9 px high on a phone. Nothing outside the tutorials has a figure.</p></div>
+  <div class="card"><span class="num">8</span><b>names for one quantity</b><p>fractions, proportions, prevalence, n(z), g … Also S, λ, ℓ and w each carry two to four meanings.</p></div>
+</div>
+<p>What works: the tutorials (executed, short, and they show failure modes), the field background pages, accessibility
+(axe finds no violations), and pages that never scroll sideways. The wrong statements are being fixed on the current site now
+(issue #102), so the live site is right while the redesign is built.</p>
+
+<h2 id="rules">2 · Readers and writing rules</h2>
+<p><b>Readers, in order:</b> students and non-experts with data in hand; practitioners in any field; expert statisticians.
+Astronomy leads the examples, and every input type and field has its own way in.</p>
+<h3>Writing rules (a new <code>contribute/writing</code> page, after dorothy's)</h3>
+<ul>
+  <li>Sentences of at most 25 words, instructions of at most 20, one idea per sentence. Active voice, and a condition before its instruction.</li>
+  <li>One word per meaning, from the glossary. Field names (n(z), prevalence, mixing distribution) appear only on that field's pages, as synonyms.</li>
+  <li>One symbol per meaning, from a notation page: the selection keeps <i>S</i>, the rates keep <i>λ</i>, and the other uses of each are renamed.</li>
+  <li>Each fact has one home, and other pages link to it. Defaults and constants live in Reference, not in the theory.</li>
+  <li>Measured figures only, with their setup. Every number on a page comes from code that CI runs.</li>
+  <li>No <code>DECISIONS #n</code> in user pages or docstrings (107 today). The reason for a design belongs in its issue or PR.</li>
+  <li>Each concept page opens with the question it answers and asks the reader to run no code.</li>
+</ul>
+
+<h2 id="map">3 · Site map</h2>
+<p>Seven sections in the top bar, each a captioned toctree, as in dorothy. Each page lists the existing pages it draws from.
+<span class="new">new</span> marks pages with no source today.</p>
+<div class="tbl"><table>
+<thead><tr><th>Section</th><th>Page</th><th>Answers</th><th>Draws from</th></tr></thead>
+<tbody>
+<tr><td class="sec" rowspan="4">Start</td><td>What binference does</td><td>The problem in pictures; one model under many names</td><td>index, README intro, vision, background/index table</td></tr>
+<tr><td>Is it right for my data? <span class="new">new</span></td><td>A decision table: what you have, what you want, and what is out of scope</td><td>vision "does not do", tutorial 02 table</td></tr>
+<tr><td>Install</td><td>The only install text; README links here</td><td>install, README</td></tr>
+<tr><td>Quick start</td><td>From your own arrays to a population in about 120 lines, with the summary columns explained</td><td>tutorial 01, README</td></tr>
+<tr><td class="sec" rowspan="6">Concepts</td><td>Bins and likelihoods</td><td>What a bin-averaged likelihood is; masses vs densities; measures</td><td>theory, inputs</td></tr>
+<tr><td>Likelihoods and posteriors</td><td>The interim prior, and why stacking is one EM step</td><td>theory, pitfalls, tutorial 02</td></tr>
+<tr><td>Population and objects</td><td>Shrinkage, the realised sample, correlations between bins</td><td>theory, results, tutorial 01</td></tr>
+<tr><td>Priors on the simplex</td><td>Pseudo-counts, concentration, smoothness</td><td>priors, theory, 3.1 briefing</td></tr>
+<tr><td>Selection</td><td>Selection on the truth vs on the measurement; the normaliser; rates</td><td>selection, theory</td></tr>
+<tr><td>Engines</td><td>What each engine computes and when it is exact</td><td>theory, engines</td></tr>
+<tr><td class="sec" rowspan="7">Tutorials</td><td>Gaussian measurements</td><td>Quick start, then priors, two dimensions, empirical Bayes</td><td>tutorials 01, 04, 08, 09</td></tr>
+<tr><td>Posteriors on a grid</td><td>A table of posteriors and its interim prior</td><td>tutorial 02 (part)</td></tr>
+<tr><td>Posterior samples <span class="new">new</span></td><td>Gravitational-wave masses from PE samples and their PE prior</td><td>tutorial 11, inputs</td></tr>
+<tr><td>Classifier outputs</td><td>Prevalence from scores or probabilities, routes named by what you have</td><td>tutorial 06 (part)</td></tr>
+<tr><td>Binned counts and a response</td><td>Unfolding</td><td>tutorial 06 (part)</td></tr>
+<tr><td>Any likelihood table</td><td>Mixed stocks from genotype likelihoods</td><td>tutorial 10</td></tr>
+<tr><td>Incomplete catalogues; checking an analysis</td><td>Selection, injections, engines, validation</td><td>tutorials 05, 11, 03, 07</td></tr>
+<tr><td class="sec" rowspan="9">Guides</td><td>Prepare your inputs</td><td>One short page per input type, plus an advanced page (masks, basis, sparse, weights)</td><td>inputs (split)</td></tr>
+<tr><td>Choose bins <span class="new">new</span></td><td>How many, where, and how to check the binning</td><td>theory, pitfalls, performance, results</td></tr>
+<tr><td>Choose a prior</td><td>Which prior for which data</td><td>priors</td></tr>
+<tr><td>Selection and rates</td><td>Correct an incomplete catalogue; totals and rates</td><td>selection</td></tr>
+<tr><td>Choose an engine</td><td>What <code>auto</code> does, and when to override it</td><td>engines (without the benchmark)</td></tr>
+<tr><td>Read a result</td><td>Summary, functionals, per-object posteriors, plots, save</td><td>results</td></tr>
+<tr><td>Check a result</td><td>Diagnostics, then SBC and coverage</td><td>results, validation</td></tr>
+<tr><td>Scale up</td><td>Speed and memory</td><td>performance</td></tr>
+<tr><td>Troubleshooting <span class="new">new</span></td><td>Each warning message, its cause and its fix; then the pitfalls</td><td>pitfalls, results</td></tr>
+<tr><td class="sec" rowspan="6">How it works</td><td>The model</td><td>The model, its augmented form, and every assumption in one list</td><td>theory</td></tr>
+<tr><td>Point estimates</td><td>EM, mix-SQP, the KKT certificate, missing information</td><td>theory</td></tr>
+<tr><td>Priors in detail</td><td>Dirichlet family as trees, logistic family, coordinates</td><td>theory, 3.1 briefing</td></tr>
+<tr><td>Engines in detail</td><td>NUTS, Gibbs, Laplace with PSIS, VB, bootstrap</td><td>theory</td></tr>
+<tr><td>How <code>auto</code> chooses</td><td>The rules and the benchmark behind them</td><td>engines</td></tr>
+<tr><td>Validation</td><td>Diagnostics, SBC, coverage, and the test suite's statistical checks</td><td>theory, validation</td></tr>
+<tr><td class="sec">Fields</td><td>Astronomy, gravitational waves, unfolding, empirical Bayes, quantification, neural coding, ecology; simplex priors; other software</td><td>Each field's names, methods and software, mapped to binference</td><td>background (sentences cut; references in one bibliography)</td></tr>
+<tr><td class="sec" rowspan="2">Reference</td><td>API <span class="sta">grouped</span></td><td>Every public name, grouped by task, checked by a test</td><td>api</td></tr>
+<tr><td>Glossary, notation, defaults and constants, warnings, bibliography, changelog, cite <span class="new">new</span></td><td>Facts to look up</td><td>spec §3, theory, engines, citing</td></tr>
+</tbody></table></div>
+<p><b>Contribute</b> (in the footer, not the top bar): contributing, writing rules, building the docs, design records. The design
+notes leave the main menu.</p>
+
+<h2 id="paths">4 · Reader paths</h2>
+<h3>Student with Gaussian measurements (astronomy leads)</h3>
+<div class="path"><span>What it does</span><i>→</i><span>Quick start</span><i>→</i><span>Bins and likelihoods</span><i>→</i><span>Population and objects</span><i>→</i><span>Tutorials: priors, 2-D</span><i>→</i><span>Read a result</span></div>
+<h3>Student with posterior samples</h3>
+<div class="path"><span>Is it right?</span><i>→</i><span>Quick start</span><i>→</i><span>Likelihoods and posteriors</span><i>→</i><span>Tutorial: posterior samples</span><i>→</i><span>Choose bins</span><i>→</i><span>Check a result</span></div>
+<h3>Classifier user (quantification, label shift)</h3>
+<div class="path"><span>Is it right?</span><i>→</i><span>Likelihoods and posteriors</span><i>→</i><span>Tutorial: classifier outputs</span><i>→</i><span>Inputs: classifiers</span><i>→</i><span>Troubleshooting</span></div>
+<h3>Expert statistician</h3>
+<div class="path"><span>What it does</span><i>→</i><span>The model</span><i>→</i><span>Point estimates</span><i>→</i><span>Engines in detail</span><i>→</i><span>Tutorial: empirical Bayes</span><i>→</i><span>Defaults and constants</span></div>
+
+<h2 id="visuals">5 · Figures and explainers</h2>
+<p>Numbered so later PRs can cite them. <span class="int">interactive</span> explainers are vanilla JavaScript on seeded random
+numbers, with a still first frame that renders without JavaScript. <span class="sta">static</span> figures are SVG drawn in the
+theme's colours, from data that committed scripts compute with binference itself. Three come straight from the 3.1 briefing's explorers.</p>
+<div class="tbl"><table>
+<thead><tr><th class="id">#</th><th>Shows</th><th>Kind</th><th>Page</th></tr></thead>
+<tbody>
+<tr><td class="id">V-1</td><td>One object's likelihood over z, the bins, and its bin-averaged steps. Sliders for the error and the bin width</td><td><span class="int">interactive</span></td><td>Bins and likelihoods</td></tr>
+<tr><td class="id">V-2</td><td>Masses vs densities on unequal and log-spaced bins</td><td><span class="sta">static</span></td><td>Bins and likelihoods</td></tr>
+<tr><td class="id">V-3</td><td>Likelihood × interim prior = posterior. Move the interim prior and watch a fit that treats posteriors as likelihoods drift toward it</td><td><span class="int">interactive</span></td><td>Likelihoods and posteriors</td></tr>
+<tr><td class="id">V-4</td><td>Stacking vs the hierarchical fit: step through EM from the stack (step 1 is the stack)</td><td><span class="int">interactive</span></td><td>Population and objects</td></tr>
+<tr><td class="id">V-5</td><td>Shrinkage: an object's likelihood times the population gives its posterior. Change the population's width</td><td><span class="int">interactive</span></td><td>Population and objects</td></tr>
+<tr><td class="id">V-6</td><td>The population, several realised samples drawn from it, and the measured objects</td><td><span class="sta">static</span></td><td>Population and objects</td></tr>
+<tr><td class="id">V-7</td><td>Dirichlet draws on the 3-bin simplex, with an α slider (from 3.1)</td><td><span class="int">interactive</span></td><td>Priors on the simplex</td></tr>
+<tr><td class="id">V-8</td><td>Prior draws and correlation matrices for Dirichlet, trees, random walk and GP (extends 3.1)</td><td><span class="int">interactive</span></td><td>Priors on the simplex; Priors in detail</td></tr>
+<tr><td class="id">V-9</td><td>Pólya-tree draws by depth (from 3.1)</td><td><span class="int">interactive</span></td><td>Priors in detail</td></tr>
+<tr><td class="id">V-10</td><td>True value → measurement → cut, with the selection on the truth and on the measurement, and the normaliser as an area</td><td><span class="sta">static</span></td><td>Selection</td></tr>
+<tr><td class="id">V-11</td><td>Injected and recovered histograms giving bands on S</td><td><span class="sta">static</span></td><td>Selection and rates</td></tr>
+<tr><td class="id">V-12</td><td>A response matrix from truth bins to measured bins, and label shift (same scores per class, different class mix)</td><td><span class="sta">static</span></td><td>Inputs: classifiers; unfolding tutorial</td></tr>
+<tr><td class="id">V-13</td><td>One K = 3 posterior in log-ratio coordinates: a NUTS path, Gibbs steps, the Laplace and VB ellipses, the MAP point</td><td><span class="sta">static</span></td><td>Engines</td></tr>
+<tr><td class="id">V-14</td><td>Missing information vs likelihood width, and the Gibbs trace it predicts. Slider for the width</td><td><span class="int">interactive</span></td><td>Engines in detail</td></tr>
+<tr><td class="id">V-15</td><td>Two coordinate systems, two modes: a Beta density and its logit density</td><td><span class="sta">static</span></td><td>Point estimates</td></tr>
+<tr><td class="id">V-16</td><td>Binning bias: the truth, the flat-in-bin fit and the hat basis; bias vs N against the error bar</td><td><span class="sta">static</span></td><td>Choose bins</td></tr>
+<tr><td class="id">V-17</td><td>Good and bad traces; SBC rank histograms (U-shape, hump, slope)</td><td><span class="sta">static</span></td><td>Check a result</td></tr>
+<tr><td class="id">V-18</td><td>Detected counts → total with the missed objects, per bin</td><td><span class="sta">static</span></td><td>Selection and rates</td></tr>
+<tr><td class="id">V-19</td><td>One model, many names: the fields mapped onto the same diagram</td><td><span class="sta">static</span></td><td>What binference does</td></tr>
+<tr><td class="id">V-20</td><td>Home hero: noisy objects become a binned population with its draws, in the chosen logo's language</td><td><span class="int">interactive</span></td><td>Home</td></tr>
+</tbody></table></div>
+<p><b>Tutorial plots</b> stay matplotlib, executed at build. A shared binference style sets readable sizes on a phone, the brand
+colours and transparent backgrounds. Every plot gets a caption and real alt text. Stacked panels replace the 11-inch-wide rows.</p>
+
+<h2 id="tooling">6 · Tooling</h2>
+<ul>
+  <li><b>Theme:</b> a local Sphinx theme that inherits <code>basic</code>, as dorothy's does. It adds everything PyData gives today: notebook output styles, numpydoc and API styling, a grouped API sidebar, scrolling for wide tables and maths, search, the phone menu, and a dark mode that tutorial plots follow.</li>
+  <li><b>Home page:</b> a template, so sphinx-design (used only for the eight home cards) can go.</li>
+  <li><b>Citations:</b> sphinxcontrib-bibtex with dorothy's author-year style; one <code>references.bib</code> replaces about 94 hand-written references.</li>
+  <li><b>Checks:</b>
+    <ul>
+      <li>a test that every <code>__all__</code> name appears once in the API pages (8 are missing today);</li>
+      <li>a weekly link check;</li>
+      <li>the snippet runner also on the home page;</li>
+      <li>MathJax pinned;</li>
+      <li>intersphinx either linked properly or dropped (it fetches four inventories and links nothing).</li>
+    </ul>
+  </li>
+  <li><b>Explainer maths:</b> where an explainer reproduces a binference computation, a test compares the two.</li>
+  <li><b>Final pass:</b> every page at 390 and 1440 px in both themes, with no sideways scroll, no console errors and AA contrast; axe again.</li>
+</ul>
+
+<h2 id="order">7 · Order of work</h2>
+<ol class="steps">
+  <li><b>Now:</b> code bugs (PR #101) and accuracy fixes on the current site (#102).</li>
+  <li><b>Your gates:</b> pick a logo direction and answer section 8. Then round 2 produces the full design sheet, which you lock.</li>
+  <li><b>Design document:</b> <code>docs/design/brand.md</code> with the logo files and the script that draws them.</li>
+  <li><b>Theme</b> with the text unchanged: theme, home template, citations, plot style, API coverage test.</li>
+  <li><b>Structure</b> with the text unchanged: every page moved to its final place, captioned menus, design notes out of the menu.</li>
+  <li><b>Section rewrites, in parallel</b>, each in its own worktree and PR: Start and README; Concepts with V-1 to V-7, V-10 and V-13; Tutorials regrouped, plus the samples tutorial; Guides; How it works; Reference; Fields.</li>
+  <li><b>Explainers and the home hero</b> that the rewrites did not need.</li>
+  <li><b>Final pass</b> and a phase report on #99. Then the 3.1 review page is updated and the walkthrough resumes.</li>
+</ol>
+
+<h2 id="calls">8 · Your calls</h2>
+<p>Each has a default that I will follow unless you say otherwise.</p>
+<div class="q"><b>1. One name for the quantity being inferred</b><p class="def">Default: <i>population fractions</i> (ρ), with <i>rates</i> (λ) for expected numbers. Field names (n(z), prevalence, mixing distribution) appear as synonyms on field pages only.</p></div>
+<div class="q"><b>2. Seven top-bar sections</b> (Start, Concepts, Tutorials, Guides, How it works, Fields, Reference)<p class="def">Default: as listed. The alternative folds Concepts into Start, leaving six.</p></div>
+<div class="q"><b>3. A new tutorial built on posterior samples</b><p class="def">Default: yes. It reworks the gravitational-wave tutorial to start from PE samples and their PE prior, so every input type has an end-to-end path.</p></div>
+<div class="q"><b>4. Old addresses</b><p class="def">Default: no redirects, since nothing has been released. Pages move freely.</p></div>
+<div class="q"><b>5. Tutorial plots</b><p class="def">Default: matplotlib with a shared style and transparent backgrounds, so they sit in both themes. The alternative, SVG redrawn in theme colours, costs a second plotting path.</p></div>
+<div class="q"><b>6. Classifier routes</b><p class="def">Default: rename routes "A" and "C" for what the user has, e.g. "posteriors and the training prevalence" and "scores and a labelled set". This changes the guide and tutorial text only, not the API.</p></div>
+</main>
+</div>
