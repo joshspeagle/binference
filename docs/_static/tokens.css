@@ -1,0 +1,105 @@
+/* Written by docs/_scripts/brand.py; edit the tokens there. */
+:root {
+  --b-bg: #FBFBFE;
+  --b-surface: #F1F2FA;
+  --b-raised: #E6E8F5;
+  --b-rule: #DADCEC;
+  --b-ink: #1B1D4A;
+  --b-ink-2: #5D5F86;
+  --b-brand: #4A4FC4;
+  --b-link: #3A3FB0;
+  --b-sample: #EC5F3E;
+  --b-sample-text: #C2410C;
+  --b-bar: #10112A;
+  --b-bar-text: #E8E9FB;
+  --b-tip: #0E7D6E;
+  --b-warn: #9A6200;
+  --b-danger: #B42318;
+  --b-cat-0: #4A4FC4;
+  --b-cat-1: #C07C00;
+  --b-cat-2: #1A9E8C;
+  --b-cat-3: #8F2E74;
+  --b-cat-4: #5E8A1C;
+  --b-seq-0: #E2E3F8;
+  --b-seq-1: #B8BBEE;
+  --b-seq-2: #8186DE;
+  --b-seq-3: #4C53C2;
+  --b-seq-4: #2A2F8F;
+  --b-div-0: #2A2F8F;
+  --b-div-1: #8186DE;
+  --b-div-2: #E4E4EA;
+  --b-div-3: #E0A848;
+  --b-div-4: #8A5600;
+  --b-font-display: 'Sora', system-ui, sans-serif;
+  --b-font-body: 'Atkinson Hyperlegible Next', system-ui, sans-serif;
+  --b-font-mono: 'Atkinson Hyperlegible Mono', ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+  --b-bg: #10112A;
+  --b-surface: #181A3D;
+  --b-raised: #22255A;
+  --b-rule: #2B2E5E;
+  --b-ink: #E8E9FB;
+  --b-ink-2: #9C9ECB;
+  --b-brand: #8C91F0;
+  --b-link: #A5A9F5;
+  --b-sample: #FF8A6B;
+  --b-sample-text: #FF8A6B;
+  --b-bar: #0B0C20;
+  --b-bar-text: #E8E9FB;
+  --b-tip: #4CC2B0;
+  --b-warn: #E8AE52;
+  --b-danger: #F97066;
+  --b-cat-0: #7C82E8;
+  --b-cat-1: #C4871C;
+  --b-cat-2: #25A390;
+  --b-cat-3: #9C4A8E;
+  --b-cat-4: #749E39;
+  --b-seq-0: #1F2257;
+  --b-seq-1: #33388C;
+  --b-seq-2: #5259C7;
+  --b-seq-3: #8A90EC;
+  --b-seq-4: #C9CCFA;
+  --b-div-0: #C9CCFA;
+  --b-div-1: #5C63C9;
+  --b-div-2: #3A3B4E;
+  --b-div-3: #C48A2A;
+  --b-div-4: #F2C77A;
+  color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --b-bg: #10112A;
+  --b-surface: #181A3D;
+  --b-raised: #22255A;
+  --b-rule: #2B2E5E;
+  --b-ink: #E8E9FB;
+  --b-ink-2: #9C9ECB;
+  --b-brand: #8C91F0;
+  --b-link: #A5A9F5;
+  --b-sample: #FF8A6B;
+  --b-sample-text: #FF8A6B;
+  --b-bar: #0B0C20;
+  --b-bar-text: #E8E9FB;
+  --b-tip: #4CC2B0;
+  --b-warn: #E8AE52;
+  --b-danger: #F97066;
+  --b-cat-0: #7C82E8;
+  --b-cat-1: #C4871C;
+  --b-cat-2: #25A390;
+  --b-cat-3: #9C4A8E;
+  --b-cat-4: #749E39;
+  --b-seq-0: #1F2257;
+  --b-seq-1: #33388C;
+  --b-seq-2: #5259C7;
+  --b-seq-3: #8A90EC;
+  --b-seq-4: #C9CCFA;
+  --b-div-0: #C9CCFA;
+  --b-div-1: #5C63C9;
+  --b-div-2: #3A3B4E;
+  --b-div-3: #C48A2A;
+  --b-div-4: #F2C77A;
+  color-scheme: dark;
+}
