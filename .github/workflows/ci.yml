@@ -19,6 +19,39 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    # What a pull request touches, so docs-only changes skip the test matrix and code-only
+    # changes skip nothing they could break. Pushes to main, the weekly run and manual runs
+    # run every job.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' }}
+      docs: ${{ github.event_name != 'pull_request' || steps.filter.outputs.docs == 'true' }}
+    steps:
+      - id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            code: &code
+              - "src/**"
+              - "tests/**"
+              - "pyproject.toml"
+              - ".github/workflows/**"
+              # packed into the sdist and checked by the dist job or the tests
+              - "README.md"
+              - "LICENSE"
+              - "CHANGELOG.md"
+              - "CITATION.cff"
+            docs:
+              - *code
+              - "docs/**"
+              - "CONTRIBUTING.md"
+              - "reports/**"  # included by docs/design/landscape.md
+
   lint:
     # The pre-commit hooks are the single pin of the lint and format tools.
     runs-on: ubuntu-latest
@@ -32,7 +65,8 @@ jobs:
 
   test:
     name: test (${{ matrix.os }}, py${{ matrix.python-version }})
-    needs: lint
+    needs: [lint, changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
     # A hung process pool fails the job instead of holding a runner for six hours.
     timeout-minutes: 30
@@ -57,7 +91,8 @@ jobs:
 
   minimum-dependencies:
     # The lowest versions that pyproject.toml allows for the direct dependencies.
-    needs: lint
+    needs: [lint, changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -109,7 +144,8 @@ jobs:
 
   docs:
     # Pushes to main also publish the site to GitHub Pages (deploy job below).
-    needs: lint
+    needs: [lint, changes]
+    if: needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -126,13 +162,16 @@ jobs:
         run: python docs/_scripts/defaults_table.py --check
       - name: Run the code of the README, installation page and guides
         run: python docs/_scripts/run_snippets.py README.md docs/start/install.md docs/guides/*.md docs/guides/inputs/*.md
-      # Executed notebooks are reused until the tutorials, the package, the plot style or the docs
-      # configuration change; the weekly run always executes them afresh.
+      # Executed notebooks are reused while the package, the plot style and the docs
+      # configuration are unchanged; within that, a cache from other page text is restored
+      # and only notebooks whose code cells changed run again. The weekly run neither reads
+      # nor writes the cache, so it executes every notebook.
       - if: github.event_name != 'schedule'
         uses: actions/cache@v4
         with:
           path: docs/_build/.jupyter_cache
-          key: jupyter-${{ hashFiles('docs/tutorials/**', 'src/**', 'pyproject.toml', 'docs/conf.py', 'docs/_ext/matplotlibrc') }}
+          key: jupyter-${{ hashFiles('src/**', 'pyproject.toml', 'docs/conf.py', 'docs/_ext/**') }}-${{ hashFiles('docs/**/*.md') }}
+          restore-keys: jupyter-${{ hashFiles('src/**', 'pyproject.toml', 'docs/conf.py', 'docs/_ext/**') }}-
       - name: Build, with warnings as errors, executing the tutorials
         run: sphinx-build -W --keep-going -b html docs docs/_build/html
       - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -159,7 +198,8 @@ jobs:
 
   dist:
     # Builds the wheel and the sdist and imports the wheel in a clean environment.
-    needs: lint
+    needs: [lint, changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -175,3 +215,15 @@ jobs:
           python -m venv "$RUNNER_TEMP/clean"
           "$RUNNER_TEMP/clean/bin/python" -m pip install dist/*.whl
           "$RUNNER_TEMP/clean/bin/python" -I -c "import binference; print(binference.__version__)"
+
+  ci-ok:
+    # One check that sums up a run, for branch protection: it fails when a job failed or was
+    # cancelled, and passes when jobs were skipped because the change cannot affect them.
+    if: always()
+    needs: [lint, test, minimum-dependencies, docs, dist]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+      - run: echo "every job that applies passed"
