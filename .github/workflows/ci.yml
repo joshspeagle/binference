@@ -161,7 +161,7 @@ jobs:
       - name: Check the defaults page against the code and its docstrings
         run: python docs/_scripts/defaults_table.py --check
       - name: Run the code of the README, installation page and guides
-        run: python docs/_scripts/run_snippets.py README.md docs/start/install.md docs/guides/*.md
+        run: python docs/_scripts/run_snippets.py README.md docs/index.md docs/start/install.md docs/guides/*.md
       # Executed notebooks are reused while the package, the plot style and the docs
       # configuration are unchanged; within that, a cache from other page text is restored
       # and only notebooks whose code cells changed run again. The weekly run neither reads
