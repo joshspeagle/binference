@@ -30,6 +30,10 @@ from .warnings import InputWarning
 
 __all__ = ["Response"]
 
+#: With ``efficiency``, a warning is raised unless the matrix's columns sum to one within
+#: this.
+MIGRATION_ATOL = 1e-3
+
 
 class Response:
     """The probability of each measured bin, and of being observed, given the true bin.
@@ -102,7 +106,7 @@ class Response:
             eff = np.asarray(efficiency, dtype=float).ravel()
             if eff.shape != (truth_bins.K,) or not np.all((eff >= 0) & (eff <= 1)):
                 raise ValueError("efficiency must give one probability per truth bin.")
-            if not np.allclose(col[col > 0], 1.0, atol=1e-3):
+            if not np.allclose(col[col > 0], 1.0, atol=MIGRATION_ATOL):
                 warn(
                     "With an explicit efficiency the matrix should be a migration matrix whose "
                     "columns sum to one; these columns do not, so the efficiency may be counted "
@@ -413,21 +417,41 @@ class Response:
         return None if np.allclose(eff, 1.0) else Selection(np.minimum(eff, 1.0), "on_measurement")
 
     def draw(self, n: int, rng: Any = None) -> np.ndarray:
-        """``(n, J, K)`` posterior draws of the matrix given the tallies alone."""
+        """``(n, J, K)`` posterior draws of the matrix given the tallies alone.
+
+        Parameters
+        ----------
+        n : int
+            Number of draws.
+        rng : int, numpy.random.Generator, or None
+            Random number generator.
+        """
         if not self.uncertain:
             raise ValueError("Only a response tallied from events has draws.")
         draws = _dirichlet_draw(self._dirichlet().T, as_generator(rng), size=n)
         return np.swapaxes(draws, -1, -2)[:, : self._matrix.shape[0]]
 
     def index(self, values: Any) -> np.ndarray:
-        """Measured bin of each value (``-1`` outside the measured bins, or for NaN)."""
+        """Measured bin of each value (``-1`` outside the measured bins, or for NaN).
+
+        Parameters
+        ----------
+        values : array_like
+            Measured values.
+        """
         if self.open_ended:
             e = self.measured_bins.edges[0]
             values = np.clip(np.asarray(values, dtype=float), e[0], e[-1])
         return self.measured_bins.index(values)
 
     def measured_fractions(self, rho: Any) -> np.ndarray:
-        """Expected share of observed objects in each measured bin, for true fractions ``rho``."""
+        """Expected share of observed objects in each measured bin, for true fractions ``rho``.
+
+        Parameters
+        ----------
+        rho : array_like (K,)
+            True fractions.
+        """
         q = self._matrix @ np.asarray(rho, dtype=float)
         return q / q.sum()
 

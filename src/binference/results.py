@@ -26,12 +26,24 @@ if TYPE_CHECKING:  # pragma: no cover
 
 __all__ = ["PointEstimate", "PopulationResult", "Summary"]
 
-#: population draws the per-object methods use by default: their outputs grow with
-#: draws x objects (audit O-18)
+# the per-object methods' outputs grow with draws x objects (audit O-18)
+#: Population draws the per-object methods use by default.
 N_DRAWS = 500
-#: Default limits of :meth:`PopulationResult.check` on Markov chains.
+#: Largest split R-hat that :meth:`PopulationResult.check` accepts by default.
 RHAT_MAX = 1.01
+#: Smallest bulk and tail ESS per chain that :meth:`PopulationResult.check` accepts by
+#: default.
 ESS_MIN_PER_CHAIN = 100.0
+#: Chains shorter than this many draws get no R-hat or ESS.
+MIXING_MIN_DRAWS = 8
+#: :meth:`PopulationResult.check` warns when a NUTS chain's E-BFMI is below this.
+EBFMI_MIN = 0.3
+#: :meth:`PopulationResult.check` warns when a larger share of NUTS iterations hit
+#: ``max_depth``.
+MAX_DEPTH_SHARE = 0.05
+#: :meth:`PopulationResult.check` warns when the summed Monte Carlo variance of
+#: likelihoods from samples exceeds this.
+SAMPLE_VARIANCE_MAX = 1.0
 
 
 # ----------------------------------------------------------------------------
@@ -48,6 +60,13 @@ class Summary:
 
     Columns are available as attributes and via :meth:`to_dict` /
     :meth:`to_pandas`.
+
+    Parameters
+    ----------
+    columns : dict of str to ndarray
+        The table's columns, by name.
+    title : str
+        A heading shown above the table.
     """
 
     def __init__(self, columns: dict[str, np.ndarray], title: str = "") -> None:
@@ -158,7 +177,15 @@ class _IndividualMixin:
 
     def plot_individual(self, i: int, **kwargs: Any):
         """Object ``i``'s own likelihood against its hierarchical posterior (see
-        :func:`binference.plotting.plot_individual`)."""
+        :func:`binference.plotting.plot_individual`).
+
+        Parameters
+        ----------
+        i : int
+            Object index.
+        **kwargs
+            Passed to :func:`binference.plotting.plot_individual`.
+        """
         from .plotting import plot_individual
 
         return plot_individual(self, i, **kwargs)
@@ -354,15 +381,37 @@ class _IndividualMixin:
         return self.best.sample_values(idx, **kwargs)
 
     def realized_counts_best(self, **kwargs: Any) -> np.ndarray:
-        """:meth:`realized_counts` at the best fit, :attr:`best`."""
+        """:meth:`realized_counts` at the best fit, :attr:`best`.
+
+        Parameters
+        ----------
+        **kwargs
+            Passed to :meth:`realized_counts`.
+        """
         return self.best.realized_counts(**kwargs)
 
     def predict_proba_best(self, likelihoods: Likelihoods | Any, **kwargs: Any) -> np.ndarray:
-        """:meth:`predict_proba` at the best fit, :attr:`best`."""
+        """:meth:`predict_proba` at the best fit, :attr:`best`.
+
+        Parameters
+        ----------
+        likelihoods : Likelihoods or array_like (N, K)
+            Likelihoods of the objects.
+        **kwargs
+            Passed to :meth:`predict_proba`.
+        """
         return self.best.predict_proba(likelihoods, **kwargs)
 
     def log_predictive_best(self, likelihoods: Likelihoods | Any, **kwargs: Any) -> np.ndarray:
-        """:meth:`log_predictive` at the best fit, :attr:`best`."""
+        """:meth:`log_predictive` at the best fit, :attr:`best`.
+
+        Parameters
+        ----------
+        likelihoods : Likelihoods or array_like (N, K)
+            Likelihoods of the objects.
+        **kwargs
+            Passed to :meth:`log_predictive`.
+        """
         return self.best.log_predictive(likelihoods, **kwargs)
 
     def assignment_probabilities(
@@ -407,7 +456,7 @@ class _IndividualMixin:
         n_draws : int, optional
             Population draws used; ``None`` uses all of them.
         rng : int, Generator or None
-            Random number generator (SPEC 7).
+            Random number generator.
         """
         gen = as_generator(rng)
         return self._labels_to_bins(self._component_labels(idx, n_draws, gen), gen)
@@ -438,7 +487,7 @@ class _IndividualMixin:
         n_draws : int, optional
             Population draws used; ``None`` uses all of them.
         rng : int, Generator or None
-            Random number generator (SPEC 7).
+            Random number generator.
         full : bool, optional
             Add the objects the selection missed.
         """
@@ -597,7 +646,7 @@ class _IndividualMixin:
         n_draws : int, optional
             Population draws used; ``None`` uses all of them.
         rng : int, Generator or None
-            Random number generator (SPEC 7).
+            Random number generator.
         loglike : callable, optional
             Each object's own log-likelihood within bins, ``loglike(z, i)``; overrides
             the stored information on 1-D bins.
@@ -829,8 +878,8 @@ def _which_name(which: str) -> str:
 
 def _mixing(C: np.ndarray, tail: bool = False) -> dict[str, np.ndarray]:
     """Bulk (and tail) ESS and split R-hat of each column of draws ``(chain, draw, K)``;
-    none below 8 draws per chain (split R-hat also for one chain, audit O-7)."""
-    if C.shape[1] < 8:
+    none below ``MIXING_MIN_DRAWS`` per chain (split R-hat also for one chain, audit O-7)."""
+    if C.shape[1] < MIXING_MIN_DRAWS:
         return {}
     cols = range(C.shape[-1])
     out = {"ess_bulk": np.array([diag.ess(C[:, :, k], "bulk") for k in cols])}
@@ -918,7 +967,8 @@ def _value_drawer(model, loglike, n_sub: int, n_sweeps: int) -> tuple[Callable, 
     return partial(_draw_subpoints, measures, n_sub, evaluate), True
 
 
-#: values a density function may return per call in value draws (2**24 = 128 MB)
+#: Most values a density function returns per call when values are drawn (2**24 floats
+#: are 128 MB).
 EVAL_BUDGET = 2**24
 
 
@@ -1299,6 +1349,11 @@ class PopulationResult(_IndividualMixin):
 
         Bare likelihoods take the fit's selection; likelihoods or a model with another
         selection, or on other bins, are refused (audit O-1, O-2).
+
+        Parameters
+        ----------
+        likelihoods_or_model : Likelihoods or PopulationModel
+            The fit's likelihoods, or a model built on them.
         """
         from .likelihoods import Likelihoods
         from .model import PopulationModel
@@ -1714,21 +1769,21 @@ class PopulationResult(_IndividualMixin):
                 "try a higher target_accept, e.g. 0.95; divergences that persist mark a "
                 "region the sampler cannot explore (see the pitfalls guide)"
             )
-        if "ebfmi" in d and np.nanmin(d["ebfmi"]) < 0.3:
-            msgs.append(f"E-BFMI = {np.nanmin(d['ebfmi']):.2f} < 0.3 in some chain")
+        if "ebfmi" in d and np.nanmin(d["ebfmi"]) < EBFMI_MIN:
+            msgs.append(f"E-BFMI = {np.nanmin(d['ebfmi']):.2f} < {EBFMI_MIN:g} in some chain")
             hints.append(
                 "NUTS explores the energy distribution poorly (heavy tails or a funnel); "
                 "a longer warm-up or another prior may help"
             )
         if d.get("converged") is False:
             msgs.append("the optimiser did not converge")
-        threshold = d.get("k_hat_threshold", 0.7)
+        threshold = d.get("k_hat_threshold", diag.K_HAT_MAX)
         if d.get("k_hat", 0) >= threshold:
             msgs.append(
                 f"Pareto k-hat = {d['k_hat']:.2f} >= {threshold:.2f} (importance sampling "
                 "unreliable)"
             )
-        if d.get("max_depth_fraction", 0) > 0.05:
+        if d.get("max_depth_fraction", 0) > MAX_DEPTH_SHARE:
             msgs.append(
                 f"{100 * d['max_depth_fraction']:.0f}% of NUTS iterations hit the maximum tree "
                 "depth"
@@ -1748,10 +1803,10 @@ class PopulationResult(_IndividualMixin):
                 rho = rho * self.model.selection_row
             var, _ = lk.sample_variance(rho)
             total = float(np.sum(lk.weights * var))
-            if total > 1.0:
+            if total > SAMPLE_VARIANCE_MAX:
                 inputs.append(
                     f"likelihoods from samples carry Monte Carlo variance sum_i V_i = {total:.2g} "
-                    "> 1 at the fitted population"
+                    f"> {SAMPLE_VARIANCE_MAX:g} at the fitted population"
                 )
                 input_hints.append("draw more samples per object, or use wider bins or floor=")
         if lk is not None and support_min is not None:
@@ -1878,7 +1933,7 @@ class PopulationResult(_IndividualMixin):
         n_samples : int, optional
             Draws of the reference fit; ``None`` reuses this fit's.
         rng : int, Generator or None
-            Random number generator (SPEC 7).
+            Random number generator.
         **engine_kwargs
             Options for the reference fit's engine.
         """
@@ -1959,7 +2014,13 @@ class PopulationResult(_IndividualMixin):
 
     # ------------------------------------------------------------- plotting
     def plot(self, **kwargs: Any):
-        """Plot the population posterior (see :func:`binference.plotting.plot_population`)."""
+        """Plot the population posterior (see :func:`binference.plotting.plot_population`).
+
+        Parameters
+        ----------
+        **kwargs
+            Passed to :func:`binference.plotting.plot_population`.
+        """
         from .plotting import plot_population
 
         return plot_population(self, **kwargs)
@@ -1994,7 +2055,13 @@ class PopulationResult(_IndividualMixin):
 
     # ---------------------------------------------------------- persistence
     def save(self, path: str) -> None:
-        """Save draws, metadata and bins to a compressed ``.npz`` file."""
+        """Save draws, metadata and bins to a compressed ``.npz`` file.
+
+        Parameters
+        ----------
+        path : str
+            File to write.
+        """
         from .io import save_result
 
         save_result(self, path)
@@ -2004,6 +2071,11 @@ class PopulationResult(_IndividualMixin):
         """Load a result saved with :meth:`save`.
 
         Re-:meth:`attach` the likelihoods to use the per-object methods.
+
+        Parameters
+        ----------
+        path : str
+            File written by :meth:`save`.
         """
         from .io import load_result
 
@@ -2177,7 +2249,7 @@ class PointEstimate(_IndividualMixin):
         n_samples : int, optional
             Draws of the Laplace approximation.
         rng : int, Generator or None
-            Random number generator (SPEC 7).
+            Random number generator.
         **kwargs
             Options of :class:`~binference.samplers.Laplace`.
         """

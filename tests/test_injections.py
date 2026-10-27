@@ -267,12 +267,12 @@ def test_a_smooth_selection_is_refused_where_it_does_not_apply():
             Selection.from_injections(few.centers[:1], [1], few, "on_truth", smooth=1.0)
 
 
-def test_nuts_centres_a_logistic_prior_beside_an_inferred_selection():
+def test_nuts_centres_a_logistic_prior_beside_an_inferred_selection(monkeypatch):
     # partial centring acts on the prior's block; draws come back non-centred with logit S
     lk, sel = _problem()
     m = binference.PopulationModel(lk, binference.priors.LogisticRandomWalk(), selection=sel)
+    monkeypatch.setattr(binference.samplers.nuts, "_GEOMETRY_ITER", 5)
     eng = NUTS(m, n_chains=2, n_warmup=60, rng=0, reparametrize=True)
-    eng._geometry_iter = 5
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", binference.ConvergenceWarning)
         res = eng.run(20)

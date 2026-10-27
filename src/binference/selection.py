@@ -54,11 +54,12 @@ SELECTION_MODES = ("on_truth", "on_measurement", "combined")
 #: The values of ``Selection.scale``: what the selection values measure.
 SELECTION_SCALES = ("probability", "exposure", "relative")
 
-#: neighbouring bins whose selection differs by more than this factor raise a warning
+#: A selection that changes by more than this factor between neighbouring bins raises a
+#: warning.
 STEEP_RATIO = 2.0
 
-#: smallest detection probability a Beta draw takes (a draw can underflow to zero,
-#: which would void its bin)
+# a Beta draw can underflow to zero, which would void its bin
+#: Smallest detection probability a draw of an inferred selection takes.
 S_FLOOR = 1e-12
 
 _HELP = (
@@ -222,7 +223,15 @@ class Selection:
 
     def draw(self, n: int, rng: Any = None) -> np.ndarray:
         """``(n, K)`` posterior draws of :math:`S` given the injections alone
-        (independent Betas), floored at :data:`S_FLOOR` so that none underflows to zero."""
+        (independent Betas), floored at :data:`S_FLOOR` so that none underflows to zero.
+
+        Parameters
+        ----------
+        n : int
+            Number of draws.
+        rng : int, numpy.random.Generator, or None
+            Random number generator.
+        """
         if self.injections is None:
             raise ValueError("Only a selection from injections has draws.")
         if self.injections.smooth is not None:
@@ -573,6 +582,15 @@ def as_selection(selection: Any, mode: str | None, bins: Bins | Basis) -> Select
     With a :class:`~binference.Basis`, arrays and selections given per bin are
     mapped to the components (:math:`\\phi_k`-weighted averages) and callables are
     averaged on the basis's quadrature cells.
+
+    Parameters
+    ----------
+    selection : None, Selection, callable or array_like
+        The selection as the user gave it.
+    mode : str or None
+        ``selection_mode``, required with a callable or an array.
+    bins : Bins or Basis
+        Bins of the model.
     """
     if selection is None:
         if mode is not None:

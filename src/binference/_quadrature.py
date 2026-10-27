@@ -14,7 +14,7 @@ from .bins import Bins
 from .measure import _identity
 from .warnings import InputWarning
 
-#: largest number of function values evaluated in one call
+#: Most function values a quadrature evaluates in one call.
 MAX_ELEMENTS = 2**22
 
 

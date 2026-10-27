@@ -29,8 +29,8 @@ from .bins import Bins
 
 __all__ = ["Basis"]
 
-#: quadrature cells per component and axis for order 1, by dimension (likelihoods,
-#: selection); about 8 to 16 cells per component
+#: Quadrature cells per order-1 component and axis when ``oversample`` is ``None``, by
+#: dimension (2 above two dimensions; order 0 takes 1).
 DEFAULT_OVERSAMPLE = {1: 8, 2: 4}
 
 
@@ -152,6 +152,11 @@ class Basis:
 
         On an unmasked grid :meth:`masses` is their Kronecker product, so
         separable inputs can be projected one axis at a time.
+
+        Parameters
+        ----------
+        grid : Bins
+            Grid covering the components' range with the same measures.
         """
         comp = self.components
         if grid.is_categorical or grid.ndim != comp.ndim or grid.measures != comp.measures:
@@ -169,6 +174,11 @@ class Basis:
         ``grid`` must cover the components' range with the same measures (the
         reporting bins, the components or any refinement of them). Each column
         sums to one over the active cells of ``grid``.
+
+        Parameters
+        ----------
+        grid : Bins
+            Grid covering the components' range with the same measures.
         """
         M = None
         for m in self.axis_masses(grid):
@@ -181,7 +191,13 @@ class Basis:
         return M
 
     def support(self, k: Any) -> tuple[np.ndarray, np.ndarray]:
-        """``(lo, hi)`` in ``u`` of the supports of components ``k``, each ``(n, ndim)``."""
+        """``(lo, hi)`` in ``u`` of the supports of components ``k``, each ``(n, ndim)``.
+
+        Parameters
+        ----------
+        k : int or array_like of int
+            Component indices.
+        """
         k = np.asarray(k).ravel()
         lo, hi = [], []
         for u, j in zip(self.components.u_edges, self.components.grid_index(k), strict=True):
@@ -196,6 +212,15 @@ class Basis:
 
         A component's shape is the product of its heights over the axes (one for
         flat components inside their cell).
+
+        Parameters
+        ----------
+        k : int or array_like of int
+            Component indices.
+        d : int
+            Axis.
+        u : array_like
+            Points in ``u`` along axis ``d``.
         """
         k = np.asarray(k)
         x = np.asarray(u, dtype=float)
@@ -209,7 +234,13 @@ class Basis:
         return np.clip(np.where(x < mid, up, down), 0.0, 1.0)
 
     def to_bins(self, weights: Any) -> np.ndarray:
-        """Map component weights ``(..., C)`` to reporting-bin fractions ``(..., K)``."""
+        """Map component weights ``(..., C)`` to reporting-bin fractions ``(..., K)``.
+
+        Parameters
+        ----------
+        weights : array_like (..., C)
+            Component weights.
+        """
         w = np.asarray(weights, dtype=float)
         return np.asarray(self.matrix @ w.reshape(-1, self.C).T).T.reshape(*w.shape[:-1], self.K)
 

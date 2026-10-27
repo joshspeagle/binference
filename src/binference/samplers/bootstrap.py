@@ -43,7 +43,7 @@ class Bootstrap(Engine):
     max_iter : int, optional
         Most iterations of each replicate's MAP fit.
     rng : int, Generator or None
-        Random number generator (SPEC 7).
+        Random number generator.
     progress : bool, optional
         Show a progress bar.
     """

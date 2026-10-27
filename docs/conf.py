@@ -68,7 +68,13 @@ autodoc_default_options = {"members": True, "inherited-members": False}
 autodoc_typehints = "none"
 numpydoc_show_class_members = False
 numpydoc_class_members_toctree = False
-numpydoc_validation_checks: set[str] = set()
+# every parameter of the public API is documented; the excluded classes are built by the
+# library, and their fields are listed under Attributes
+numpydoc_validation_checks = {"PR01"}
+numpydoc_validation_exclude = {
+    r"\.(Density|Measure|PointEstimate|PopulationResult|Mock|Truth|CoverageResult"
+    r"|ExactPosterior|SBCResult)$"
+}
 
 # -- HTML ---------------------------------------------------------------------
 html_theme = "binference"

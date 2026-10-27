@@ -489,12 +489,17 @@ class _BoundRandomWalk(_BoundLogistic):
 # sines on a box of half-width c*S resolve is f * c * S / m: the centred field SD within 5%
 # and the covariance within 5% of the variance of the exact kernel, measured for ell/S from
 # 0.02 to 0.2 (DECISIONS #73)
+#: Smoothness ``nu`` (``None`` for the RBF) and resolution factor ``f`` of each kernel of
+#: :class:`LogisticGP`: ``m`` sines resolve length scales down to ``f`` times the box
+#: half-width over ``m``.
 _KERNELS = {
     "rbf": (None, 1.3),
     "matern52": (2.5, 1.8),
     "matern32": (1.5, 2.2),
     "matern12": (0.5, 8.5),
 }
+#: Most basis functions of :class:`LogisticGP` in all when ``n_basis`` is ``None``.
+_MAX_BASIS = 1024
 
 
 class LogisticGP(PopulationPrior):
@@ -577,8 +582,8 @@ class LogisticGP(PopulationPrior):
     def bind(self, bins: Bins) -> _BoundGP:
         _require_full_grid(bins)
         D = bins.ndim
-        if self.n_basis is None:  # one per bin, at most 1024 modes in all
-            nb = [min(n, int(1024 ** (1 / D) + 1e-9)) for n in bins.shape]
+        if self.n_basis is None:  # one per bin, at most _MAX_BASIS modes in all
+            nb = [min(n, int(_MAX_BASIS ** (1 / D) + 1e-9)) for n in bins.shape]
         else:
             nb = list(_per_item(self.n_basis, D, "n_basis (one per axis)"))
         factors, omegas = [], []

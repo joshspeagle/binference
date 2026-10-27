@@ -18,6 +18,12 @@ from .optimize import MAP
 
 __all__ = ["Laplace"]
 
+#: Importance proposals per draw when ``n_proposals`` is ``None``.
+PROPOSAL_FACTOR = 2
+#: Eigenvalues of a Hessian that is not positive definite are raised to this times the
+#: largest (at least one).
+EIGEN_FLOOR = 1e-8
+
 
 def _systematic_resample(w: np.ndarray, n: int, rng: np.random.Generator) -> np.ndarray:
     c = np.cumsum(w)
@@ -128,7 +134,7 @@ class Laplace(Engine):
                 "The Hessian at the mode is not positive definite; clipping eigenvalues.",
                 ApproximationWarning,
             )
-            lam = np.maximum(lam, 1e-8 * max(1.0, lam.max()))
+            lam = np.maximum(lam, EIGEN_FLOOR * max(1.0, lam.max()))
         return x0, H, lam, U, (U / lam) @ U.T
 
     def mode_and_covariance(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -149,7 +155,7 @@ class Laplace(Engine):
         d = x0.size
         sd_mat = (U / np.sqrt(lam)) * self.inflate
         # without importance resampling the proposals are the draws (audit N-4)
-        M = (self.n_proposals or 2 * n_samples) if self.importance else n_samples
+        M = (self.n_proposals or PROPOSAL_FACTOR * n_samples) if self.importance else n_samples
         Z = self.rng.standard_normal((M, d))
         if self.importance and self.df is not None:
             Z = Z / np.sqrt(self.rng.chisquare(self.df, size=M) / self.df)[:, None]

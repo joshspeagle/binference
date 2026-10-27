@@ -398,7 +398,7 @@ def mock_2d(
     selection : array_like (K,), optional
         Per-bin detection probability depending on the *true* bin.
     rng : int, Generator or None
-        Random number generator (SPEC 7).
+        Random number generator.
     """
     gen = as_generator(rng)
     if bins is None:
@@ -452,7 +452,7 @@ def mock_categorical(
     n_validation : int, optional
         Objects in the labelled validation set.
     rng : int, Generator or None
-        Random number generator (SPEC 7).
+        Random number generator.
     """
     if not temperature > 0:
         raise ValueError(f"temperature must be positive; got {temperature}.")
@@ -528,7 +528,7 @@ def mock_unfolding(
     efficiency : (float, float), optional
         Detection efficiency at the two ends of the range.
     rng : int, Generator or None
-        Random number generator (SPEC 7).
+        Random number generator.
     """
     gen = as_generator(rng)
     tb = Bins.linear(0.0, 1.0, n_true)

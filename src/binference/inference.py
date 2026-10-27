@@ -16,6 +16,7 @@ from .priors import PopulationPrior
 from .results import PointEstimate, PopulationResult
 from .samplers import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
 from .samplers.base import Engine
+from .samplers.laplace import PROPOSAL_FACTOR
 from .warnings import ApproximationWarning, BinferenceWarning
 
 __all__ = ["METHODS", "Auto", "infer"]
@@ -30,6 +31,18 @@ METHODS = {
     "vb": MeanFieldVB,
     "bootstrap": Bootstrap,
 }
+
+#: An extension of a Gibbs run aims for this many times ``target_ess``.
+EXTEND_TARGET = 1.2
+#: One extension of a Gibbs run adds at most this many times the draws so far.
+EXTEND_MAX_FACTOR = 3
+#: Proposals of the first pass that can stop a Laplace trial early.
+PROBE_PROPOSALS = 1000
+#: Draws of the first pass that can stop a Laplace trial early.
+PROBE_DRAWS = 500
+#: A Laplace trial stops when its first pass projects an importance ESS below this share of
+#: ``target_ess``.
+PROBE_ESS_SHARE = 0.5
 
 
 def _options(engine: type) -> dict[str, inspect.Parameter]:
@@ -182,7 +195,7 @@ class Auto(Engine):
                 self.model, rng=self._rng_arg, progress=self.progress, **self.engine_kwargs
             )
             if key == "laplace":
-                n = 4 * (n_samples or _default_draws(NUTS))
+                n = _options(NUTS)["n_chains"].default * (n_samples or _default_draws(NUTS))
                 result, why = (engine.run(n), "") if last else self._try(engine, n)
                 if result is None:
                     rejected.append(why)
@@ -229,11 +242,11 @@ class Auto(Engine):
             if ess >= self.target_ess and not result._mixing_problems():
                 return True
             done = result.chains.shape[1]
-            need = ceil(done * max(1.2 * self.target_ess / max(ess, 1.0) - 1.0, 0.5))
+            need = ceil(done * max(EXTEND_TARGET * self.target_ess / max(ess, 1.0) - 1.0, 0.5))
             if done + need > self.max_gibbs_draws:
                 return False
-            # at most three times the draws so far, so a poor first projection costs less
-            result = engine.run(min(need, 3 * done))
+            # bounded, so a poor first projection costs less
+            result = engine.run(min(need, EXTEND_MAX_FACTOR * done))
 
     def _passed(self, res: PopulationResult) -> bool:
         """Whether Laplace draws pass auto's check: Pareto k-hat and importance ESS."""
@@ -242,22 +255,25 @@ class Auto(Engine):
     def _try(self, engine: Laplace, n: int) -> tuple[PopulationResult | None, str]:
         """Laplace's result when it is kept (its warnings re-emitted), else None.
 
-        Laplace is only tried with no engine options, so it has its default 2n
-        proposals. A first pass of 1000 of them stops the trial early when the
-        importance ESS it projects for the full run is below half of ``target_ess``.
+        Laplace is only tried with no engine options, so it has its default
+        ``PROPOSAL_FACTOR * n`` proposals. A first pass of ``PROBE_PROPOSALS`` of them
+        stops the trial early when the importance ESS it projects for the full run is
+        below ``PROBE_ESS_SHARE`` of ``target_ess``.
         """
         failed = None, "the Laplace importance check failed"
         big = self.model.likelihoods.nnz > self.nnz_limit  # kept whatever its check
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             try:
-                if not big and 2 * n > 1000:
+                proposals = PROPOSAL_FACTOR * n
+                if not big and proposals > PROBE_PROPOSALS:
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        engine.n_proposals = 1000
-                        probe = engine.run(500)
+                        engine.n_proposals = PROBE_PROPOSALS
+                        probe = engine.run(PROBE_DRAWS)
                         engine.n_proposals = None
-                    if probe.info["ess_importance"] * 2 * n / 1000 < self.target_ess / 2:
+                    projected = probe.info["ess_importance"] * proposals / PROBE_PROPOSALS
+                    if projected < PROBE_ESS_SHARE * self.target_ess:
                         return failed
                 res = engine.run(n)
             except (ValueError, FloatingPointError, np.linalg.LinAlgError):

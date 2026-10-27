@@ -66,12 +66,24 @@ class Density:
 
     @classmethod
     def from_masses(cls, masses: Any) -> Density:
-        """Probability mass per bin (normalised on use)."""
+        """Probability mass per bin (normalised on use).
+
+        Parameters
+        ----------
+        masses : array_like (K,)
+            Non-negative mass per bin.
+        """
         return cls(values=_nonneg(masses, "masses"))
 
     @classmethod
     def from_densities(cls, densities: Any) -> Density:
-        """Density per unit ``z``-volume in each bin; masses are densities times volumes."""
+        """Density per unit ``z``-volume in each bin; masses are densities times volumes.
+
+        Parameters
+        ----------
+        densities : array_like (K,)
+            Non-negative density per bin.
+        """
         return cls(values=_nonneg(densities, "densities"), per_volume=True)
 
     @classmethod
@@ -80,6 +92,11 @@ class Density:
 
         On grids ``func`` receives points of shape ``(M,)`` (1-D) or
         ``(M, ndim)``; on categories it receives the category labels.
+
+        Parameters
+        ----------
+        func : callable
+            Non-negative density of ``z``.
         """
         if not callable(func):
             raise TypeError("func must be callable.")
@@ -91,6 +108,11 @@ class Density:
 
         On 1-D grids a ``cdf`` gives exact bin masses; otherwise the density is
         averaged over each bin by quadrature.
+
+        Parameters
+        ----------
+        dist : object
+            A distribution with ``cdf``, ``logpdf`` or ``pdf``.
         """
         if not _is_distribution(dist):
             raise TypeError("dist needs a cdf, logpdf or pdf method.")

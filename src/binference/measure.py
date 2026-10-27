@@ -129,7 +129,13 @@ class Measure:
 
     @classmethod
     def coerce(cls, measure: Measure | str) -> Measure:
-        """A :class:`Measure` from a measure or one of the names ``"linear"`` and ``"log"``."""
+        """A :class:`Measure` from a measure or one of the names ``"linear"`` and ``"log"``.
+
+        Parameters
+        ----------
+        measure : Measure or {"linear", "log"}
+            A measure or its name.
+        """
         if isinstance(measure, Measure):
             return measure
         if isinstance(measure, str) and measure in _NAMED:
@@ -143,11 +149,23 @@ class Measure:
         return self._key[0] == "named"
 
     def forward(self, z: Any) -> np.ndarray:
-        """``u = T(z)``."""
+        """``u = T(z)``.
+
+        Parameters
+        ----------
+        z : array_like
+            Values of the bin coordinate.
+        """
         return np.asarray(self._forward(np.asarray(z, dtype=float)), dtype=float)
 
     def inverse(self, u: Any) -> np.ndarray:
-        """``z = T^{-1}(u)``."""
+        """``z = T^{-1}(u)``.
+
+        Parameters
+        ----------
+        u : array_like
+            Values of the measure coordinate.
+        """
         return np.asarray(self._inverse(np.asarray(u, dtype=float)), dtype=float)
 
     def log_jacobian(self, z: Any) -> np.ndarray:
@@ -155,6 +173,11 @@ class Measure:
 
         Exact for linear, log and tabulated measures; a central difference for
         :meth:`transform`.
+
+        Parameters
+        ----------
+        z : array_like
+            Values of the bin coordinate.
         """
         z = np.asarray(z, dtype=float)
         if self is _NAMED["linear"]:

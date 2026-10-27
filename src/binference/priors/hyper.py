@@ -38,7 +38,13 @@ class Hyperprior:
 
 
 class Fixed(Hyperprior):
-    """A hyperparameter held fixed at ``value`` (not inferred)."""
+    """A hyperparameter held fixed at ``value`` (not inferred).
+
+    Parameters
+    ----------
+    value : float
+        The fixed value.
+    """
 
     fixed = True
 

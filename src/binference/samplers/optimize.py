@@ -18,9 +18,14 @@ from .base import Engine, em_update, interior_start
 
 __all__ = ["MAP"]
 
-#: a run that can no longer improve its objective in floating point is converged where
-#: its optimality gap is below this many times ``tol`` (DECISIONS #71)
+# DECISIONS #71
+#: A MAP run that can no longer improve its objective in floating point is converged
+#: when its optimality gap is below this many times ``tol``.
 _ROUNDOFF = 1e3
+# ten regularised EM steps are the cheapest start measured; from uniform, mix-SQP can
+# need over a hundred iterations (audit M-5)
+#: Regularised EM steps of mix-SQP's start when ``init`` is ``None``.
+_MIXSQP_START_ITER = 10
 
 
 def _converged(gap: float, tol: float, stalled: bool) -> bool:
@@ -306,9 +311,7 @@ class MAP(Engine):
         # with e = S + b, whose total Lambda = W + sum(a) profiles out (audit M-6)
         e = m._S + m.prior.b if rates else m._detect
         L = m._L if e is None else _scale_columns(m._L, 1.0 / e)
-        # ten regularised EM steps are the cheapest start measured; from uniform, mix-SQP
-        # can need over a hundred iterations (audit M-5)
-        x0 = interior_start(m, n_iter=10) if self.init is None else self.init
+        x0 = interior_start(m, n_iter=_MIXSQP_START_ITER) if self.init is None else self.init
         if e is not None:
             x0 = x0 * e
         x, n_iter, converged = _mixsqp(L, m._w, a, x0, tol=self.tol, max_iter=self.max_iter)

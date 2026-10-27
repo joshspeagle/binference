@@ -12,6 +12,10 @@ from ..model import PopulationModel
 
 __all__ = ["Engine"]
 
+#: Most regularised EM steps of the start of MAP, L-BFGS and Gibbs when ``init`` is
+#: ``None``.
+INTERIOR_START_ITER = 50
+
 
 class Engine:
     """Base class of all inference engines.
@@ -19,6 +23,15 @@ class Engine:
     Engines are configured at construction and executed with :meth:`run`,
     which returns a :class:`~binference.PopulationResult` (or a
     :class:`~binference.PointEstimate` for :class:`~binference.samplers.MAP`).
+
+    Parameters
+    ----------
+    model : PopulationModel
+        The model to infer.
+    rng : int, numpy.random.Generator, or None
+        Random number generator.
+    progress : bool
+        Show a progress bar.
     """
 
     name: str = "engine"
@@ -41,7 +54,13 @@ class Engine:
 
     @classmethod
     def unsupported(cls, model: PopulationModel) -> str | None:
-        """Why the engine cannot run on ``model``, or ``None`` when it can."""
+        """Why the engine cannot run on ``model``, or ``None`` when it can.
+
+        Parameters
+        ----------
+        model : PopulationModel
+            The model to run on.
+        """
         if model.joint and not cls.joint:
             from ..inference import METHODS  # the registry imports the engines
 
@@ -78,7 +97,7 @@ def em_update(
     return model.prior.map_from_counts(counts, exposure=model._exposure)
 
 
-def interior_start(model: PopulationModel, n_iter: int = 50) -> np.ndarray:
+def interior_start(model: PopulationModel, n_iter: int = INTERIOR_START_ITER) -> np.ndarray:
     """A robust interior starting value: up to ``n_iter`` regularised EM steps from uniform.
 
     Returns fractions (or rates for rate models) bounded away from zero.

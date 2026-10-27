@@ -31,6 +31,11 @@ from .warnings import ConvergenceWarning
 
 __all__ = ["CoverageResult", "ExactPosterior", "SBCResult", "coverage", "exact_posterior", "sbc"]
 
+#: Most bins of an SBC rank histogram when ``n_bins`` is ``None``.
+SBC_MAX_BINS = 20
+#: Fewest simulations per bin of an SBC rank histogram when ``n_bins`` is ``None``.
+SBC_SIMULATIONS_PER_BIN = 5
+
 
 # ----------------------------------------------------------------------------
 # exact posterior by quadrature
@@ -67,7 +72,15 @@ class ExactPosterior:
         return np.sqrt(np.diag(self.cov()))
 
     def quantile(self, q: Any, k: int) -> np.ndarray:
-        """Quantiles of the marginal posterior of fraction ``k``."""
+        """Quantiles of the marginal posterior of fraction ``k``.
+
+        Parameters
+        ----------
+        q : float or array_like
+            Probabilities in [0, 1].
+        k : int
+            Bin index.
+        """
         x = self.points[:, k]
         o = np.argsort(x)
         c = np.cumsum(self.weights[o])
@@ -213,7 +226,7 @@ class SBCResult:
 
     def _default_bins(self) -> int:
         n = self.ranks.shape[0]
-        return int(max(2, min(20, n // 5, self.n_draws + 1)))
+        return int(max(2, min(SBC_MAX_BINS, n // SBC_SIMULATIONS_PER_BIN, self.n_draws + 1)))
 
     def pvalues(self, n_bins: int | None = None, *, method: str = "chisquare") -> np.ndarray:
         r"""P-values of rank uniformity, one per quantity.
@@ -442,7 +455,7 @@ def coverage(
     functionals : dict, optional
         Named functions of the fractions (or rates) whose intervals are also checked.
     rng : int, Generator or None
-        Random number generator (SPEC 7).
+        Random number generator.
     progress : bool, optional
         Show a progress bar.
     """

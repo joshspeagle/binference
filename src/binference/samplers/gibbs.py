@@ -58,6 +58,10 @@ class Gibbs(Engine):
         Objects processed per block when drawing labels from dense likelihoods, which
         bounds memory; ``None`` processes all at once. Sparse likelihoods are processed at once,
         in memory proportional to their nonzeros.
+    rng : int, numpy.random.Generator, or None
+        Random number generator.
+    progress : bool
+        Show a progress bar.
     """
 
     name = "gibbs"
@@ -216,7 +220,13 @@ class Gibbs(Engine):
         self._warm = True
 
     def sample(self, n_samples: int) -> Iterator[np.ndarray]:
-        """Generator over kept iterations, yielding ``(n_chains, K)`` values."""
+        """Generator over kept iterations, yielding ``(n_chains, K)`` values.
+
+        Parameters
+        ----------
+        n_samples : int
+            Kept iterations per chain.
+        """
         self.warmup()
         C, K = self.n_chains, self.model.K
         draws = np.empty((C, n_samples, K))

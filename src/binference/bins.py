@@ -261,7 +261,13 @@ class Bins:
 
     @classmethod
     def categories(cls, labels: int | Sequence[Any]) -> Bins:
-        """Unordered categories, either ``K`` integer labels or explicit labels."""
+        """Unordered categories, either ``K`` integer labels or explicit labels.
+
+        Parameters
+        ----------
+        labels : int or sequence
+            The number of categories ``K`` (labelled ``0`` to ``K - 1``) or their labels.
+        """
         if isinstance(labels, int | np.integer):
             if labels < 2:
                 raise ValueError("Need at least two categories.")
@@ -445,6 +451,11 @@ class Bins:
         Bins are left-closed, except the last bin along each axis, which also
         includes its upper edge. For 1-D bins ``values`` has shape ``(n,)`` or
         ``(n, 1)``; for N-D grids ``(n, ndim)``; for categories it contains labels.
+
+        Parameters
+        ----------
+        values : array_like
+            Values, or labels for categories.
         """
         if self.is_categorical:
             lookup = {lab: i for i, lab in enumerate(self._labels)}
@@ -473,11 +484,23 @@ class Bins:
         return flat
 
     def contains(self, values: Any) -> np.ndarray:
-        """Boolean mask: which values fall inside the support."""
+        """Boolean mask: which values fall inside the support.
+
+        Parameters
+        ----------
+        values : array_like
+            Values, shaped as for :meth:`index`.
+        """
         return self.index(values) >= 0
 
     def grid_index(self, k: Any) -> tuple[np.ndarray, ...]:
-        """Per-axis grid indices of the bins ``k`` (indices into each axis's edges)."""
+        """Per-axis grid indices of the bins ``k`` (indices into each axis's edges).
+
+        Parameters
+        ----------
+        k : int or array_like of int
+            Bin indices.
+        """
         k = np.asarray(k)
         return tuple(i[k] for i in self._cell_index)
 
@@ -486,6 +509,13 @@ class Bins:
 
         Returns an array of ``k``'s shape for 1-D bins, with a trailing axis of
         length ``ndim`` for grids.
+
+        Parameters
+        ----------
+        k : int or array_like of int
+            Bin indices.
+        rng : numpy.random.Generator
+            Random number generator.
         """
         k = np.asarray(k)
         vals = []
@@ -497,6 +527,11 @@ class Bins:
         """Reshape a trailing axis of length ``K`` to the grid ``shape``.
 
         Masked cells are filled with NaN (the result is then floating point).
+
+        Parameters
+        ----------
+        a : array_like (..., K)
+            Values per bin.
         """
         a = np.asarray(a)
         if a.shape[-1] != self.K:
@@ -508,7 +543,13 @@ class Bins:
         return out.reshape(*a.shape[:-1], *self._shape)
 
     def flatten(self, a: Any) -> np.ndarray:
-        """Inverse of :meth:`unflatten`: the active cells of trailing grid axes."""
+        """Inverse of :meth:`unflatten`: the active cells of trailing grid axes.
+
+        Parameters
+        ----------
+        a : array_like
+            Values whose trailing axes have the grid ``shape``.
+        """
         a = np.asarray(a)
         nd = self.ndim
         if a.shape[-nd:] != self._shape:
@@ -538,6 +579,11 @@ class Bins:
         Returns the fine bins (same measures, the mask repeated) and the
         ``(K_fine,)`` integer map from fine to coarse bins, as :meth:`coarsen`
         returns; ``fine.coarsen(factor)`` recovers these bins.
+
+        Parameters
+        ----------
+        factor : int or sequence of int
+            Parts per bin, for all axes or one per axis.
         """
         if self.is_categorical:
             raise ValueError("Categories have no geometry to refine.")
@@ -567,6 +613,11 @@ class Bins:
         ``(K,)`` integer map from fine to coarse bins, so that coarse fractions
         are ``np.bincount(map, weights=rho)``. Each block must be wholly active
         or wholly masked, since a coarse bin's volume is its full block.
+
+        Parameters
+        ----------
+        factor : int or sequence of int
+            Bins per block, for all axes or one per axis.
         """
         if self.is_categorical:
             raise ValueError(

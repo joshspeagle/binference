@@ -93,7 +93,13 @@ class PopulationEstimator:
         return {name: getattr(self, name) for name in self._get_param_names()}
 
     def set_params(self, **params: Any) -> PopulationEstimator:
-        """Set constructor parameters (scikit-learn convention)."""
+        """Set constructor parameters (scikit-learn convention).
+
+        Parameters
+        ----------
+        **params
+            Constructor parameters and their new values.
+        """
         valid = set(self._get_param_names())
         for k, v in params.items():
             if k not in valid:
@@ -138,12 +144,24 @@ class PopulationEstimator:
             raise RuntimeError(f"This {type(self).__name__} is not fitted yet; call fit().")
 
     def predict_proba(self, X: Any) -> np.ndarray:
-        """Per-object posterior over bins under the inferred population."""
+        """Per-object posterior over bins under the inferred population.
+
+        Parameters
+        ----------
+        X : Likelihoods or array_like (N, K)
+            Likelihoods of the objects.
+        """
         self._check_fitted()
         return self.result_.predict_proba(X)
 
     def predict(self, X: Any) -> np.ndarray:
-        """Most probable bin of each object under the inferred population."""
+        """Most probable bin of each object under the inferred population.
+
+        Parameters
+        ----------
+        X : Likelihoods or array_like (N, K)
+            Likelihoods of the objects.
+        """
         return np.argmax(self.predict_proba(X), axis=1)
 
     def score(self, X: Any, y: Any = None) -> float:
@@ -169,7 +187,7 @@ class PopulationEstimator:
         n : int, optional
             Number of population draws returned.
         rng : int, Generator or None
-            Random number generator (SPEC 7).
+            Random number generator.
         """
         self._check_fitted()
         res = self.result_

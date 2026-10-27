@@ -31,6 +31,17 @@ __all__ = [
     "rhat",
 ]
 
+#: Quantiles whose indicators define the tail ESS.
+TAIL_QUANTILES = (0.05, 0.95)
+#: Largest Pareto k-hat at which importance sampling is reliable, reached from about
+#: 2,000 weights; with n weights the limit is min(1 - 1/log10(n), K_HAT_MAX).
+K_HAT_MAX = 0.7
+#: Pareto smoothing needs at least this many importance weights.
+PSIS_MIN_WEIGHTS = 5
+#: The generalised Pareto is fitted to the ceil(min(a n, b sqrt(n))) largest of n
+#: weights, for (a, b) these.
+PSIS_TAIL = (0.2, 3.0)
+
 
 # ----------------------------------------------------------------------------
 # autocorrelation
@@ -54,7 +65,13 @@ def _autocov(x: np.ndarray) -> np.ndarray:
 
 
 def autocorr_function(x: Any) -> np.ndarray:
-    """Normalised autocorrelation function of a 1-D chain (or average over chains)."""
+    """Normalised autocorrelation function of a 1-D chain (or average over chains).
+
+    Parameters
+    ----------
+    x : array_like, shape (n_draws,) or (n_chains, n_draws)
+        Draws of a scalar quantity.
+    """
     x = np.atleast_2d(np.asarray(x, dtype=float))
     acov = _autocov(x)
     with np.errstate(invalid="ignore", divide="ignore"):
@@ -168,7 +185,7 @@ def ess(x: Any, kind: str = "bulk") -> float:
     if kind == "mean":
         return _ess_raw(a)
     if kind == "tail":
-        q05, q95 = np.quantile(a, [0.05, 0.95])
+        q05, q95 = np.quantile(a, TAIL_QUANTILES)
         e1 = _ess_raw((a <= q05).astype(float))
         e2 = _ess_raw((a <= q95).astype(float))
         return float(np.nanmin([e1, e2])) if np.isfinite([e1, e2]).any() else float("nan")
@@ -192,6 +209,11 @@ def rhat(x: Any) -> float:
 
     Needs ``x`` of shape ``(n_chains, n_draws)``; a single chain is split in
     two. Values above about 1.01 indicate non-convergence.
+
+    Parameters
+    ----------
+    x : array_like, shape (n_draws,) or (n_chains, n_draws)
+        Draws of a scalar quantity.
     """
     a = _split(_as_chains(x))
     if a.shape[0] < 2:
@@ -202,7 +224,13 @@ def rhat(x: Any) -> float:
 
 
 def mcse(x: Any) -> float:
-    """Monte Carlo standard error of the mean of a scalar quantity."""
+    """Monte Carlo standard error of the mean of a scalar quantity.
+
+    Parameters
+    ----------
+    x : array_like, shape (n_draws,) or (n_chains, n_draws)
+        Draws of a scalar quantity.
+    """
     a = _as_chains(x)
     n_eff = ess(a, kind="mean")
     if not np.isfinite(n_eff) or n_eff <= 0:
@@ -248,10 +276,15 @@ def psis_threshold(n: int) -> float:
     """The Pareto ``k_hat`` below which PSIS with ``n`` weights is reliable.
 
     ``min(1 - 1 / log10(n), 0.7)`` (Vehtari et al. 2024, §3), for ``n >= 5``.
+
+    Parameters
+    ----------
+    n : int
+        Number of importance weights.
     """
-    if n < 5:
-        raise ValueError(f"n must be at least 5 importance weights; got {n}.")
-    return min(1.0 - 1.0 / float(np.log10(n)), 0.7)
+    if n < PSIS_MIN_WEIGHTS:
+        raise ValueError(f"n must be at least {PSIS_MIN_WEIGHTS} importance weights; got {n}.")
+    return min(1.0 - 1.0 / float(np.log10(n)), K_HAT_MAX)
 
 
 def psis(log_weights: Any) -> tuple[np.ndarray, float]:
@@ -272,8 +305,8 @@ def psis(log_weights: Any) -> tuple[np.ndarray, float]:
         ``-inf`` for equal weights, which have no tail.
     """
     lw = np.array(log_weights, dtype=float).ravel()
-    if lw.size < 5:
-        raise ValueError("Need at least 5 importance weights.")
+    if lw.size < PSIS_MIN_WEIGHTS:
+        raise ValueError(f"Need at least {PSIS_MIN_WEIGHTS} importance weights.")
     lw, k = _psis_rows(lw[None])  # lw is a copy
     return lw[0], float(k[0])
 
@@ -289,7 +322,8 @@ def _psis_rows(log_weights: np.ndarray, block: int = 2**22) -> tuple[np.ndarray,
     k = np.full(r, np.inf)  # no tail of more than 4 weights to fit
     equal = np.all(lw > -1e-10, axis=1)  # equal weights (to round-off): exact, no tail
     k[equal] = -np.inf
-    tail_len = int(np.ceil(min(0.2 * n, 3.0 * np.sqrt(n))))  # rounded up, as ArviZ and loo
+    share, factor = PSIS_TAIL
+    tail_len = int(np.ceil(min(share * n, factor * np.sqrt(n))))  # rounded up, as ArviZ, loo
     # the tail_len + 1 largest weights of each row, sorted: the cut and the tail above it
     top = np.argpartition(lw, n - tail_len - 1, axis=1)[:, n - tail_len - 1 :]
     srt = np.take_along_axis(lw, top, axis=1)
@@ -340,12 +374,27 @@ def missing_information(model: Any, value: Any, **kwargs: Any) -> float:
     """Largest fraction of missing information.
 
     See :meth:`binference.PopulationModel.missing_information`.
+
+    Parameters
+    ----------
+    model : PopulationModel
+        The model.
+    value : array_like (K,)
+        Fractions or rates.
+    **kwargs
+        Passed to :meth:`binference.PopulationModel.missing_information`.
     """
     return model.missing_information(np.asarray(value, dtype=float), **kwargs)
 
 
 def importance_ess(weights: Any) -> float:
     r"""Kish's effective sample size of importance weights,
-    :math:`(\sum_s w_s)^2 / \sum_s w_s^2` (normalised or not)."""
+    :math:`(\sum_s w_s)^2 / \sum_s w_s^2` (normalised or not).
+
+    Parameters
+    ----------
+    weights : array_like (n,)
+        Importance weights.
+    """
     w = np.asarray(weights, dtype=float)
     return float(np.sum(w) ** 2 / np.sum(w**2))

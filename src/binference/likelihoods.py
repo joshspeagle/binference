@@ -230,9 +230,19 @@ def _log_gauss_rows(z: np.ndarray, r: np.ndarray, mu: np.ndarray, sig: np.ndarra
     return -0.5 * ((z - m) / s) ** 2 - np.log(s) - 0.5 * np.log(2 * np.pi)
 
 
-#: the outside-mass warning fires when more than OUTSIDE_SHARE of the objects have
-#: more than OUTSIDE_THRESHOLD of their mass outside the bins (DECISIONS #64)
-OUTSIDE_THRESHOLD, OUTSIDE_SHARE = 0.9, 0.1
+# DECISIONS #64
+#: An object with more than this share of its likelihood outside the bins is mostly
+#: outside.
+OUTSIDE_THRESHOLD = 0.9
+#: A warning is raised when more than this share of the objects are mostly outside the
+#: bins.
+OUTSIDE_SHARE = 0.1
+#: ``from_samples`` warns when more than this share of the objects have fewer than
+#: ``min_samples`` effective samples.
+FEW_SAMPLES_SHARE = 0.1
+#: A warning is raised when more than this share of posterior rows sum to one only under
+#: the other ``representation``.
+REPRESENTATION_SHARE = 0.5
 
 
 def _record_outside(lk: Likelihoods, outside: np.ndarray, enabled: bool) -> None:
@@ -570,7 +580,13 @@ class Likelihoods:
         return self._copy(norm=M)
 
     def subset(self, idx: Any) -> Likelihoods:
-        """Rows ``idx`` (any NumPy index) as a new object."""
+        """Rows ``idx`` (any NumPy index) as a new object.
+
+        Parameters
+        ----------
+        idx : int, slice, array_like of int or bool
+            Rows to keep.
+        """
         rows = np.arange(self.N)[idx]
         rows = np.atleast_1d(rows)
         vals = self._values[rows]
@@ -617,6 +633,11 @@ class Likelihoods:
         (:meth:`from_gaussian`, :meth:`from_density`, :meth:`from_samples`) do
         this on the quadrature cells when given the :class:`~binference.Basis`
         directly. A selection is carried over to the components.
+
+        Parameters
+        ----------
+        basis : Basis
+            Basis whose ``bins`` or ``grid`` these likelihoods are on.
         """
         if not isinstance(basis, Basis):
             raise TypeError("basis must be a binference.Basis instance.")
@@ -724,7 +745,13 @@ class Likelihoods:
         return out / out.sum()
 
     def log_evidence_terms(self, rho: np.ndarray) -> np.ndarray:
-        r"""Per-object absolute log marginal likelihoods :math:`\log(L_i\cdot\rho)`, unweighted."""
+        r"""Per-object absolute log marginal likelihoods :math:`\log(L_i\cdot\rho)`, unweighted.
+
+        Parameters
+        ----------
+        rho : ndarray (K,)
+            Population fractions.
+        """
         s = np.asarray(self._values @ np.asarray(rho, dtype=float)).ravel()
         with np.errstate(divide="ignore"):
             return np.log(s) + self._log_scale
@@ -972,7 +999,7 @@ class Likelihoods:
             sparse = floor == 0 and S1.nnz < kern.SPARSE_FILL * n_obj * bins.K
         values = sp.csr_array(est) if sparse else (est.toarray() if sp.issparse(est) else est)
         short = n_eff < min_samples
-        if short.mean() > 0.1:
+        if short.mean() > FEW_SAMPLES_SHARE:
             warn(
                 f"{int(short.sum())} of {n_obj} objects have fewer than {min_samples} effective "
                 "samples inside the bins; their likelihoods will be noisy (more samples, wider "
@@ -1016,6 +1043,11 @@ class Likelihoods:
         under ``rho``. Summed over objects, :math:`\sum_i V_i` is about the bias
         it puts in the total log-likelihood (Jensen); values above about one
         call for more samples (DECISIONS #31).
+
+        Parameters
+        ----------
+        rho : array_like (K,)
+            Population fractions.
         """
         if "sample_sum" not in self.meta:
             raise ValueError("sample_variance needs likelihoods built by from_samples.")
@@ -1258,8 +1290,7 @@ class Likelihoods:
             Per-object densities of ``z``, as above.
         bins : Bins or Basis
             Grid bins.
-            With a :class:`~binference.Basis`, likelihoods of its components
-            (DECISIONS #76).
+            With a :class:`~binference.Basis`, likelihoods of its components.
         kind : {"likelihood"}, optional
             The densities are likelihoods. Exactly one of ``kind`` and ``interim``.
         interim : Density, "flat", callable, distribution or array_like (K,), optional
@@ -1589,7 +1620,7 @@ def _check_posterior_representation(P, vol: np.ndarray, representation: str) -> 
         sums, alt, other = as_dens, as_mass, "mass"
     mismatched = ~np.isclose(sums, 1.0, rtol=1e-2)
     looks_other = np.isclose(alt, 1.0, rtol=1e-2)
-    if np.mean(mismatched & looks_other) > 0.5:
+    if np.mean(mismatched & looks_other) > REPRESENTATION_SHARE:
         warn(
             f"Most posterior rows integrate to one only if interpreted as '{other}' values; "
             f"did you mean representation='{other}'? "

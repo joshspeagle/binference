@@ -21,15 +21,26 @@ from .base import Engine
 
 __all__ = ["NUTS"]
 
-# Dimension limits for the warm-up geometry adaptation (see NUTS docstring).
+#: ``target_accept`` when it is ``None``, except for logistic priors.
+_TARGET_ACCEPT = 0.8
+#: ``target_accept`` for logistic priors when it is ``None``.
+_TARGET_ACCEPT_LOGISTIC = 0.9
+#: ``metric="auto"`` is dense for logistic priors up to this many dimensions.
 _DENSE_MAX_DIM = 200
+#: Up to this many dimensions, warm-up starts the metric from the curvature at the mode.
 _HESSIAN_MAX_DIM = 500
 # Partial centring re-creates a funnel when the field itself pins the scale
-# hyperparameters down poorly (few modes per hyperparameter). The prior then stays
-# non-centred unless the median spread of the modes' log-scales given the field is
-# below this. In validation runs 0.28 separated K <= 6, N <= 40 (0.33-0.62; divergences
-# when centred) from K >= 10 (0.11-0.25; 3-20x more ESS/s when centred).
+# hyperparameters down poorly (few modes per hyperparameter). In validation runs 0.28
+# separated K <= 6, N <= 40 (0.33-0.62; divergences when centred) from K >= 10
+# (0.11-0.25; 3-20x more ESS/s when centred).
+#: Logistic priors stay non-centred when the median spread of the modes' log-scales given
+#: the field exceeds this.
 _CENTRING_MAX_SD = 0.28
+#: Warm-up iteration of the partial centring of logistic priors, or the first slow
+#: window's start if that is earlier.
+_GEOMETRY_ITER = 25
+#: ``t0``, ``gamma`` and ``kappa`` of the dual-averaging step-size adaptation.
+_DUAL_AVERAGING = (10.0, 0.05, 0.75)
 
 
 def _centred(model: PopulationModel, lam: np.ndarray) -> PopulationModel:
@@ -119,7 +130,7 @@ class _Chain:
         return acc, depth, div, nl, energy
 
     def _adapt(self, acc):
-        t0, gamma, kappa = 10.0, 0.05, 0.75
+        t0, gamma, kappa = _DUAL_AVERAGING
         self.m += 1
         m = self.m
         self.Hbar = (1.0 - 1.0 / (m + t0)) * self.Hbar + (self.target - acc) / (m + t0)
@@ -352,7 +363,7 @@ class NUTS(Engine):
         if metric not in ("auto", "diag", "dense"):
             raise ValueError("metric must be 'auto', 'diag' or 'dense'.")
         if target_accept is None:
-            target_accept = 0.9 if logistic else 0.8
+            target_accept = _TARGET_ACCEPT_LOGISTIC if logistic else _TARGET_ACCEPT
         if not 0 < target_accept < 1:
             raise ValueError("target_accept must be in (0, 1).")
         self.n_chains = int(n_chains)
@@ -369,7 +380,6 @@ class NUTS(Engine):
         self._base_model = model
         self._lam = None  # partial-centring weights of the sampling coordinates, once chosen
         self._pool = None  # worker processes, kept for one sample() (audit N-13)
-        self._geometry_iter = 25
         self._warm = False
         self._x: list[np.ndarray] = []
         self._lp: list[np.ndarray] = []
@@ -547,7 +557,7 @@ class NUTS(Engine):
         windows = self._chains[0].windows
         logistic = self._base_model.prior.has_centering
         # adapt the geometry once the chains have left the mode for the typical set
-        switch = min(self._geometry_iter, windows[0][0]) if (windows and logistic) else 0
+        switch = min(_GEOMETRY_ITER, windows[0][0]) if (windows and logistic) else 0
         try:
             self._advance(switch, adapt=True, desc="NUTS warm-up")
             if switch > 0:
@@ -580,6 +590,11 @@ class NUTS(Engine):
         non-centred form). Draws are also recorded and included in the next
         :meth:`run` / :attr:`result`. With ``n_jobs > 1`` the chains advance in
         worker processes and the positions are yielded once all have finished.
+
+        Parameters
+        ----------
+        n_samples : int
+            Iterations per chain.
         """
         try:
             self.warmup()
