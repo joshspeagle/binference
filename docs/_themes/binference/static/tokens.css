@@ -33,6 +33,15 @@
   --b-font-display: 'Sora', system-ui, sans-serif;
   --b-font-body: 'Atkinson Hyperlegible Next', system-ui, sans-serif;
   --b-font-mono: 'Atkinson Hyperlegible Mono', ui-monospace, monospace;
+  --b-type-title: 600 32px/1.15 var(--b-font-display);
+  --b-type-section: 600 20px/1.25 var(--b-font-display);
+  --b-type-text: 400 16.5px/1.6 var(--b-font-body);
+  --b-type-code: 400 14px/1.5 var(--b-font-mono);
+  --b-type-caption: 400 14px/1.45 var(--b-font-body);
+  --b-accent-rule: 3px;
+  --b-focus: 2px;
+  --b-radius: 2px;
+  --b-figure-text: 12px;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
