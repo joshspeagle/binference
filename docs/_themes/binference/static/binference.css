@@ -24,7 +24,7 @@ body {
   -webkit-text-size-adjust: 100%;
   text-rendering: optimizeLegibility;
 }
-a { color: var(--b-link); text-underline-offset: 2px; text-decoration-thickness: 1px; }
+a { color: var(--b-link); text-underline-offset: 2px; text-decoration-thickness: 1px; overflow-wrap: anywhere; }
 a:hover { text-decoration-thickness: 2px; }
 :focus-visible { outline: var(--b-focus) solid var(--b-link); outline-offset: 2px; }
 img, svg { max-width: 100%; height: auto; }
