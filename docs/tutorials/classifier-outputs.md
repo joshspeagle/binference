@@ -88,7 +88,8 @@ ax.legend(ncol=2, loc="lower left", bbox_to_anchor=(0, 1))
 ax.set_xlabel("class");
 ```
 
-The averaged probabilities, labelled "stacked", are pulled toward equal fractions.
+The averaged probabilities, labelled "stacked", lie closer to equal fractions than the
+truth does.
 
 Each object's posterior under the inferred fractions, `fit.assignment_probabilities()`,
 is the classifier's output recalibrated to the new set. Use it to classify objects in the
@@ -110,18 +111,15 @@ assert acc_after > acc_before
 ## Scores and a labelled set
 
 Dividing out the training prevalence is exact only when the probabilities are
-calibrated. A classifier whose probabilities are too sharp or too flat biases the result,
-and more data do not remove the bias.
+calibrated. A labelled set gives a route that needs no calibration
+([inputs guide](../guides/inputs.md#binned-measurements-and-classifiers)). Bin the
+classifier's score, and tally how each class of the labelled set falls into the score
+bins with {meth}`~binference.Response.from_labelled`. The tally is a
+{term}`response matrix` $R_{jk}$: the probability of score bin $j$ for an object of class
+$k$. The new set then enters as a {term}`binned measurement`.
 
-A labelled set gives a route that needs no calibration. Bin the classifier's score, and
-tally how each class of the labelled set falls into the score bins with
-{meth}`~binference.Response.from_labelled`. The tally is a {term}`response matrix`
-$R_{jk}$: the probability of score bin $j$ for an object of class $k$. The new set then
-enters as a {term}`binned measurement`. The route assumes only label shift: each class
-scores the same way in the labelled and the new set.
-
-Here the classifier's log-likelihoods are halved (`temperature=2`), so its probabilities
-are too flat. The score is the object's one-dimensional feature:
+Here the mock halves the classifier's log-likelihoods (`temperature=2`), so its
+probabilities are too flat. The score is the object's one-dimensional feature:
 
 ```{code-cell} python
 flat = binference.simulate.mock_categorical(
@@ -146,12 +144,9 @@ assert err_score < err_post
 ```
 
 The mock built `flat.response` with `Response.from_labelled(scores, labels)` from its
-labelled set of 2000 objects. The posteriors route is biased by the flat probabilities;
-the scores route is not.
-
-The fit also tests label shift. `infer` compares the counts in each score bin with those
-that the fitted fractions predict through the response, and warns on a mismatch. The test
-has power only with more score bins than classes.
+labelled set of 2000 objects. The scores route lands closer to the truth than the
+posteriors route, whose flat probabilities bias it. `infer` also tests whether label shift
+holds; the inputs guide describes the test.
 
 ## What to take away
 

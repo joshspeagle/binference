@@ -76,7 +76,8 @@ lk = binference.Likelihoods.from_gaussian(d, sigma, bins)
 
 With the default flat Dirichlet prior, the {term}`MAP` estimate is the maximum-likelihood
 estimate of $\rho$ on the grid: the NPMLE restricted to the grid. `method="map"` computes
-it with {term}`mix-SQP`. It reports the {term}`KKT gap` as a certificate of optimality:
+it with {term}`mix-SQP`, and reports the {term}`KKT gap`, which is near zero at the
+maximum:
 
 ```{code-cell} python
 npmle = binference.infer(lk, method="map")
@@ -92,10 +93,9 @@ for c, w in zip(bins.centers[atoms], npmle.rho[atoms]):
 assert npmle.kkt_gap < 1e-6 and atoms.sum() <= 10
 ```
 
-The NPMLE is discrete: it puts all its mass on a few grid points, as the theory of the
-Kiefer–Wolfowitz estimator says it must. It finds the mass at zero, but represents the
-Gaussian component by a few atoms. It gives no measure of its own uncertainty. The
-default `method="auto"` samples the full posterior of $\rho$:
+The NPMLE puts all its mass on a few grid points; theory says it always does. It finds
+the mass at zero but represents the Gaussian by a few spikes. It gives no measure of its
+own uncertainty. The default `method="auto"` samples the full posterior of $\rho$:
 
 ```{code-cell} python
 fit = binference.infer(lk, n_samples=500, rng=1)
@@ -149,8 +149,8 @@ assert ratio > 1
 
 Within 1.25 of zero, the posterior agrees with the truth. Within 0.5 it falls well short,
 while the NPMLE does not. The likelihood changes little when mass moves from the spike
-into the empty bins beside it. A posterior spread along that direction has its mean
-inside the simplex, away from the spike. The prior information ratio
+into the empty bins beside it. The posterior spreads along that direction, so its mean
+puts less mass on the spike. The prior information ratio
 ({meth}`~binference.PopulationResult.prior_information_ratio`) is above one. It says
 that the flat Dirichlet on 70 bins weighs more than the data in this fine structure. Ask
 about the null fraction as a sum over a range the data can resolve, or use a prior that
@@ -161,21 +161,17 @@ expects a spike.
 Each unit's posterior under the estimated population is `assignment_probabilities()`:
 its probability of lying in each bin. For the NPMLE this is the usual plug-in empirical
 Bayes posterior. For the full fit it is averaged over the posterior draws of $\rho$, so
-the uncertainty of the population carries into each unit. Averaging the bin centres over
-it approximates the posterior mean. `sample_values()` draws the units' true values
-within the bins from their own likelihoods, which removes that approximation.
+the uncertainty of the population carries into each unit. `sample_values()` draws the
+units' true values, and their average is each unit's posterior mean.
 
 ```{code-cell} python
-eb_npmle = npmle.assignment_probabilities() @ bins.centers
+eb_npmle = npmle.assignment_probabilities() @ bins.centers   # bin centres, for the NPMLE
 draws = fit.sample_values(rng=2)                  # (500 draws, units)
 eb_full = draws.mean(axis=0)
-eb_centres = fit.assignment_probabilities() @ bins.centers
-print("posterior mean from bin centres vs from sample_values, largest difference:",
-      f"{np.abs(eb_centres - eb_full).max():.3f}")  # includes the draws' Monte Carlo error
 ```
 
-For comparison, the oracle Bayes rule uses the true distribution of the effects. It
-integrates over $z$ numerically:
+For comparison, the oracle Bayes rule is the best possible estimate, which uses the true
+distribution of the effects. It integrates over $z$ numerically:
 
 ```{code-cell} python
 grid = np.linspace(-6, 9, 3001)
@@ -200,7 +196,7 @@ assert eb < 0.5 * mse["raw estimate d"] and eb < 1.1 * mse["oracle Bayes"]
 
 Both empirical Bayes estimates more than halve the error of the raw estimates. They come
 close to the oracle that knows the true distribution. The plot shows the shrinkage.
-Estimates near zero are pulled to zero, and those near the non-null group toward 2.5.
+Estimates near zero move to zero, and those near the non-null group toward 2.5.
 Noisier units, the darker points, move further.
 
 ```{code-cell} python
@@ -211,7 +207,7 @@ mystnb:
       error. The dashed line marks no shrinkage.
   image:
     alt: Scatter of 1500 points below and beside the dashed diagonal. Estimates below
-      about 1 are pulled toward zero, and large estimates are pulled down toward 2.5 to
+      about 1 move toward zero, and large estimates move down toward 2.5 to
       3. Darker points, with larger errors, lie furthest from the diagonal.
 ---
 ramp = LinearSegmentedColormap.from_list("ramp", ["#F7C3B5", "#EC5F3E", "#7A2412"])
@@ -247,7 +243,7 @@ assert covered.mean() > 0.9 - 3 * np.sqrt(0.09 / n) and np.mean(hi - lo) < 2 * 1
   posterior of $\rho$ shows how much of it the data determine.
 - `assignment_probabilities()` and `sample_values()` give each unit's empirical Bayes
   posterior, with the population's uncertainty included.
-- A smooth $\rho$, as in Efron's g-modelling, corresponds to a smoothness prior such as
-  `priors.LogisticGP()` ({doc}`priors-and-smoothness`). The
+- A smooth $\rho$, as in Efron's g-modelling, corresponds to a {term}`smoothness prior`
+  such as `priors.LogisticGP()` ({doc}`priors-and-smoothness`). The
   [empirical Bayes background page](../fields/empirical-bayes) places this tutorial among
   the packages of that field.

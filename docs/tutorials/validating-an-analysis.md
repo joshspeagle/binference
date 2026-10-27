@@ -38,8 +38,8 @@ from binference.validation import coverage, exact_posterior, sbc
 
 ## Exact posteriors
 
-With three bins, the posterior can be integrated on a grid. Here the exact posterior is
-compared with NUTS and Gibbs, on data with a selection:
+With three bins, binference can integrate the posterior on a grid. Here it compares that
+exact posterior with {term}`NUTS` and {term}`Gibbs`, on data with a {term}`selection`:
 
 ```{code-cell} python
 bins = binference.Bins([0.0, 1.0, 2.0, 3.0])
@@ -54,15 +54,14 @@ print("NUTS  mean", nuts.mean.round(4), " sd", nuts.std.round(4))
 print("Gibbs mean", gibbs.mean.round(4), " sd", gibbs.std.round(4))
 ```
 
-binference's test suite makes these comparisons for every engine, prior family and
-selection mode.
+The [theory page](../how-it-works/theory.md#diagnostics-and-validation) describes the
+test suite's comparisons.
 
 ## Simulation-based calibration
 
-SBC {cite:p}`talts2018` checks the whole loop: prior, simulator and inference. Draw a
-population from the prior, simulate a catalogue, fit it, and record where the true value
-falls among the posterior draws. Over many repetitions these ranks are uniform when the
-pipeline is calibrated. Departures from uniform ranks reveal errors.
+SBC {cite:p}`talts2018` checks the whole loop of prior, simulator and inference
+([simulation-based calibration](../guides/validation.md#simulation-based-calibration)).
+Here it checks 150 fits of 50 objects in four bins:
 
 ```{code-cell} python
 prior = priors.Dirichlet(1.0)
@@ -74,7 +73,8 @@ def fit_gibbs(lk, rng):
                         n_warmup=100, n_samples=500, check=False)
 
 result = sbc(simulate, fit_gibbs, n_simulations=150, n_draws=19, rng=0)
-print("uniformity p-values:", {n: round(float(v), 3) for n, v in zip(result.names, result.pvalues(10))})
+print("uniformity p-values:",
+      {n: round(float(v), 3) for n, v in zip(result.names, result.pvalues(10))})
 ```
 
 ```{code-cell} python
@@ -117,7 +117,8 @@ def fit_vb(lk, rng):
         return binference.infer(lk, prior, method="vb", rng=rng, n_samples=1000)
 
 bad = sbc(simulate, fit_vb, n_simulations=150, n_draws=19, rng=0)
-print("uniformity p-values:", {n: round(float(v), 4) for n, v in zip(bad.names, bad.pvalues(10))})
+print("uniformity p-values:",
+      {n: round(float(v), 4) for n, v in zip(bad.names, bad.pvalues(10))})
 ```
 
 ```{code-cell} python
@@ -145,10 +146,9 @@ assert bad.pvalues(10).max() < 1e-3
 
 ## Coverage
 
-Coverage asks the frequentist question directly: how often do central
-{term}`credible intervals <credible interval>` contain the truth? With data simulated
-from the prior, Bayesian intervals have their nominal coverage on average. Coverage can
-be checked for any derived quantity, here the population mean:
+Coverage asks how often central {term}`credible intervals <credible interval>` contain
+the truth. With data simulated from the prior, Bayesian intervals have their nominal
+coverage on average. `coverage` checks any derived quantity, here the population mean:
 
 ```{code-cell} python
 centers = grid.centers
@@ -162,8 +162,5 @@ print("standard error:", cov.stderr().ravel().round(3))
 
 ## Validating your own pipeline
 
-Write a simulator that reproduces your real catalogue: the same number of objects, the
-same measurement errors and the same selection. `prior_predictive` builds one for
-Gaussian errors. Then call `sbc` or `coverage` with the settings you use for the real
-fit. A few hundred simulations of a scaled-down problem usually expose errors in the
-likelihoods, the selection model or the sampler settings.
+To check your own analysis, simulate catalogues like yours and call `sbc` or `coverage`
+with the settings of the real fit ([mock catalogues](../guides/validation.md#mock-catalogues)).

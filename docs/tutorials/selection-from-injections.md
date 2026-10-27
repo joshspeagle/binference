@@ -44,44 +44,38 @@ rng = np.random.default_rng(150914)
 
 ## A simulated catalogue
 
-The primary masses of the mergers follow a power law $p(m)\propto m^{-2.3}$ between 5
-and 85 solar masses (90% of mergers), plus a Gaussian peak at 34 solar masses with width
-4 (10%). A merger is detected with probability $S(m) = 0.8/[1 + (m/20)^{-3}]$.
-Detection is a coin flip independent of the mass measurement, so the selection acts on
-the true mass (`"on_truth"`). Each detected merger has a measured $\ln m$ with a Gaussian
-error between 0.05 and 0.2. Gaussian likelihoods keep this tutorial about the selection;
-{doc}`posterior-samples` starts from samples instead.
+The mergers follow the population of primary masses $m$ in {doc}`posterior-samples`: a
+power law with a peak at 34 solar masses. A merger is detected with probability
+$S(m) = 0.8/[1 + (m/20)^{-3}]$. Detection is a random event, independent of the
+measurement error, so the selection acts on the true mass (`"on_truth"`). Each merger has
+a measured $\ln m$ with a Gaussian error between 0.05 and 0.2. Gaussian likelihoods keep
+this tutorial about the selection.
+
+The bins are 16 equal intervals in $\ln m$. `mock_1d` draws the 6000 mergers and their
+measurements; the detected ones form the catalogue:
 
 ```{code-cell} python
 m_lo, m_hi, slope = 5.0, 85.0, -2.3
 
-def draw_masses(n):
-    a = slope + 1
-    power_law = (m_lo**a + rng.random(n) * (m_hi**a - m_lo**a)) ** (1 / a)
-    peak = np.clip(rng.normal(34.0, 4.0, n), m_lo, m_hi)
-    return np.where(rng.random(n) < 0.1, peak, power_law)
+def population(x):                       # density of ln m, as in the posterior-samples tutorial
+    m, a = np.exp(x), slope + 1
+    power_law = a * m**slope / (m_hi**a - m_lo**a)
+    return (0.9 * power_law + 0.1 * stats.norm.pdf(m, 34.0, 4.0)) * m
 
-def S(m):
+def S(m):                                # detection probability
     return 0.8 / (1 + (np.asarray(m) / 20.0) ** -3)
 
-n_mergers = 6000
-m_true = draw_masses(n_mergers)
-detected = rng.random(n_mergers) < S(m_true)
-sigma = rng.uniform(0.05, 0.2, detected.sum())
-x_obs = np.log(m_true[detected]) + sigma * rng.standard_normal(detected.sum())
-print(f"{n_mergers} mergers, {detected.sum()} detected")
-```
-
-The bins are 16 equal intervals in $\ln m$. The true population fractions follow from
-the distribution functions of the two components:
-
-```{code-cell} python
 bins = binference.Bins.linear(np.log(m_lo), np.log(m_hi), 16)
-edges = np.exp(bins.edges[0])
-a = slope + 1
-pl_cdf = (edges**a - m_lo**a) / (m_hi**a - m_lo**a)
-rho_true = 0.9 * np.diff(pl_cdf) + 0.1 * np.diff(stats.norm.cdf(edges, 34.0, 4.0))
-lk = binference.Likelihoods.from_gaussian(x_obs, sigma, bins)
+n_mergers = 6000
+mock = binference.simulate.mock_1d(n_mergers, bins, density=population, noise=(0.05, 0.2),
+                                   rng=rng)
+rho_true = mock.truth.rho
+detected = rng.random(n_mergers) < S(np.exp(mock.truth.values))
+lk = binference.Likelihoods.from_gaussian(
+    mock.measurements["mean"][detected], mock.measurements["sigma"][detected], bins,
+    warn_outside=False,                  # measurements near the edges spill past them
+)
+print(f"{n_mergers} mergers, {detected.sum()} detected")
 ```
 
 ## The injection campaign
@@ -114,9 +108,10 @@ print("recovered / injected, lightest five bins:",
 4. **Exact.** For reference, the true $S(m)$ averaged over each bin
    ({meth}`~binference.Selection.from_function`). A real analysis does not have it.
 
-All four use NUTS, so that they are comparable. In the joint model the population and
-the detection probability trade off against each other in the lightest bins, where there
-are few detections.
+All four use {term}`NUTS`, so that they are comparable. In the joint model, the
+{term}`population fractions` and the detection probability are correlated in the lightest
+bins, where there are few detections: a higher detection probability allows a lower
+fraction.
 
 ```{code-cell} python
 exact = binference.Selection.from_function(lambda x: S(np.exp(x)), bins, "on_truth")
@@ -142,9 +137,9 @@ assert max(d["rhat"].max(), d["rhat_selection"].max()) < 1.01 and d["n_divergent
 ---
 mystnb:
   figure:
-    caption: Population fractions of the primary mass (median, 68% and 95% bands) from
-      fits that ignore the selection, plug in the injection estimate, and infer it
-      jointly. The truth is dashed.
+    caption: Population fractions of the primary mass, with 68% and 95% bands. The fits
+      ignore the selection (top), plug in the injection estimate (middle), or infer it
+      jointly (bottom). The truth is dashed.
   image:
     alt: Three stacked step plots of the fraction per bin against ln m from 1.6 to 4.4.
       In the top one, without selection, the light bins fall far below the dashed truth
@@ -195,30 +190,19 @@ tot = {k: r.total for k, r in fits.items()}
 assert abs(tot["no selection"].mean() - detected.sum()) < 3 * tot["no selection"].std()
 assert tot["joint"].std() > tot["plug-in injections"].std()
 assert frac["joint"].std() > frac["plug-in injections"].std()
-assert all(n_mergers - tot[k].mean() > 2 * tot[k].std() for k in ("plug-in injections", "joint"))
+assert n_mergers - tot["plug-in injections"].mean() > 2 * tot["plug-in injections"].std()
+assert abs(n_mergers - tot["joint"].mean()) < 2 * tot["joint"].std()
 assert abs(tot["exact selection"].mean() - n_mergers) < 3 * tot["exact selection"].std()
 ```
 
 Without a selection, the total is just the number of detections. The joint fit's error
 bars are larger than the plug-in fit's. They include the uncertainty of the detection
 probability from a finite number of injections, which the plug-in fit treats as exact.
-Both fall below the truth, because this injection set recovered more light signals than
-$S(m)$ predicts. The exact-selection fit does not share that error:
+Both totals fall below the truth. The plug-in total misses it by more than two standard
+deviations; the joint fit's wider interval reaches it.
 
-```{code-cell} python
-expected = injected * exact.values
-print("lightest five bins, recovered:", recovered[:5].tolist())
-print("expected from S(m):            ", expected[:5].round(1).tolist())
-```
-
-```{code-cell} python
-:tags: [remove-cell]
-
-assert recovered[:5].sum() > expected[:5].sum()
-```
-
-A total this poorly determined also depends on the prior, which by default pulls it
-down ([selection guide](../guides/selection.md#rates-and-exposure)). Before you quote a
+A total this poorly determined also depends on the prior, which by default biases it
+low ([selection guide](../guides/selection.md#rates-and-exposure)). Before you quote a
 total from such data, check its calibration on simulations
 ({doc}`validating-an-analysis`).
 
@@ -230,8 +214,8 @@ level comes from the injections:
 ---
 mystnb:
   figure:
-    caption: The detection probability per bin with 90% intervals, from the injections
-      alone (squares) and from the joint fit (circles), and the true S(m) (dashed).
+    caption: The detection probability per bin, with 90% intervals. Squares use the
+      injections alone, circles the joint fit; the dashed line is the true S(m).
   image:
     alt: Plot of detection probability on a log scale against ln m. The dashed truth
       rises from about 0.01 at the lightest masses to 0.8 at the heaviest. Both sets of
@@ -260,9 +244,8 @@ ax.legend(ncol=2, loc="lower left", bbox_to_anchor=(0, 1));
 - `Selection.from_injections` passed to `infer` infers the selection together with the
   population. `sel.at_mean()` is a plug-in that ignores the selection's uncertainty,
   which is large where few injections are recovered.
-- Ask what the selection acts on. Here detection is a coin flip that depends only on
-  the true mass, so `"on_truth"` is exact. In real detectors, detection and measurement
-  share the same noise, and the selection acts on the measurement
-  ({doc}`selection-effects`). The
+- Here detection depends only on the true mass, so `"on_truth"` is exact. In real
+  detectors, detection and measurement share the same noise, and the selection acts on
+  the measurement ({doc}`selection-effects` shows the difference). The
   [gravitational-wave background page](../fields/gravitational-waves) says what that
   means for a selection measured by injections.

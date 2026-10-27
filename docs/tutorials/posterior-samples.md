@@ -79,7 +79,7 @@ print(bins)
 ## Dividing out the PE prior
 
 {meth}`~binference.Likelihoods.from_samples` turns each event's samples into
-bin-averaged likelihoods. It weights each sample by the inverse of the PE prior, which is
+{term}`bin-averaged likelihoods <bin-averaged likelihood>`. It weights each sample by the inverse of the PE prior, which is
 passed as a function of $m$. The tempting shortcut passes `interim="flat"`, as if the
 samples came from the likelihood:
 
@@ -87,7 +87,7 @@ samples came from the likelihood:
 lk = binference.Likelihoods.from_samples(samples, bins, interim=lambda m: m)
 lk_flat = binference.Likelihoods.from_samples(samples, bins, interim="flat")
 
-kw = dict(rng=1, n_samples=500, n_warmup=500)   # shorter runs than the default, for speed
+kw = dict(rng=1, n_samples=500, n_warmup=300)   # shorter runs than the default, for speed
 fits = {"PE prior divided out": binference.infer(lk, **kw),
         "PE prior ignored": binference.infer(lk_flat, **kw)}
 ```
@@ -96,9 +96,9 @@ fits = {"PE prior divided out": binference.infer(lk, **kw),
 ---
 mystnb:
   figure:
-    caption: Population fractions of the primary mass, with 68% and 95% bands, from
-      samples with the PE prior divided out (top) and ignored (bottom). The truth is
-      dashed; the mass axis is logarithmic.
+    caption: Population fractions of the primary mass, with 68% and 95% bands. The PE
+      prior is divided out (top) or ignored (bottom). The truth is dashed; the mass axis
+      is logarithmic.
   image:
     alt: Two stacked step plots of the fraction per bin against mass from 5 to 85 solar
       masses. Both fractions fall with mass, with a bump near 34. In the top plot the
@@ -161,9 +161,10 @@ assert shift.max() < 1
 ```
 
 With 30 samples per event the estimates are noisy. binference warns about the inputs
-twice: when it builds the likelihoods, and when it checks the fit. The second warning measures the Monte Carlo
-variance $V_i(\rho)$ of each event's likelihood at the fitted population. It fires when
-their sum exceeds the threshold on the [defaults page](../reference/defaults.md):
+twice: when it builds the likelihoods, and when it checks the fit. The second warning
+measures the Monte Carlo variance $V_i(\rho)$ of each event's likelihood at the fitted
+population. It fires when their sum exceeds the threshold on the
+[defaults page](../reference/defaults.md):
 
 ```{code-cell} python
 with warnings.catch_warnings(record=True) as caught:
@@ -174,7 +175,8 @@ for w in caught:
     if issubclass(w.category, binference.InputWarning):
         print(w.message, end="\n\n")
 
-for name, l, fit in [("1000 samples", lk, fits["PE prior divided out"]), ("30 samples", lk_30, fit_30)]:
+for name, l, fit in [("1000 samples", lk, fits["PE prior divided out"]),
+                     ("30 samples", lk_30, fit_30)]:
     V, _ = l.sample_variance(fit.mean)
     print(f"{name}: sum of V_i = {V.sum():.1f}")
 ```
@@ -187,8 +189,8 @@ V_30, _ = lk_30.sample_variance(fit_30.mean)
 assert V_1000.sum() < 1 < V_30.sum()
 ```
 
-If the sum is large, use more samples per event or wider bins. `floor=` adds a few
-pseudo-samples to every event, so that no bin has zero likelihood.
+If the sum is large, use more samples per event or wider bins; the
+[inputs guide](../guides/inputs.md#posterior-samples) lists the other options.
 
 ## What to take away
 

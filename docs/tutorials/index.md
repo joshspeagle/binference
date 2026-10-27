@@ -1,12 +1,12 @@
 # Tutorials
 
-Each tutorial is a complete analysis that runs from simulated data to a result. They are
-grouped by what you have for each object. Start with the group that matches your data;
+Each tutorial is a complete analysis that runs from simulated data to a result. The
+groups follow what you have for each object. Start with the group that matches your data;
 the last group applies to any data.
 
-The tutorials are executed every time the documentation is built, so their outputs are
-exactly what the code produces. Each runs in under two minutes on a shared four-core
-container with one BLAS thread per process.
+The documentation build runs every tutorial, so their outputs are exactly what the code
+produces. Each runs in about a minute or less on a shared four-core container with one
+BLAS thread per process.
 
 ## Gaussian measurements
 

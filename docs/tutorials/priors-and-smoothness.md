@@ -11,8 +11,9 @@ kernelspec:
 
 When the data are sparse, the prior shapes the answer. Sparse means few objects per bin,
 or errors as wide as the bins. This tutorial puts four of binference's priors side by side
-on a small catalogue. It shows how the smoothness {term}`hyperparameters <hyperparameter>`
-are learned, and uses held-out objects to choose between priors.
+on a small catalogue. It shows how binference infers the smoothness
+{term}`hyperparameters <hyperparameter>`, and uses held-out objects to choose between
+priors.
 
 ```{code-cell} python
 :tags: [remove-cell]
@@ -83,21 +84,20 @@ smooth_widths = [width["random walk (order 2)"], width["Gaussian process"]]
 assert max(smooth_widths) < min(width["Dirichlet(1)"], width["Pólya tree"])
 ```
 
-- **`Dirichlet(1)`** adds one pseudo-count to each of the 40 bins: 40 in all, against 400
-  objects. That props up the tails. The bulk is noisy, because neighbouring bins trade
-  mass.
+- **The {term}`Dirichlet prior` `Dirichlet(1)`** adds one pseudo-count to each of the
+  40 bins: 40 in all, against 400 objects. That raises the fractions in the tails. The
+  bulk is noisy, because mass moves freely between neighbouring bins.
 - **The {term}`Pólya tree`** shares information between neighbouring bins through its
   tree of halvings. It is a {term}`conjugate prior <conjugate prior>`, so the
-  {term}`Gibbs` sampler can be used too.
+  {term}`Gibbs` sampler also applies.
 - **The random walk and the Gaussian process** are {term}`smoothness priors <smoothness
   prior>`. They put a prior on the shape of $\log\rho$ and infer how smooth it is. They
   give the narrowest bands and still cover the truth.
 
-`Dirichlet.reference()` sets the {term}`concentration` $\alpha_k=1/K$, a single
-pseudo-count in all. It suits many bins with few objects. Bins without data then have
-very long tails in log space: $\rho_k$ down to $10^{-50}$ is plausible. NUTS explores
-such tails slowly. With narrow likelihoods the conjugate Gibbs sampler handles them well,
-and binference's diagnostics flag the symptoms.
+`Dirichlet.reference()` sets the {term}`concentration` $\alpha_k=1/K$, where $K=40$ is
+the number of bins. That is a single pseudo-count in all, which suits many bins with few
+objects. The [engines guide](../guides/engines.md#choosing-an-engine) says which sampler
+handles it best.
 
 ## Learning the smoothness
 
@@ -139,29 +139,32 @@ train, test = lk[:300], lk[300:]
 scores = {}
 for name, prior in candidates.items():
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore")      # shorter runs than the default, for speed
-        res = binference.infer(train, prior, rng=2, n_samples=300, n_warmup=300)
+        warnings.simplefilter("ignore")      # short runs, for speed: two chains of 200
+        res = binference.infer(train, prior, rng=2, n_chains=2, n_samples=200, n_warmup=200)
     scores[name] = res.log_predictive(test).sum()
 best = max(scores.values())
 for name, s in sorted(scores.items(), key=lambda kv: -kv[1]):
     print(f"{name:28s} {s - best:7.1f}")
 ```
 
-Higher is better, and the best prior scores zero. Differences of a few units are
-meaningful for 100 held-out objects. For a more careful comparison, cross-validate over
-several folds, for example with {class}`~binference.PopulationEstimator` and its `score`
-method.
+Higher is better, and the best prior scores zero. Here the two smoothness priors score
+above the other two. A difference of a few units on 100 objects is suggestive, not
+decisive. For a more careful comparison, cross-validate over several folds, for example
+with {class}`~binference.PopulationEstimator` and its `score` method.
 
-## Priors that encode outside information
+```{code-cell} python
+:tags: [remove-cell]
 
-- **A reference sample with known values**, such as a spectroscopic subsample, has
-  counts $n^{\rm ref}_k$ per bin. They enter as
-  `Dirichlet.from_counts(counts, strength=kappa)`, which sets
-  $\alpha_k=1+\kappa\,n^{\rm ref}_k$. $\kappa=1$ trusts the sample fully, as a fair draw
-  from the same population; smaller values down-weight it.
-- **A reference distribution**, from a model or a previous survey, can be the mean
-  $\mu$ of a logistic prior: `LogisticGP(mean=np.log(ref))`. The amplitude then says how
-  far the population may depart from it, and the data decide.
+smooth_scores = [scores["random walk (order 2)"], scores["Gaussian process"]]
+assert min(smooth_scores) > max(scores["Dirichlet(1)"], scores["Pólya tree"])
+```
+
+## A prior centred on a reference
+
+Outside information, such as a reference sample or a reference distribution, can enter
+the prior ([priors guide](../guides/priors)). Here a reference distribution is the mean
+$\mu$ of a Gaussian-process prior, `LogisticGP(mean=np.log(ref))`, fitted with
+{term}`NUTS`. The reference is deliberately wrong:
 
 ```{code-cell} python
 ---
@@ -174,8 +177,8 @@ mystnb:
       The posterior bands follow the dashed truth with its two peaks, not the reference.
 ---
 ref = binference.simulate.population(bins, "gaussian")   # a deliberately wrong reference
-centred = binference.infer(lk, priors.LogisticGP(mean=np.log(ref)), rng=1,
-                           n_samples=500, n_warmup=500)
+centred = binference.infer(lk, priors.LogisticGP(mean=np.log(ref)), method="nuts", rng=1,
+                           n_samples=300, n_warmup=300, n_jobs=-1)
 fig, ax = plt.subplots(figsize=(6, 4.2))
 centred.plot(ax=ax, truth=mock.truth.rho, label="median")
 ax.step(bins.edges[0], np.append(ref, ref[-1]) / bins.volumes[0], where="post",
@@ -184,7 +187,7 @@ ax.legend(ncol=2, loc="lower left", bbox_to_anchor=(0, 1))
 ax.set_xlabel("z");
 ```
 
-The posterior follows the data where they are informative. It falls back toward the
+The posterior follows the data where they are informative. It stays close to the
 reference only where they are not.
 
 ## What to take away

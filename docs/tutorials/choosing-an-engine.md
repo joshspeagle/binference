@@ -32,7 +32,8 @@ import numpy as np
 
 import binference
 
-mock = binference.simulate.mock_1d(1500, binference.Bins.linear(0, 3, 20), noise=(0.1, 0.3), rng=11)
+bins = binference.Bins.linear(0, 3, 20)
+mock = binference.simulate.mock_1d(1500, bins, noise=(0.1, 0.3), rng=11)
 lk = mock.likelihoods
 ```
 
@@ -44,7 +45,7 @@ for method in ["nuts", "gibbs", "laplace", "vb", "bootstrap"]:
     t0 = time.perf_counter()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")      # we look at the diagnostics ourselves below
-        fits[method] = binference.infer(lk, method=method, rng=1, check=False)
+        fits[method] = binference.infer(lk, method=method, rng=1, n_samples=500, check=False)
     times[method] = time.perf_counter() - t0
 t0 = time.perf_counter()
 est = binference.infer(lk, method="map")
@@ -54,8 +55,7 @@ print({k: f"{v:.1f} s" for k, v in times.items()})
 
 ## Accuracy against the reference
 
-The engines differ most in the standard deviations of the fractions. The means mostly
-agree.
+The engines agree on the means and differ most in the standard deviations.
 
 ```{code-cell} python
 ---
@@ -66,19 +66,19 @@ mystnb:
       standard deviation.
   image:
     alt: Two stacked scatter plots against z. Top, the differences from the NUTS mean
-      lie close to zero for Gibbs, Laplace and VB, and scatter by up to 0.07 for MAP and
-      0.04 for the bootstrap. Bottom, on a log scale, Gibbs and Laplace lie near one,
-      the bootstrap near one except in the sparse bins above z of 2.4, and VB between
+      lie close to zero for Gibbs, Laplace and VB. They scatter by up to 0.07 for MAP and
+      0.04 for the bootstrap. Bottom, on a log scale, Gibbs and Laplace lie near one. The
+      bootstrap lies near one except in the sparse bins above z of 2.4. VB lies between
       0.1 and 0.5 in most bins.
 ---
 ref = fits["nuts"]
 fig, axes = plt.subplots(2, 1, figsize=(6, 7.2), sharex=True)
-x = mock.bins.centers
+zc = bins.centers
 styles = {"gibbs": "o", "laplace": "s", "vb": "^", "bootstrap": "D"}
 for m, mk in styles.items():
-    axes[0].plot(x, fits[m].mean - ref.mean, mk, ms=6, label=m)
-    axes[1].plot(x, fits[m].std / ref.std, mk, ms=6, label=m)
-axes[0].plot(x, est.rho - ref.mean, "x", color="k", ms=7, mew=2, label="map")
+    axes[0].plot(zc, fits[m].mean - ref.mean, mk, ms=6, label=m)
+    axes[1].plot(zc, fits[m].std / ref.std, mk, ms=6, label=m)
+axes[0].plot(zc, est.rho - ref.mean, "x", color="k", ms=7, mew=2, label="map")
 axes[0].axhline(0, color="0.6", lw=1)
 axes[1].axhline(1, color="0.6", lw=1)
 axes[0].set(ylabel="mean − NUTS")
@@ -133,22 +133,27 @@ print("fraction of missing information:", round(model.missing_information(est.rh
 assert model.missing_information(est.rho) > 0.9
 ```
 
-Gibbs alternates between each object's bin and the population. When an object's
-likelihood spans several bins, its bin is poorly determined. The population then moves
-slowly from one sweep to the next. The fraction of {term}`missing information` $f$, near
-one here, measures this. The Gibbs {term}`autocorrelation time` grows like
-$(1+f)/(1-f)$. NUTS moves the population directly and does not suffer from it.
+The fraction of {term}`missing information` printed above is close to one, so Gibbs
+mixes slowly here ([Gibbs sampling](../guides/engines.md#gibbs-sampling)).
 
-With narrow likelihoods the picture flips. Every object's bin is nearly known, Gibbs
-mixes almost at once, and a sweep costs less than a NUTS trajectory.
+With narrow likelihoods every object's bin is nearly known, and Gibbs is the faster
+sampler:
 
 ```{code-cell} python
-narrow = binference.simulate.mock_1d(1500, binference.Bins.linear(0, 3, 20), noise=(0.01, 0.03), rng=11)
+narrow = binference.simulate.mock_1d(1500, bins, noise=(0.01, 0.03), rng=11)
+per_second = {}
 for m in ["nuts", "gibbs"]:
     t0 = time.perf_counter()
-    r = binference.infer(narrow.likelihoods, method=m, rng=1, check=False)
+    r = binference.infer(narrow.likelihoods, method=m, rng=1, n_samples=500, check=False)
     dt = time.perf_counter() - t0
-    print(f"{m:6s} {dt:5.1f} s, min ESS per second: {r.diagnostics['ess_bulk'].min() / dt:8.1f}")
+    per_second[m] = r.diagnostics["ess_bulk"].min() / dt
+    print(f"{m:6s} {dt:5.1f} s, min ESS per second: {per_second[m]:8.1f}")
+```
+
+```{code-cell} python
+:tags: [remove-cell]
+
+assert per_second["gibbs"] > per_second["nuts"]
 ```
 
 ## Diagnostics
@@ -186,13 +191,5 @@ assert caught and short.diagnostics["rhat"].max() > 1.1
 
 The four {term}`chains <chain>` have not mixed. Run longer, or use NUTS.
 
-## Summary
-
-| engine | exact | speed | use it for |
-|---|---|---|---|
-| NUTS | yes | moderate | any prior; what `method="auto"` falls back to |
-| Gibbs | yes | fast per draw | conjugate priors with narrow likelihoods; joint labels |
-| MAP / EM | point estimate | very fast | quick looks, huge problems |
-| Laplace | approximately | fast | large problems with few bins; check $\hat k$ |
-| VB | no | very fast | never for error bars |
-| bootstrap | different question | slow | frequentist comparisons |
+The [engines guide](../guides/engines.md#choosing-an-engine) says which engine to use
+when, and what `method="auto"` chooses.

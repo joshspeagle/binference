@@ -14,7 +14,7 @@ sea. Managers need the stock proportions of the catch, so that weak stocks are n
 overharvested. Each fish is genotyped. A baseline of fish sampled on the spawning
 grounds, whose stock is known, gives the allele frequencies of every stock. A fish's
 genotype then has a likelihood under each stock. The stock proportions of the catch are
-population fractions $\rho_k$ over categorical bins, so this is binference's model. Any
+{term}`population fractions` $\rho_k$ over categorical bins, so this is binference's model. Any
 table of likelihoods, one row per object and one column per category, enters the same
 way. The same analysis estimates the breeding origins of migrating birds and the
 rookeries of foraging sea turtles.
@@ -91,7 +91,7 @@ print(fit.info["auto_method"], "-", fit.info["auto_reason"])
 
 "Classify and count" assigns each fish to its most likely stock and counts the
 assignments. It is biased: misassigned fish move from abundant stocks to rare ones, so
-the counts are pulled toward equal proportions.
+the counts lie closer to equal proportions than the truth does.
 
 ```{code-cell} python
 assigned = loglik.argmax(axis=1)
@@ -120,8 +120,8 @@ because only small differences in frequency separate those two stocks.
 
 binference cannot infer allele frequencies, but it can infer a confusion matrix
 together with the proportions. Assign every baseline fish with frequencies estimated
-from the other baseline fish, so that no fish helps to classify itself. Then tally the assigned stock against the known stock with
-{meth}`~binference.Response.from_labelled`. Each column of the tally gets a Dirichlet
+from the other baseline fish, so that no fish helps to classify itself. Then tally the
+assigned stock against the known stock with {meth}`~binference.Response.from_labelled`. Each column of the tally gets a Dirichlet
 posterior, inferred with the proportions. The mixture fish enter only through their
 assigned stock ({meth}`~binference.Likelihoods.from_binned`). This is the route of
 "scores and a labelled set" in {doc}`classifier-outputs`, with the baseline as the
@@ -155,9 +155,9 @@ assert min(off[0, 1], off[1, 0]) > np.delete(off.ravel(), [1, K]).max()
 ```
 
 A and B are confused with each other far more often than any other pair. The fit
-infers the 25 cells of the confusion matrix with the proportions. Gibbs mixes slowly for
-this joint model, because the classes overlap this much, so `method="auto"` gives way to
-NUTS:
+infers the 25 cells of the confusion matrix with the proportions. {term}`Gibbs` mixes
+slowly for this joint model, because the classes overlap this much, so `method="auto"`
+chooses {term}`NUTS`:
 
 ```{code-cell} python
 lk_c = binference.Likelihoods.from_binned(response, values=np.array(stocks)[assigned])
@@ -178,10 +178,8 @@ assert fit_c.info["auto_method"] == "nuts" and d["rhat"].max() < 1.01
 ---
 mystnb:
   figure:
-    caption: Stock proportions of the mixture with 90% intervals, from the genotype
-      likelihoods with the baseline fixed (circles) and with the confusion matrix
-      inferred (triangles); classify and count ("counting", squares) and the truth
-      (bars).
+    caption: Stock proportions with 90% intervals. Circles, baseline fixed. Triangles,
+      confusion matrix inferred. Squares, classify and count. Bars, truth.
   image:
     alt: Five stocks A to E on the horizontal axis. For A and B, the circles have short
       intervals that miss the truth bars, while the triangles have longer intervals that
@@ -219,7 +217,7 @@ assert ((hi_c - lo_c)[:2] > (hi_f - lo_f)[:2]).all()
 
 With the confusion matrix inferred, the intervals for A and B widen, because the
 baseline separates them weakly, and they cover the truth. Stocks C and D, which the
-baseline separates well, keep narrow intervals. The price is information: each mixture
+baseline separates well, keep narrow intervals. The cost is lost information: each mixture
 fish contributes only its assigned stock, not its full likelihood.
 
 ## What to take away

@@ -7,12 +7,12 @@ kernelspec:
   name: python3
 ---
 
-# Quick start: a redshift distribution
+# Gaussian measurements: a redshift distribution
 
 This tutorial infers the redshift distribution of 2000 galaxies. Each galaxy has a
 photometric redshift with a Gaussian error of its own. The tutorial compares the result
 with {term}`stacking` the galaxies' likelihoods. It then derives quantities with error
-bars, and looks at what the population says about single galaxies.
+bars, and shows what the population says about single galaxies.
 
 ```{code-cell} python
 :tags: [remove-cell]
@@ -69,27 +69,35 @@ ax.set(xlabel="z", ylabel="likelihood", xlim=(0, 3));
 
 ## Stacking versus the hierarchical posterior
 
-Stacking adds up the galaxies' likelihoods. It is the first step of an iteration whose
-fixed point is the most likely population, and it gives no error bars. binference
-samples the posterior of the {term}`population fractions` $\rho_k$ instead:
+Stacking adds up the galaxies' likelihoods and gives no error bars. It is the first step
+of EM, which converges to the most likely population
+([theory](../how-it-works/theory.md#point-estimates-em-is-iterated-stacking)).
+binference samples the posterior of the {term}`population fractions` $\rho_k$ instead,
+here with {term}`NUTS`:
 
 ```{code-cell} python
 stack = lk.stack()
-result = binference.infer(lk, rng=1)      # method="auto" picks an exact engine here
-print(result.info["auto_reason"])
+result = binference.infer(lk, rng=1, n_samples=500)   # method="auto" picks the engine
+print(result.info["auto_method"], "-", result.info["auto_reason"])
 result
+```
+
+```{code-cell} python
+:tags: [remove-cell]
+
+assert result.info["auto_method"] == "nuts"
 ```
 
 ```{code-cell} python
 ---
 mystnb:
   figure:
-    caption: The population posterior (median and 68% and 95% bands) under a flat
-      Dirichlet prior, with the truth (dashed) and the stack (dotted).
+    caption: The population posterior under a flat Dirichlet prior, with the truth
+      (dashed) and the stack (dotted). The bands hold 68% and 95% of the posterior.
   image:
     alt: Step plot of density against redshift. The posterior median is jagged and its
-      bands are wide; it follows the dashed truth, which has a broad peak near 0.6 and
-      a narrower one near 1.6. The dotted stack is smoother and broader than the truth.
+      bands are wide. It follows the dashed truth, which has a broad peak near 0.6 and a
+      narrower one near 1.6. The dotted stack is smoother and broader than the truth.
 ---
 fig, ax = plt.subplots(figsize=(6, 4.2))
 result.plot(ax=ax, truth=mock.truth.rho, stack=stack, sample_color=OBJECT, label="median")
@@ -97,10 +105,9 @@ ax.legend(ncol=3, loc="lower left", bbox_to_anchor=(0, 1))    # above the plot
 ax.set_xlabel("z");
 ```
 
-The bands are wide and the median is jagged. The sampler is not at fault. The errors are
-as wide as the bins, so the data barely tell neighbouring bins apart. The flat
-{term}`Dirichlet prior` lets those bins trade mass freely, so they are strongly
-anti-correlated:
+The bands are wide and the median is jagged. The errors are as wide as the bins, so the
+data barely tell neighbouring bins apart. Under the flat {term}`Dirichlet prior`, mass
+moves freely between those bins, so they are strongly anti-correlated:
 
 ```{code-cell} python
 corr = result.corr()
@@ -148,77 +155,17 @@ print(f"error ignoring correlations: {naive:.3f}   vs   correct: {zbar.std():.3f
 assert naive > 3 * zbar.std()
 ```
 
-## A smoothness prior
-
-If you expect the population to be smooth over a few bins, say so with a
-{term}`smoothness prior`. A Gaussian-process prior on $\log\rho$ shares information
-between neighbouring bins. binference infers its amplitude and length scale, its
-{term}`hyperparameters <hyperparameter>`, from the data:
-
-```{code-cell} python
-smooth = binference.infer(lk, binference.priors.LogisticGP(), rng=1, n_samples=500)  # shorter run
-hyper = smooth.info["hyperparameters"]
-print({k: np.round(np.quantile(v, [0.16, 0.5, 0.84]), 2) for k, v in hyper.items()})
-```
-
-```{code-cell} python
----
-mystnb:
-  figure:
-    caption: The population posterior under a flat Dirichlet prior (top) and a
-      Gaussian-process prior (bottom), with the truth dashed.
-  image:
-    alt: Two stacked step plots of density against redshift. The top one, under the
-      Dirichlet prior, has wide jagged bands. The bottom one, under the Gaussian-process
-      prior, has narrow smooth bands that follow the dashed truth.
----
-fig, axes = plt.subplots(2, 1, figsize=(6, 6.4), sharex=True, sharey=True)
-result.plot(ax=axes[0], truth=mock.truth.rho)
-smooth.plot(ax=axes[1], truth=mock.truth.rho, label="median")
-axes[0].set_title("Dirichlet prior", loc="left")
-axes[1].set_title("Gaussian-process prior", loc="left")
-axes[0].get_legend().remove()
-axes[1].legend(loc="upper right")
-axes[0].set_xlabel("")
-axes[1].set_xlabel("z");
-```
-
-```{code-cell} python
-:tags: [remove-cell]
-
-assert np.median(smooth.std / result.std) < 0.5
-```
-
-The smooth posterior is far tighter per bin and still covers the truth. Which prior is
-better is a scientific question, but the data can weigh in. Fit each prior to 1500
-galaxies, with shorter NUTS runs than the default. Then score the other 500 with the
-{term}`log predictive density`:
-
-```{code-cell} python
-train, test = lk[:1500], lk[1500:]
-lp = {}
-for name, prior in [("Dirichlet", None), ("GP", binference.priors.LogisticGP())]:
-    fit = binference.infer(train, prior, method="nuts", rng=2, n_samples=300, n_warmup=300)
-    lp[name] = fit.log_predictive(test).sum()
-print({k: round(v, 1) for k, v in lp.items()})
-```
-
-```{code-cell} python
-:tags: [remove-cell]
-
-assert lp["GP"] > lp["Dirichlet"]
-```
-
-Higher is better: the smoothness prior predicts the held-out galaxies better.
+If you expect the population to be smooth over a few bins, a {term}`smoothness prior`
+narrows the bands; {doc}`priors-and-smoothness` compares the priors.
 
 ## Single galaxies
 
-The population also sharpens each galaxy's redshift. Its {term}`hierarchical posterior`
+The population also narrows each galaxy's redshift. Its {term}`hierarchical posterior`
 $P(k_i=k\mid D)$ combines its own likelihood with the inferred population. It is
 narrower than the likelihood wherever the population changes across the likelihood's
 width. `assignment_probabilities()` returns these posteriors for every galaxy. Here they
-pick the galaxy whose redshift the population narrows most, measured by the spread of its
-posterior over the bins:
+pick, among galaxies with errors above 0.15, the one whose redshift the population
+narrows most. The measure is the spread of its posterior over the bins:
 
 ```{code-cell} python
 ---
@@ -227,9 +174,10 @@ mystnb:
     caption: One galaxy's own likelihood (dashed) and its hierarchical posterior
       (solid). The dotted line marks its true redshift.
   image:
-    alt: Two step curves over redshift. The dashed coral likelihood is broad. The solid
-      indigo posterior is taller and narrower, and the dotted vertical line of the true
-      redshift falls inside it.
+    alt: Two step curves over redshift, both between 0 and 1. The dashed coral
+      likelihood is broad and smooth. The solid indigo posterior is narrower and jagged,
+      with peaks near 0.35 and 0.55. The dotted line of the true redshift, near 1, lies
+      in the upper tail of both.
 ---
 from binference.plotting import plot_individual
 
@@ -238,15 +186,16 @@ def spread(p):                       # standard deviation of each row over the b
 
 own = L * bins.volumes
 own /= own.sum(axis=1, keepdims=True)
-post = smooth.assignment_probabilities()
-i = int(np.argmax(spread(own) / spread(post)))
+post = result.assignment_probabilities()
+broad = mock.measurements["sigma"] > 0.15           # galaxies with large errors
+i = int(np.flatnonzero(broad)[np.argmax(spread(own)[broad] / spread(post)[broad])])
 print(f"galaxy {i}: spread {spread(own)[i]:.2f} alone, {spread(post)[i]:.2f} in the population")
 
 fig, ax = plt.subplots(figsize=(6, 4.2))
-plot_individual(smooth, i, ax=ax, sample_color=OBJECT)
+plot_individual(result, i, ax=ax, sample_color=OBJECT)
 ax.axvline(mock.truth.values[i], color="k", lw=1, ls=":", label="true z")
 ax.set_xlabel("z")
-ax.legend(ncol=2, loc="lower left", bbox_to_anchor=(0, 1));
+ax.legend(loc="upper right");
 ```
 
 ```{code-cell} python
@@ -255,38 +204,16 @@ ax.legend(ncol=2, loc="lower left", bbox_to_anchor=(0, 1));
 assert spread(post)[i] < 0.9 * spread(own)[i]
 ```
 
-The effect is modest here, because the population is smooth on the scale of the
-galaxy's error. It grows where the population has sharp features, as in
-{doc}`empirical-bayes`.
-
+The effect grows where the population has sharp features, as in {doc}`empirical-bayes`.
 `result.sample_values()` gives joint draws of the galaxies' true redshifts.
 
-## The population versus this sample
-
-$\rho$ describes the population that the 2000 galaxies were drawn from. The redshift
-histogram of these galaxies, the {term}`realised sample`, is a different quantity with
-its own uncertainty:
-
-```{code-cell} python
-counts = smooth.realized_counts(n_draws=500, rng=0)
-print("sd of realised counts per bin:", counts.std(axis=0)[8:12].round(1))
-print("sd of population counts per bin:", (smooth.samples * lk.W).std(axis=0)[8:12].round(1))
-```
-
-```{code-cell} python
-:tags: [remove-cell]
-
-assert np.all(counts.std(axis=0)[8:12] > (smooth.samples * lk.W).std(axis=0)[8:12])
-```
-
-Here the histogram is the less certain of the two. The smoothness prior pins the
-population down. But with errors as wide as the bins, it cannot say which bin each galaxy
-fell in. With precise measurements the order reverses. Each galaxy's bin is then nearly
-known, while $\rho$ keeps the shot noise of drawing 2000 galaxies.
+$\rho$ describes the population that the galaxies were drawn from; the redshift histogram
+of these 2000 galaxies, the {term}`realised sample`, is a different quantity
+([population versus realised sample](../guides/results.md#population-versus-realised-sample)).
 
 ## Next steps
 
-- {doc}`priors-and-smoothness` compares more priors on a sparser catalogue.
+- {doc}`priors-and-smoothness` compares priors on a sparser catalogue.
 - {doc}`posteriors-on-a-grid` and {doc}`posterior-samples` start from posteriors
   instead of likelihoods.
 - {doc}`choosing-an-engine` compares the engines.

@@ -53,7 +53,7 @@ way feeds the posteriors in as if they were likelihoods. Both fits use a
 
 ```{code-cell} python
 prior = binference.priors.LogisticGP()
-kw = dict(rng=1, n_samples=600, n_warmup=500)   # shorter runs than the default, for speed
+kw = dict(rng=1, n_samples=400, n_warmup=400)   # shorter runs than the default, for speed
 right = binference.infer(binference.Likelihoods.from_table(P, bins, interim=interim), prior, **kw)
 wrong = binference.infer(binference.Likelihoods(P, bins), prior, **kw)
 ```
@@ -67,7 +67,7 @@ mystnb:
       prior; the truth is dashed.
   image:
     alt: Two stacked step plots of density against redshift. In the top one the bands
-      follow the dashed truth. In the bottom one the population is pulled to the right,
+      follow the dashed truth. In the bottom one the population shifts to the right,
       toward the grey interim prior that peaks at 1.8, and misses the truth.
 ---
 ip = interim / bins.volumes
@@ -84,7 +84,7 @@ axes[0].set_xlabel("")
 axes[1].set_xlabel("z");
 ```
 
-Using the posteriors directly counts the interim prior twice. The population is dragged
+Using the posteriors directly counts the interim prior twice. The population shifts
 toward where that prior is large. The error bars give no warning: the wrong answer is
 just as confident.
 
@@ -110,10 +110,10 @@ the team that made the table, because binference cannot recover it from the post
 
 ## Masses or densities
 
-The model needs bin-averaged likelihoods. A posterior integrated over each bin, such as a
-difference of distribution functions or a histogram, is a {term}`mass`. It must be
-divided by the bin's width before it is a density. With equal bins the difference cannot
-matter. With unequal bins it does.
+The model needs {term}`bin-averaged likelihoods <bin-averaged likelihood>`, so a table of
+{term}`masses <mass>` must be divided by the bin widths
+([masses versus densities](../guides/pitfalls.md#masses-versus-densities-with-unequal-bins)).
+With equal bins the difference cannot matter. With unequal bins it does.
 
 Here five unequal bins hold 5000 objects. Their posteriors under a flat prior are given
 as masses, the differences of the Gaussian distribution function across each bin:
@@ -149,9 +149,9 @@ assert as_densities[1] < rho_true[1] - 10 * binomial_sd[1]
 
 Read as densities, the masses distort the population. Mass moves from the narrow second
 bin into its neighbours, by far more than the statistical error of 5000 objects.
-`from_table` with an interim prior reads the table as masses by default. Pass
-`representation="density"` for posteriors evaluated at the bin centres. binference warns
-when the rows do not look like the {term}`representation` you declared.
+`from_table` with an interim prior reads the table as masses by default; the
+[inputs guide](../guides/inputs.md#likelihood-matrices) gives the other
+{term}`representation`.
 
 ## What to take away
 

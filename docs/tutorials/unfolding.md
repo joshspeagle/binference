@@ -49,7 +49,8 @@ mystnb:
       bins (bottom).
   image:
     alt: Top, a 25 by 20 grid shaded by probability, with a band along the diagonal that
-      is a few bins wide and darkest at high true bins, where the efficiency is highest.
+      is a few bins wide. The band is darkest at high true bins, where the efficiency is
+      highest.
       Bottom, a step histogram of counts that rises to about 490 events in measured bin
       3 and falls to near zero by bin 24.
 ---
@@ -68,8 +69,8 @@ axes[1].set(xlabel="measured bin j", ylabel="events");
 
 {meth}`~binference.Likelihoods.from_binned` turns the counts and the response into
 likelihood rows, one per measured bin, weighted by the counts. Each event measured in bin
-$j$ gets the row $R_{j\cdot}$. The efficiency enters as a selection on the measurement,
-because the response already includes it.
+$j$ gets the row $R_{j\cdot}$. The efficiency enters as a {term}`selection` on the
+measurement, because the response already includes it.
 
 Inverting $R$ directly amplifies the noise. Least squares on these counts gives
 "fractions" that swing between large positive and negative values:
@@ -86,14 +87,17 @@ print("matrix inversion, normalised:", naive[:6].round(1), "...")
 assert naive.min() < -1 and naive.max() > 1
 ```
 
-A smoothness prior regularises the unfolding. It infers how smooth the spectrum is,
-instead of fixing an iteration count or a regularisation strength by hand.
+A smoothness prior regularises the unfolding: it stops the noise from growing. It infers
+how smooth the spectrum is, instead of fixing an iteration count or a regularisation
+strength by hand. Both fits use {term}`NUTS`, with the chains in parallel processes:
 
 ```{code-cell} python
 lk = binference.Likelihoods.from_binned(mu.response, counts=counts)
 print(lk, lk.selection)
-flat = binference.infer(lk, method="nuts", rng=1, n_warmup=500, n_samples=700)
-smooth = binference.infer(lk, binference.priors.LogisticGP(), rng=1, check=False)
+flat = binference.infer(lk, method="nuts", rng=1, n_chains=2, n_warmup=400, n_samples=500,
+                        n_jobs=-1)
+smooth = binference.infer(lk, binference.priors.LogisticGP(), method="nuts", rng=1,
+                          n_warmup=500, n_samples=500, n_jobs=-1, check=False)
 d = smooth.diagnostics
 print(f"divergent: {d['n_divergent']} of {smooth.n_draws}, max R-hat {d['rhat'].max():.3f}, "
       f"min bulk ESS {d['ess_bulk'].min():.0f}")
@@ -107,11 +111,11 @@ assert d["rhat"].max() < 1.01 and d["ess_bulk"].min() > 400
 ```
 
 `check=False` stops `infer` from warning, so that the diagnostics can be read here. The
-{term}`R-hat` and {term}`effective sample sizes <effective sample size>` are fine.
-{term}`Divergent transitions <divergent transition>`, if any, are rare. `infer` flags even
-one, and an isolated divergence is usually harmless. Many divergences, or divergences
-that persist with a higher `target_accept`, mean that the sampler cannot explore part of
-the posterior ({doc}`/guides/pitfalls`).
+largest {term}`R-hat` is below 1.01 and the smallest bulk
+{term}`effective sample size` is above 400. {term}`Divergent transitions <divergent
+transition>`, if any, are rare; the
+[pitfalls guide](../guides/pitfalls.md#not-looking-at-the-diagnostics) says when they
+matter.
 
 ## The unfolded spectrum
 
@@ -151,7 +155,7 @@ for name, draws in smooth.info["hyperparameters"].items():
 An order-2 random walk (`LogisticRandomWalk(order=2)`) is another natural prior here.
 But this spectrum is an exact exponential, and its log is a straight line, which the
 order-2 random walk does not penalise at all. The posterior then pushes the walk's scale
-toward zero. That funnel makes NUTS report divergences. A Gaussian-process prior,
+toward zero. This narrow region of the posterior makes NUTS report divergences. A Gaussian-process prior,
 `target_accept=0.95`, or a scale hyperprior bounded away from zero avoids it.
 ```
 
