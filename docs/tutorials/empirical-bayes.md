@@ -206,9 +206,10 @@ mystnb:
     caption: Each unit's posterior mean against its raw estimate, shaded by its standard
       error. The dashed line marks no shrinkage.
   image:
-    alt: Scatter of 1500 points below and beside the dashed diagonal. Estimates below
-      about 1 move toward zero, and large estimates move down toward 2.5 to
-      3. Darker points, with larger errors, lie furthest from the diagonal.
+    alt: Scatter of 1500 points around the dashed diagonal. For negative estimates the
+      points lie above the diagonal, moved up toward zero. For estimates above about 1
+      they lie below it, moved down toward 2.5 to 3. Darker points, with larger errors,
+      lie furthest from the diagonal.
 ---
 ramp = LinearSegmentedColormap.from_list("ramp", ["#F7C3B5", "#EC5F3E", "#7A2412"])
 fig, ax = plt.subplots(figsize=(6, 5))
@@ -227,13 +228,24 @@ lo, hi = np.quantile(draws, [0.05, 0.95], axis=0)
 covered = (z >= lo) & (z <= hi)
 print(f"90% intervals cover {covered.mean():.3f} of the true effects; "
       f"mean width {np.mean(hi - lo):.2f}, against {2 * 1.645 * sigma.mean():.2f} for d ± 1.645 σ")
+for name, units in [("null units", null), ("non-null units", ~null)]:
+    se = np.sqrt(0.9 * 0.1 / units.sum())
+    print(f"  {name:15s} cover {covered[units].mean():.3f} (standard error {se:.3f})")
 ```
 
 ```{code-cell} python
 :tags: [remove-cell]
 
-assert covered.mean() > 0.9 - 3 * np.sqrt(0.09 / n) and np.mean(hi - lo) < 2 * 1.645 * sigma.mean()
+se_non = np.sqrt(0.09 / (~null).sum())
+assert abs(covered[~null].mean() - 0.9) < 3 * se_non      # nominal for the non-null units
+assert covered[null].mean() > 0.9 + 3 * np.sqrt(0.09 / null.sum())   # conservative at the spike
+assert np.mean(hi - lo) < 2 * 1.645 * sigma.mean()
 ```
+
+The intervals cover more than 90% overall, and the null units explain it. The posterior
+spreads the spike at zero over the neighbouring bins, so a null unit's interval is wide
+around zero and almost always contains it. The non-null units are covered at the nominal
+rate, within the standard error.
 
 ## What to take away
 

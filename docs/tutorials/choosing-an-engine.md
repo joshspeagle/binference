@@ -37,11 +37,11 @@ mock = binference.simulate.mock_1d(1500, bins, noise=(0.1, 0.3), rng=11)
 lk = mock.likelihoods
 ```
 
-## Running every engine
+## Running the engines
 
 ```{code-cell} python
 fits, times = {}, {}
-for method in ["nuts", "gibbs", "laplace", "vb", "bootstrap"]:
+for method in ["nuts", "laplace", "vb", "bootstrap"]:
     t0 = time.perf_counter()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")      # we look at the diagnostics ourselves below
@@ -51,6 +51,12 @@ t0 = time.perf_counter()
 est = binference.infer(lk, method="map")
 times["map"] = time.perf_counter() - t0
 print({k: f"{v:.1f} s" for k, v in times.items()})
+```
+
+```{code-cell} python
+:tags: [remove-cell]
+
+assert not fits["nuts"].check()              # the reference has converged
 ```
 
 ## Accuracy against the reference
@@ -66,15 +72,15 @@ mystnb:
       standard deviation.
   image:
     alt: Two stacked scatter plots against z. Top, the differences from the NUTS mean
-      lie close to zero for Gibbs, Laplace and VB. They scatter by up to 0.07 for MAP and
-      0.04 for the bootstrap. Bottom, on a log scale, Gibbs and Laplace lie near one. The
-      bootstrap lies near one except in the sparse bins above z of 2.4. VB lies between
-      0.1 and 0.5 in most bins.
+      lie close to zero for Laplace and VB. They scatter by up to 0.07 for MAP and 0.04
+      for the bootstrap. Bottom, on a log scale, Laplace lies near one. The bootstrap
+      lies near one except in the sparse bins above z of 2.4. VB lies between 0.1 and
+      0.5 in most bins.
 ---
 ref = fits["nuts"]
 fig, axes = plt.subplots(2, 1, figsize=(6, 7.2), sharex=True)
 zc = bins.centers
-styles = {"gibbs": "o", "laplace": "s", "vb": "^", "bootstrap": "D"}
+styles = {"laplace": "s", "vb": "^", "bootstrap": "D"}
 for m, mk in styles.items():
     axes[0].plot(zc, fits[m].mean - ref.mean, mk, ms=6, label=m)
     axes[1].plot(zc, fits[m].std / ref.std, mk, ms=6, label=m)
@@ -88,8 +94,6 @@ axes[1].minorticks_off()
 fig.legend(*axes[0].get_legend_handles_labels(), loc="outside lower center", ncol=3);
 ```
 
-- **{term}`Gibbs`** targets the same exact posterior. Its differences from NUTS are
-  Monte Carlo noise.
 - **{term}`Mean-field VB <mean-field VB>`** is far too narrow. It ignores the coupling
   between the objects' bins and the population, which is strong when likelihoods are
   broad. binference always flags its results as approximate.
@@ -111,18 +115,19 @@ print("MAP optimality gap:", f"{est.kkt_gap:.1e}")
 :tags: [remove-cell]
 
 assert np.median(fits["vb"].std / ref.std) < 0.5
-assert np.abs((fits["gibbs"].mean - ref.mean) / ref.std).max() < 0.5
 ```
 
-## Efficiency of the exact samplers
+## Gibbs on this problem
 
-NUTS and Gibbs are both exact, so compare them by {term}`effective samples <effective
-sample size>` per second:
+{term}`Gibbs` is exact too, but on this problem it mixes slowly. Every sampled result
+carries diagnostics, and `binference.infer` warns when they look bad. A Gibbs run with
+the default settings triggers a warning:
 
 ```{code-cell} python
-for m in ["nuts", "gibbs"]:
-    ess = fits[m].diagnostics["ess_bulk"]
-    print(f"{m:6s} min bulk ESS {ess.min():7.0f}  ->  {ess.min() / times[m]:7.1f} per second")
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always")
+    gibbs = binference.infer(lk, method="gibbs", rng=1)
+print(caught[0].message if caught else "no warnings")
 model = binference.PopulationModel(lk)
 print("fraction of missing information:", round(model.missing_information(est.rho), 3))
 ```
@@ -130,21 +135,42 @@ print("fraction of missing information:", round(model.missing_information(est.rh
 ```{code-cell} python
 :tags: [remove-cell]
 
+assert caught and gibbs.diagnostics["rhat"].max() > 1.05
 assert model.missing_information(est.rho) > 0.9
 ```
 
-The fraction of {term}`missing information` printed above is close to one, so Gibbs
-mixes slowly here ([Gibbs sampling](../guides/engines.md#gibbs-sampling)).
+The fraction of {term}`missing information` printed above is close to one, which is why
+Gibbs mixes slowly here ([Gibbs sampling](../guides/engines.md#gibbs-sampling)). The
+trace of the bin with the largest R-hat shows it:
+
+```{code-cell} python
+---
+mystnb:
+  figure:
+    caption: The fraction in the bin with the largest R-hat, over the iterations of each
+      of the four chains of the Gibbs run.
+  image:
+    alt: Four wiggly lines over 1000 iterations. Each wanders slowly over a wide range,
+      and the chains spend long stretches at different levels.
+---
+worst = int(np.argmax(gibbs.diagnostics["rhat"]))
+fig = plt.figure(figsize=(6, 3.6), layout="tight")
+gibbs.plot_trace(idx=[worst], fig=fig);
+```
+
+The four {term}`chains <chain>` have not mixed. Run much longer, or use NUTS.
 
 With narrow likelihoods every object's bin is nearly known, and Gibbs is the faster
-sampler:
+sampler. Both runs below pass their diagnostics; the comparison is in
+{term}`effective samples <effective sample size>` per second:
 
 ```{code-cell} python
 narrow = binference.simulate.mock_1d(1500, bins, noise=(0.01, 0.03), rng=11)
-per_second = {}
+per_second, narrow_fits = {}, {}
 for m in ["nuts", "gibbs"]:
     t0 = time.perf_counter()
-    r = binference.infer(narrow.likelihoods, method=m, rng=1, n_samples=500, check=False)
+    narrow_fits[m] = r = binference.infer(narrow.likelihoods, method=m, rng=1, n_samples=500,
+                                          check=False)
     dt = time.perf_counter() - t0
     per_second[m] = r.diagnostics["ess_bulk"].min() / dt
     print(f"{m:6s} {dt:5.1f} s, min ESS per second: {per_second[m]:8.1f}")
@@ -153,43 +179,9 @@ for m in ["nuts", "gibbs"]:
 ```{code-cell} python
 :tags: [remove-cell]
 
+assert not narrow_fits["nuts"].check() and not narrow_fits["gibbs"].check()
 assert per_second["gibbs"] > per_second["nuts"]
 ```
-
-## Diagnostics
-
-Every sampled result carries diagnostics, and `binference.infer` warns when they look
-bad. Here is what a problem looks like. A deliberately short Gibbs run on the broad
-problem triggers a warning:
-
-```{code-cell} python
-with warnings.catch_warnings(record=True) as caught:
-    warnings.simplefilter("always")
-    short = binference.infer(lk, method="gibbs", rng=3, n_warmup=20, n_samples=100)
-print(caught[0].message if caught else "no warnings")
-```
-
-```{code-cell} python
----
-mystnb:
-  figure:
-    caption: The fraction in bin 8 over 100 iterations of each of the four chains of the
-      short Gibbs run.
-  image:
-    alt: Four wiggly lines over 100 iterations. Each drifts slowly and they sit at
-      different levels, so they do not overlap well.
----
-fig = plt.figure(figsize=(6, 3.6), layout="tight")
-short.plot_trace(idx=[8], fig=fig);
-```
-
-```{code-cell} python
-:tags: [remove-cell]
-
-assert caught and short.diagnostics["rhat"].max() > 1.1
-```
-
-The four {term}`chains <chain>` have not mixed. Run longer, or use NUTS.
 
 The [engines guide](../guides/engines.md#choosing-an-engine) says which engine to use
 when, and what `method="auto"` chooses.

@@ -35,7 +35,8 @@ import binference
 OBJECT = "#EC5F3E"   # the colour of single objects in these docs
 
 grid = binference.Bins.grid(np.linspace(0, 1, 13), np.linspace(0, 1, 13))   # 12 x 12 cells
-mock = binference.simulate.mock_2d(3000, grid, density="banana", noise=(0.02, 0.06), rng=8)
+rho_true = binference.simulate.population(grid, "banana")   # cell fractions of the ridge
+mock = binference.simulate.mock_2d(3000, grid, density=rho_true, noise=(0.02, 0.06), rng=8)
 lk = mock.likelihoods
 print(grid, grid.shape, lk)
 ```
@@ -44,6 +45,11 @@ Each object's likelihood is a two-dimensional Gaussian over the grid. Its errors
 from object to object and between the two axes. The {term}`likelihood matrix` has one
 column per cell, with the last axis varying fastest. `grid.unflatten` and `grid.flatten`
 convert between the two layouts.
+
+The mock draws the true values uniformly within each cell, as the model assumes. The
+ridge is narrower than a cell, so true values drawn from the continuous ridge would bias
+the fit toward a sharper ridge
+([bins that are too coarse](../guides/pitfalls.md#bins-that-are-too-coarse)).
 
 ```{code-cell} python
 ---
@@ -157,6 +163,27 @@ for ax, d, t, lab in [(axes[0], marg_1, true.sum(axis=1), "fraction"),
 axes[1].legend(loc="lower right")
 axes[1].set_xlabel("$z_1$");
 ```
+
+The bands of the column fractions are narrow. The smoothness prior shares information
+between neighbouring columns, so the bands are narrower than the counting noise of 3000
+objects, and half of the columns miss the truth:
+
+```{code-cell} python
+t1 = true.sum(axis=1)
+lo1, hi1 = np.quantile(marg_1, [0.16, 0.84], axis=0)
+shot = np.sqrt(t1 * (1 - t1) / lk.N)                    # counting noise of each column
+print(f"columns whose 68% band holds the truth: {np.sum((t1 >= lo1) & (t1 <= hi1))} of 12")
+print(f"band sd over counting noise, median: {np.median(marg_1.std(axis=0) / shot):.2f}")
+```
+
+```{code-cell} python
+:tags: [remove-cell]
+
+assert np.median(marg_1.std(axis=0) / shot) < 1
+```
+
+A smoothness prior is only as good as the smoothness it assumes; check it as in
+{doc}`validating-an-analysis`.
 
 For larger grids, the [performance guide](../guides/performance) shows how to store
 likelihoods sparsely, run chains in parallel and get a quick estimate first.

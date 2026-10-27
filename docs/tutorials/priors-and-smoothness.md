@@ -62,9 +62,10 @@ mystnb:
       under four priors. The truth is dashed.
   image:
     alt: Four stacked step plots of density against z from 0 to 3. Under the Dirichlet
-      prior the bands are wide and the median is ragged. Under the Pólya tree they are
-      narrower but still ragged. Under the random walk and the Gaussian process they are
-      narrow and smooth, and follow the dashed truth with its two peaks.
+      prior the bands are wide and the median is ragged. Under the Pólya tree the median
+      is smooth but biased, too high below z of about 0.3 and too low at the two peaks.
+      Under the random walk and the Gaussian process the bands are narrow and smooth,
+      and follow the dashed truth with its two peaks.
 ---
 fig, axes = plt.subplots(4, 1, figsize=(6, 11), sharex=True, sharey=True)
 for ax, (name, res) in zip(axes, fits.items()):

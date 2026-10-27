@@ -163,33 +163,49 @@ narrows the bands; {doc}`priors-and-smoothness` compares the priors.
 The population also narrows each galaxy's redshift. Its {term}`hierarchical posterior`
 $P(k_i=k\mid D)$ combines its own likelihood with the inferred population. It is
 narrower than the likelihood wherever the population changes across the likelihood's
-width. `assignment_probabilities()` returns these posteriors for every galaxy. Here they
-pick, among galaxies with errors above 0.15, the one whose redshift the population
-narrows most. The measure is the spread of its posterior over the bins:
+width. `assignment_probabilities()` returns these posteriors for every galaxy. The
+measure of narrowing here is the ratio of the spreads of the two over the bins:
 
 ```{code-cell} python
----
-mystnb:
-  figure:
-    caption: One galaxy's own likelihood (dashed) and its hierarchical posterior
-      (solid). The dotted line marks its true redshift.
-  image:
-    alt: Two step curves over redshift, both between 0 and 1. The dashed coral
-      likelihood is broad and smooth. The solid indigo posterior is narrower and jagged,
-      with peaks near 0.35 and 0.55. The dotted line of the true redshift, near 1, lies
-      in the upper tail of both.
----
-from binference.plotting import plot_individual
-
 def spread(p):                       # standard deviation of each row over the bin centres
     return np.sqrt(p @ centers**2 - (p @ centers) ** 2)
 
 own = L * bins.volumes
 own /= own.sum(axis=1, keepdims=True)
 post = result.assignment_probabilities()
+ratio = spread(own) / spread(post)
 broad = mock.measurements["sigma"] > 0.15           # galaxies with large errors
-i = int(np.flatnonzero(broad)[np.argmax(spread(own)[broad] / spread(post)[broad])])
-print(f"galaxy {i}: spread {spread(own)[i]:.2f} alone, {spread(post)[i]:.2f} in the population")
+print(f"median narrowing, galaxies with errors above 0.15: {np.median(ratio[broad]):.2f}")
+```
+
+The effect is modest: the median ratio is 1.06, so the spread shrinks by about 6%. Here
+is a typical broad galaxy. It is the one closest to the median narrowing whose true
+redshift lies inside the central 68% of its posterior:
+
+```{code-cell} python
+---
+mystnb:
+  figure:
+    caption: A typical galaxy's own likelihood (dashed) and its hierarchical posterior
+      (solid). The dotted line marks its true redshift.
+  image:
+    alt: Two step curves over redshift that nearly coincide. The dashed coral likelihood
+      is broad and smooth. The solid indigo posterior is slightly narrower and follows
+      the steps of the population. The dotted line of the true redshift lies near the
+      middle of both.
+---
+from binference.plotting import plot_individual
+
+cdf = np.cumsum(post, axis=1)
+k_true = bins.index(mock.truth.values)
+
+def inside_68(j):                    # the true bin overlaps the central 68% of the posterior
+    below = cdf[j, k_true[j] - 1] if k_true[j] > 0 else 0.0
+    return below < 0.84 and cdf[j, k_true[j]] > 0.16
+
+candidates = np.flatnonzero(broad)[np.argsort(np.abs(ratio[broad] - np.median(ratio[broad])))]
+i = int(next(j for j in candidates if inside_68(j)))
+print(f"galaxy {i}: narrowing {ratio[i]:.2f}")
 
 fig, ax = plt.subplots(figsize=(6, 4.2))
 plot_individual(result, i, ax=ax, sample_color=OBJECT)
@@ -201,7 +217,7 @@ ax.legend(loc="upper right");
 ```{code-cell} python
 :tags: [remove-cell]
 
-assert spread(post)[i] < 0.9 * spread(own)[i]
+assert 1.0 < np.median(ratio[broad]) < 1.2 and inside_68(i)
 ```
 
 The effect grows where the population has sharp features, as in {doc}`empirical-bayes`.

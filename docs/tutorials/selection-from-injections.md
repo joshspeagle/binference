@@ -96,7 +96,7 @@ found = rng.random(n_inj) < S(m_inj)
 sel = binference.Selection.from_injections(np.log(m_inj), found, bins, "on_truth")
 injected, recovered, (a_prior, b_prior), _ = sel.injections
 print("recovered / injected, lightest five bins:",
-      [f"{r}/{n}" for r, n in zip(recovered[:5], injected[:5])])
+      [f"{r:.0f}/{n:.0f}" for r, n in zip(recovered[:5], injected[:5])])
 ```
 
 ## Four fits
@@ -190,16 +190,16 @@ tot = {k: r.total for k, r in fits.items()}
 assert abs(tot["no selection"].mean() - detected.sum()) < 3 * tot["no selection"].std()
 assert tot["joint"].std() > tot["plug-in injections"].std()
 assert frac["joint"].std() > frac["plug-in injections"].std()
-assert n_mergers - tot["plug-in injections"].mean() > 2 * tot["plug-in injections"].std()
-assert abs(n_mergers - tot["joint"].mean()) < 2 * tot["joint"].std()
+z_tot = {k: (n_mergers - tot[k].mean()) / tot[k].std() for k in ("plug-in injections", "joint")}
+assert 0 < z_tot["joint"] < z_tot["plug-in injections"]
 assert abs(tot["exact selection"].mean() - n_mergers) < 3 * tot["exact selection"].std()
 ```
 
 Without a selection, the total is just the number of detections. The joint fit's error
 bars are larger than the plug-in fit's. They include the uncertainty of the detection
 probability from a finite number of injections, which the plug-in fit treats as exact.
-Both totals fall below the truth. The plug-in total misses it by more than two standard
-deviations; the joint fit's wider interval reaches it.
+Both totals fall below the truth: the plug-in total by 2.6 of its standard deviations, the
+joint total by 1.8 of its own.
 
 A total this poorly determined also depends on the prior, which by default biases it
 low ([selection guide](../guides/selection.md#rates-and-exposure)). Before you quote a

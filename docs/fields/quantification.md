@@ -52,7 +52,8 @@ the population, with the conditions under which each is exact.
   validation set's confusion matrix as a response, inferred together with the
   proportions. This is BayesianCC.
 - **Genotype likelihoods** under each baseline population are a likelihood matrix on
-  `Bins.categories(populations)`: `Likelihoods(L, bins)` ({doc}`mixed-stock tutorial
+  `Bins.categories(populations)`: `Likelihoods.from_table(L, bins, kind="likelihood")`,
+  with `log=True` for log-likelihoods ({doc}`mixed-stock tutorial
   <../tutorials/mixed-stocks>`).
 - **PCC** is stacking, one EM step from the training prevalence (`lk.stack()`).
 - **Ordinal classes** are ordered bins, so the smoothness priors apply

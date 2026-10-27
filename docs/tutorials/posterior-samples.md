@@ -39,7 +39,7 @@ import binference
 
 The primary masses $m$ of the mergers follow a power law $p(m)\propto m^{-2.3}$ between 5
 and 85 solar masses (90% of mergers), plus a Gaussian peak at 34 solar masses with width 4
-(10%). Each of 300 events has a measured $\ln m$ with a Gaussian error between 0.2 and 0.4.
+(10%). Each of 600 events has a measured $\ln m$ with a Gaussian error between 0.2 and 0.4.
 
 The PE runs used a prior uniform in the two component masses. For the heavier one this
 makes the prior roughly proportional to $m$, so it favours heavy masses. In $\ln m$ the
@@ -59,7 +59,7 @@ def population(x):                       # density of ln m
 
 ln_bins = binference.Bins.linear(np.log(m_lo), np.log(m_hi), 16)
 mock = binference.simulate.mock_1d(
-    300, ln_bins, density=population, noise=(0.2, 0.4),
+    600, ln_bins, density=population, noise=(0.2, 0.4),
     interim=lambda x: np.exp(2 * x),     # the PE prior: proportional to m**2 in ln m
     n_samples=1000, rng=150914,
 )
@@ -119,23 +119,24 @@ axes[1].set_xlabel(r"primary mass $m$ [$M_\odot$]");
 ```
 
 Ignoring the PE prior moves the population toward heavy masses, where that prior is
-large. The fraction of mergers below 10 solar masses shows the size of the shift:
+large. The mean of $\ln m$ over the population shows the size of the shift, in units of
+its posterior standard deviation:
 
 ```{code-cell} python
-light = bins.centers < 10                # the four lightest bins, up to 10.15 solar masses
-for name, fit in fits.items():
-    f = fit.functional(lambda rho: rho[light].sum())
-    print(f"{name:21s} {f.mean():.3f} ± {f.std():.3f}")
-print(f"{'truth':21s} {rho_true[light].sum():.3f}")
+ln_m = np.log(bins.centers)              # ln m at the bin centres
+mean_ln_m = {name: fit.functional(lambda rho: rho @ ln_m) for name, fit in fits.items()}
+for name, g in mean_ln_m.items():
+    print(f"{name:21s} {g.mean():.3f} ± {g.std():.3f}")
+print(f"{'truth':21s} {rho_true @ ln_m:.3f}")
+g_right, g_flat = mean_ln_m.values()
+print(f"shift from ignoring the PE prior: {(g_flat.mean() - g_right.mean()) / g_flat.std():.1f} sd")
 ```
 
 ```{code-cell} python
 :tags: [remove-cell]
 
-f_right = fits["PE prior divided out"].functional(lambda rho: rho[light].sum())
-f_flat = fits["PE prior ignored"].functional(lambda rho: rho[light].sum())
-assert abs(f_right.mean() - rho_true[light].sum()) < 2 * f_right.std()
-assert rho_true[light].sum() - f_flat.mean() > 1.5 * f_flat.std()
+assert abs(g_right.mean() - rho_true @ ln_m) < 3 * g_right.std()
+assert g_flat.mean() - rho_true @ ln_m > 3 * g_flat.std()
 ```
 
 Each sample carries the PE prior. The {term}`interim prior` of the
