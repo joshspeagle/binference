@@ -1,4 +1,12 @@
-"""Plotting helpers (require matplotlib: ``pip install "binference[plot]"``)."""
+"""Plotting helpers (require matplotlib: ``pip install "binference[plot]"``).
+
+Colours follow the active matplotlib style. The population (medians, bands, bars,
+histograms) takes the first colour of ``axes.prop_cycle``, or ``color``; what the objects'
+own data say (the stack, an object's own likelihood) takes the second, or
+``sample_color``; reference lines, error bars and the truth (dashed) take ``text.color``.
+2-D medians ramp from a pale tint of the population colour to the colour, and relative
+uncertainties likewise in ``text.color``; masked bins show the axes background.
+"""
 
 from __future__ import annotations
 
@@ -12,11 +20,34 @@ from .warnings import InputWarning
 
 __all__ = ["plot_corner", "plot_individual", "plot_population", "plot_sbc", "plot_trace"]
 
-# Colour-vision-deficiency-checked categorical colours (first slots of a validated
-# palette) and ink colours for reference lines.
-POSTERIOR_COLOR = "#2a78d6"
-STACK_COLOR = "#eb6834"
-INK = "#0b0b0b"
+
+def _style_color(name: str, value: Any, slot: int):
+    """``value`` as RGBA (a list of them for per-bar colours), or colour ``slot`` of the
+    style's cycle when None.
+
+    Resolved now, not left as "C0": a figure drawn after leaving a style context would
+    otherwise colour its lines from another cycle than its bars and bands.
+    """
+    from matplotlib.colors import is_color_like, to_rgba
+
+    if value is None:
+        value = f"C{slot}"
+    if is_color_like(value):
+        return to_rgba(value)
+    if isinstance(value, list | tuple) and value and all(is_color_like(c) for c in value):
+        return [to_rgba(c) for c in value]
+    raise ValueError(
+        f"{name} must be a matplotlib colour, a list of them, or None, got {value!r}."
+    )
+
+
+def _ramp(ax, color):
+    """A sequential colormap from a pale tint of ``color`` (over the axes background, so
+    zero differs from a masked bin) to ``color``."""
+    from matplotlib.colors import LinearSegmentedColormap, to_rgba
+
+    ground, ink = np.array(to_rgba(ax.get_facecolor())), np.array(to_rgba(color))
+    return LinearSegmentedColormap.from_list("ramp", [0.85 * ground + 0.15 * ink, ink])
 
 
 def _tidy(ax) -> None:
@@ -68,7 +99,8 @@ def plot_population(
     levels: Sequence[float] = (0.68, 0.95),
     truth: Any = None,
     stack: Any = None,
-    color: str = POSTERIOR_COLOR,
+    color: Any = None,
+    sample_color: Any = None,
     label: str | None = None,
     alpha: float = 0.25,
     step: bool = True,
@@ -90,10 +122,22 @@ def plot_population(
         posterior mean total; for the selected population they are reweighted by the
         fit's selection (bins without a basis). 2-D grids show the median and the
         relative uncertainty as images (an array of two axes) and take no overlays.
+    color, sample_color : matplotlib colour, optional
+        Colours of the posterior and of the ``stack`` overlay (default: the style's;
+        see the module docstring).
+    label : str, optional
+        Legend label of the median (default "posterior median").
+    alpha : float
+        Opacity of each credible band.
+    step : bool
+        Draw 1-D bins as steps (True) or as lines through the bin centres.
     """
     from .results import _central, _which_name
 
     plt = _plt()
+    color = _style_color("color", color, 0)
+    sample_color = _style_color("sample_color", sample_color, 1)
+    ink = plt.rcParams["text.color"]
     bins = result.bins
     which = _which_name(which)
     if bins.ndim > 2 and not bins.is_categorical:
@@ -109,7 +153,7 @@ def plot_population(
     if bins.ndim == 2 and not bins.is_categorical:
         if truth is not None or stack is not None or label is not None:
             warn("2-D plots show no truth, stack or label; they are ignored.", InputWarning)
-        return _plot_2d(result, X, plt, ax)
+        return _plot_2d(result, X, plt, ax, color)
     if ax is None:
         _, ax = plt.subplots(figsize=(7, 4))
     ylabel = _YLABEL[which]
@@ -118,15 +162,15 @@ def plot_population(
         lo, hi = _central(X, levels[0])
         ax.bar(x, med, color=color, alpha=0.6, label=label or "posterior median")
         if X.shape[0] > 1:
-            ax.errorbar(x, med, yerr=[med - lo, hi - med], fmt="none", ecolor=INK, capsize=3)
+            ax.errorbar(x, med, yerr=[med - lo, hi - med], fmt="none", ecolor=ink, capsize=3)
         if truth is not None:
-            ax.plot(x, _overlay(result, truth, which, total), "D", color=INK, ms=6, label="truth")
+            ax.plot(x, _overlay(result, truth, which, total), "D", color=ink, ms=6, label="truth")
         if stack is not None:
             ax.plot(
                 x,
                 _overlay(result, stack, which, total),
                 "s",
-                color=STACK_COLOR,
+                color=sample_color,
                 ms=6,
                 label="stacked",
             )
@@ -163,7 +207,7 @@ def plot_population(
         if truth is not None:
             t = _overlay(result, truth, which, total)
             ax.step(
-                edges, _step_y(bins, t), where="post", color=INK, lw=1.5, ls="--", label="truth"
+                edges, _step_y(bins, t), where="post", color=ink, lw=1.5, ls="--", label="truth"
             )
         if stack is not None:
             s = _overlay(result, stack, which, total)
@@ -171,7 +215,7 @@ def plot_population(
                 edges,
                 _step_y(bins, s),
                 where="post",
-                color=STACK_COLOR,
+                color=sample_color,
                 lw=1.5,
                 ls=":",
                 label="stacked",
@@ -206,7 +250,7 @@ def _band_patch(color: str, alpha: float, label: str):
     return Patch(facecolor=color, alpha=alpha, lw=0, label=label)
 
 
-def _plot_2d(result, X, plt, ax):
+def _plot_2d(result, X, plt, ax, color):
     bins = result.bins
     med = bins.unflatten(np.median(X, axis=0))
     sd = bins.unflatten(X.std(axis=0)) if X.shape[0] > 1 else None
@@ -216,14 +260,15 @@ def _plot_2d(result, X, plt, ax):
         _, ax = plt.subplots(1, ncol, figsize=(5 * ncol, 4), squeeze=False)
         ax = ax[0]
     axes = np.atleast_1d(ax)
-    im = axes[0].pcolormesh(ex, ey, med.T, shading="flat")
+    im = axes[0].pcolormesh(ex, ey, med.T, shading="flat", cmap=_ramp(axes[0], color))
     plt.colorbar(im, ax=axes[0], label="posterior median")
     axes[0].set_xlabel("axis 0")
     axes[0].set_ylabel("axis 1")
     if sd is not None and len(axes) > 1:
         with np.errstate(divide="ignore", invalid="ignore"):
             rel = np.where(med > 0, sd / med, np.nan)
-        im2 = axes[1].pcolormesh(ex, ey, rel.T, shading="flat", cmap="magma")
+        grey = _ramp(axes[1], plt.rcParams["text.color"])
+        im2 = axes[1].pcolormesh(ex, ey, rel.T, shading="flat", cmap=grey)
         plt.colorbar(im2, ax=axes[1], label="relative uncertainty (sd / median)")
         axes[1].set_xlabel("axis 0")
     return axes
@@ -253,15 +298,17 @@ def plot_corner(
     *,
     max_bins: int = 4,
     n_hist: int = 30,
-    color: str = POSTERIOR_COLOR,
+    color: Any = None,
     fig: Any = None,
     which: str = "fractions",
 ):
     """Corner plot of the fractions (or ``which="rates"``, ...) in selected bins
-    (default: the most populated)."""
+    (default: the most populated), in ``color`` (default: the style's)."""
+    plt = _plt()
+    color = _style_color("color", color, 0)
     X, idx, name = _chosen_bins(result, which, idx, max_bins)
     n = len(idx)
-    fig, axes = _subplots(_plt(), fig, n, n, (2.2 * n, 2.2 * n))
+    fig, axes = _subplots(plt, fig, n, n, (2.2 * n, 2.2 * n))
     for i, ki in enumerate(idx):
         for j, kj in enumerate(idx):
             a = axes[i, j]
@@ -272,7 +319,7 @@ def plot_corner(
                 a.hist(X[:, ki], bins=n_hist, color=color, histtype="step")
                 a.set_yticks([])
             else:
-                a.hist2d(X[:, kj], X[:, ki], bins=n_hist, cmap="Blues")
+                a.hist2d(X[:, kj], X[:, ki], bins=n_hist, cmap=_ramp(a, color))
             if i == n - 1:
                 a.set_xlabel(f"{name}[{kj}]")
             if j == 0 and i > 0:
@@ -303,9 +350,20 @@ def plot_trace(
     return fig
 
 
-def plot_individual(result: Any, i: int, ax: Any = None, n_draws: int = 200):
-    """Compare object ``i``'s own likelihood (flat-prior posterior) with its shrunk posterior."""
+def plot_individual(
+    result: Any,
+    i: int,
+    ax: Any = None,
+    n_draws: int = 200,
+    *,
+    color: Any = None,
+    sample_color: Any = None,
+):
+    """Compare object ``i``'s own likelihood (flat-prior posterior, in ``sample_color``)
+    with its shrunk posterior (in ``color``); colours default to the style's."""
     plt = _plt()
+    color = _style_color("color", color, 0)
+    sample_color = _style_color("sample_color", sample_color, 1)
     model = result._require_model()
     bins = result.bins
     own = model.likelihoods.subset([i]).toarray()[0] * bins.volumes
@@ -315,8 +373,8 @@ def plot_individual(result: Any, i: int, ax: Any = None, n_draws: int = 200):
         _, ax = plt.subplots(figsize=(6, 3.5))
     if bins.is_categorical or bins.ndim > 1:
         x = np.arange(bins.K)
-        ax.bar(x - 0.2, own, width=0.4, color="0.6", label="own likelihood (flat prior)")
-        ax.bar(x + 0.2, shrunk, width=0.4, color=POSTERIOR_COLOR, label="hierarchical posterior")
+        ax.bar(x - 0.2, own, width=0.4, color=sample_color, label="own likelihood (flat prior)")
+        ax.bar(x + 0.2, shrunk, width=0.4, color=color, label="hierarchical posterior")
         ax.set_xlabel("bin")
     else:
         edges = bins.edges[0]
@@ -325,7 +383,7 @@ def plot_individual(result: Any, i: int, ax: Any = None, n_draws: int = 200):
             edges,
             _step_y(bins, own / vol),
             where="post",
-            color="0.45",
+            color=sample_color,
             lw=1.5,
             ls="--",
             label="own likelihood (flat prior)",
@@ -334,7 +392,7 @@ def plot_individual(result: Any, i: int, ax: Any = None, n_draws: int = 200):
             edges,
             _step_y(bins, shrunk / vol),
             where="post",
-            color=POSTERIOR_COLOR,
+            color=color,
             lw=1.5,
             label="hierarchical posterior",
         )
@@ -345,11 +403,21 @@ def plot_individual(result: Any, i: int, ax: Any = None, n_draws: int = 200):
     return ax
 
 
-def plot_sbc(sbc_result: Any, n_bins: int | None = None, max_panels: int = 12, fig: Any = None):
-    """Rank histograms from :func:`binference.validation.sbc` with a 99% uniformity band."""
+def plot_sbc(
+    sbc_result: Any,
+    n_bins: int | None = None,
+    max_panels: int = 12,
+    fig: Any = None,
+    *,
+    color: Any = None,
+):
+    """Rank histograms from :func:`binference.validation.sbc` (in ``color``, default the
+    style's) with a 99% uniformity band."""
     from scipy import stats
 
     plt = _plt()
+    color = _style_color("color", color, 0)
+    ink = plt.rcParams["text.color"]
     H = sbc_result.histogram(n_bins)
     names = sbc_result.names
     q = min(len(names), max_panels)
@@ -366,8 +434,8 @@ def plot_sbc(sbc_result: Any, n_bins: int | None = None, max_panels: int = 12, f
         if j >= q:
             a.set_visible(False)
             continue
-        a.stairs(hi, np.arange(nb + 1) - 0.5, baseline=lo, fill=True, color="0.85")
-        a.bar(np.arange(nb), H[j], width=1.0, color=POSTERIOR_COLOR, alpha=0.8)
+        a.stairs(hi, np.arange(nb + 1) - 0.5, baseline=lo, fill=True, color=ink, alpha=0.15, lw=0)
+        a.bar(np.arange(nb), H[j], width=1.0, color=color, alpha=0.8)
         a.set_title(names[j], fontsize=9)
         a.set_yticks([])
     fig.tight_layout()
