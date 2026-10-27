@@ -7,7 +7,7 @@ The census behind the {doc}`field pages <../fields/index>` recorded them.
 |---|---|---|
 | emcee {cite:p}`foremanmackey2013,foremanmackey2019` | plain inputs; a sampler that runs again to continue | a second `engine.run(n)` continues the chains without a new warm-up |
 | scikit-learn {cite:p}`buitinck2013` | hyperparameters in the constructor, `fit` returning `self`, `get_params` | {class}`~binference.PopulationEstimator`, without a scikit-learn dependency |
-| dynesty, nautilus | configured objects, priors declared as objects | priors, selections and responses passed to one `infer` call |
+| dynesty, nautilus | configured objects, priors declared as objects | priors and selections passed to one `infer` call; a response through `Likelihoods.from_binned` |
 | UltraNest | output that says which criteria were met | `result.check()` lists failed diagnostics and remedies |
 | ArviZ 1.x | results that other tools read | `result.to_datatree()` in ArviZ's layout |
 | SPEC 7 {cite:p}`vanderwalt2023` | one `rng` argument, a seed or a `Generator` | a separate stream per chain; legacy `RandomState` rejected |

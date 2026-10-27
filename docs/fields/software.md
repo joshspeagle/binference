@@ -29,9 +29,9 @@ census recorded nothing.
 | [DR25-occurrence-public](https://github.com/stevepur/DR25-occurrence-public) | occurrence rates | — | — | "not intended to be used by the community" | — |
 | [PosteriorStacker](https://github.com/JohannesBuchner/PosteriorStacker) | astronomy | Python | GPL/AGPL, inconsistent | 0.6.4, September 2026 | nested sampling |
 | [MRExo](https://github.com/shbhuk/mrexo) | exoplanets | Python | GPL-3 | 1.1.5, 2023; no tests | bootstrap |
-| [dftools](https://github.com/obreschkow/dftools) | distribution functions | R | — | last commit 2021 | — |
+| [dftools](https://github.com/obreschkow/dftools) | distribution functions | R | GPL-3 | last commit 2021 | — |
 | [gwpopulation](https://github.com/ColmTalbot/gwpopulation) | GW | Python | MIT | 1.3.1, December 2025 | any bilby sampler |
-| [BinnedCBCMasses](https://git.ligo.org/RatesAndPopulations/BinnedCBCMasses) | GW | Stan | — | last commit 2019 | Stan's sampler |
+| [BinnedCBCMasses](https://git.ligo.org/RatesAndPopulations/BinnedCBCMasses) | GW | Stan | MIT | last commit 2019 | Stan's sampler |
 | [PixelPop](https://git.ligo.org/jack.heinzel/pixelpop) | GW | JAX, NumPyro | MIT | — | NUTS |
 | [gppop](https://github.com/AnaryaRay1/gppop) | GW | PyTorch, Pyro | GPL | not on PyPI; empty test directory | NUTS |
 | GWInferno | GW | — | — | not on PyPI | — |
@@ -39,16 +39,16 @@ census recorded nothing.
 | FIGARO | GW | — | — | 54-line test suite | — |
 | [RooUnfold](https://gitlab.cern.ch/RooUnfold/RooUnfold) | unfolding | C++, ROOT | BSD-3 | 3.1.0; conda-forge, not PyPI | propagated errors, toys |
 | TUnfold | unfolding | C++, ROOT | — | last standalone release 2019 | — |
-| [PyUnfold](https://github.com/jrbourbeau/pyunfold) | unfolding | Python | — | last release 2018 | per-bin errors |
+| [PyUnfold](https://github.com/jrbourbeau/pyunfold) | unfolding | Python | MIT | last release 2018 | per-bin errors |
 | [PyFBU](https://github.com/pyFBU/fbu) | unfolding | Python, PyMC3, Theano | — | "no longer actively maintained"; needs `numpy<1.20` | NUTS |
-| [mixsqp](https://cran.r-project.org/package=mixsqp) | empirical Bayes | R, C++ | — | — | none |
-| [REBayes](https://cran.r-project.org/package=REBayes) | empirical Bayes | R | — | needs commercial MOSEK | none |
-| [ashr](https://cran.r-project.org/package=ashr) | empirical Bayes | R | — | — | mean-field VB |
-| [deconvolveR](https://github.com/bnaras/deconvolveR) | empirical Bayes | R | — | active 2026; no tests | delta method |
-| [ebnm](https://cran.r-project.org/package=ebnm) | empirical Bayes | R | — | — | none for $g$ |
-| [Empirikos.jl](https://github.com/nignatiadis/Empirikos.jl) | empirical Bayes | Julia | — | active 2026; MOSEK or Hypatia | frequentist intervals |
-| [npeb](https://github.com/jake-soloff/NPEB) | empirical Bayes | Python | — | alpha; no tests | none |
-| [mixsqpx](https://pypi.org/project/mixsqpx/) | empirical Bayes | Python, JAX | — | alpha; Python 3.12 only | none |
+| [mixsqp](https://cran.r-project.org/package=mixsqp) | empirical Bayes | R, C++ | MIT | — | none |
+| [REBayes](https://cran.r-project.org/package=REBayes) | empirical Bayes | R | GPL (≥ 2) | needs commercial MOSEK | none |
+| [ashr](https://cran.r-project.org/package=ashr) | empirical Bayes | R | GPL (≥ 3) | — | mean-field VB |
+| [deconvolveR](https://github.com/bnaras/deconvolveR) | empirical Bayes | R | GPL (≥ 2) | active 2026; no tests | delta method |
+| [ebnm](https://cran.r-project.org/package=ebnm) | empirical Bayes | R | GPL (≥ 3) | — | none for $g$ |
+| [Empirikos.jl](https://github.com/nignatiadis/Empirikos.jl) | empirical Bayes | Julia | MIT | active 2026; MOSEK or Hypatia | frequentist intervals |
+| [npeb](https://github.com/jake-soloff/NPEB) | empirical Bayes | Python | MIT | alpha; no tests | none |
+| [mixsqpx](https://pypi.org/project/mixsqpx/) | empirical Bayes | Python, JAX | MIT | alpha; Python 3.12 only | none |
 | [QuaPy](https://github.com/HLT-ISTI/QuaPy) | quantification | Python | BSD-3 | 0.2.3, October 2026; 16 test modules | NUTS; bootstrap regions |
 | mlquantify | quantification | Python | BSD-3 | — | bootstrap regions |
 | [qunfold](https://github.com/mirkobunse/qunfold) | quantification, unfolding | Python | — | — | none |

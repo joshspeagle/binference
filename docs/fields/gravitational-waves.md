@@ -35,14 +35,15 @@ the field's recent work controls that noise.
 takes a per-event weight matrix, which is $L_{ik}$. It puts a Gaussian-process prior on
 the log-rates in the bins. PixelPop {cite:p}`heinzel2025a` couples each of $10^4$ bins to
 its neighbours with an intrinsic conditional autoregressive (ICAR) prior. The binned
-Gaussian process of {cite:t}`ray2023` covers about $8\times10^4$ bins in four dimensions.
+Gaussian process of {cite:t}`ray2023` fits masses and redshift jointly. Its gppop code
+covered about $8\times10^4$ bins in four dimensions in a 2026 example.
 
 ## In binference's terms
 
 | gravitational-wave term | binference |
 |---|---|
 | PE samples and the PE prior | `Likelihoods.from_samples(samples, bins, interim=...)`, ragged and weighted |
-| detection probability, measured by injections | `Selection.from_injections(..., mode="on_measurement").at_mean()`, a fixed selection |
+| detection probability, measured by injections | `Selection.from_injections(..., mode="on_measurement").at_mean()`, a fixed selection on the measurement |
 | merger rate; $VT$ | `result.rates`, `result.total`, `priors.GammaRates`; `scale="exposure"` |
 | ICAR prior on binned rates | `LogisticRandomWalk(order=1)` on a grid |
 | binned Gaussian process | `LogisticGP`, one length scale per axis |
@@ -50,7 +51,10 @@ Gaussian process of {cite:t}`ray2023` covers about $8\times10^4$ bins in four di
 | joint draws of population and events | the `Gibbs` engine, `result.sample_assignments()` |
 | Monte Carlo variance of the per-event term | `lk.sample_variance(rho)`, checked by `result.check()` |
 
-The {doc}`inputs guide <../guides/inputs>` describes posterior samples. The
+Detection depends on the measured signal, so the selection acts on the measurement, and
+binference keeps it fixed. A completeness in the true parameters acts on the truth, and
+binference can infer it from injections with the population, as the selection tutorial
+does. The {doc}`inputs guide <../guides/inputs>` describes posterior samples. The
 [selection guide](../guides/selection.md#selection-measured-by-injections) describes
 injections and selection on the measurement. The
 {doc}`selection tutorial <../tutorials/11_populations_with_selection>` infers a mass
@@ -121,7 +125,7 @@ Not done:
 - **Smoothing hyperparameters** are poorly identified. GWTC-4 fixed the B-spline penalty
   by hand after it "consistently railed against prior boundaries". Rates in some
   binned-GP bins "may be driven by the a priori assumption of a Gaussian covariance, and
-  not the data".
+  not the data" {cite:p}`lvk2026a`.
 - **Unregularised fits.** The maximum-likelihood population puts all its mass on the
   samples. It is "a linear superposition of delta functions" {cite:p}`payne2023`.
 - **Regions without data.** GWTC-5 {cite:p}`lvk2026b` hatches regions with under 1% of PE

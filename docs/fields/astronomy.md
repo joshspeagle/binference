@@ -68,7 +68,7 @@ status.
   $n(z)$ samples. Its `VarInfStackSummarizer` runs mean-field variational Bayes for a
   flat Dirichlet, binference's baseline model. It does not divide out an interim prior.
 - **{cite:t}`leistedt2016`** sampled the hierarchical model by Gibbs sampling, in
-  Photoz-tools and BHM-nz. A 2026 KiDS application used only $10^5$ galaxies, because
+  Photoz-tools. BHM-nz is a later implementation. A 2026 KiDS application used only $10^5$ galaxies, because
   all of them "would be too slow" {cite:p}`kyriacou2026`.
 - **CHIPPR** {cite:p}`malz2022` is the only photo-$z$ code found that divides out the
   interim prior.
@@ -101,9 +101,7 @@ status.
 ### Occurrence rates and distribution functions
 
 - **exopop** is the code of {cite:t}`foremanmackey2014`. It combines completeness,
-  interim-prior weights, a piecewise-constant rate density and a GP prior. It was "written
-  specifically for our paper".
-- **Kepler DR25** occurrence code is "not intended to be used by the community".
+  interim-prior weights, a piecewise-constant rate density and a GP prior.
 - **PosteriorStacker** fits a flat-Dirichlet histogram to one-dimensional samples drawn
   under a flat prior, by nested sampling.
 - **MRExo** builds an $N\times K$ matrix of error-convolved basis integrals internally.

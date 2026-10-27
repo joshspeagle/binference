@@ -45,7 +45,7 @@ fifteen variants followed.
 | measured histogram | `Likelihoods.from_binned(response, counts=...)` |
 | missed event (RooUnfold's `Miss`) | a NaN measured value in `Response.from_simulation` |
 | regularisation | a smoothness prior, `LogisticGP` or `LogisticRandomWalk` |
-| IBU | `method="em"` run to convergence |
+| IBU | `method="em"` run to convergence, with a fixed response (`response.fixed()`) |
 | folding check | `result.check()`, when there are more measured than true bins |
 
 An event measured in bin $j$ has the likelihood row $R_{j\cdot}$, shared by all events in
@@ -82,7 +82,7 @@ simulations.
 ## How binference relates
 
 binference shares the binned likelihood with a Poisson or multinomial count model, the
-EM algorithm (`method="em"`), and the posterior that FBU samples. It treats
+EM algorithm (`method="em"` with a fixed response), and the posterior that FBU samples. It treats
 regularisation as a prior, as FBU does.
 
 For unfolding, binference adds:

@@ -159,8 +159,8 @@ class Selection:
         between the :math:`S_k` (their level comes from the injections; DECISIONS
         #10, #30, #79, #80); :meth:`at_mean` gives a fixed selection at
         :attr:`values`, ignoring the uncertainty. A selection on the measurement
-        cannot be inferred (the likelihoods' cut already fixes it), so pass its
-        :meth:`at_mean`.
+        cannot be inferred (the likelihoods' cut already fixes it), and neither can a
+        selection with a rates prior; pass :meth:`at_mean` for both.
 
         Parameters
         ----------
