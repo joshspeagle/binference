@@ -147,9 +147,9 @@ These rules hold for every figure, explainer and diagram on the site.
 
 ## Components
 
-- **Top bar** in `bar` in both themes, with the lockup, the seven sections, search with the
-  `/` key, the theme toggle and a GitHub link. On phones it holds the lockup, search and a
-  menu.
+- **Top bar** in `bar` in both themes, with the lockup, the sections, search with the
+  `/` key, the theme toggle and a GitHub link. Below 1080 px the sections leave it for the
+  sidebar (or, on the home page, a menu); below 900 px the sidebar moves into the menu.
 - **Sidebar** with the section's pages; the current page carries an `accent-rule` in
   `brand`.
 - **"In plain words"** note: at most one per Concepts page, marked in `tip`, for students.

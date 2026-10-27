@@ -64,12 +64,6 @@ The model, its augmented form, EM as iterated stacking, selection effects and th
 Every public class and function.
 :::
 
-:::{grid-item-card} Design notes
-:link: design/index
-:link-type: doc
-Specification, test and implementation plans, and a survey of related software.
-:::
-
 :::{grid-item-card} Background
 :link: fields/index
 :link-type: doc
@@ -88,7 +82,6 @@ start/install
 ```{toctree}
 :caption: Tutorials
 :hidden:
-:maxdepth: 2
 
 tutorials/index
 ```
@@ -96,7 +89,6 @@ tutorials/index
 ```{toctree}
 :caption: Guides
 :hidden:
-:maxdepth: 2
 
 guides/index
 ```
@@ -111,7 +103,6 @@ how-it-works/theory
 ```{toctree}
 :caption: Fields
 :hidden:
-:maxdepth: 2
 
 fields/index
 ```
@@ -119,7 +110,6 @@ fields/index
 ```{toctree}
 :caption: Reference
 :hidden:
-:maxdepth: 2
 
 reference/api/index
 reference/changelog

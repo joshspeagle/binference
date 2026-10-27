@@ -6,3 +6,9 @@ orphan: true
 :relative-docs: docs/
 :relative-images:
 ```
+
+```{toctree}
+:hidden:
+
+design/index
+```
