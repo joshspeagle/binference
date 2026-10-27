@@ -31,9 +31,8 @@ print(mock.truth.rho, mock.truth.n_drawn, "objects drawn,", lk.N, "selected")
 
 ## Say how the selection acts
 
-The likelihood depends on what the selection acts on, so binference asks you to say
-which: the {term}`selection mode`
-([theory](../how-it-works/theory.md#selection-effects)).
+The likelihood depends on what the selection acts on, so binference requires you to say
+which: the {term}`selection mode`.
 
 `selection_mode="on_measurement"`
 : Objects are selected on their **measured** data: a flux limit on measured fluxes, or
@@ -66,8 +65,8 @@ print("on_measurement", wrong.round(3))
 print("ignored       ", ignored.round(3))
 ```
 
-Ignoring the selection over-weights the well-detected bins. The wrong mode is just as
-bad. That is why an array passed as `selection` must come with `selection_mode`: there
+Ignoring the selection over-weights the well-detected bins. Choosing the wrong mode
+also biases the fractions. That is why an array passed as `selection` must come with `selection_mode`: there
 is no safe default.
 
 ## Where to attach it
@@ -118,8 +117,8 @@ print(smooth.rho.round(3))
 
 ## Selection measured by injections
 
-Completeness is often measured by {term}`injections`: objects of known true value are
-added to the data, and the pipeline's recoveries are counted. For each bin,
+To measure completeness by {term}`injections`, add objects of known true value to the
+data and count how many the pipeline recovers. For each bin,
 `Selection.from_injections(z, detected, bins, "on_truth")` counts the injections
 $n^{\rm inj}_k$ and the recoveries $n^{\rm rec}_k$. Each $S_k$ then gets a
 $\mathrm{Beta}(a+n^{\rm rec}_k,\ b+n^{\rm inj}_k-n^{\rm rec}_k)$ posterior, with
@@ -132,11 +131,11 @@ mystnb:
   image:
     alt: >-
       Two panels sharing the axis of true values from 0 to 3. Top: the number of
-      injections per bin, about 30 in each, as an outline, and the number recovered as
-      filled steps, close to the injected number below 1.5 and falling to almost none
-      above 2.4. Bottom: the selection inferred in each bin, as a median step with 68%
-      and 95% bands, following the dashed true completeness curve that falls from 0.95
-      to near zero around z = 1.8.
+      injections per bin as an outline, and the number recovered as filled steps. The
+      recovered number is close to the injected one at low values and falls to almost
+      none at high values. Bottom: the selection inferred in each bin, as a median step
+      with 68% and 95% bands. It follows the dashed true completeness curve, which falls
+      from 0.95 to near zero.
   figure:
     caption: >-
       Injections give the selection with its uncertainty. Top: 450 injections, uniform
@@ -146,6 +145,7 @@ mystnb:
 ---
 import matplotlib.pyplot as plt
 import numpy as np
+from myst_nb import glue
 
 import binference
 
@@ -189,8 +189,8 @@ with plt.rc_context({"font.size": 12}):
     plt.show()
 ```
 
-The selection is then uncertain, and it is inferred with the population. The
-catalogue's objects count as detections in their bins, and the objects it missed as
+binference then infers the selection together with the population. The catalogue's
+objects count as detections in their bins, and the objects it missed as
 non-detections. The catalogue informs only the ratios between the $S_k$: its
 likelihood does not change when all of them are scaled together. Their level, and with
 it the total, comes from the injections. The draws of $S$ are in
@@ -206,37 +206,26 @@ joint = binference.infer(lk, selection=measured, method="gibbs", n_samples=300, 
 print(joint.mean.round(3), joint.info["selection_draws"].mean(axis=(0, 1)).round(2))
 ```
 
-Which engines infer it:
-
-- **Gibbs** samples $S$ from its conjugate conditional, given independent Betas and a
-  conjugate prior. `method="auto"` chooses it then.
-- **NUTS, Laplace** and `MAP(space="unconstrained")` add $\mathrm{logit}\,S_k$ to the
-  sampled coordinates, so they work with every prior. NUTS and Gibbs agree within
-  Monte Carlo error.
-- **VB and the bootstrap** refuse an uncertain selection. `measured.at_mean()` gives a
-  fixed selection at its mean values, ignoring their uncertainty.
-
-A selection on the measurement is fixed by the likelihoods' own cut. Injections give it
-only as such a fixed value.
+Gibbs, NUTS, Laplace and `MAP(space="unconstrained")` infer it; VB and the bootstrap do
+not ([theory](../how-it-works/theory.md#selection-effects)). For those, or to ignore the
+uncertainty, `measured.at_mean()` gives a fixed selection at its mean values. For a
+selection on the measurement, injections give a fixed selection, not an inferred one.
 
 ### Few injections per bin
 
-With few injections per bin, `smooth=`$\tau_S$ ties neighbouring bins together. It puts
+With few injections per bin, `smooth=`$\tau_S$ lets neighbouring bins share
+information. It puts
 a second-order random walk on $\mathrm{logit}\,S$, with step scale $\tau_S$, and works
 on 1-D bins with every engine but Gibbs. Its `values` are the mode of
 $\mathrm{logit}\,S$ given the injections. $\tau_S$ is the typical change, from one bin
 to the next, of the slope of $\mathrm{logit}\,S$ per bin.
 
-In one test with 20 bins and 5 injections per bin, $\tau_S=0.3$ lowered the error of
-$S$ from 0.17 to 0.13 for a smooth logistic edge. For a linear completeness it lowered
-it from 0.16 to 0.09. For a step from 0.9 to 0.1 it did not help (0.171 against 0.169),
-and $\tau_S=0.1$ raised the error to 0.196. These are RMS errors over bins and 200
-simulations, with Monte Carlo error 0.002. A sharp edge needs independent bins or a
-larger $\tau_S$.
+Smoothing helps smooth completeness curves with few injections per bin, not sharp
+edges. A sharp edge needs independent bins or a larger $\tau_S$.
 
 ```python
-smooth = binference.Selection.from_injections(z_inj, recovered, bins, "on_truth", smooth=1.0)
-fit = binference.infer(lk, selection=smooth, method="nuts", n_samples=300, rng=1, check=False)
+smooth = binference.Selection.from_injections(z_inj, recovered, bins, "on_truth", smooth=0.3)
+fit = binference.infer(lk, selection=smooth, method="laplace", n_samples=300, rng=1, check=False)
 print(fit.mean.round(3), fit.info["selection_draws"].mean(axis=(0, 1)).round(2))
 ```
 
@@ -247,14 +236,12 @@ objects were detected, and $S$ is absolute: detection probabilities, or exposure
 `scale="exposure"`. The number of detections is then Poisson with mean
 $\Lambda\,S\cdot\rho$, where $\Lambda$ is the total expected number of objects.
 
-- **The total.** Under the scale-free prior $p(\Lambda)\propto1/\Lambda$, the total
-  given the fractions is $\Lambda\mid\rho\sim\mathrm{Gamma}(W,\ S\cdot\rho)$.
-  `result.total` holds one such draw per draw of $\rho$. A point estimate gives
-  $\hat\Lambda=W/(S\cdot\rho)$.
+- **The total.** `result.total` holds one draw of $\Lambda$ per draw of $\rho$, under
+  a scale-free prior on $\Lambda$ ([theory](../how-it-works/theory.md#selection-effects)).
 - **The rates.** `result.rates` holds $\lambda_k=\Lambda\rho_k$: the expected number of
   objects per bin, per unit exposure.
 - **A relative selection** identifies no total, and both are `None`.
-- **Non-integer weights** make $W$ their sum, and the Gamma a pseudo-posterior
+- **Non-integer weights** give a pseudo-posterior for the total too
   ({doc}`inputs/advanced`).
 
 ```python
@@ -266,10 +253,9 @@ print("total:", fit.total.mean().round(0), "+/-", fit.total.std().round(0),
       " actually drawn:", mock.truth.n_drawn)
 ```
 
-The total inherits the prior on the fractions. With $p(\Lambda)\propto1/\Lambda$, the
-default flat Dirichlet on $\rho$ is a prior on the rates proportional to
-$\Lambda^{-K}$. That pulls the total down when it is poorly determined, for example
-when some bins hold few detections. Check a total's calibration on simulations
+The total inherits the prior on the fractions, which biases the total low when it is
+poorly determined, for example when some bins hold few detections
+([theory](../how-it-works/theory.md#selection-effects)). Check a total's calibration on simulations
 ({doc}`checking`) before you quote it from such data.
 
 ### The objects the catalogue missed
@@ -285,15 +271,15 @@ mystnb:
   image:
     alt: >-
       Objects per bin against the true value. Filled steps show the detected objects,
-      falling from about 500 per bin at z = 0.5 to almost none at z = 2.5. An outline
-      step with a band shows all objects, detected and missed, which stays well above
-      the detected counts in the bins where detection is unlikely. A dashed step shows
+      which fall to almost none at the highest values. An outline
+      step with a band shows all objects, detected and missed. It stays well above the
+      detected counts in the bins where detection is unlikely. A dashed step shows
       the true number of all objects, inside the band.
   figure:
     caption: >-
       From detected counts to the full sample. 3000 objects were drawn and each was
       detected with a probability that falls from 0.95 to 0.15 across the bins. The
-      fit sees the 2000 or so detected ones (filled) and the selection. The median with
+      fit sees the detected ones (filled) and the selection. The median with
       68% and 95% bands of `realized_counts(full=True)` add the missed objects; the
       dashed line is the true histogram of all 3000.
 ---
@@ -319,14 +305,19 @@ with plt.rc_context({"font.size": 12}):
     ax.set_ylim(0, 1.45 * ax.get_ylim()[1])
     ax.legend(loc="upper right", fontsize=10, ncol=2)
     plt.show()
+
+glue("sel_detected", int(seen.sum()), display=False)
+glue("sel_total", float(fit_seen.total.mean()), display=False)
 ```
+
+In this example the fit saw {glue:text}`sel_detected` detected objects, and its mean
+total is {glue:text}`sel_total:.0f` of the 3000 drawn.
 
 ### Priors on the rates
 
-A `GammaRates` prior puts independent priors on the rates themselves: bin-specific
-shapes and rates, or an informative total. The data are then an inhomogeneous Poisson
-process, and the selection acts as an exposure in the same way. Occurrence rates per
-star, or counts per unit time or area, are estimated this way.
+To put a prior on the rates themselves, use `GammaRates`
+([rates instead of fractions](priors.md#rates-instead-of-fractions)). The selection then
+acts as an exposure in the same way.
 
 ```python
 est = binference.infer(

@@ -152,7 +152,7 @@ binference:
   interim prior biased $\rho$ by up to 12.6 posterior standard deviations and cut the
   coverage of 68% and 95% intervals to 0.29 and 0.52; dividing out the interim prior
   removed the bias. Using the bin integral of each likelihood where the model needs the
-  bin average biased $\rho$ as well ({doc}`../guides/troubleshooting`). binference
+  bin average biased $\rho$ as well ([masses versus densities](../guides/troubleshooting.md#masses-versus-densities-with-unequal-bins)). binference
   requires the interim prior for posteriors and asks what a table holds
   ({doc}`../guides/inputs/index`).
 - **Software defects** (runs that never resumed, a `reset()` that left old samples,
@@ -232,7 +232,7 @@ files or nz_prior (results save to `.npz` and convert to an xarray `DataTree`).
   informative prior", and "must be abandoned" {cite:p}`malz2021`. Euclid's stacked posteriors
   missed the accuracy requirement by five to ten times before correction {cite:p}`ilbert2021`, and Rubin's first data-preview paper still reports stacked $n(z)$ without an
   uncertainty band {cite:p}`zhang2026`. The stack is one EM step from the interim prior
-  ({doc}`../guides/troubleshooting`).
+  ([stacking](../guides/troubleshooting.md#stacking)).
 - **Posteriors used as likelihoods.** A misspecified interim prior was "disastrous" for
   every estimator CHIPPR tested {cite:p}`malz2022`, and the stacked PDFs of
   machine-learning codes "show the imprint of the training sample" {cite:p}`zhang2026`.

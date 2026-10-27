@@ -1,8 +1,8 @@
 # Prepare your inputs
 
 binference needs one thing from your data. For each object $i$ and bin $k$ it needs
-the {term}`bin-averaged likelihood` $L_{ik}$: how probable the object's data are if its
-true value lies in bin $k$. A {class}`~binference.Likelihoods` object holds these values
+the {term}`bin-averaged likelihood` $L_{ik}$. That is how probable the object's data are
+if its true value lies in bin $k$. A {class}`~binference.Likelihoods` object holds these values
 with their {class}`~binference.Bins`. Its constructors turn the usual data products
 into likelihoods.
 
@@ -17,8 +17,8 @@ into likelihoods.
 | samples from a posterior or a likelihood | `Likelihoods.from_samples` | {doc}`samples` |
 | a measured bin, or a classifier's score or label | `Likelihoods.from_binned` | {doc}`binned` |
 
-If your code reports *posteriors*, they already contain a prior. Say which prior, or the
-population is pulled toward it ({doc}`posteriors`).
+If your code reports *posteriors*, they already contain a prior. Say which prior.
+Otherwise the fit biases the population toward that prior ({doc}`posteriors`).
 
 ## Bins
 

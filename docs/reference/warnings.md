@@ -146,7 +146,7 @@ just noisy.
   - the same two messages `of the selection` or `of the response's efficiencies`, for a
     selection or response inferred with the population.
   - `<n> divergent transitions (<x>% of draws)`: NUTS met a region it cannot explore.
-    Try `target_accept=0.95`; see the {doc}`troubleshooting guide <../guides/troubleshooting>`.
+    Try `target_accept=0.95`; see [diagnostics](../guides/checking.md#diagnostics).
   - `E-BFMI = <x> < 0.3 in some chain`: NUTS explores the energy distribution poorly.
     A longer warm-up or another prior may help.
   - `<x>% of NUTS iterations hit the maximum tree depth`: trajectories are cut short.

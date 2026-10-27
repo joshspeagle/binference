@@ -17,7 +17,7 @@ What each prior means is in the [theory](../how-it-works/theory.md#priors).
 binference's priors fall into three families. The {term}`Dirichlet prior` family is
 {term}`conjugate <conjugate prior>`, so every engine takes it. The
 {term}`logistic priors <logistic prior>` add smoothness across neighbouring bins; Gibbs
-and VB refuse them. The {term}`Gamma rates prior` models expected counts rather than
+and VB do not accept them. The {term}`Gamma rates prior` models expected counts rather than
 fractions.
 
 ```python
@@ -47,7 +47,7 @@ for p in (flat, sparse, informed):
 
 - **`Dirichlet(1.0)`**: use it unless you have a reason not to.
 - **`Dirichlet.reference()`**: use it when the number of bins $K$ is comparable to the
-  number of objects $N$, where the default pulls the fit toward uniform.
+  number of objects $N$. There the default biases the fit toward equal fractions.
 - **`Dirichlet.from_base_measure(a)`**: use it on unequal bins, so the prior means the
   same density however you bin.
 - **`Dirichlet.from_counts(counts, strength)`**: use it when you have the counts
@@ -107,7 +107,8 @@ number** of objects per bin, $\lambda_k$. The data then form a Poisson
 process. Every fit of fractions already gives the total and the rates, under a
 scale-free prior on the total ({doc}`selection`). Use `GammaRates` when the rates need
 their own prior, for example bin-specific shapes or an informative total. Combine it
-with an exposure or a selection function.
+with an exposure or a selection function. Occurrence rates per star, or counts per unit
+time or area, are estimated this way.
 
 ```python
 est = binference.infer(lk, priors.GammaRates(shape=1.0, rate=1e-3), method="map")
@@ -119,7 +120,7 @@ they imply. NUTS and Gibbs both sample rates.
 
 ## Check a prior
 
-Draw from the prior to see what it believes before it sees data:
+Draw from the prior to see which populations it allows before any data:
 
 ```python
 model = binference.PopulationModel(lk, gp)
@@ -127,16 +128,14 @@ draws = model.sample_prior(5, rng=0)       # five populations from the prior
 print(draws.shape, np.allclose(draws.sum(axis=1), 1.0))
 ```
 
-After a fit, two numbers say how much the prior sets the answer:
-
-- `result.data_support` gives each bin's objects' worth of data. Below about one, the
-  bin's fraction is the prior's ({doc}`bins`).
-- `result.prior_information_ratio()` compares the prior's information with the data's.
-  It is small when the data dominate, and near one or above when the prior does.
+After a fit, two numbers say how much the prior sets the answer. A bin with little
+{term}`data support` takes its fraction from the prior ({doc}`bins`).
+`result.prior_information_ratio()` compares the prior's information with the data's.
+It is small when the data dominate, and near one or above when the prior does.
 
 ```python
-fit = binference.infer(lk, rw, rng=1, n_samples=300)
-print(fit.data_support.round(0)[:5], round(fit.prior_information_ratio(), 3))
+fit = binference.infer(lk, rw, method="map")
+print(round(fit.prior_information_ratio(), 3))
 ```
 
 To choose between priors, fit each and compare the

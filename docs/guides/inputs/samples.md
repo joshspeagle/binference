@@ -50,7 +50,8 @@ binference measures this in three places:
   ({doc}`defaults <../../reference/defaults>`).
 - `lk.sample_variance(rho)` gives, at a population `rho`, each object's relative Monte
   Carlo variance $V_i(\rho)$ and its effective sample size.
-- `result.check()` warns when $\sum_i V_i>1$ at the fitted population. That is roughly
+- `result.check()` warns when $\sum_i V_i$ at the fitted population exceeds its limit
+  ({doc}`defaults <../../reference/defaults>`). That sum is roughly
   the bias the sample noise puts into the total log-likelihood.
 
 Bins that no sample reached get zero likelihood. If an object's samples miss bins its

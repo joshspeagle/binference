@@ -9,8 +9,8 @@ kernelspec:
 
 # Choose bins
 
-The bins are part of the model. Within each bin the population is taken to be flat, so
-the bins decide what shapes the fit can follow. This page says where to put the bins,
+The bins are part of the model. The model takes the population to be flat within each
+bin, so the bins decide which shapes the fit can follow. This page says where to put the bins,
 how many to use, and how to check the choice.
 
 ## Where to put them
@@ -27,7 +27,7 @@ how many to use, and how to check the choice.
 
 ## How many
 
-Two errors pull in opposite directions.
+Too few bins and too many bins cause different errors.
 
 Too few bins
 : A bin wider than a feature of the population hides the feature. Worse, it biases the
@@ -36,7 +36,8 @@ Too few bins
 
 Too many bins
 : Each bin then holds few objects' worth of data. Its fraction is set by the prior
-  more than by the data, and neighbouring bins trade mass. The cost of a fit also grows
+  more than by the data, and the fractions of neighbouring bins are strongly
+  anti-correlated. The cost of a fit also grows
   with the number of bins.
 
 A good default is bins no wider than the features you care about, and no narrower than
@@ -52,13 +53,13 @@ tags: [remove-input]
 mystnb:
   image:
     alt: >-
-      Two panels. Top: a narrow peak of true density near z = 1.4, the step-shaped fit
-      that is flat in each bin, and the continuous fit on hat components. The steps
-      miss the peak's shape; the hats follow it more closely. Bottom: on log axes, the
+      Two panels. Top: a narrow peak of true density near z = 1.4. It is drawn with the
+      step-shaped fit that is flat in each bin and the continuous fit on hat components.
+      The steps miss the peak's shape; the hats follow it more closely. Bottom: on log axes, the
       error of the fraction in bin 1.2 to 1.5 against the number of objects. The
-      posterior standard deviation falls as N grows. The bias of the flat fit is a
-      horizontal line that the standard deviation crosses near 700 objects; the bias of
-      the hat fit is four times smaller and is crossed near 14,000 objects.
+      posterior standard deviation falls as N grows. The bias of each fit is a
+      horizontal line. The standard deviation crosses the flat fit's line first, and the
+      lower hat fit's line at a larger N.
   figure:
     caption: >-
       Binning bias for a population with a peak 0.25 wide, ten bins 0.3 wide, and
@@ -73,6 +74,8 @@ import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
+
+from myst_nb import glue
 
 import binference
 
@@ -139,12 +142,16 @@ with plt.rc_context({"font.size": 12}):
     b.set(xlabel="number of objects $N$", ylabel="error of the fraction")
     b.set_title(f"Bin [{e[k]:.1f}, {e[k + 1]:.1f})", loc="left")
     plt.show()
+
+n_equal = mock.likelihoods.W * (fit.std[k] / bias["flat in each bin"]) ** 2
+glue("bins_n_equal", float(f"{n_equal:.1g}"), display=False)
+glue("bins_ratio", float(bias["flat in each bin"] / bias["hat basis"]), display=False)
 ```
 
 The bias is largest where the population curves most within a bin. Here it equals the
-error bar at about 700 objects. Beyond that, adding objects makes the answer more
-precise but no more accurate. Hat components follow the curve within each bin, and
-their bias is four times smaller. Narrower bins with a smoothness prior reduce it
+error bar at about {glue:text}`bins_n_equal:,.0f` objects. Beyond that, adding objects
+makes the answer more precise but no more accurate. Hat components follow the curve
+within each bin, and their bias is {glue:text}`bins_ratio:.0f` times smaller. Narrower bins with a smoothness prior reduce it
 further.
 
 ## Check the binning
@@ -153,14 +160,14 @@ Two checks on a fitted result tell you whether the bins suit your data.
 
 **Binning bias.** `result.binning_bias()` refits the same data on hat components over
 the same bins. For each bin it reports the shift of the mean fraction, the fit's
-posterior s.d., and their ratio `z`. It warns when $|z|$ exceeds its threshold in any
+posterior s.d., and their ratio, in column `z`. It warns when $|z|$ exceeds its threshold in any
 bin. Gaussian likelihoods rebuild themselves. For other inputs, pass `build`, a
 function that returns your data's likelihoods on the bins or basis it is given.
 
 ```{code-cell} python
 bins = binference.Bins.linear(0.0, 3.0, 10)
 mock = binference.simulate.mock_1d(5000, bins, density=peak, noise=0.2, rng=3)
-result = binference.infer(mock.likelihoods, rng=1)
+result = binference.infer(mock.likelihoods, method="laplace", rng=1)
 check = result.binning_bias(rng=2)
 print(check)
 ```
@@ -170,8 +177,8 @@ statistical error. Run the check on a pilot sample to learn how many objects the
 can take. If bins are flagged, fit on `binference.Basis(bins, order=1)`, or use
 narrower bins with a smoothness prior.
 
-**Data support.** `result.data_support` is each bin's objects' worth of likelihood:
-$\sum_iw_iL_{ik}/\sum_{k'}L_{ik'}$. A bin with less than about one object's worth is
+**Data support.** `result.data_support` is each bin's {term}`data support`: its
+objects' worth of likelihood. A bin with less than about one object's worth is
 set by the prior. The summary shows it as `support`, and `result.check(support_min=1)`
 flags such bins.
 

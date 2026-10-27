@@ -14,8 +14,9 @@ An analysis has five steps, and each has a guide:
    posteriors ({doc}`results`).
 5. **Check the result**: diagnostics, then simulations ({doc}`checking`).
 
-{doc}`performance` covers large problems, and {doc}`troubleshooting` maps each warning
-and symptom to its fix.
+{doc}`performance` covers large problems. {doc}`troubleshooting` maps each warning
+and symptom to its fix, and its [pitfalls](troubleshooting.md#pitfalls) list the
+mistakes that bias a result without a warning.
 
 ```{toctree}
 :maxdepth: 1

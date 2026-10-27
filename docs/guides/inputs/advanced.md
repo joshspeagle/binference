@@ -1,8 +1,8 @@
 # Advanced input options
 
-This page covers options that most analyses do not need: the coordinate in which the
-population is flat within a bin, masked grids, a population with shape within bins,
-sparse storage and weights.
+This page covers options that most analyses do not need. They are the coordinate in
+which the population is flat within a bin, masked grids, a population with shape within
+bins, sparse storage and weights.
 
 ```python
 import numpy as np
@@ -86,8 +86,8 @@ How each input meets the components:
 
 The priors see the components: `lk.bins` is `basis.components`. A resolution above one
 therefore needs a {term}`smoothness prior`. Components narrower than the measurement
-errors are not identified one by one, and a flat Dirichlet then rings from component
-to component.
+errors are not identified one by one. With a flat Dirichlet, the fit then oscillates
+from one component to the next.
 
 Every result reports in the bins. Per-object outputs share each component among the
 bins by $A$. That is exact for flat components and ignores the likelihood's variation

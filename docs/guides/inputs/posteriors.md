@@ -6,7 +6,7 @@ includes a prior, the {term}`interim prior` $\pi(z)$. binference divides it out 
 recover the likelihoods, so you must say what it was.
 
 ```{warning}
-Never pass posteriors as likelihoods. The fitted population is then pulled toward the
+Never pass posteriors as likelihoods. The fitted population is then biased toward the
 interim prior, often by many standard deviations
 ([why](../../how-it-works/theory.md#likelihoods-versus-posteriors)).
 ```

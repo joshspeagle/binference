@@ -1,8 +1,8 @@
 # Likelihood tables
 
-Use this page if you already have a number per object and bin: a likelihood evaluated
-on the bins, a table from another code, or genotype likelihoods per stock. Such a
-table is a {term}`likelihood matrix` $L_{ik}$, with one row per object and one column
+Use this page if you already have a number per object and bin. Examples are a
+likelihood evaluated on the bins, a table from another code, or genotype likelihoods
+per stock. Such a table is a {term}`likelihood matrix` $L_{ik}$, with one row per object and one column
 per bin.
 
 ```python

@@ -1,7 +1,8 @@
 # Gaussian measurements
 
 Use this page if each object has a measurement $\hat z_i$ with a Gaussian error
-$\sigma_i$: a photometric redshift with its error bar, a parallax, a test score.
+$\sigma_i$. Examples are a photometric redshift with its error bar, a parallax, or a
+test score.
 
 ```python
 import numpy as np

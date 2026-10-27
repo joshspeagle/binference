@@ -25,8 +25,8 @@ object in true bin $k$ is observed at all. A response comes from one of three pl
   bins with equal numbers of validation objects. Predicted labels give the confusion
   matrix.
 
-`open_ended=True` lets the outer two of 1-D measured bins take every value below or
-above them. `from_labelled` sets it for its score bins.
+`open_ended=True` extends the lowest and highest 1-D measured bins to all values below
+and above them. `from_labelled` sets it for its score bins.
 
 ## From the response to likelihoods
 
@@ -60,10 +60,9 @@ open-ended score bins, the columns have no lost share.
 - **A fixed response.** `response.fixed()` takes the tallied matrix as known. VB and
   the bootstrap need that. A `Response(matrix)` is always fixed.
 
-With few events the choice matters. In one test, with 30 or 100 validation objects per
-class, three classes, 10 score bins and 1000 target objects, 68% intervals from the
-fixed response contained the truth 23% and 34% of the time. From the inferred response
-they did so 57% and 60% of the time (100 simulations, Gibbs).
+With few events the choice matters. With tens of validation objects per class,
+intervals from a fixed response covered the truth far less often than their nominal
+68%. The inferred response came much closer.
 
 ## Classifiers: two routes
 

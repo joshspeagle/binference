@@ -104,7 +104,7 @@ other indices are declared where they are used. The {doc}`glossary` defines the 
 | ESS | effective sample size, bulk or tail | `diagnostics.ess`, `result.diagnostics["ess_bulk"]` | [theory](../how-it-works/theory.md#diagnostics-and-validation) |
 | $\hat k$ | Pareto shape of importance weights | `diagnostics.psis`, `result.info["k_hat"]` | [theory](../how-it-works/theory.md#the-engines) |
 | $V_i(\rho)$ | relative Monte Carlo variance of a likelihood from samples | `lk.sample_variance` | [inputs](../guides/inputs/samples.md) |
-| $n_{\rm sim}$ | number of simulated data sets | `n_simulations=` | [validation](../guides/checking.md#simulation-based-calibration) |
+| $n_{\rm sim}$ | number of simulated data sets | `n_simulations=` | [checking](../guides/checking.md#simulation-based-calibration) |
 
 ## Symbols on older pages
 

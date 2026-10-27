@@ -83,9 +83,10 @@ credible interval
   `result.interval(level)` returns equal-tailed or highest-density intervals per bin.
 
 data support
-  The number of objects' worth of likelihood in each bin, `result.data_support`. The
-  prior sets the fraction of a bin with less than about one. See
-  [the population](../guides/results.md#the-population).
+  The number of objects' worth of likelihood in each bin, `result.data_support`:
+  $\sum_iw_iL_{ik}/\sum_{k'}L_{ik'}$, each object's likelihood normalised over the
+  bins. The prior sets the fraction of a bin with less than about one. See
+  [check the binning](../guides/bins.md#check-the-binning).
 
 Dirichlet prior
   The default prior on {term}`population fractions`, `Dirichlet(alpha)`. With every
@@ -392,7 +393,7 @@ stacking
   Averaging per-object posteriors computed under an {term}`interim prior`. It is one EM
   step from that prior, so it is biased when likelihoods are broad. It is also called
   probabilistic classify and count in quantification. See
-  [stacking](../guides/troubleshooting.md#stacking).
+  [stacking is not the answer](../guides/inputs/posteriors.md#stacking-is-not-the-answer).
 
 total
   $\Lambda$: the expected number of objects in the population, including those the

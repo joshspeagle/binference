@@ -112,7 +112,7 @@ instead.
   cells", leaving the two observed cells only 0.008 of the posterior mass; the uniform
   prior "is even worse", and {cite:t}`berger2015` recommend $\alpha\approx1/K$.
   Broad likelihoods reduce the effective counts further. `Dirichlet.reference()` sets
-  $\alpha=1/K$ ({doc}`../guides/troubleshooting`).
+  $\alpha=1/K$ ([too many bins](../guides/troubleshooting.md#too-many-bins-for-a-flat-dirichlet)).
 - **The Haldane limit** $\alpha\to0$ gives an improper posterior if any bin is empty.
 - **A symmetric $\alpha$ is not consistent under merging bins** of unequal width or
   number: coarse groups get prior mass in proportion to the number of fine bins they

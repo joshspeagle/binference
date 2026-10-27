@@ -39,8 +39,8 @@ print(problems)
 `check()` raises a `ConvergenceWarning` for these problems. The limits are on the
 {doc}`defaults <../reference/defaults>` page.
 
-- **{term}`R-hat`** above its limit: the chains disagree. It is split, so it works for a
-  single chain too.
+- **{term}`R-hat`** above its limit: the chains disagree. binference splits each chain
+  in half, so R-hat works for a single chain too.
 - **Bulk or tail {term}`ESS`** below its limit per chain: too few effective draws.
   This applies to any Markov chain, including draws wrapped with
   `PopulationResult.from_samples`.
@@ -48,6 +48,18 @@ print(problems)
   {term}`tree depth`, and low {term}`E-BFMI`.
 - **Importance weights** whose {term}`Pareto k-hat` is too large, and an optimiser that
   did not converge.
+
+If the chains disagree or the effective sample sizes are low, run longer. If Gibbs
+mixes slowly, switch to NUTS. A few isolated divergences among thousands of draws are
+usually harmless if R-hat and the effective sample sizes pass. Divergences that persist
+with a higher `target_accept` mark a region the sampler cannot explore, such as a
+[funnel](troubleshooting.md#a-smoothness-scale-near-zero). Change the prior or its
+hyperprior rather than ignore them.
+
+A low E-BFMI means that NUTS moves slowly through the energy distribution, so it may
+under-explore the tails. A longer warm-up or another prior may help; a higher
+`target_accept` does not. Otherwise compare the fit with a longer run before you rely
+on its tails.
 
 Problems with the inputs raise an `InputWarning` instead. Two are checked: the Monte
 Carlo noise of likelihoods built from samples ({doc}`inputs/samples`), and binned
@@ -77,9 +89,9 @@ mystnb:
   image:
     alt: >-
       Top: trace plots of one bin's fraction for four Gibbs chains. With narrow
-      likelihoods the chains overlap as fast noise around one value, with R-hat 1.01
-      and an ESS above 1000. With broad likelihoods they wander slowly and apart, with
-      R-hat 1.7 and an ESS of 6. Bottom: four SBC rank histograms of 200 simulations
+      likelihoods the chains overlap as fast noise around one value, with R-hat near
+      one and a large ESS. With broad likelihoods they wander slowly and apart, with a
+      large R-hat and a tiny ESS. Bottom: four SBC rank histograms of 200 simulations
       each, with a grey band for uniform ranks. The calibrated pipeline stays inside
       the band. Posteriors too narrow give a U shape, too wide a hump, and biased ones
       a slope from low ranks down to high ones.
@@ -190,7 +202,7 @@ simulate = binference.simulate.prior_predictive(prior, binference.Bins.linear(0,
 
 def fit(lk, rng):
     return binference.infer(lk, prior, method="gibbs", rng=rng, n_chains=4,
-                        n_warmup=100, n_samples=600, check=False)
+                            n_warmup=100, n_samples=600, check=False)
 
 result = sbc(simulate, fit, n_simulations=40, n_draws=19, rng=0)
 print(result.names, result.pvalues().round(2), result.passed())
@@ -205,13 +217,13 @@ fig = result.plot()
   objects from a Poisson): ranks and coverage are then computed on the rates.
 - **`fit(likelihoods, rng)`** returns a result. Use the settings you will use
   in production.
-- **`loglike`.** Besides each bin, SBC ranks the joint log-likelihood of the true
+- **`log_likelihood`.** Besides each bin, SBC ranks the joint log-likelihood of the true
   population. Pass `log_likelihood=False` to leave it out.
 - **Tests.** `result.pvalues()` and `result.passed()` test each quantity's ranks with
   a chi-square on their histogram. `method="ecdf"` uses the ECDF test of
   {cite:t}`sailynoja2022` instead. To require both, call
   `result.passed(method="chisquare")` and `result.passed(method="ecdf")`.
-- **Size.** A real check needs a few hundred simulations ($n_{\rm sim}$) and roughly
+- **Size.** A real check needs a few hundred simulations and roughly
   independent draws: keep `n_draws` below the effective sample size.
 
 binference's own slow tests run SBC on its engines and priors
@@ -220,9 +232,8 @@ binference's own slow tests run SBC on its engines and priors
 ## Coverage
 
 {func}`~binference.validation.coverage` measures how often central credible
-intervals contain the truth, for each bin and for any functional. It answers
-the frequentist question most readers care about: do my 68% error bars
-contain the truth 68% of the time?
+intervals contain the truth, for each bin and for any functional. It answers the
+frequentist question: do my 68% error bars contain the truth 68% of the time?
 
 ```python
 centers = binference.Bins.linear(0, 1, 4).centers
@@ -251,28 +262,5 @@ print(exact.std.round(4), res.std.round(4))
 
 ## Mock catalogues
 
-{mod}`binference.simulate` generates catalogues with known truth. Iterating over
-a mock gives `(likelihoods, truth)`.
-
-| simulator | what it makes |
-|---|---|
-| `mock_1d` | 1-D populations: named shapes, callables or bin fractions; Gaussian errors; interim-prior posteriors (`mock.posteriors`); posterior samples; selection on the truth (`selection=`), on the measurement (`measured_range=`) or both; outliers |
-| `mock_2d` | 2-D grids, e.g. a colour–magnitude-like ridge |
-| `mock_categorical` | classifier outputs with a training prior and a labelled validation set, for quantification |
-| `mock_unfolding` | counts in reconstructed bins with a `Response` and efficiency |
-| `prior_predictive` | a simulator drawing populations from a prior, for SBC and coverage |
-
-```python
-mock = binference.simulate.mock_1d(500, interim="gaussian", n_samples=100, rng=2)
-truth = mock.truth
-print(truth.rho.shape, truth.counts.sum(), mock.posteriors.shape, mock.samples.shape)
-```
-
-```{note}
-`mock_1d` draws true values from a continuous density by default. The
-histogram model assumes the population is flat within each bin, so with
-coarse bins and many objects the fit shows a small *binning bias*
-({doc}`bins`). Pass bin fractions as `density` (e.g.
-`density=binference.simulate.population(bins, "bimodal")`) to draw values uniformly
-within bins, for which the model is exactly right.
-```
+{mod}`binference.simulate` makes catalogues with known truth for every input type, and
+`prior_predictive` makes the simulators that SBC and coverage need.
