@@ -1,7 +1,7 @@
 # Priors on the simplex and inference for mixture weights
 
 What does the statistics literature know about priors and algorithms for fractions on
-the simplex? The fractions $\rho$ live on the {term}`simplex`. The posterior is
+the simplex? The fractions $\rho$ lie on the {term}`simplex`. The posterior is
 $p(\rho\mid D)\propto p(\rho)\prod_i\sum_kL_{ik}\rho_k$. This page lists the known
 priors and algorithms, and which of them binference provides. The {doc}`priors guide
 <../guides/priors>` and the {doc}`engines guide <../guides/engines>` say how to choose.
@@ -10,15 +10,15 @@ priors and algorithms, and which of them binference provides. The {doc}`priors g
 
 Priors on the simplex fall into two families.
 
-**The conjugate family** holds the Dirichlet, the generalised Dirichlet
+**The conjugate family** contains the Dirichlet, the generalised Dirichlet
 {cite:p}`connor1969`, the Dirichlet tree {cite:p}`minka1999` and finite Pólya trees
 {cite:p}`lavine1992`. Given the counts per bin, each has a closed-form posterior, so
 Gibbs sampling and EM stay simple.
 
-- **Dirichlet.** All covariances are negative and set by the means and one precision:
-  $\mathrm{Cov}(\rho_j,\rho_k)=-\alpha_j\alpha_k/(\alpha_0^2(\alpha_0+1))$, with
-  $\alpha_0=\sum_k\alpha_k$.
-- **Generalised Dirichlet.** Independent Beta variables in a stick-breaking cascade, with
+- **Dirichlet.** All covariances are negative. The means and the total concentration
+  $\alpha_0=\sum_k\alpha_k$ fix them:
+  $\mathrm{Cov}(\rho_j,\rho_k)=-\alpha_j\alpha_k/(\alpha_0^2(\alpha_0+1))$.
+- **Generalised Dirichlet.** It breaks a stick with independent Beta variables. It has
   $2(K-1)$ parameters and "a more general covariance structure". Positive correlations
   are possible, and the bin order matters. {cite:t}`leistedt2016` noted that it could
   encode correlations between redshift bins but did "not consider this case".
@@ -29,17 +29,17 @@ Gibbs sampling and EM stay simple.
   proportional to the base measure of bin $k$ {cite:p}`ferguson1973`. It adds nothing on
   fixed bins.
 
-**Gaussian priors on log-ratios** hold the logistic-normal {cite:p}`aitchison1980`,
+**Gaussian priors on log-ratios** include the logistic-normal {cite:p}`aitchison1980`,
 random walks and intrinsic Gaussian Markov random fields on $\log\rho$
 {cite:p}`rue2005`, and P-splines {cite:p}`eilers1996`. Gaussian processes on bins give
 the logistic Gaussian process {cite:p}`leonard1978,lenk1988`. Hilbert-space
-approximations make it fast {cite:p}`riutortmayol2023`. These priors carry smoothness
+approximations speed it up {cite:p}`riutortmayol2023`. These priors express smoothness
 and arbitrary correlations. They are not conjugate, so they need gradient-based samplers
 in unconstrained coordinates. Pólya–gamma stick-breaking augmentation allows Gibbs
 sampling {cite:p}`linderman2015`.
 
 **Overdispersion.** The Dirichlet–multinomial {cite:p}`mosimann1962` and the three-step
-Dirichlet of redshift calibration {cite:p}`sanchez2020` add variance beyond the
+Dirichlet of redshift-calibration pipelines {cite:p}`sanchez2020` add variance beyond the
 multinomial.
 
 | prior | binference |
@@ -65,17 +65,19 @@ gradient cost one pass over $L$
 ([theory](../how-it-works/theory.md#the-population-model)).
 
 - **Gibbs data augmentation** alternates the objects' labels and a conjugate draw of
-  $\rho$ {cite:p}`tanner1987,diebolt1994`. It is exact. Its convergence, like EM's, is set
-  by the fraction of {term}`missing information` {cite:p}`tan2023`. In related
+  $\rho$ {cite:p}`tanner1987,diebolt1994`. It is exact. The fraction of
+  {term}`missing information` sets its speed of convergence, as it does EM's
+  {cite:p}`tan2023`. In related
   categorical models, data augmentation mixed far worse than a marginal Metropolis
   sampler {cite:p}`johndrow2019`.
 - **EM** can be "intolerably slow" {cite:p}`redner1984`. SQUAREM accelerates it
-  {cite:p}`varadhan2008`. mix-SQP is orders of magnitude faster {cite:p}`kim2020`.
+  {cite:p}`varadhan2008`. mix-SQP is much faster
+  ([empirical Bayes](empirical-bayes.md#methods-and-software)).
 - **Hamiltonian Monte Carlo** in transformed coordinates samples any differentiable
   prior. Libraries disagree on the transform: stick-breaking (NumPyro), centred log-ratio
   (PyMC), additive log-ratio (TensorFlow Probability). Stan, since version 2.37, uses an
-  isometric log-ratio, adopted without a published benchmark. For concentrations well below one, the tails in
-  log-ratio coordinates become very long.
+  isometric log-ratio, adopted without a published benchmark. For concentrations well
+  below one, the tails in log-ratio coordinates become very long.
 - **Mean-field variational Bayes** has a closed form here, a Dirichlet with
   "digamma-shrunk" stacking. It factorises the labels from $\rho$ and so ignores the
   coupling of broad likelihoods. Variational inference "generally underestimates the
@@ -88,7 +90,9 @@ gradient cost one pass over $L$
   {cite:p}`chib1995` on conjugate Gibbs output.
 
 No published benchmark compares these algorithms on this model as the likelihoods
-broaden.
+broaden. The table maps them onto binference's engines; the
+{doc}`engines guide <../guides/engines>` describes each engine and how `method="auto"`
+chooses.
 
 | algorithm | binference |
 |---|---|
@@ -100,9 +104,6 @@ broaden.
 | stochastic-gradient samplers | not provided |
 | evidences | not provided; `result.log_predictive` compares models instead |
 
-`method="auto"` chooses among the engines by measured rules
-({doc}`engines guide <../guides/engines>`).
-
 ## Pitfalls known for simplex priors
 
 - **"Uninformative" Dirichlets are informative for sparse tables.** Take 3 observations
@@ -111,15 +112,15 @@ broaden.
   "is even worse". {cite:t}`berger2015` recommend $\alpha\approx1/K$, which
   `Dirichlet.reference()` sets. See
   [too many bins](../guides/pitfalls.md#too-many-bins-for-a-flat-dirichlet).
-- **A symmetric $\alpha$ is not consistent under merging bins.** Coarse groups get prior
-  mass in proportion to their number of fine bins (see {doc}`ecology`).
-  `Dirichlet.from_base_measure` ties $\alpha$ to bin widths.
+- **A symmetric $\alpha$ is not consistent under merging bins.** See the aggregation
+  bias on the {doc}`ecology` page and the {doc}`priors guide <../guides/priors>`.
 - **Sparse priors need samplers.** The MAP with $\alpha_k<1$ lies on the boundary of the
   simplex ({doc}`empirical-bayes`).
 - **Exact zeros.** At $\alpha=0.01$, 0.06% of NumPy's Dirichlet draws contain an exact
-  zero (frankenz audit). Such a draw can make an object's $L_i\cdot\rho$ vanish. EM never
-  revives a bin it has set to zero.
-- **Bins without data** are not identified; their posterior is their prior. See
-  [the population](../guides/results.md#the-population).
-- **Smoothing scales** are hard to learn ({doc}`gravitational-waves`), and a single
-  Dirichlet sees only shot noise ({doc}`astronomy`).
+  zero (frankenz audit). Such a draw can make an object's $L_i\cdot\rho$ vanish. EM
+  cannot move such a bin away from zero
+  ([empirical Bayes](empirical-bayes.md#pitfalls-known-in-empirical-bayes)).
+- **Bins without data** are not identified; their posterior is their prior. Their
+  {term}`data support` shows it ([the population](../guides/results.md#the-population)).
+- **Smoothing scales** are hard to learn ({doc}`gravitational-waves`).
+- **A single Dirichlet sees only shot noise** ({doc}`astronomy`).

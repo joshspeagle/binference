@@ -153,12 +153,14 @@ class Selection:
         gaining :math:`-\\sum_k (y_{k-1} - 2y_k + y_{k+1})^2 / 2\\tau^2`, which lends
         sparsely injected bins strength from their neighbours.
 
-        The selection is uncertain: NUTS, MAP (``space="unconstrained"``),
+        A selection on the truth is uncertain: NUTS, MAP (``space="unconstrained"``),
         Laplace and, for independent Betas and a conjugate prior, Gibbs infer it
         jointly with the population, where the catalogue informs the ratios
         between the :math:`S_k` (their level comes from the injections; DECISIONS
         #10, #30, #79, #80); :meth:`at_mean` gives a fixed selection at
-        :attr:`values`, ignoring the uncertainty.
+        :attr:`values`, ignoring the uncertainty. A selection on the measurement
+        cannot be inferred (the likelihoods' cut already fixes it), so pass its
+        :meth:`at_mean`.
 
         Parameters
         ----------

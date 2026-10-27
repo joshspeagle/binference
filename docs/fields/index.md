@@ -2,12 +2,13 @@
 
 Which name does your field give to binference's model, and which tools does it use?
 Several fields arrived at the same model on their own. Each gave it its own names and
-wrote its own software. The pages in this section take one field each. They state the problem in that field's terms and map it onto binference.
-They list the field's methods and software, and the mistakes it has documented.
+wrote its own software. Each page in this section takes one field. It states the problem
+in that field's terms and maps it onto binference. It lists the field's methods and
+software, and the mistakes the field has documented.
 
-The facts about other packages (versions, release dates, maintenance, tests) were
-recorded on 22 October 2026. They are not updated with each release of binference.
-Statements about binference describe the current code.
+The census behind these pages recorded the facts about other packages on 22 October
+2026. Releases of binference do not update them. Statements about binference describe
+the current code.
 
 ## One model under many names
 
@@ -21,32 +22,50 @@ p(D\mid\rho)=\prod_{i=1}^{N}\sum_{k=1}^{K}L_{ik}\,\rho_k .
 $$
 
 The {doc}`theory page <../how-it-works/theory>` derives this model and its extensions.
-This table is the one home of each field's names for its pieces. Field pages use these
-names only on their own page.
+The two tables below collect each field's names for binference's terms in one place. A
+dash means the field has no common name for the term. Each field page uses its own names
+only on that page.
 
-| binference | astronomy | gravitational waves | particle-physics unfolding | empirical Bayes | ML quantification | ecology and genetics |
-|---|---|---|---|---|---|---|
-| object | galaxy, star, planet | event | event | unit, observation | item, document | fish, turtle, read |
-| bin | redshift bin, colour–magnitude cell | bin of masses, spins and redshift | true bin | support point, grid point | class | stock, source population, transcript |
-| population fractions $\rho$ | redshift distribution $n(z)$ (a density), occurrence rate, luminosity function | population model; rates in bins | true spectrum | prior $g$, mixing distribution | prevalence, class proportions | mixture proportions, stock proportions |
-| likelihood $L_{ik}$ | binned photo-$z$ likelihood; a star's likelihood in a colour–magnitude kernel | per-event weights: samples divided by the PE prior | row of the response matrix for the measured bin | likelihood matrix $L$ | classifier posterior divided by the training prevalence | genotype likelihood under each baseline; read compatibility |
-| interim prior $\pi$ | prior of the photo-$z$ code; implicit training-set prior | PE prior | simulation prior | none | training prevalence | none |
-| response matrix $R_{jk}$ | none | none | response matrix; migration matrix with efficiency | none | confusion matrix | none |
-| selection $S_k$ | completeness | detection probability; $VT$ | efficiency and acceptance | truncation | none | none |
-| hierarchical posterior | posterior shrunk by the population | population-informed (reweighted) event posterior | none | empirical-Bayes posterior | corrected per-item posterior | per-fish assignment probability |
-| stacking | stacked $p(z)$ | none | none | none | probabilistic classify and count (PCC) | none |
-| point estimate of $\rho$ | stacking (one EM step); EM | maximum hyper-likelihood | iterative Bayesian unfolding (D'Agostini, Richardson–Lucy) | NPMLE (Kiefer–Wolfowitz) | EMQ, SLD, MLLS | conditional maximum likelihood (SPAM, ONCOR); EM and VBEM (salmon) |
-| posterior over $\rho$ | Dirichlet Gibbs sampling; mean-field VB (RAIL) | NUTS over binned log-rates | Fully Bayesian Unfolding | variational Dirichlet posterior (ashr `mixVBEM`) | BayesianCC, BayesianMAPLS, BayesianKDEy | BAYES, rubias, SourceTracker (Gibbs) |
-| smoothness prior | logistic GP, GP, random walk | ICAR, GP, P-splines | Tikhonov, GP unfolding | log-spline $g$ (Efron) | ordinal Tikhonov penalties | none |
+### Vocabulary
 
-One identity links the point estimators across fields. The maximum-likelihood $\rho$
-satisfies $\rho_k=N^{-1}\sum_i r_{ik}(\rho)$, where $r_{ik}$ are the
-{term}`responsibilities`. In words, $\rho$ is the average of the objects' posteriors
-computed under $\rho$ itself. {term}`Stacking` is one step of this iteration from the
-interim prior. Iterative Bayesian unfolding stopped early is the iteration truncated.
-EMQ is the iteration started from the training prevalence. The
-[theory page](../how-it-works/theory.md#point-estimates-em-is-iterated-stacking)
-derives the identity.
+| field | object | bin | fractions $\rho$ | likelihood $L_{ik}$ | interim prior | response | selection | hierarchical posterior |
+|---|---|---|---|---|---|---|---|---|
+| astronomy | galaxy, star, planet | redshift bin, colour–magnitude cell, Hess-diagram cell | redshift distribution $n(z)$ (a density), occurrence rate, luminosity function | binned photo-$z$ likelihood; a star's likelihood in a kernel | prior of the photo-$z$ code; implicit training-set prior | — | completeness | posterior shrunk by the population |
+| gravitational waves | event | bin of masses, spins and redshift | population model; rates in bins | per-event weights: samples divided by the PE prior | PE prior | — | detection probability; $VT$ | population-informed (reweighted) event posterior |
+| particle-physics unfolding | event | true bin | true spectrum | row of the response matrix | simulation prior | response matrix; migration matrix with efficiency | efficiency and acceptance | — |
+| empirical Bayes | unit | support point | prior $g$, mixing distribution | likelihood matrix | — | — | truncation | empirical-Bayes posterior |
+| ML quantification | item | class | prevalence, class proportions | classifier posterior divided by the training prevalence | training prevalence | confusion matrix | — | corrected per-item posterior |
+| ecology and genetics | fish, turtle, read | stock, source, transcript | mixture proportions, stock proportions | genotype likelihood under each baseline; read compatibility | — | — | — | per-fish assignment probability |
+
+### Methods
+
+| field | point estimate of $\rho$ | posterior over $\rho$ | smoothness prior | {term}`stacking` |
+|---|---|---|---|---|
+| astronomy | EM | Dirichlet Gibbs sampling; mean-field VB (RAIL) | logistic GP, GP, random walk | stacked $p(z)$ |
+| gravitational waves | maximum hyper-likelihood | NUTS over binned log-rates | ICAR, GP, P-splines | — |
+| particle-physics unfolding | iterative Bayesian unfolding (D'Agostini, Richardson–Lucy) | Fully Bayesian Unfolding | Tikhonov, GP unfolding | — |
+| empirical Bayes | NPMLE (Kiefer–Wolfowitz) | variational Dirichlet posterior (ashr `mixVBEM`) | log-spline $g$ (Efron) | — |
+| ML quantification | EMQ, SLD, MLLS | BayesianCC, BayesianMAPLS, BayesianKDEy | ordinal Tikhonov penalties | probabilistic classify and count (PCC) |
+| ecology and genetics | conditional maximum likelihood (SPAM, ONCOR); EM (salmon) | BAYES, rubias, SourceTracker (Gibbs) | — | — |
+
+Each field's point estimator is EM, or a truncation or acceleration of it
+([theory](../how-it-works/theory.md#point-estimates-em-is-iterated-stacking)).
+
+## What binference adds in every field
+
+Each field page lists only what binference adds for that field. These additions hold
+for all of them:
+
+- binference samples the exact posterior of $\rho$ with NUTS or Gibbs, and flags
+  approximations ({doc}`engines guide <../guides/engines>`).
+- It divides the {term}`interim prior` out of posteriors and posterior samples
+  ({doc}`inputs guide <../guides/inputs>`).
+- It models {term}`selection` on the truth or on the measurement
+  ({doc}`selection guide <../guides/selection>`).
+- It infers a tallied {term}`response matrix` jointly with the fractions
+  ([binned measurements](../guides/inputs.md#binned-measurements-and-classifiers)).
+- It checks a whole analysis by simulation-based calibration
+  ({doc}`validation guide <../guides/validation>`).
 
 ## Pages
 
@@ -68,9 +87,9 @@ software
 
 These pages condense a census of the software and literature made while binference
 was designed. The census keeps every citation, the code read and the numerical checks.
-It is kept in the repository: ten research notes in
+The repository holds ten research notes in
 [`research_notes/`](https://github.com/joshspeagle/binference/tree/main/research_notes)
 and a synthesis report in
-[`reports/`](https://github.com/joshspeagle/binference/tree/main/reports). The report
-also appears in the design notes as {doc}`../design/landscape`. The notes record each
-project as it was in October 2026 and are not maintained.
+[`reports/`](https://github.com/joshspeagle/binference/tree/main/reports). The design
+notes include the report as {doc}`../design/landscape`. Nobody updates the notes; they
+describe each project as it was in October 2026.

@@ -11,5 +11,6 @@ spec
 test-plan
 implementation-plan
 landscape
+python-patterns
 brand
 ```
