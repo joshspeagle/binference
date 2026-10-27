@@ -19,14 +19,16 @@ $v_k$: widths in one dimension, areas or volumes on a grid, and one for a catego
 
 - The {term}`likelihood function` of object $i$ is $\ell_i(z)=p(d_i\mid z)$. Only its
   shape matters: a constant factor per object cancels from every population quantity.
-- The {term}`bin-averaged likelihood` is its average over each bin,
+- The {term}`bin-averaged likelihood` is its average over each bin in the
+  {term}`measure` coordinate $u=T(z)$. By default $u=z$; for logarithmic bins
+  $u=\log z$ ([measures](../guides/inputs.md#measures-flat-in-which-coordinate)). With
+  $|T(B_k)|$ the volume of bin $k$ in $u$ and $T'$ the derivative of $T$,
 
   $$
-  L_{ik}=\frac{1}{v_k}\int_{B_k}\ell_i(z)\,dz .
+  L_{ik}=\frac{1}{|T(B_k)|}\int_{B_k}\ell_i(z)\,T'(z)\,dz .
   $$ (eq-L)
 
-  With a {term}`measure` $u=T(z)$, such as $\log z$, binference averages in $u$
-  instead ([measures](../guides/inputs.md#measures-flat-in-which-coordinate)).
+  When $u=z$ this is $v_k^{-1}\int_{B_k}\ell_i(z)\,dz$.
 - Optional {term}`weights` $w_i>0$, with total $W=\sum_iw_i$, count identical objects.
   Without weights every $w_i=1$ and $W=N$.
 
@@ -35,13 +37,15 @@ is written $L_i$.
 
 ## The population model
 
-The population is a histogram: a density that is flat within each bin. Its
-{term}`population fractions <population fractions>` $\rho$ lie on the
-{term}`simplex` $\Delta^{K-1}$, and its density is
+The population is a histogram: a density that is flat within each bin in the measure
+coordinate $u$. Its {term}`population fractions <population fractions>` $\rho$ lie on
+the {term}`simplex` $\Delta^{K-1}$, and its density in $z$ is
 
 $$
-p(z\mid\rho)=\sum_k\rho_k\,\frac{\mathbb 1[z\in B_k]}{v_k}.
+p(z\mid\rho)=\sum_k\rho_k\,\frac{\mathbb 1[z\in B_k]\,T'(z)}{|T(B_k)|},
 $$
+
+which is $\rho_k/v_k$ on bin $k$ when $u=z$.
 
 The marginal likelihood of one object is then a dot product:
 

@@ -34,7 +34,7 @@ other indices are declared where they are used. The {doc}`glossary` defines the 
 |---|---|---|---|
 | $\rho_k$ | population fraction of bin $k$ | `result.samples`, `result.mean`, `est.rho` | [model](../how-it-works/model.md#the-population-model) |
 | $\Delta^{K-1}$ | the simplex: $K$ non-negative numbers that sum to one | | [model](../how-it-works/model.md#the-population-model) |
-| $p(z\mid\rho)$ | population density, $\rho_k/v_k$ on bin $k$ | `result.density()` | [model](../how-it-works/model.md#the-population-model) |
+| $p(z\mid\rho)$ | population density: flat in the measure coordinate within each bin; its average over bin $k$ is $\rho_k/v_k$ | `result.density()` (the bin averages) | [model](../how-it-works/model.md#the-population-model) |
 | $\lambda_k$ | rate: expected number of objects in bin $k$ | `result.rates`, `GammaRates` | [model](../how-it-works/model.md#selection-effects) |
 | $\Lambda$ | total expected number of objects | `result.total` | [model](../how-it-works/model.md#selection-effects) |
 | $k_i$ | bin (label) of object $i$ | `result.sample_assignments()` | [model](../how-it-works/model.md#the-augmented-form) |
@@ -42,7 +42,7 @@ other indices are declared where they are used. The {doc}`glossary` defines the 
 | $P(k_i=k\mid D)$ | hierarchical posterior of object $i$ | `result.assignment_probabilities()` | [model](../how-it-works/model.md#individual-objects) |
 | $n_k$ | realised histogram: observed objects in bin $k$ | `result.realized_counts()` | [model](../how-it-works/model.md#population-versus-realised-sample) |
 | $\hat n_k(\rho)$ | expected counts, $\sum_iw_ir_{ik}(\rho)$ | `model.expected_counts` | [model](../how-it-works/model.md#the-population-model) |
-| $g_k$ | KKT ratio; the gap is $\max_kg_k-1$ | `kkt_gap` | [point estimates](../how-it-works/point-estimates.md#the-certificate) |
+| $g_k$ | KKT ratio $W^{-1}\sum_iw_iL_{ik}/(L_i\cdot\hat\rho)$; with a flat prior and no selection the KKT gap is $\max_kg_k-1$ | `kkt_gap` | [point estimates](../how-it-works/point-estimates.md#the-certificate) |
 | $f$ | fraction of missing information | `model.missing_information` | [point estimates](../how-it-works/point-estimates.md#missing-information) |
 | $I_{\rm obs}$, $I_c$ | observed and complete-data information | | [point estimates](../how-it-works/point-estimates.md#missing-information) |
 

@@ -22,8 +22,8 @@ check. Engine options passed to `infer` rule out the engines that do not take th
 1. **Gibbs, where it mixes well.** Gibbs needs a {term}`conjugate prior` and integer
    weights. It is chosen in two cases.
    - A selection or response is inferred with the population. Gibbs is exact and fast
-     for these joint models. A selection smoothed across bins is not conjugate, so it
-     goes to NUTS.
+     for these joint models. Gibbs refuses a selection smoothed across bins, which is
+     not conjugate, so auto then tries Laplace and NUTS.
    - The [missing information](point-estimates.md#missing-information) $f$ at the most
      probable population is at most `gibbs_max_missing`. Auto computes that population
      first, with {class}`~binference.samplers.MAP`.
@@ -46,8 +46,12 @@ and the run passes the $\hat R$ and ESS limits of
 ([defaults](../reference/defaults.md#automatic-engine-choice)). If the extensions would
 need more than `max_gibbs_draws` draws per chain, auto discards the run and tries the
 next engine. This catches a jointly inferred selection or response that mixes much more
-slowly than $f$ predicts. An explicit `n_samples` fixes the length instead: auto then
-keeps Gibbs whatever length it would need, and does not extend it.
+slowly than $f$ predicts. Gibbs may be the last candidate, because no other engine
+takes the options given. Auto then keeps it even if it did not mix, and the reason says
+so.
+Two kinds of run are never extended. An explicit `n_samples` fixes the length: auto
+then keeps Gibbs whatever length it would need. A run that stores labels
+(`store_labels`) keeps the length it was given.
 
 Auto keeps Laplace even when its check fails in two cases. One is likelihoods with more
 than `nnz_limit` stored entries. The other is options that no later engine takes. Such a
@@ -218,6 +222,9 @@ time.
 :format: myst
 ```
 
+For Laplace the last column is the importance ESS per second, the effective number of
+independent draws among the weighted proposals, not a bulk ESS of a chain.
+
 What the table shows:
 
 - **NUTS** was within {glue:md}`nuts_err` reference standard deviations in every mean.
@@ -230,8 +237,9 @@ What the table shows:
   reached {glue:md}`g_low_g` ESS per second, against {glue:md}`g_low_nuts` for NUTS.
 - Above that threshold (from $f=$ {glue:md}`g_high_f`), Gibbs beat NUTS in only
   {glue:md}`g_high_wins` of {glue:md}`g_high_n` combinations. It reached
-  {glue:md}`g_high_g` ESS per second, against {glue:md}`g_high_nuts`. The run length
-  computed from $f$ makes up for the autocorrelation below the threshold.
+  {glue:md}`g_high_g` ESS per second, against {glue:md}`g_high_nuts`. The benchmark
+  ran Gibbs at its default length. Below the threshold, auto's run length from $f$ is
+  designed to make up for the autocorrelation; the benchmark did not measure it.
 - **Laplace** passed its check only with the {glue:md}`lap_priors` prior. There it
   agreed with the reference to {glue:md}`lap_err` standard deviations, in
   {glue:md}`lap_s` s. Where the check failed, its errors reached

@@ -77,7 +77,7 @@ The same number sets the speed of the Gibbs sampler
 For Dirichlet concentrations $\alpha_k\ge1$, the log posterior is concave on the
 simplex. binference then uses {term}`mix-SQP` {cite:p}`kim2020` instead of EM. Each
 iteration fits a quadratic model of the objective and minimises it under $\rho\ge0$, as
-a non-negative least-squares problem. It converges in a handful of iterations however
+a non-negative least-squares problem. It converges in tens of iterations however
 broad the likelihoods are, where EM can need thousands.
 
 A selection makes the likelihood non-concave in $\rho$. It stays concave in the
@@ -117,9 +117,17 @@ $$
 g_k=\frac1W\sum_i\frac{w_iL_{ik}}{L_i\cdot\hat\rho}\le1,\quad\text{with equality where }\hat\rho_k>0 .
 $$
 
-A prior or a selection adds the gradient of its terms to $g_k$. binference
-reports the optimality gap $\max_kg_k-1$, the {term}`KKT gap`, for every estimate from
-EM or mix-SQP (`PointEstimate.kkt_gap`). It is infinite where an object has zero
+In general, write $\partial_k$ for $\partial\log p(\rho\mid D)/\partial\rho_k$ at
+$\hat\rho$, including the prior's and the selection's terms. binference reports the
+optimality gap, the {term}`KKT gap`,
+
+$$
+\frac{\max\big(0,\ \max_k\partial_k-\hat\rho\cdot\partial\big)}{\max(W,1)},
+$$
+
+for every estimate from EM or mix-SQP (`PointEstimate.kkt_gap`). With a flat prior and
+no selection, $\partial_k=Wg_k$ and $\hat\rho\cdot\partial=W$, so the gap is
+$\max_kg_k-1$. It is infinite where an object has zero
 likelihood. A fixed point of EM is necessary for optimality but not sufficient; the gap
 checks the rest.
 

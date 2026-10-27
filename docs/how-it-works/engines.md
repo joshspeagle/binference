@@ -64,8 +64,9 @@ posterior is unchanged; only the coordinates the sampler moves in change.
 Centring is safe only where the data determine the scales $s_j$. Otherwise the centred
 coordinates have a funnel of their own. With few modes per hyperparameter, such as a
 handful of bins, the log-fractions $\eta$ constrain the hyperparameters weakly. NUTS
-then keeps every mode non-centred, when the median spread of $\log s_j$ given $\eta$
-exceeds a limit in the [defaults](../reference/defaults.md#engines). That spread comes
+then keeps non-centred ($\gamma_j=1$) every mode whose scale depends on an inferred
+hyperparameter. It does so when the median spread of $\log s_j$ given $\eta$ exceeds a
+limit in the [defaults](../reference/defaults.md#engines). That spread comes
 from the curvature of the log density in the hyperparameters at a fixed $\eta$. `info["centring"]`
 holds the weights $\gamma_j$ used, and results are reported in the non-centred
 coordinates.
@@ -186,7 +187,7 @@ mystnb:
       Gibbs traces of the slowest-mixing bin for the three marked widths: the first 400
       of 4,000 iterations of one chain. Each label gives the predicted autocorrelation
       time $(1+f)/(1-f)$ and the time measured on all 4,000 iterations. The prediction
-      describes the slowest direction, so it bounds the time of any one bin. A run of
+      approximately predicts the slowest direction, not any one bin. A run of
       about 20 autocorrelation times, as at 1 bin width, underestimates the measured
       time.
     name: fig-gibbs-traces
@@ -253,8 +254,9 @@ current mean, a further approximation. Iterations stop when the largest change o
 below a tolerance relative to its largest value.
 
 Factorising the labels from the population ignores exactly the coupling that broad
-likelihoods create. Mean-field VB's intervals are therefore too narrow, by a factor of
-several when $f$ is near one. Every result is flagged approximate, with a warning.
+likelihoods create. Mean-field VB's intervals are therefore too narrow. In a slow test
+with $f$ above 0.9, its standard deviations were less than half those of NUTS
+([validation](validation.md#the-statistical-tests)). Every result is flagged approximate, with a warning.
 
 ## Bootstrap
 
