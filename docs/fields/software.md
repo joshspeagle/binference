@@ -1,19 +1,17 @@
 # The software landscape
 
-This page compares the tools closest to binference's scope, across fields, and records
-what binference took from the design of other scientific Python packages. The field
-pages describe each tool in its context; the {doc}`index <index>` gives the date of the
-survey.
+Which tools come closest to binference, across fields? This page compares them. It
+also lists the patterns binference took from other scientific Python packages. The
+field pages describe each tool in its context. The {doc}`index <index>` gives the date
+of the survey.
 
 ## Comparison
 
-"Generic input" means an arbitrary per-object likelihood matrix, or posterior samples
-with a declared interim prior. No maintained, general-purpose Python package found in
-the census takes such input and returns population fractions with sampled uncertainty
-and smoothness, selection and interim-prior extensions. The maintained tools restrict
-their inputs to one field's data products, stop at point estimates, or are written in R
-or Julia; the tools that implement the full hierarchical model with sampled uncertainty
-are paper code.
+"Generic input" here means an arbitrary per-object likelihood matrix, or posterior
+samples with a declared interim prior. The census found no maintained, general Python
+package that takes such input and samples the population's posterior. The maintained
+tools take one field's data products, stop at point estimates, or are written in R or
+Julia. The tools that sample the full hierarchical model are paper code.
 
 | tool (field) | language, licence, status | per-object input | engine; population uncertainty | selection · smoothness · interim prior |
 |---|---|---|---|---|
@@ -40,64 +38,41 @@ are paper code.
 | [salmon](https://github.com/COMBINE-lab/salmon), [kallisto](https://github.com/pachterlab/kallisto) (RNA-seq) | Rust and C++, BSD | reads in equivalence classes | EM/VBEM; bootstrap or Gibbs replicates | none |
 | [density-deconvolution](https://github.com/bayesiains/density-deconvolution), [NEB](https://github.com/MaximeVandegar/NEB), [neuralG](https://github.com/shijiew97/neuralG) (neural) | PyTorch research code, 2020–2026; several unlicensed; no tests | Gaussian noise, Monte Carlo samples or grids | marginal-likelihood training; point estimates | none · none · implicit flat prior |
 
-For comparison, binference is a Python package (NumPy and SciPy core) that takes
-likelihood matrices (dense or sparse), posteriors and posterior samples with an interim
-prior, Gaussian measurements, likelihood functions, and binned counts with a response;
-samples the posterior exactly with NUTS or Gibbs, or approximates it with Laplace, VB
-and bootstrap engines whose results are flagged when approximate; and supports selection on the truth or on the
-measurement (fixed, or inferred from injections), Dirichlet-family and logistic
-smoothness priors, and rates ({doc}`../guides/index`).
+The {doc}`guides <../guides/index>` describe binference's own inputs, engines, priors and
+selection.
 
 ## Notes on the landscape
 
-- **Durability is the recurring failure.** CRAN archived rubias because the
-  maintainer's email bounced; PyFBU died with Theano; several neural repositories carry
-  no licence; and emcee kept its core maintainable by moving MPI pools and parallel
-  tempering into other packages because "there aren't enough resources to maintain"
-  them.
+- **Durability is the recurring failure.** CRAN archived rubias because the maintainer's
+  email bounced. PyFBU died with Theano. Several neural repositories carry no licence.
+  emcee moved MPI pools and parallel tempering into other packages, because "there
+  aren't enough resources to maintain" them.
 - **Tests check that code runs, not that intervals cover.** RAIL's summarizer tests are
-  end-to-end smoke tests, gppop's test directory is empty, FIGARO's suite is 54 lines,
-  and deconvolveR and npeb have no tests.
+  end-to-end smoke tests. gppop's test directory is empty, and FIGARO's suite is 54
+  lines. deconvolveR and npeb have no tests.
 - **Uncertainty is where the tools differ most.** Most engines converge to the same
-  maximum; their error bars mean different things. Mean-field VB under-covers, convex
-  NPMLE solvers return none, bootstrap regions measure an estimator's variability, and
-  Gibbs and NUTS sample the exact posterior ({doc}`simplex-priors` compares the engines).
-- **Scale is limited by memory**, as for the dense likelihood matrix of 1.36 million Gaia
-  stars on a $100\times100$ grid ({doc}`empirical-bayes`). Collapsing identical
-  rows (salmon's equivalence classes, Empirikos's multiplicities), sparse storage
-  (npeb's log-probability threshold) and computing each object's likelihood once on
-  fixed bins (Starlight) are the established remedies; binference offers the first two
-  as `lk.compress()` and sparse `Likelihoods` ({doc}`../guides/performance`).
+  maximum, but their error bars mean different things. Mean-field VB under-covers.
+  Convex NPMLE solvers return none. Bootstrap regions measure an estimator's
+  variability. Gibbs and NUTS sample the exact posterior ({doc}`simplex-priors`).
+- **Memory limits scale.** The established remedies collapse identical rows (salmon,
+  Empirikos.jl), store sparse matrices (npeb), or compute each likelihood once on fixed
+  bins (Starlight). binference offers the first two
+  ([performance guide](../guides/performance.md)).
 
-## Lessons from scientific Python packages
+## Patterns from scientific Python packages
 
-The interface follows patterns that users of other inference packages praise:
+| package | pattern | in binference |
+|---|---|---|
+| emcee {cite:p}`foremanmackey2013,foremanmackey2019` | plain inputs; a sampler that runs again to continue | a second `engine.run(n)` continues the chains without a new warm-up |
+| scikit-learn {cite:p}`buitinck2013` | hyperparameters in the constructor, `fit` returning `self`, `get_params` | {class}`~binference.PopulationEstimator`, without a scikit-learn dependency ([scikit-learn style](../guides/engines.md#scikit-learn-style)) |
+| dynesty, nautilus | configured objects, priors declared as objects | priors, selections and responses passed to one `infer` call |
+| UltraNest | output that says which criteria were met | `result.check()` lists failed diagnostics and remedies |
+| ArviZ 1.x | results that other tools read | `result.to_datatree()` in ArviZ's layout |
+| SPEC 7 {cite:p}`vanderwalt2023` | one `rng` argument, a seed or a `Generator` | a separate stream per chain; legacy `RandomState` rejected |
+| tinygp | the model as functions other samplers can call | {class}`~binference.PopulationModel`; `PopulationResult.from_samples` wraps outside draws |
 
-- **emcee**: plain inputs and a sampler object that can be run again to continue
-  {cite:p}`foremanmackey2013,foremanmackey2019`. binference's engines resume: a second
-  `engine.run(n)` continues the chains without a new warm-up.
-- **scikit-learn**: hyperparameters in the constructor, `fit` returning `self`, learned
-  attributes with a trailing underscore, `get_params` and `set_params` {cite:p}`buitinck2013`. {class}`~binference.PopulationEstimator` follows these conventions without
-  depending on scikit-learn. Full compliance does not fit, because the input is a
-  likelihood matrix rather than a feature matrix.
-- **dynesty and nautilus**: configured objects instead of piles of keyword arguments,
-  and priors declared as objects. binference's priors, selections and responses are
-  objects passed to one `infer` call.
-- **UltraNest**: output that says which criteria were met. `result.check()` lists the
-  diagnostics that failed and, where it can, a remedy ({doc}`../guides/results`).
-- **ArviZ 1.x**: results that other tools read. `result.to_datatree()` returns an xarray
-  `DataTree` in ArviZ's layout, and `result.samples` stays a plain array.
-- **SPEC 7** {cite:p}`vanderwalt2023`: one `rng` argument that accepts a seed or a `numpy.random.Generator`, with
-  a separate stream per chain; binference rejects legacy `RandomState` objects.
-- **tinygp**: expose the model as functions that other samplers can call.
-  {class}`~binference.PopulationModel` provides the log posterior and its gradient in
-  unconstrained coordinates and a prior transform for nested samplers, and
-  `PopulationResult.from_samples` wraps draws from any sampler.
-
-Validation follows the statistical-software literature: exact posteriors for small
-problems, Geweke's "getting it right" test for the Gibbs sampler, and simulation-based
-calibration {cite:p}`talts2018` that ranks the joint log-likelihood as well as each
-fraction, because parameter ranks alone "could never detect large classes of problems
-including when the posterior is equal to the prior" {cite:p}`modrak2025`. binference
-ships the exact posterior, simulation-based calibration and coverage as user-facing
-tools ({doc}`../guides/validation`).
+binference's validation uses exact posteriors, Geweke's "getting it right" test and
+simulation-based calibration {cite:p}`talts2018`. Its calibration ranks the joint log-likelihood as well as each fraction.
+Parameter ranks alone "could never detect large classes of problems including when the
+posterior is equal to the prior" {cite:p}`modrak2025`. The
+{doc}`validation guide <../guides/validation>` describes binference's tools.
