@@ -39,4 +39,4 @@ mock = binference.simulate.mock_1d(500, binference.Bins.linear(0, 3, 10), rng=0)
 print(binference.infer(mock.likelihoods, method="map").rho.round(3))
 ```
 
-Then work through the [quick-start tutorial](../tutorials/01_quickstart).
+Then work through the [quick-start tutorial](../tutorials/gaussian-quickstart).

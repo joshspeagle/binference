@@ -31,11 +31,11 @@ The same model has been written down separately in several fields:
 
 | field | name there | objects | bins | tutorial |
 |---|---|---|---|---|
-| astronomy | redshift distributions $n(z)$, population inference with selection | galaxies, stars, black holes | redshift, colour–magnitude cells, mass | [quick start](https://joshspeagle.github.io/binference/tutorials/01_quickstart.html), [populations with selection](https://joshspeagle.github.io/binference/tutorials/11_populations_with_selection.html) |
-| particle physics | unfolding | events | bins of the true spectrum | [categories and unfolding](https://joshspeagle.github.io/binference/tutorials/06_categories_unfolding.html) |
-| statistics | empirical Bayes deconvolution, $g$-modelling, NPMLE | units with noisy estimates | a grid of effect sizes | [empirical Bayes](https://joshspeagle.github.io/binference/tutorials/09_empirical_bayes.html) |
-| machine learning | quantification under label shift | items with classifier scores | classes | [categories and unfolding](https://joshspeagle.github.io/binference/tutorials/06_categories_unfolding.html) |
-| ecology | mixed-stock analysis | individuals with genotypes | source populations | [mixed stocks](https://joshspeagle.github.io/binference/tutorials/10_mixed_stocks.html) |
+| astronomy | redshift distributions $n(z)$, population inference with selection | galaxies, stars, black holes | redshift, colour–magnitude cells, mass | [quick start](https://joshspeagle.github.io/binference/tutorials/gaussian-quickstart.html), [posterior samples](https://joshspeagle.github.io/binference/tutorials/posterior-samples.html), [selection measured by injections](https://joshspeagle.github.io/binference/tutorials/selection-from-injections.html) |
+| particle physics | unfolding | events | bins of the true spectrum | [unfolding](https://joshspeagle.github.io/binference/tutorials/unfolding.html) |
+| statistics | empirical Bayes deconvolution, $g$-modelling, NPMLE | units with noisy estimates | a grid of effect sizes | [empirical Bayes](https://joshspeagle.github.io/binference/tutorials/empirical-bayes.html) |
+| machine learning | quantification under label shift | items with classifier scores | classes | [classifier outputs](https://joshspeagle.github.io/binference/tutorials/classifier-outputs.html) |
+| ecology | mixed-stock analysis | individuals with genotypes | source populations | [mixed stocks](https://joshspeagle.github.io/binference/tutorials/mixed-stocks.html) |
 
 Adding up the per-object posteriors computed under an interim prior, the usual
 shortcut, is exactly one EM step from that prior

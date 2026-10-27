@@ -53,13 +53,13 @@ the population, with the conditions under which each is exact.
   proportions. This is BayesianCC.
 - **Genotype likelihoods** under each baseline population are a likelihood matrix on
   `Bins.categories(populations)`: `Likelihoods(L, bins)` ({doc}`mixed-stock tutorial
-  <../tutorials/10_mixed_stocks>`).
+  <../tutorials/mixed-stocks>`).
 - **PCC** is stacking, one EM step from the training prevalence (`lk.stack()`).
 - **Ordinal classes** are ordered bins, so the smoothness priors apply
   (`LogisticRandomWalk`), the Bayesian counterpart of the first- and second-difference
   penalties of ordinal quantifiers.
 
-The {doc}`categories tutorial <../tutorials/06_categories_unfolding>` runs both routes on
+The {doc}`classifier tutorial <../tutorials/classifier-outputs>` runs both routes on
 a mock classifier under prior shift.
 
 ## Methods and software

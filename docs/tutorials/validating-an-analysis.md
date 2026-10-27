@@ -1,0 +1,169 @@
+---
+jupytext:
+  text_representation:
+    format_name: myst
+kernelspec:
+  display_name: Python 3
+  name: python3
+---
+
+# Validating an analysis
+
+Convergence diagnostics say whether a sampler explored the posterior. They do not say
+whether the posterior is calibrated. This tutorial checks a whole pipeline with
+binference's validation tools: an exact reference for a small problem,
+{term}`simulation-based calibration` (SBC), and {term}`coverage`. It also shows what a
+failure looks like.
+
+```{code-cell} python
+:tags: [remove-cell]
+
+# figures 6 in wide with 17 pt text keep text above 12 px on a 390 px phone screen
+import matplotlib.pyplot as plt
+
+plt.rcParams.update({"figure.figsize": (6, 3.4), "font.size": 17,
+                     "figure.constrained_layout.use": True})
+```
+
+```{code-cell} python
+import warnings
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+import binference
+from binference import priors
+from binference.validation import coverage, exact_posterior, sbc
+```
+
+## Exact posteriors
+
+With three bins, the posterior can be integrated on a grid. Here the exact posterior is
+compared with NUTS and Gibbs, on data with a selection:
+
+```{code-cell} python
+bins = binference.Bins([0.0, 1.0, 2.0, 3.0])
+S = np.array([0.9, 0.5, 0.25])
+mock = binference.simulate.mock_1d(250, bins, density=np.array([0.4, 0.35, 0.25]),
+                               noise=(0.3, 0.8), selection=S, rng=777)
+exact = exact_posterior(mock.likelihoods, priors.Dirichlet(1.0))
+nuts = binference.infer(mock.likelihoods, method="nuts", rng=1)
+gibbs = binference.infer(mock.likelihoods, method="gibbs", rng=1, n_samples=4000)
+print("exact mean", exact.mean.round(4), " sd", exact.std.round(4))
+print("NUTS  mean", nuts.mean.round(4), " sd", nuts.std.round(4))
+print("Gibbs mean", gibbs.mean.round(4), " sd", gibbs.std.round(4))
+```
+
+binference's test suite makes these comparisons for every engine, prior family and
+selection mode.
+
+## Simulation-based calibration
+
+SBC {cite:p}`talts2018` checks the whole loop: prior, simulator and inference. Draw a
+population from the prior, simulate a catalogue, fit it, and record where the true value
+falls among the posterior draws. Over many repetitions these ranks are uniform when the
+pipeline is calibrated. Departures from uniform ranks reveal errors.
+
+```{code-cell} python
+prior = priors.Dirichlet(1.0)
+grid = binference.Bins.linear(0.0, 1.0, 4)
+simulate = binference.simulate.prior_predictive(prior, grid, n_objects=50, noise=0.25)
+
+def fit_gibbs(lk, rng):
+    return binference.infer(lk, prior, method="gibbs", rng=rng, n_chains=4,
+                        n_warmup=100, n_samples=500, check=False)
+
+result = sbc(simulate, fit_gibbs, n_simulations=150, n_draws=19, rng=0)
+print("uniformity p-values:", {n: round(float(v), 3) for n, v in zip(result.names, result.pvalues(10))})
+```
+
+```{code-cell} python
+---
+mystnb:
+  figure:
+    caption: SBC rank histograms of the four fractions and of the log-likelihood of the
+      true population (last panel), for Gibbs. The grey band holds 99% of histograms of
+      uniform ranks.
+  image:
+    alt: Five small histograms of ranks from 0 to 19. The bars stay within or at the
+      edge of the grey bands, so the histograms are flat within the noise.
+---
+fig = plt.figure(figsize=(6, 5.4), layout="tight")
+result.plot(fig=fig)
+for ax in fig.axes:
+    ax.title.set_fontsize(17)
+```
+
+```{code-cell} python
+:tags: [remove-cell]
+
+assert result.pvalues(10).min() > 0.01
+```
+
+The rank histograms sit inside the band expected for uniform ranks. The last panel
+ranks the log-likelihood of the true population. It is sensitive to errors in the
+correlations between bins, which per-bin ranks can miss.
+
+### What a failure looks like
+
+{term}`Mean-field VB <mean-field VB>` is over-confident, so the true value falls
+outside the bulk of its draws too often. The rank histograms of the fractions become
+U-shaped:
+
+```{code-cell} python
+def fit_vb(lk, rng):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", binference.ApproximationWarning)
+        return binference.infer(lk, prior, method="vb", rng=rng, n_samples=1000)
+
+bad = sbc(simulate, fit_vb, n_simulations=150, n_draws=19, rng=0)
+print("uniformity p-values:", {n: round(float(v), 4) for n, v in zip(bad.names, bad.pvalues(10))})
+```
+
+```{code-cell} python
+---
+mystnb:
+  figure:
+    caption: SBC rank histograms for mean-field VB. The grey band holds 99% of
+      histograms of uniform ranks.
+  image:
+    alt: Five small histograms of ranks from 0 to 19. The four for the fractions are
+      shaped like a U, with the lowest and highest ranks far above the grey band. The
+      last, for the log-likelihood, piles up at the lowest ranks.
+---
+fig = plt.figure(figsize=(6, 5.4), layout="tight")
+bad.plot(fig=fig)
+for ax in fig.axes:
+    ax.title.set_fontsize(17)
+```
+
+```{code-cell} python
+:tags: [remove-cell]
+
+assert bad.pvalues(10).max() < 1e-3
+```
+
+## Coverage
+
+Coverage asks the frequentist question directly: how often do central
+{term}`credible intervals <credible interval>` contain the truth? With data simulated
+from the prior, Bayesian intervals have their nominal coverage on average. Coverage can
+be checked for any derived quantity, here the population mean:
+
+```{code-cell} python
+centers = grid.centers
+cov = coverage(simulate, fit_gibbs, n_simulations=150, levels=(0.5, 0.9),
+               functionals={"mean": lambda rho: rho @ centers}, rng=1)
+print("levels:", cov.levels)
+print("coverage per quantity (rows = levels):")
+print(np.round(cov.coverage_rates(), 2))
+print("standard error:", cov.stderr().ravel().round(3))
+```
+
+## Validating your own pipeline
+
+Write a simulator that reproduces your real catalogue: the same number of objects, the
+same measurement errors and the same selection. `prior_predictive` builds one for
+Gaussian errors. Then call `sbc` or `coverage` with the settings you use for the real
+fit. A few hundred simulations of a scaled-down problem usually expose errors in the
+likelihoods, the selection model or the sampler settings.

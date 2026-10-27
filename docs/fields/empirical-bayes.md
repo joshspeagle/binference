@@ -37,7 +37,7 @@ stars as an application.
 
 ## In binference's terms
 
-The {doc}`empirical Bayes tutorial <../tutorials/09_empirical_bayes>` works through
+The {doc}`empirical Bayes tutorial <../tutorials/empirical-bayes>` works through
 the NPMLE, the posterior over $g$ and the shrinkage estimates on simulated data.
 
 The likelihood matrix on a grid is binference's $L_{ik}$, and $w$ is $\rho$

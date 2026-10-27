@@ -35,7 +35,7 @@ GP on about $8\times10^4$ bins in four dimensions.
 
 ## In binference's terms
 
-The {doc}`selection tutorial <../tutorials/11_populations_with_selection>` infers a
+The {doc}`selection tutorial <../tutorials/selection-from-injections>` infers a
 mass distribution with a selection measured by injections.
 
 - **Per-event samples** become a likelihood matrix through

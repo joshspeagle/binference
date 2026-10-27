@@ -178,7 +178,7 @@ The total inherits the prior on the fractions: with $p(\Lambda)\propto
 1/\Lambda$, the default flat Dirichlet on $\rho$ is a prior on the rates
 proportional to $\Lambda^{-K}$, which pulls the total down when it is poorly
 determined, for example when some bins hold few detections. Check a total's
-calibration on simulations ({doc}`/tutorials/07_validation`) before quoting it
+calibration on simulations ({doc}`/tutorials/validating-an-analysis`) before quoting it
 from such data.
 
 ```python

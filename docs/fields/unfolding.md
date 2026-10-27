@@ -55,7 +55,7 @@ spectrum is ({doc}`../guides/priors`). The total and the expected counts per tru
 bin come from `result.total` and `result.rates`. When there are more measured bins than
 true bins, `result.check()` compares the measured counts with those each posterior draw
 predicts through the response: a folding check of the fit. The {doc}`unfolding tutorial
-<../tutorials/06_categories_unfolding>` unfolds a smeared spectrum with a Dirichlet and a
+<../tutorials/unfolding>` unfolds a smeared spectrum with a Dirichlet and a
 Gaussian-process prior and compares both with matrix inversion.
 
 ## Methods and software

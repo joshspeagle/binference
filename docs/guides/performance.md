@@ -43,7 +43,7 @@ The engines spend these differently:
    linear algebra. The random streams are the same as in a serial run, so the
    draws agree up to rounding. On four cores of a shared container, the
    144-bin 2-D fit of the {doc}`two-dimensional tutorial
-   </tutorials/08_two_dimensions>` (3000 objects, a Gaussian-process prior
+   </tutorials/two-dimensions>` (3000 objects, a Gaussian-process prior
    with 10 sines per axis, four chains of 500 warm-up and 500 sampling
    iterations) took 28 s. In
    scripts on macOS and Windows, put the call under

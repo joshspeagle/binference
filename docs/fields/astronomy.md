@@ -70,9 +70,9 @@ form of the same model: under the scale-free prior $p(\Lambda)\propto1/\Lambda$ 
 total it reduces to the normalised likelihood in fractions {cite:p}`mandel2019`,
 which is how binference obtains `result.total` and `result.rates` from a fit of
 fractions ({doc}`../guides/selection`). The {doc}`quick start
-<../tutorials/01_quickstart>` fits a redshift distribution, the {doc}`selection tutorial
-<../tutorials/05_selection>` an occurrence rate, and the {doc}`two-dimensional tutorial
-<../tutorials/08_two_dimensions>` a population on a grid.
+<../tutorials/gaussian-quickstart>` fits a redshift distribution, the {doc}`selection tutorial
+<../tutorials/selection-effects>` an occurrence rate, and the {doc}`two-dimensional tutorial
+<../tutorials/two-dimensions>` a population on a grid.
 
 ## Methods and software
 
