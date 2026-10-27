@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.abspath("../src"))
 sys.path.insert(0, os.path.abspath("_ext"))
@@ -47,7 +48,7 @@ myst_enable_extensions = ["amsmath", "colon_fence", "deflist", "dollarmath"]
 myst_heading_anchors = 3
 nb_execution_mode = os.environ.get("BINFERENCE_DOCS_EXECUTE", "cache")
 # keyed on the plot style too: a new style re-executes the tutorials
-_style = hashlib.sha256(open(os.environ["MATPLOTLIBRC"], "rb").read()).hexdigest()[:12]
+_style = hashlib.sha256(Path(os.environ["MATPLOTLIBRC"]).read_bytes()).hexdigest()[:12]
 nb_execution_cache_path = os.path.abspath(f"_build/.jupyter_cache/{_style}")
 nb_execution_timeout = 900
 nb_execution_raise_on_error = True
