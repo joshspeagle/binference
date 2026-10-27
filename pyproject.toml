@@ -49,6 +49,7 @@ docs = [
     "sphinx-design>=0.5",
     "matplotlib>=3.9.2",
     "ipykernel>=6",
+    "fonttools>=4.47",
 ]
 dev = ["binference[test,docs,plot,xarray]", "pre-commit>=3"]
 all = ["binference[plot,xarray]"]

@@ -100,6 +100,8 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - run: pip install -e ".[docs,xarray]"
+      - name: Check the brand assets and tokens against docs/_scripts/brand.py
+        run: python docs/_scripts/brand.py --check
       - name: Run the code of the README, installation page and user guide
         run: python docs/_scripts/run_snippets.py README.md docs/install.md docs/user-guide/*.md
       # Executed notebooks are reused until the tutorials, the package or the docs

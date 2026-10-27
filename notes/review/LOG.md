@@ -405,3 +405,9 @@ Append-only. One entry per working session (or per step within a long session).
 ## 2026-10-27: walkthrough paused for the documentation site
 
 - Josh paused the walkthrough at step 3.1 (briefing published, his questions open) to build the full documentation site first, following the process used for dorothy, brutus and GSPICE and the design language of joshspeagle.com and the AstroStat U of T site: a design sheet, a logo and design principles agreed with him, then the pages written autonomously through tracking issues and pull requests that Claude merges. Reading the docs is meant to give him the background for resuming at 3.1. The 3.1 page is to be updated against the code once the docs land.
+
+## 2026-10-27: docs phase (#99), audit to design lock
+
+- Research on dorothy, brutus, GSPICE and Josh's two websites; one process for all: audit, content plan, design rounds, a committed design document, then the build. Decisions #91 (process, Sphinx with a local theme, an independent identity, students first) and #92 (an explicit MAP algorithm runs or raises).
+- Audit (three agents): 36 wrong or stale statements and 3 code bugs; a flat menu of 11 pages and no concepts layer; 26 notebook figures without alt text. Fixed on the current site: #100 (PR #101, code bugs) and #102 (PR #104, the statements; tutorial 08's E-BFMI warning fixed with 10 sines per axis). Deferred: #103 (`n_samples` under auto, the 2-D GP basis, `auto_reason`).
+- Content plan (seven sections, reader paths, 20 visuals V-1 to V-20) and logo rounds: seven directions, then three combining Josh's favourites; Josh chose the Overlay b (#93) and locked the round-2 design sheet with every default (#94). The design lives in `docs/design/brand.md` and `docs/_scripts/brand.py`.
