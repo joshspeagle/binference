@@ -80,6 +80,13 @@ start/install
 ```
 
 ```{toctree}
+:caption: Concepts
+:hidden:
+
+concepts/index
+```
+
+```{toctree}
 :caption: Tutorials
 :hidden:
 
