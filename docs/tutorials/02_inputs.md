@@ -40,7 +40,7 @@ The correct way divides the interim prior out. The tempting way feeds the
 posteriors in as if they were likelihoods:
 
 ```{code-cell} python
-kw = dict(rng=1, n_samples=500, n_warmup=500)   # shorter runs than the default, for speed
+kw = dict(rng=1, n_samples=600, n_warmup=500)   # shorter runs than the default, for speed
 right = binference.infer(binference.Likelihoods.from_table(P, bins, interim=interim), **kw)
 wrong = binference.infer(binference.Likelihoods(P, bins), **kw)
 ```
@@ -97,8 +97,11 @@ shift = np.abs(exact.mean - from_s.mean) / exact.std
 print("largest shift between the two fits:", shift.max().round(2), "posterior sd")
 ```
 
-Use more samples per object, or coarser bins, when the median effective
-sample size is small. binference warns below 20.
+The fit from samples warns about this noise: the Monte Carlo variance of the
+likelihoods at the fitted population, $\sum_iV_i$, is above the limit of 1. `from_s.check()` returns the same message.
+[Posterior samples](../user-guide/inputs.md#posterior-samples) in the user guide
+defines $V_i$ and the warning for objects with few effective samples. To reduce
+the noise, use more samples per object, coarser bins, or `floor=`.
 
 ## Unequal bins: masses versus densities
 

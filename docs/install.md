@@ -26,7 +26,7 @@ pip install -e ".[dev]"
 | `xarray` | xarray, for `result.to_datatree()` |
 | `test` | pytest, coverage and matplotlib (for the plotting tests) |
 | `docs` | Sphinx and the notebook toolchain used to build these pages |
-| `dev` | all of the above plus ruff and pre-commit |
+| `dev` | all of the above plus pre-commit, whose hooks run ruff |
 | `all` | `plot` and `xarray` |
 
 Check the installation:

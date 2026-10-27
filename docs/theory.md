@@ -131,8 +131,10 @@ g_k=\frac1W\sum_i\frac{w_iL_{ik}}{L_i\cdot\hat\rho}\le1,\quad\text{with equality
 $$
 
 so binference reports the **optimality gap** $\max_kg_k-1$ for every point
-estimate (`PointEstimate.kkt_gap`); it is infinite where an object has zero
-likelihood. For rates, with $G$ the gradient of the log posterior in $\lambda$,
+estimate found on the simplex (`PointEstimate.kkt_gap`); it is infinite where an
+object has zero likelihood. An estimate found by L-BFGS in unconstrained
+coordinates has no gap (`kkt_gap` is NaN); its largest absolute gradient is in
+`est.info["grad_norm"]`. For rates, with $G$ the gradient of the log posterior in $\lambda$,
 the conditions are $G_k\le0$ with equality where $\hat\lambda_k>0$, and the gap is
 the larger of $\max_kG_k/S_k$ and $|\lambda\cdot G|/(S\cdot\lambda)$, so it does
 not depend on the exposure's units. `MAP(tol=)` bounds this gap for EM and

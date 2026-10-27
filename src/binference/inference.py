@@ -304,14 +304,16 @@ def infer(
     method : {"auto", "nuts", "gibbs", "map", "em", "laplace", "vb", "bootstrap"}
         Inference engine. ``"auto"`` (default) picks Gibbs, Laplace or NUTS from
         rules set by the benchmark matrix (:class:`Auto`, DECISIONS #88); its
-        options ``target_ess``, ``gibbs_max_missing`` and ``nnz_limit`` go in
-        ``engine_kwargs``, and the choice and its reason are in
+        options ``target_ess``, ``gibbs_max_missing``, ``max_gibbs_draws`` and
+        ``nnz_limit`` go in ``engine_kwargs``, and the choice and its reason are in
         ``result.info["auto_method"]`` and ``result.info["auto_reason"]``.
         ``"nuts"`` samples the exact posterior with any prior; ``"em"`` is MAP by
         EM on the simplex (``algorithm="em"``) rather than mix-SQP; it needs a
         conjugate prior, and a jointly inferred selection or response runs L-BFGS.
     n_samples : int, optional
-        Draws per chain (NUTS, Gibbs) or in total (Laplace, VB, bootstrap).
+        Draws per chain (NUTS, Gibbs, and ``"auto"``) or in total (Laplace, VB,
+        bootstrap). Under ``"auto"`` it fixes the run length: Gibbs is then not
+        extended until it mixes.
     rng : int, numpy.random.Generator, or None
         Random number generator or seed (SPEC 7).
     progress : bool

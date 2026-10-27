@@ -1,8 +1,10 @@
 # Tutorials
 
 These notebooks are executed every time the documentation is built, so the
-outputs below are exactly what the code produces. Each takes about a minute
-or less on a laptop.
+outputs below are exactly what the code produces. Each ran in 23 s to 91 s
+on a shared four-core container with one BLAS thread per process. The
+{doc}`two-dimensional tutorial <08_two_dimensions>` runs its four chains in
+parallel; the others use one core.
 
 ```{toctree}
 :maxdepth: 1

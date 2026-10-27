@@ -43,7 +43,7 @@ Install binference and run your first fit.
 :::{grid-item-card} Tutorials
 :link: tutorials/index
 :link-type: doc
-Executed, end-to-end examples: n(z), engines, priors, selection, unfolding, validation.
+Executed, end-to-end examples from several fields.
 :::
 
 :::{grid-item-card} User guide

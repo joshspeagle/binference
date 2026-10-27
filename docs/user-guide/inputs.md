@@ -65,7 +65,7 @@ print(masked.K, masked.shape, masked.index([[0.5, 0.5], [0.5, 1.5]]))
 ```
 
 Smoothness priors (`LogisticRandomWalk`, `LogisticGP`) do not yet accept
-masked grids.
+masked grids ({doc}`priors`).
 
 ### Within-bin shape and internal resolution: `Basis`
 
@@ -83,7 +83,8 @@ $j$ (`basis.matrix`).
 
 Pass the basis wherever bins go. Constructors that know the likelihood within
 bins (`from_gaussian`, `from_density`, `from_samples`) integrate it against
-each component on `oversample` quadrature cells per component (8 for hats);
+each component on `oversample` quadrature cells per component and axis (for hats: 8
+in 1-D, 4 in 2-D and 2 beyond);
 per-bin inputs (arrays, `from_table`, `from_log`, and `lk.on_basis(basis)` for
 anything else, such as `from_binned`) take the likelihood as flat within each
 bin. A selection function given as a callable is averaged with each component

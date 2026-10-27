@@ -41,10 +41,12 @@ The engines spend these differently:
 1. **Run chains in parallel.** `binference.infer(lk, n_jobs=-1)` uses one process
    per chain and gives each process an equal share of the cores for its
    linear algebra. The random streams are the same as in a serial run, so the
-   draws agree up to rounding. On four cores, the 144-bin 2-D fit of the
-   {doc}`last tutorial </tutorials/08_two_dimensions>` (3000 objects, a
-   Gaussian-process prior, 4 × 1000 iterations) takes about 30 s. In scripts
-   on macOS and Windows, put the call under `if __name__ == "__main__":`.
+   draws agree up to rounding. On four cores of a shared container, the
+   144-bin 2-D fit of the {doc}`two-dimensional tutorial
+   </tutorials/08_two_dimensions>` (3000 objects, a Gaussian-process prior,
+   four chains of 500 warm-up and 500 sampling iterations) took 31 s. In
+   scripts on macOS and Windows, put the call under
+   `if __name__ == "__main__":`.
 2. **Use sparse likelihoods.** Narrow PDFs on many bins are mostly zeros.
    `lk.to_sparse(rtol=1e-8)` drops entries below `rtol` times each row's
    maximum. On four cores with banded rows ($N=2\times10^5$, $K=100$ and

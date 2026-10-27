@@ -132,6 +132,8 @@ fine control, generator-style sampling or resuming a run.
    autocorr_time
    autocorr_function
    psis
+   psis_threshold
+   importance_ess
    kkt_gap
    missing_information
 ```
@@ -195,10 +197,11 @@ fine control, generator-style sampling or resuming a run.
 
    save_result
    load_result
+   result_to_dict
    to_datatree
 ```
 
-## Warnings
+## Warnings and errors
 
 ```{eval-rst}
 .. currentmodule:: binference.warnings
@@ -211,4 +214,5 @@ fine control, generator-style sampling or resuming a run.
    InputWarning
    ConvergenceWarning
    ApproximationWarning
+   DiagnosticsError
 ```

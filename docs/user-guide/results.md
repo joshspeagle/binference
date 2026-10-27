@@ -12,7 +12,7 @@ import binference
 
 mock = binference.simulate.mock_1d(800, binference.Bins.linear(0, 3, 15), rng=6)
 lk, bins = mock.likelihoods, mock.bins
-result = binference.infer(lk, rng=1, n_samples=500, n_warmup=500)
+result = binference.infer(lk, method="nuts", rng=1)
 print(result)
 ```
 
@@ -173,7 +173,7 @@ the full sample.
 ## Diagnostics
 
 ```python
-d = result.diagnostics                     # dict: rhat, ess_bulk, ess_tail, divergences, ...
+d = result.diagnostics                     # dict: rhat, ess_bulk, ess_tail, n_divergent, ...
 print(d["rhat"].max().round(3), d["ess_bulk"].min().round(0), d.get("n_divergent"))
 problems = result.check()                  # warns and returns messages
 print(problems)
