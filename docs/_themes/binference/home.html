@@ -4,7 +4,7 @@
 <nav class="side mobilenav" id="sidebar" aria-label="Sections">
   <ul>{%- for s in bnf_sections %}<li><a href="{{ pathto(s.docname) }}">{{ s.caption }}</a></li>{% endfor -%}</ul>
 </nav>
-<main class="home" id="main">
+<main role="main" class="home" id="main">
   {{ body }}
 </main>
 {%- endblock %}

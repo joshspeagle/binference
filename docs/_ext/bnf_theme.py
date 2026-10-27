@@ -28,19 +28,19 @@ class PlainWords(BaseAdmonition):
 
 
 def _sections(app, env) -> None:
-    toctrees = list(env.master_doctree.findall(addnodes.toctree))
-    captioned = [t for t in toctrees if t.get("caption")]
+    # not env.master_doctree: it is cached in the pickled environment and goes stale
+    toctrees = list(env.get_doctree(app.config.root_doc).findall(addnodes.toctree))
+
+    def docs(t):  # documents only: entries can also be URLs or "self"
+        return [d for _, d in t["entries"] if d in env.titles]
+
+    captioned = [t for t in toctrees if t.get("caption") and docs(t)]
     if captioned:
         app.bnf_sections = [
-            {
-                "caption": t["caption"],
-                "docname": t["entries"][0][1],
-                "docs": [d for _, d in t["entries"]],
-            }
-            for t in captioned
+            {"caption": t["caption"], "docname": docs(t)[0], "docs": docs(t)} for t in captioned
         ]
         return
-    entries = [d for t in toctrees for _, d in t["entries"]]
+    entries = [d for t in toctrees for d in docs(t)]
     app.bnf_sections = [
         {"caption": env.titles[d].astext(), "docname": d, "docs": [d]} for d in entries
     ]

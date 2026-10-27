@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import sys
 
@@ -45,6 +46,9 @@ source_suffix = {".rst": "restructuredtext", ".md": "myst-nb"}
 myst_enable_extensions = ["amsmath", "colon_fence", "deflist", "dollarmath"]
 myst_heading_anchors = 3
 nb_execution_mode = os.environ.get("BINFERENCE_DOCS_EXECUTE", "cache")
+# keyed on the plot style too: a new style re-executes the tutorials
+_style = hashlib.sha256(open(os.environ["MATPLOTLIBRC"], "rb").read()).hexdigest()[:12]
+nb_execution_cache_path = os.path.abspath(f"_build/.jupyter_cache/{_style}")
 nb_execution_timeout = 900
 nb_execution_raise_on_error = True
 nb_execution_show_tb = True

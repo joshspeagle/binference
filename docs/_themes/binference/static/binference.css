@@ -60,6 +60,7 @@ hr { border: 0; border-top: 1px solid var(--b-rule); margin: 2rem 0; }
   display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px;
   border: 1px solid color-mix(in srgb, var(--b-bar-text) 25%, transparent); color: var(--b-bar-text);
 }
+.searchbar label { display: grid; cursor: pointer; }
 .searchbar input {
   width: 9rem; background: transparent; border: 0; color: inherit; font: inherit; font-size: .88rem;
 }
@@ -75,6 +76,8 @@ hr { border: 0; border-top: 1px solid var(--b-rule); margin: 2rem 0; }
   background: none; border: 0; color: var(--b-bar-text); cursor: pointer;
 }
 .iconbtn:focus-visible, .mainnav a:focus-visible, .brand:focus-visible { outline-color: var(--b-bar-text); }
+/* inside scrolling boxes the ring is drawn inward, where overflow cannot clip it */
+.mainnav a:focus-visible, .side a:focus-visible, .toc a:focus-visible { outline-offset: -2px; }
 .menubtn { display: none; }
 
 /* ---------------------------------------------------------------- layout */
@@ -231,9 +234,10 @@ div.cell_output .output.stderr, div.cell_output .output.traceback {
 }
 div.cell_output .output.stderr pre { color: var(--b-ink-2); }
 div.cell_output .output.text_html { padding: 10px 14px; overflow-x: auto; }
-div.cell_output img { display: block; margin: 0 auto; }
 /* plots are drawn on the light page (brand.py); in the dark theme they sit on a light panel */
-div.cell_output .output:has(img) { padding: 8px; background: var(--b-figure-ground); }
+div.cell_output img {
+  display: block; margin: 0 auto; box-sizing: border-box; padding: 8px; background: var(--b-figure-ground);
+}
 div.cell_output table { font-size: .84rem; }
 
 /* ---------------------------------------------------------------- admonitions */
@@ -351,7 +355,7 @@ main form input[type="submit"] {
 }
 @media (max-width: 520px) {
   .brand img { height: 24px; }
-  .searchbar { width: 36px; padding: 0; justify-content: center; border: 0; }
+  .searchbar { width: 36px; height: 36px; padding: 0; justify-content: center; border: 0; }
   .searchbar input { position: absolute; width: 1px; height: 1px; opacity: 0; }
   .searchbar:focus-within { position: absolute; left: 12px; right: 12px; width: auto; background: var(--b-bar); border: 1px solid var(--b-bar-text); padding: 0 8px; }
   .searchbar:focus-within input { position: static; width: 100%; height: auto; opacity: 1; }
