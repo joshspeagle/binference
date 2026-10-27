@@ -67,7 +67,8 @@ Pass `method=` to choose yourself:
 
 - **You need a quick look, or the problem is huge.** Use `method="map"`: a point
   estimate in seconds. `method="laplace"` adds approximate error bars.
-- **Auto keeps Laplace on a very large input and flags it approximate.** If you can
+- **Auto keeps Laplace and flags it approximate.** It does so for a very large input,
+  or when no other engine takes the options given. If you can
   afford it, run `method="nuts"` on the full data or on a subset to check it.
 - **NUTS reports divergences.** Raise `target_accept`, or change the prior
   ([a smoothness scale near zero](troubleshooting.md#a-smoothness-scale-near-zero)).
@@ -142,7 +143,8 @@ print(lap.approximate, round(lap.info["k_hat"], 2))
 ## Approximations
 
 - **`"laplace"`** is {term}`approximate` when its Pareto k-hat check fails. Auto
-  keeps it only when the check passes.
+  keeps it when the check passes. It also keeps it, flagged approximate, for a very
+  large input or when no other engine takes the options given.
 - **`"vb"`** always warns, and its intervals are too narrow, most of all when
   likelihoods are broad.
 - **`"bootstrap"`** resamples objects (`scheme="nonparametric"`) or reweights them

@@ -61,9 +61,11 @@ under-explore the tails. A longer warm-up or another prior may help; a higher
 `target_accept` does not. Otherwise compare the fit with a longer run before you rely
 on its tails.
 
-Problems with the inputs raise an `InputWarning` instead. Two are checked: the Monte
-Carlo noise of likelihoods built from samples ({doc}`inputs/samples`), and binned
-counts that the response does not describe ({doc}`inputs/binned`).
+Problems with the inputs raise an `InputWarning` instead. Three are checked:
+
+- the Monte Carlo noise of likelihoods built from samples ({doc}`inputs/samples`);
+- binned counts that the response does not describe ({doc}`inputs/binned`);
+- with `check(support_min=...)`, bins whose {term}`data support` is low ({doc}`bins`).
 
 Where it can, a warning ends with a hint. After Gibbs, the hint gives the
 {term}`missing information` and the autocorrelation time it implies.
@@ -103,7 +105,7 @@ mystnb:
       rank histograms of one bin, from 200 simulations of 100 objects in three bins,
       fitted by Laplace. The pipelines count each object three times (too narrow), a
       quarter (too wide), or treat posteriors under a prior favouring the bin as
-      likelihoods (biased). The grey band holds 99% of uniform histograms.
+      likelihoods (biased). Each bar of a uniform histogram falls inside the grey band 99% of the time.
 ---
 import warnings
 

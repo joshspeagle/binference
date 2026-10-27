@@ -79,7 +79,6 @@ from myst_nb import glue
 
 import binference
 
-warnings.simplefilter("ignore", binference.InputWarning)
 
 
 def peak(z):
@@ -98,10 +97,13 @@ w = 1e5 * pd / pd.sum()
 
 
 def limit(target):
-    lk = binference.Likelihoods.from_gaussian(
-        d, np.full(d.size, sig), target, weights=w, fractional_weights=True, warn_outside=False
-    )
-    return binference.infer(lk, method="map")  # flat Dirichlet: the maximum-likelihood fit
+    with warnings.catch_warnings():  # the fractional weights warn; that is intended here
+        warnings.simplefilter("ignore", binference.InputWarning)
+        lk = binference.Likelihoods.from_gaussian(
+            d, np.full(d.size, sig), target, weights=w, fractional_weights=True,
+            warn_outside=False,
+        )
+        return binference.infer(lk, method="map")  # flat Dirichlet: the maximum-likelihood fit
 
 
 flat = limit(bins)
@@ -167,10 +169,30 @@ function that returns your data's likelihoods on the bins or basis it is given.
 ```{code-cell} python
 bins = binference.Bins.linear(0.0, 3.0, 10)
 mock = binference.simulate.mock_1d(5000, bins, density=peak, noise=0.2, rng=3)
-result = binference.infer(mock.likelihoods, method="laplace", rng=1)
-check = result.binning_bias(rng=2)
+result = binference.infer(mock.likelihoods, method="laplace", n_proposals=40000, rng=1)
+check = result.binning_bias(rng=2, n_proposals=40000)
 print(check)
 ```
+
+```{code-cell} python
+:tags: [remove-cell]
+from IPython.display import Markdown
+
+names = [f"[{a:.1f}, {b:.1f})" for a, b in zip(bins.edges[0][:-1], bins.edges[0][1:])]
+top = int(np.argmax(binference.simulate.population(bins, peak)))
+flagged = [k for k in range(bins.K) if abs(check.z[k]) > 2]
+text = "Here " + ", ".join(f"bin {names[k]} (z = {check.z[k]:.1f})" for k in flagged)
+text += " is flagged." if len(flagged) == 1 else " are flagged."
+if top not in flagged:
+    text += (
+        f" The peak bin {names[top]} is not: its shift of {check.shift[top]:.3f} is"
+        f" {abs(check.z[top]):.2f} times its posterior s.d. of {check.sd[top]:.3f},"
+        " inside the threshold."
+    )
+glue("bins_flagged", Markdown(text), display=False)
+```
+
+{glue:md}`bins_flagged`
 
 For a flagged bin, `n_crit` is the number of objects at which the shift equals the
 statistical error. Run the check on a pilot sample to learn how many objects these bins

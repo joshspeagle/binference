@@ -202,14 +202,15 @@ rng = np.random.default_rng(3)
 z_inj = rng.uniform(0.0, 3.0, 600)
 recovered = rng.random(600) < S[bins.index(z_inj)]     # the mock's S
 measured = binference.Selection.from_injections(z_inj, recovered, bins, "on_truth")
-joint = binference.infer(lk, selection=measured, method="gibbs", n_samples=300, rng=1, check=False)
+joint = binference.infer(lk, selection=measured, method="nuts", n_samples=300, n_warmup=300, rng=1)
 print(joint.mean.round(3), joint.info["selection_draws"].mean(axis=(0, 1)).round(2))
 ```
 
 Gibbs, NUTS, Laplace and `MAP(space="unconstrained")` infer it; VB and the bootstrap do
 not ([theory](../how-it-works/theory.md#selection-effects)). For those, or to ignore the
 uncertainty, `measured.at_mean()` gives a fixed selection at its mean values. For a
-selection on the measurement, injections give a fixed selection, not an inferred one.
+selection on the measurement, pass `Selection.from_injections(...).at_mean()`, a fixed
+selection; binference infers only a selection on the truth.
 
 ### Few injections per bin
 
@@ -225,7 +226,7 @@ edges. A sharp edge needs independent bins or a larger $\tau_S$.
 
 ```python
 smooth = binference.Selection.from_injections(z_inj, recovered, bins, "on_truth", smooth=0.3)
-fit = binference.infer(lk, selection=smooth, method="laplace", n_samples=300, rng=1, check=False)
+fit = binference.infer(lk, selection=smooth, method="laplace", n_samples=300, rng=1)
 print(fit.mean.round(3), fit.info["selection_draws"].mean(axis=(0, 1)).round(2))
 ```
 
@@ -246,7 +247,7 @@ $\Lambda\,S\cdot\rho$, where $\Lambda$ is the total expected number of objects.
 
 ```python
 fit = binference.infer(
-    lk, method="gibbs", n_samples=300, rng=1, check=False,
+    lk, method="nuts", n_samples=300, n_warmup=300, rng=1,
     selection=binference.Selection(S, "on_truth", scale="exposure"),
 )
 print("total:", fit.total.mean().round(0), "+/-", fit.total.std().round(0),

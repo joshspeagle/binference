@@ -10,19 +10,24 @@ dense $N\times K$ matrix costs $O(NK)$ per pass. A sparse one costs O(number of 
 entries).
 
 These timings come from `python benchmarks/bench_kernels.py --engines`, run on
-2026-10-27 on one thread of an Intel Xeon at 2.1 GHz:
+2026-10-27 on one thread (`OMP_NUM_THREADS=1`) of an Intel Xeon at 2.1 GHz. The engine
+fits use `mock_1d(2000)` in 30 bins. Raw time misleads for samplers, so the table gives
+each fit's smallest bulk effective sample size (ESS) too.
 
-| operation | $N$ | $K$ | time |
-|---|---|---|---|
-| log-likelihood and its gradient, dense | 20,000 | 80 | 1.3 ms |
-| the same, sparse | 20,000 | 80 | 1.7 ms |
-| one Gibbs sweep (a bin for every object) | 20,000 | 80 | 10 ms |
-| all per-object responsibilities | 20,000 | 80 | 8 ms |
-| a NUTS fit with the defaults, Dirichlet prior | 2000 | 30 | 36 s |
-| the same with `LogisticGP` | 2000 | 30 | 31 s |
-| a Gibbs fit with the defaults | 2000 | 30 | 2.8 s |
-| a MAP fit | 2000 | 30 | 0.01 s |
-| a Laplace fit | 2000 | 30 | 0.4 s |
+| operation | $N$ | $K$ | time | smallest bulk ESS |
+|---|---|---|---|---|
+| log-likelihood and its gradient, dense | 20,000 | 80 | 1.3 ms | |
+| the same, sparse (`rtol=1e-6`, 56% of entries non-zero) | 20,000 | 80 | 1.7 ms | |
+| one Gibbs sweep (a bin for every object) | 20,000 | 80 | 10 ms | |
+| all per-object responsibilities | 20,000 | 80 | 8 ms | |
+| a NUTS fit with the defaults, Dirichlet prior | 2000 | 30 | 36 s | 1402 |
+| the same with `LogisticGP` | 2000 | 30 | 31 s | 4095 |
+| a Gibbs fit with the defaults | 2000 | 30 | 2.8 s | 13 |
+| a MAP fit | 2000 | 30 | 0.01 s | |
+| a Laplace fit | 2000 | 30 | 0.4 s | |
+
+At 56% non-zero entries, sparse storage is slower than dense; it pays only when far
+fewer entries are non-zero.
 
 The engines spend these passes differently:
 
@@ -69,10 +74,3 @@ Sparse storage keeps 12 bytes per non-zero entry. The per-object methods
 `chunk` at a time, so beyond their output they hold only one chunk's rows. A response
 inferred with the population is the exception: its rows differ per draw, so those
 methods hold one $N\times K$ block per draw used.
-
-The per-object methods (`assignment_probabilities`, `predict_proba`, `log_predictive`
-and so `PopulationEstimator.score`) work through the objects `chunk` at a time. Beyond
-their output, they hold only one chunk's rows
-({doc}`defaults <../reference/defaults>`). The exception is a response inferred with
-the population, whose rows differ per draw. Those methods hold one $N\times K$ block per
-draw used.

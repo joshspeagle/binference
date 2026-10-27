@@ -66,7 +66,7 @@ print(binference.infer(lk, polya, method="map").rho[:3].round(4))
 
 - **`DirichletTree`**: use it when groups of bins belong together, such as subclasses
   of a class. Pass the tree as nested lists of bin indices.
-- **`PolyaTree`**: use it on an ordered grid for a conjugate prior with structure at
+- **`PolyaTree`**: use it on 1-D ordered bins for a conjugate prior with structure at
   several scales.
 
 ## Smoothness: the logistic family

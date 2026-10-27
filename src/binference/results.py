@@ -1767,8 +1767,7 @@ class PopulationResult(_IndividualMixin):
             msgs.append(f"{n_div} divergent transitions ({share:.2g}% of draws)")
             hints.append(
                 "try a higher target_accept, e.g. 0.95; divergences that persist mark a "
-                "region the sampler cannot explore (troubleshooting guide: a smoothness "
-                "scale near zero)"
+                "region the sampler cannot explore (see the checking guide: diagnostics)"
             )
         if "ebfmi" in d and np.nanmin(d["ebfmi"]) < EBFMI_MIN:
             msgs.append(f"E-BFMI = {np.nanmin(d['ebfmi']):.2f} < {EBFMI_MIN:g} in some chain")
