@@ -115,7 +115,7 @@ Not done:
 - **Wide bins.** The response "depends on the unknown shape of the true spectrum".
   Regularising with wide bins introduces "a non-trivial bias" {cite:p}`stanley2022`. The
   remedy is fine bins and intervals for functionals of them. In binference, see
-  [is the binning fine enough?](../guides/results.md#is-the-binning-fine-enough).
+  [is the binning fine enough?](../guides/bins.md#check-the-binning).
 - **Noisy response matrices.** A response from a finite simulation "can inadvertently
   regularize the problem" {cite:p}`zhu2026`.
 - **Bin-by-bin correction** "provably accounts for smearing effects incorrectly"

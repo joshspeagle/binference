@@ -65,7 +65,7 @@ for all of them:
 - It infers a tallied {term}`response matrix` jointly with the fractions
   ([binned measurements](../guides/inputs/binned.md)).
 - It checks a whole analysis by simulation-based calibration
-  ({doc}`validation guide <../guides/checking>`).
+  ({doc}`checking guide <../guides/checking>`).
 
 ## Pages
 
