@@ -3,22 +3,27 @@
 **Population and hierarchical inference with PDFs.**
 
 Many objects are each measured with noise: galaxies, merger events, patients,
-classified documents. From each object's likelihood, posterior, samples, binned count or
-classifier output, binference infers the distribution of the population the objects come
-from, with calibrated uncertainty, and each object's posterior under that population.
+classified documents. binference reads each object's likelihood, posterior, samples,
+binned measurement or classifier output. From these it infers the population the objects
+come from, with calibrated uncertainty, and each object's posterior under that
+population.
 
-![Population posteriors for a mock catalogue](https://raw.githubusercontent.com/joshspeagle/binference/main/docs/_static/quickstart.png)
+![Population posteriors for a mock catalogue][figure]
+
+[figure]: https://raw.githubusercontent.com/joshspeagle/binference/main/docs/_static/quickstart.png
+
+*The population inferred from 2000 simulated objects, under the default Dirichlet prior
+(left) and a Gaussian-process prior (right). Each panel shows the posterior median, its
+68% and 95% intervals, the true density (dashed) and the stacked estimate (dotted).*
 
 ## Install
-
-binference is in alpha. Until it is released on PyPI, install it from GitHub:
 
 ```bash
 pip install "binference[plot] @ git+https://github.com/joshspeagle/binference"
 ```
 
 The [installation page](https://joshspeagle.github.io/binference/start/install.html)
-explains the extras.
+lists the extras and the supported Python versions.
 
 ## Example
 
@@ -38,21 +43,19 @@ print(result.summary())
 
 ## Documentation
 
-The [documentation](https://joshspeagle.github.io/binference/) is the home of
-everything else:
+- [Quick start][quickstart]
+- [Is binference right for my data?][is-it-right]
+- [Tutorials][tutorials]
+- [Full documentation][docs]
 
-- [What binference does](https://joshspeagle.github.io/binference/start/what-it-does.html),
-  with the same model under the names of several fields, and
-  [whether it suits your data](https://joshspeagle.github.io/binference/start/is-it-right.html);
-- the [quick start](https://joshspeagle.github.io/binference/start/quickstart.html) and the
-  [tutorials](https://joshspeagle.github.io/binference/tutorials/index.html);
-- the [guides](https://joshspeagle.github.io/binference/guides/index.html), the
-  [theory](https://joshspeagle.github.io/binference/how-it-works/theory.html), the
-  [fields](https://joshspeagle.github.io/binference/fields/index.html) and the
-  [API reference](https://joshspeagle.github.io/binference/reference/api/index.html);
-- [how to cite binference](https://joshspeagle.github.io/binference/reference/citing.html).
+[quickstart]: https://joshspeagle.github.io/binference/start/quickstart.html
+[is-it-right]: https://joshspeagle.github.io/binference/start/is-it-right.html
+[tutorials]: https://joshspeagle.github.io/binference/tutorials/index.html
+[docs]: https://joshspeagle.github.io/binference/
 
-To contribute, see [`CONTRIBUTING.md`](https://github.com/joshspeagle/binference/blob/main/CONTRIBUTING.md).
+To contribute, see [`CONTRIBUTING.md`][contributing].
+
+[contributing]: https://github.com/joshspeagle/binference/blob/main/CONTRIBUTING.md
 
 ## License
 

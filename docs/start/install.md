@@ -1,8 +1,8 @@
 # Install
 
-binference needs Python 3.13 or later. Its core depends on three packages: NumPy
-(2.1 or later), SciPy (1.14.1 or later) and threadpoolctl, which keeps parallel chains
-from oversubscribing the cores.
+binference needs Python 3.13 or later. Its core depends on NumPy (2.1 or later),
+SciPy (1.14.1 or later) and threadpoolctl. threadpoolctl stops parallel chains from
+starting more threads than there are cores.
 
 binference is in alpha. Until it is released on PyPI, install it from GitHub, with the
 plotting extra:
@@ -20,9 +20,6 @@ Leave out `[plot]` for the core alone, or name several extras, such as `[plot,xa
 | `plot` | matplotlib | `result.plot()` and the functions of `binference.plotting` |
 | `xarray` | xarray | `result.to_datatree()`, an ArviZ-compatible export |
 | `all` | both of the above | |
-| `test` | pytest, pytest-cov and matplotlib | running the test suite |
-| `docs` | Sphinx, myst-nb and the rest of the documentation toolchain | building these pages |
-| `dev` | `test`, `docs`, `plot`, `xarray` and pre-commit | working on binference itself |
 
 To work on binference itself, follow the set-up in the
 [contributing guide](../contributing.md).

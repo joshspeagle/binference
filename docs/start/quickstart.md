@@ -19,30 +19,31 @@ to a population with its uncertainty. It needs binference with the `plot` extra
 
 import matplotlib.pyplot as plt
 
+# narrower and with larger text than the site style, to stay legible at phone width
 plt.rcParams.update({"font.size": 14, "figure.figsize": (5.2, 3.6)})
 ```
 
 ## Your data
 
 Here a simulation stands in for your data: 2000 galaxies with photometric redshifts
-`z_obs` and Gaussian errors `z_err` between 0.05 and 0.2. Replace these lines with
-your own arrays.
+`z_obs`: distances estimated from each galaxy's colours. Their Gaussian errors `z_err`
+lie between 0.05 and 0.2. Choose bins that cover the range of the true values: here 15
+bins of width 0.2 on $[0, 3]$. Replace the simulation with your own arrays.
 
 ```{code-cell} python
 import binference
 
-mock = binference.simulate.mock_1d(2000, binference.Bins.linear(0.0, 3.0, 15), rng=42)
+bins = binference.Bins.linear(0.0, 3.0, 15)
+mock = binference.simulate.mock_1d(2000, bins, rng=42)
 z_obs, z_err = mock.measurements["mean"], mock.measurements["sigma"]
 ```
 
-## Bins and likelihoods
+## Likelihoods
 
-Choose bins that cover the range of the true values. Here there are 15 bins of width
-0.2 on $[0, 3]$. `from_gaussian` turns each measurement into a {term}`bin-averaged
-likelihood`: the probability of the measurement if the true value lay in each bin.
+`from_gaussian` turns each measurement into a {term}`bin-averaged likelihood`: the
+probability of the measurement if the true value lay in each bin.
 
 ```{code-cell} python
-bins = binference.Bins.linear(0.0, 3.0, 15)
 lk = binference.Likelihoods.from_gaussian(z_obs, z_err, bins)
 lk
 ```
@@ -57,8 +58,8 @@ result = binference.infer(lk, rng=1)
 result.info["auto_reason"]
 ```
 
-`infer` checks the sampler's convergence after the fit and warns if it failed. No
-warning appeared here.
+`infer` checks convergence after the fit and warns if the chains disagree or give too
+few effective draws. No warning appeared here.
 
 ## Read the summary
 
@@ -80,8 +81,7 @@ input. The table has one row per bin:
 | `support` | the {term}`data support`: how many objects' worth of likelihood falls in the bin |
 
 The {doc}`../reference/defaults` page gives the R-hat and ESS limits that `check()`
-applies. Where `support` falls below about one, as in the last bin, the prior rather
-than the data sets the bin's fraction.
+applies. In the last bin, the prior sets the fraction: see {term}`data support`.
 
 ## Plot it
 
