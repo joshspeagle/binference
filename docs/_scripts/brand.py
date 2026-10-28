@@ -7,7 +7,8 @@
   as outlines; the favicon;
 * ``tokens.css``: the colour, type and size tokens of the site theme;
 
-and ``docs/_ext/matplotlibrc``, the style of every executed page's plots (``conf.py`` hands
+the home page's animated mark ``hero.html`` in the theme folder, and
+``docs/_ext/matplotlibrc``, the style of every executed page's plots (``conf.py`` hands
 it to the notebook kernels), with the generated tables of ``brand.md`` (between its
 ``<!-- name:start/end -->`` markers). ``--check`` writes nothing and fails if a committed
 output is stale, or if ``binference.plotting.SAMPLE_COLOR`` differs from the ``sample``
@@ -194,6 +195,34 @@ def mark_body(cut: str, main: str, dot: str, uid: str) -> str:
         f'<ellipse {counter} rx="{_f(g["rx"])}" ry="{_f(g["ry"])}" fill="#000"/></mask>'
         f'<g mask="url(#{uid})">{fills}<path d="{g["mean"]}" fill="none" stroke="{main}" '
         f'stroke-width="{g["sw"]}"/></g><circle {counter} r="{g["dot"]}" fill="{dot}"/>'
+    )
+
+
+#: sets of draws of the full cut that the home page's mark cross-fades between (seeds 3 to 8)
+HERO_FRAMES = 6
+HERO = DOCS / "_themes" / "binference" / "hero.html"
+
+
+def hero_html() -> str:
+    """The home page's mark, inlined by ``home.html``: the full cut with ``HERO_FRAMES`` seeded
+    sets of draws (the first the logo's own), in the theme's colours (binference.css), so the
+    page can cross-fade between them."""
+    g = mark_geometry("full")
+    frames = "".join(
+        '<g class="hero-draws">'
+        + "".join(f'<path d="{d}"/>' for d in mark_geometry("full", seed=3 + i)["draws"])
+        + "</g>"
+        for i in range(HERO_FRAMES)
+    )
+    counter = f'cx="{_f(g["cx"])}" cy="{_f(g["cy"])}"'
+    return (
+        f'<svg class="hero-mark" viewBox="0 0 {SIZE} {SIZE}" role="img" aria-label="The '
+        "binference mark: a letter b drawn as a histogram, its posterior draws overlaid, with "
+        f'one sample in its counter"><mask id="hero-counter"><rect width="{SIZE}" height="{SIZE}" '
+        f'fill="#fff"/><ellipse {counter} rx="{_f(g["rx"])}" ry="{_f(g["ry"])}" fill="#000"/>'
+        f'</mask><g mask="url(#hero-counter)" fill-opacity="{g["op"]}">{frames}</g>'
+        f'<path class="hero-mean" d="{g["mean"]}" stroke-width="{g["sw"]}"/>'
+        f'<circle class="hero-sample" {counter} r="{g["dot"]}"/></svg>\n'
     )
 
 
@@ -413,6 +442,7 @@ def outputs() -> dict[Path, str]:
         STATIC / "tokens.css": tokens_css(),
         STATIC / "brand" / "favicon.svg": favicon_svg(),
         MATPLOTLIBRC: matplotlibrc(),
+        HERO: hero_html(),
     }
     for theme, tag in ((0, "light"), (1, "dark")):
         for cut in CUTS:

@@ -1,6 +1,6 @@
 # binference
 
-**Population and hierarchical inference with PDFs.**
+**Infer the population, then every object.**
 
 Many objects are each measured with noise. For each one you have a likelihood,
 a posterior computed under some prior, posterior samples, counts in measured
@@ -10,6 +10,18 @@ uncertainty, and the posterior of each object under that population. The same
 problem appears under different names in several fields
 ([background](fields/index.md)); binference treats them as one model
 ([what binference does](start/what-it-does.md)).
+
+:::{container} paths
+- **Measurements with errors.** A value and its uncertainty for each object: the
+  [quick start](start/quickstart.md), then [Gaussian measurements](guides/inputs/gaussian.md).
+- **Posteriors or posterior samples.** Each computed under some prior: the
+  [posterior-samples tutorial](tutorials/posterior-samples.md), then
+  [posteriors](guides/inputs/posteriors.md) and [samples](guides/inputs/samples.md).
+- **Counts or classifier outputs.** Counts in measured bins with a response, or scores
+  from a classifier: the [unfolding](tutorials/unfolding.md) and
+  [classifier](tutorials/classifier-outputs.md) tutorials, then
+  [binned measurements and classifiers](guides/inputs/binned.md).
+:::
 
 ```{image} _static/quickstart.png
 ---
@@ -34,53 +46,22 @@ result = binference.infer(lk, rng=1)  # method="auto" chooses the engine
 print(result.summary())
 ```
 
-::::{grid} 1 2 2 3
-:gutter: 3
-
-:::{grid-item-card} What binference does
-:link: start/what-it-does
-:link-type: doc
-The problem in pictures, what binference infers, and the same model under many names.
+:::{container} sections
+- **[Start](start/what-it-does.md)** What binference does, whether it suits your data, how
+  to install it, and a first fit.
+- **[Concepts](concepts/index.md)** Bins and likelihoods, posteriors, the population and its
+  objects, priors, selection and engines, in words and figures.
+- **[Tutorials](tutorials/index.md)** Executed examples from end to end, grouped by the
+  kind of input.
+- **[Guides](guides/index.md)** Prepare inputs, choose bins and priors, correct for
+  selection, then run, read and check a fit.
+- **[How it works](how-it-works/index.md)** The model, point estimates, priors, the engines,
+  how `auto` chooses, and validation.
+- **[Fields](fields/index.md)** The same model in astronomy, gravitational waves, unfolding,
+  empirical Bayes, quantification, ecology and neural deconvolution.
+- **[Reference](reference/api/index.md)** Every public class and function, the glossary,
+  notation, defaults and warnings.
 :::
-
-:::{grid-item-card} Getting started
-:link: start/install
-:link-type: doc
-Install binference and check that it runs.
-:::
-
-:::{grid-item-card} Tutorials
-:link: tutorials/index
-:link-type: doc
-Executed, end-to-end examples from several fields.
-:::
-
-:::{grid-item-card} Guides
-:link: guides/index
-:link-type: doc
-Prepare inputs, choose bins and priors, correct for selection, run, read and check a fit.
-:::
-
-:::{grid-item-card} Theory
-:link: how-it-works/index
-:link-type: doc
-The model, its augmented form, EM as iterated stacking, selection effects and the
-samplers.
-:::
-
-:::{grid-item-card} API reference
-:link: reference/api/index
-:link-type: doc
-Every public class and function.
-:::
-
-:::{grid-item-card} Fields
-:link: fields/index
-:link-type: doc
-The same model in astronomy, gravitational waves, unfolding, empirical Bayes,
-quantification, ecology and neural deconvolution.
-:::
-::::
 
 ```{toctree}
 :caption: Start
