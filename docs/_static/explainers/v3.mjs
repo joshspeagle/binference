@@ -3,8 +3,8 @@
 import { binAverages, density, normalise, emStep, fmt, linspace, meanZ, mock, plot, svg, truth } from "./core.mjs";
 
 
-const EDGES = linspace(0, 3, 16), STEPS = 300, WIDTH = 0.4;
-const { L } = mock(600, 0.3, EDGES, 3);
+const EDGES = linspace(0, 3, 16), STEPS = 50, WIDTH = 0.4;
+const { L } = mock(2000, 0.3, EDGES, 3);
 const flat = EDGES.slice(1).map(() => 1 / 15);
 const fit = (rows) => { let r = flat; for (let t = 0; t < STEPS; t++) r = emStep(rows, r); return r; };
 const RIGHT = fit(L), TRUTH = truth(EDGES);
@@ -31,15 +31,14 @@ export function readout(state) {
 
 export function draw(state) {
   const { prior, wrong } = compute(state), d = (m) => density(m, EDGES);
-  const p = plot({ h: 270, x: [0, 3], y: [0, 1.6], xlabel: "true value z", ylabel: "density",
-    xticks: [0, 1, 2, 3], yticks: [0, 0.5, 1, 1.5] });
-  const alt = `Population fits of 600 mock objects. With the prior divided out the fit follows the ` +
+  const p = plot({ x: [0, 3], ymax: Math.max(1.2, ...d(wrong)), xlabel: "true value z", ylabel: "density",
+    xticks: [0, 1, 2, 3], key: [["swatch-ink", "interim prior"], ["ink dashed", "truth"],
+      ["brand", "prior divided out"], ["cat1", "used as likelihoods"]] });
+  const alt = `Population fits of 2,000 mock objects. With the prior divided out the fit follows the ` +
     `dashed truth. With posteriors used as likelihoods it is pulled toward the interim prior ` +
     `at ${fmt(state.centre, 1)}. ${readout(state)}.`;
   return svg(p.h, alt,
-    p.stairs(EDGES, d(prior).map((x) => Math.min(x, 1.6)), "fill-ink") +
+    p.stairs(EDGES, d(prior), "fill-ink") +
     p.stairs(EDGES, d(TRUTH), "ink dashed") + p.stairs(EDGES, d(RIGHT), "brand") +
-    p.stairs(EDGES, d(wrong), "cat1") + p.axes() +
-    p.key(170, 24, [["swatch-ink", "interim prior"], ["ink dashed", "truth"],
-      ["brand", "prior divided out"], ["cat1", "posteriors as likelihoods"]]));
+    p.stairs(EDGES, d(wrong), "cat1") + p.axes());
 }

@@ -103,9 +103,10 @@ toward the interim prior, more so the narrower $\pi$ is
 prior's peak.
 
 ```{explainer} v3
-Population fits to 600 mock objects on 15 bins, measured with error 0.3, whose posteriors
-use a Gaussian interim prior of width 0.4 (grey). Indigo: EM with the interim prior divided
-out. Amber: EM on the posteriors used as likelihoods. Dashed: the true population. Move the
+Population fits to 2,000 mock objects on 15 bins, measured with error 0.3, whose
+posteriors use a Gaussian interim prior of width 0.4 (grey). Each fit is 50 EM steps from a
+flat population. Indigo: the interim prior divided out. Amber: the posteriors used as
+likelihoods. Dashed: the true population. Move the
 interim prior: the amber fit follows it, the indigo fit does not.
 ```
 

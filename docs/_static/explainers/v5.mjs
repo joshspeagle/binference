@@ -25,13 +25,12 @@ export function readout(state) {
 
 export function draw(state) {
   const { rho, posterior } = compute(state), d = (m) => density(m, EDGES);
-  const p = plot({ h: 260, x: [0, 3], y: [0, 2.4], xlabel: "true value z", ylabel: "density",
-    xticks: [0, 1, 2, 3], yticks: [0, 1, 2] });
+  const p = plot({ x: [0, 3], ymax: Math.max(...d(rho), ...d(posterior)), xlabel: "true value z",
+    ylabel: "density", xticks: [0, 1, 2, 3],
+    key: [["brand thin", "population ρ"], ["sample dashed", "likelihood"], ["sample", "posterior"]] });
   const alt = `A population of width ${fmt(state.width, 2)} centred on ${CENTRE}, one object's ` +
     `likelihood centred on ${D}, and its posterior between them. ${readout(state)}.`;
   return svg(p.h, alt,
-    p.stairs(EDGES, d(rho).map((x) => Math.min(x, 2.4)), "fill-brand") +
-    p.stairs(EDGES, d(rho).map((x) => Math.min(x, 2.4)), "brand thin") +
-    p.stairs(EDGES, d(normalise(L)), "sample dashed") + p.stairs(EDGES, d(posterior), "sample") + p.axes() +
-    p.key(230, 24, [["brand thin", "population ρ"], ["sample dashed", "likelihood"], ["sample", "posterior"]]));
+    p.stairs(EDGES, d(rho), "fill-brand") + p.stairs(EDGES, d(rho), "brand thin") +
+    p.stairs(EDGES, d(normalise(L)), "sample dashed") + p.stairs(EDGES, d(posterior), "sample") + p.axes());
 }

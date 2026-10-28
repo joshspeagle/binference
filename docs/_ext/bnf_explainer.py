@@ -18,7 +18,8 @@ from pathlib import Path
 from docutils import nodes
 from sphinx.util.docutils import SphinxDirective
 
-FRAMES = json.loads((Path(__file__).parent / "explainers.json").read_text())
+JSON = Path(__file__).parent / "explainers.json"
+FRAMES = json.loads(JSON.read_text())
 
 
 def _control(fid: str, c: dict) -> str:
@@ -39,6 +40,7 @@ class Explainer(SphinxDirective):
         name = self.arguments[0]
         if name not in FRAMES:
             raise self.error(f"no explainer {name!r}: run node docs/_scripts/explainers.mjs")
+        self.env.note_dependency(str(JSON))  # a redrawn frame rebuilds the page
         frame, fid = FRAMES[name], f"v-{name[1:]}"
         controls = "".join(_control(fid, c) for c in frame["controls"])
         readout = escape(frame["readout"])

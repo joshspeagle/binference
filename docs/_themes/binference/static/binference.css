@@ -299,7 +299,7 @@ figure.explainer {
 .explainer-plot .fill-sample { fill: var(--b-sample); fill-opacity: .15; stroke: none; }
 .explainer-plot .fill-ink { fill: var(--b-ink-2); fill-opacity: .18; stroke: none; }
 .explainer-plot .swatch-ink { stroke: var(--b-ink-2); stroke-opacity: .3; stroke-width: 10; }
-.explainer-plot .seq { stroke: var(--b-seq-1); stroke-width: 2.5; }
+.explainer-plot .pale { stroke: var(--b-brand); stroke-opacity: .4; stroke-width: 2.5; }
 .explainer-plot .brand.thin { stroke-width: 1.5; }
 .explainer-plot .cat1 { stroke: var(--b-cat-1); stroke-width: 2.5; }
 .explainer-plot .dashed { stroke-dasharray: 6 4; stroke-width: 1.5; }

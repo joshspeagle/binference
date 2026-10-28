@@ -30,38 +30,47 @@ export const fmt = (x, d) => (x < 0 ? "−" : "") + Math.abs(x).toFixed(d);
 const num = (x) => +x.toFixed(2);
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
 
-// A plot of height h with data ranges x and y. Its methods return SVG strings.
-export function plot({ h = 260, x, y, xlabel = "", ylabel = "", xticks = [], yticks = [] }) {
-  const m = { l: ylabel ? 44 : 14, r: 12, t: 10, b: xlabel ? 48 : 28 };
+// Round tick values from 0 to at least max: at most five, at steps of 1, 2, 2.5 or 5 times a power of 10.
+export function ticks(max) {
+  const p = 10 ** Math.floor(Math.log10(max / 4));
+  const step = [1, 2, 2.5, 5, 10].map((s) => s * p).find((s) => max / s <= 4);
+  return Array.from({ length: Math.ceil(max / step - 1e-9) + 1 }, (_, i) => +(i * step).toFixed(6));
+}
+
+// A plot whose data run over x horizontally and from 0 to ymax vertically, with its legend
+// (key: [class, label] pairs, two to a row) in a band above. Its methods return SVG strings;
+// h is the height of the frame without the legend band, and p.h the whole height.
+export function plot({ h = 250, x, ymax, xlabel = "", ylabel = "", xticks = [], key = [] }) {
+  const yticks = ticks(ymax), top = yticks[yticks.length - 1], band = 22 * Math.ceil(key.length / 2);
+  const m = { l: ylabel ? 58 : 14, r: 12, t: 12 + band, b: xlabel ? 48 : 28 };
+  h += band;
   const sx = (v) => m.l + ((v - x[0]) / (x[1] - x[0])) * (WIDTH - m.l - m.r);
-  const sy = (v) => h - m.b - ((v - y[0]) / (y[1] - y[0])) * (h - m.t - m.b);
+  const sy = (v) => h - m.b - (Math.min(v, top) / top) * (h - m.t - m.b);
   const p = {
     h, sx, sy,
     line(xs, ys, cls) {
       return `<path class="${cls}" d="M${xs.map((v, i) => `${num(sx(v))},${num(sy(ys[i]))}`).join("L")}"/>`;
     },
     stairs(edges, values, cls) { // a step at each value between its two edges, closed to the baseline
-      let d = `M${num(sx(edges[0]))},${num(sy(y[0]))}`;
+      let d = `M${num(sx(edges[0]))},${num(sy(0))}`;
       values.forEach((v, k) => { d += `V${num(sy(v))}H${num(sx(edges[k + 1]))}`; });
-      return `<path class="${cls}" d="${d}V${num(sy(y[0]))}"/>`;
+      return `<path class="${cls}" d="${d}V${num(sy(0))}"/>`;
     },
     vline(v, cls) { return `<path class="${cls}" d="M${num(sx(v))},${m.t}V${h - m.b}"/>`; },
     text(px, py, s, cls = "", anchor = "start") {
       return `<text class="${cls}" x="${num(px)}" y="${num(py)}" text-anchor="${anchor}">${esc(s)}</text>`;
     },
-    key(px, py, items) { // a legend: a short line in each item's class, then its label
-      return items.map(([cls, label], i) => {
-        const yy = py + 20 * i;
-        return `<path class="${cls}" d="M${px},${yy - 5}h22"/>` + p.text(px + 28, yy, label, "key");
-      }).join("");
-    },
-    axes() {
-      const base = sy(y[0]);
+    axes() { // the axes, their ticks and labels, and the legend
+      const base = sy(0);
       let s = `<path class="axis" d="M${m.l},${m.t}V${base}H${WIDTH - m.r}"/>`;
       xticks.forEach((v) => { s += p.text(sx(v), base + 20, v, "tick", "middle"); });
       yticks.forEach((v) => { s += p.text(m.l - 6, sy(v) + 5, v, "tick", "end"); });
       if (xlabel) s += p.text((m.l + WIDTH - m.r) / 2, h - 8, xlabel, "label", "middle");
       if (ylabel) s += `<text class="label" transform="translate(16,${num((m.t + base) / 2)}) rotate(-90)" text-anchor="middle">${esc(ylabel)}</text>`;
+      key.forEach(([cls, label], i) => {
+        const kx = 14 + (i % 2) * 196, ky = 18 + 22 * Math.floor(i / 2);
+        s += `<path class="${cls}" d="M${kx},${ky - 5}h22"/>` + p.text(kx + 28, ky, label, "key");
+      });
       return s;
     },
   };

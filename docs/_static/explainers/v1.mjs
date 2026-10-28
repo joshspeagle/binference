@@ -26,15 +26,14 @@ export function readout(state) {
 export function draw(state) {
   const { sigma } = state, { edges, L } = compute(state);
   const peak = 1 / (sigma * Math.sqrt(2 * Math.PI));
-  const p = plot({ h: 250, x: Z, y: [0, 8.2], xlabel: "true value z", ylabel: "likelihood",
-    xticks: [0, 1, 2, 3], yticks: [0, 4, 8] });
+  const p = plot({ x: Z, ymax: 1.05 * peak, xlabel: "true value z", ylabel: "likelihood",
+    xticks: [0, 1, 2, 3], key: [["sample dashed", "likelihood ℓ(z)"], ["sample", "bin averages L"]] });
   const zs = Array.from({ length: 241 }, (_, i) => (Z[1] * i) / 240);
-  const ys = zs.map((z) => Math.min(peak * Math.exp(-0.5 * ((z - D) / sigma) ** 2), 8.2));
+  const ys = zs.map((z) => peak * Math.exp(-0.5 * ((z - D) / sigma) ** 2));
   const alt = `A dashed bell curve of width ${fmt(sigma, 2)} centred on z = ${D}, and steps at its ` +
     `average over each of ${L.length} bins. ${readout(state)}.`;
   return svg(p.h, alt,
     edges.map((e) => p.vline(e, "grid")).join("") +
     p.stairs(edges, L, "fill-sample") + p.stairs(edges, L, "sample") +
-    p.line(zs, ys, "sample dashed") + p.axes() +
-    p.key(240, 26, [["sample dashed", "likelihood ℓ(z)"], ["sample", "bin averages L"]]));
+    p.line(zs, ys, "sample dashed") + p.axes());
 }

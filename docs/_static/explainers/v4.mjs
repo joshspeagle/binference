@@ -5,6 +5,7 @@ const EDGES = linspace(0, 3, 21), MAX = 200;
 const { L } = mock(800, 0.3, EDGES, 11);
 const TRUTH = truth(EDGES), PATH = [EDGES.slice(1).map(() => 1 / 20)]; // PATH[t] is step t
 for (let t = 1; t <= MAX; t++) PATH.push(emStep(L, PATH[t - 1]));
+const YMAX = Math.max(...PATH.flatMap((r) => density(r, EDGES))); // one scale for every step
 const loglike = (rho) => L.reduce((s, row) => s + Math.log(row.reduce((a, l, k) => a + l * rho[k], 0)), 0) / L.length;
 
 export const title = "Stacking, then EM";
@@ -21,12 +22,11 @@ export function readout({ step }) {
 
 export function draw(state) {
   const { rho } = compute(state), d = (m) => density(m, EDGES);
-  const p = plot({ h: 270, x: [0, 3], y: [0, 1.6], xlabel: "true value z", ylabel: "population density",
-    xticks: [0, 1, 2, 3], yticks: [0, 0.5, 1, 1.5] });
+  const p = plot({ x: [0, 3], ymax: YMAX, xlabel: "true value z", ylabel: "density",
+    xticks: [0, 1, 2, 3], key: [["pale", "step 1, the stack"], ["ink dashed", "truth"], ["brand", `step ${state.step}`]] });
   const alt = `EM step ${state.step} for 800 mock objects. The stack, step 1, is broad and misses ` +
     `the dip between the two peaks of the dashed truth; later steps sharpen the peaks. ${readout(state)}.`;
   return svg(p.h, alt,
-    p.stairs(EDGES, d(PATH[1]), "seq") + p.stairs(EDGES, d(TRUTH), "ink dashed") +
-    p.stairs(EDGES, d(rho), "brand") + p.axes() +
-    p.key(220, 24, [["seq", "step 1, the stack"], ["ink dashed", "truth"], ["brand", `step ${state.step}`]]));
+    p.stairs(EDGES, d(PATH[1]), "pale") + p.stairs(EDGES, d(TRUTH), "ink dashed") +
+    p.stairs(EDGES, d(rho), "brand") + p.axes());
 }
