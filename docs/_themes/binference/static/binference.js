@@ -70,3 +70,18 @@
   }, { passive: true });
   mark();
 })();
+
+/* The home page's mark resamples its draws unless the reader prefers reduced motion; a button
+   stops it (WCAG 2.2.2). */
+(function () {
+  var hero = document.querySelector(".hero");
+  if (!hero || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  var button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "Pause animation";
+  button.addEventListener("click", function () {
+    button.textContent = hero.classList.toggle("paused") ? "Play animation" : "Pause animation";
+  });
+  hero.appendChild(button);
+  hero.classList.add("moving");
+})();

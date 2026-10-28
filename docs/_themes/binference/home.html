@@ -6,6 +6,8 @@
   <ul>{%- for s in bnf_sections %}<li><a href="{{ pathto(s.docname) }}">{{ s.caption }}</a></li>{% endfor -%}</ul>
 </nav>
 <main role="main" class="home" id="main">
+  {#- written by docs/_scripts/brand.py; binference.js starts its draws resampling #}
+  <div class="hero">{% include "hero.html" %}</div>
   {{ body }}
 </main>
 {%- endblock %}

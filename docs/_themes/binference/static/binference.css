@@ -364,20 +364,29 @@ main form input[type="submit"] {
   border-radius: var(--b-radius); cursor: pointer;
 }
 
-/* ---------------------------------------------------------------- sphinx-design cards (home) */
-:root {
-  --sd-color-card-background: var(--b-surface); --sd-color-card-border: var(--b-rule);
-  --sd-color-card-border-hover: var(--b-brand); --sd-color-card-text: var(--b-ink);
-}
-.sd-card { border-radius: 0; box-shadow: none; }
-.sd-card-title { font: var(--b-type-minor); font-family: var(--b-font-display); }
-.sd-card-body { padding: 14px 16px; }
-
 /* ---------------------------------------------------------------- home */
 .home {
   max-width: 1180px; margin: 0 auto; padding: 40px var(--gutter-r) 72px var(--gutter-l);
 }
 .home p { max-width: var(--measure); }
+/* the hero: the full mark, cross-fading between sets of draws once binference.js adds
+   `moving` (the timing is written into hero.html by brand.py); still before JavaScript and
+   under reduced motion */
+.hero { float: right; width: min(36%, 260px); margin: 0 0 24px 40px; }
+.hero-mark { display: block; width: 100%; height: auto; color: var(--b-brand); }
+.hero-draws:not(:first-child) { opacity: 0; }
+.hero.paused .hero-draws { animation-play-state: paused; }
+.hero button {
+  display: block; min-height: 24px; margin: 8px auto 0; font: var(--b-type-label); color: var(--b-ink-2);
+  background: none; border: 1px solid var(--b-rule); border-radius: var(--b-radius); padding: 2px 8px; cursor: pointer;
+}
+.home :is(.paths, .sections) ul {
+  list-style: none; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+.home .paths ul { margin: 1.4rem 0 2rem; }
+.home :is(.paths, .sections) li { margin: 0; padding: 14px 16px; background: var(--b-surface); border-top: var(--b-accent-rule) solid var(--b-rule); }
+.home .paths li { border-top-color: var(--b-brand); }
+.home :is(.paths, .sections) li > p { margin: 0; }
 .mobilenav { display: none; }
 
 /* ---------------------------------------------------------------- phones and tablets */
@@ -411,9 +420,10 @@ main form input[type="submit"] {
     overflow-y: auto; border-top: 1px solid var(--b-rule);
   }
   .side.open { display: block; }
-  .article h1 { font: var(--b-type-title-phone); }
+  .article h1, .home h1 { font: var(--b-type-title-phone); }
 }
 @media (max-width: 520px) {
+  .hero { float: none; width: 140px; margin: 0 0 16px; }
   .brand img { height: 24px; }
   .searchbar { width: 36px; height: 36px; padding: 0; justify-content: center; border: 0; }
   .searchbar input { position: absolute; width: 1px; height: 1px; opacity: 0; }
@@ -425,6 +435,7 @@ main form input[type="submit"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .hero button { display: none; }
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
 @media print {
