@@ -47,6 +47,17 @@ def _sections(app, env) -> None:
         )
 
 
+def _level(html: str) -> str:
+    """Fix two roles Sphinx and docutils write: toctree captions are headings without a level,
+    and the bibliography is a list whose children sphinxcontrib-bibtex makes link targets."""
+    html = html.replace(
+        'class="caption" role="heading">', 'class="caption" role="heading" aria-level="2">'
+    )
+    if 'role="heading">' in html:
+        logger.warning("a heading role without a level remains: Sphinx's caption markup changed")
+    return html.replace('<div role="list" class="citation-list">', '<div class="citation-list">')
+
+
 def _page_context(app, pagename, templatename, context, doctree):
     sections = context["bnf_sections"] = app.bnf_sections
     parents, top = app.builder.relations, pagename
@@ -58,6 +69,12 @@ def _page_context(app, pagename, templatename, context, doctree):
     toc = app.env.tocs.get(pagename)
     sections_here = toc.next_node(nodes.bullet_list) if toc else None
     context["bnf_outline"] = sections_here is not None and len(sections_here) > 1
+    # Sphinx marks toctree captions as headings without a level, in the sidebar and in pages
+    if "body" in context:
+        context["body"] = _level(context["body"])
+    if "toctree" in context:
+        toctree = context["toctree"]
+        context["toctree"] = lambda **kw: _level(toctree(**kw))
     if (context.get("meta") or {}).get("layout") == "home":
         return "home.html"
     return None

@@ -71,6 +71,21 @@
   mark();
 })();
 
+/* After sphinx-copybutton has added its buttons, name them; once MathJax has typeset, let the
+   keyboard reach every block that scrolls sideways (the blocks binference.css lets scroll). */
+addEventListener("load", function () {
+  document.querySelectorAll("button.copybtn:not([aria-label])").forEach(function (b) {
+    b.setAttribute("aria-label", "Copy code");
+  });
+  var typeset = window.MathJax && MathJax.startup ? MathJax.startup.promise : Promise.resolve();
+  typeset.then(function () {
+    document.querySelectorAll("main div.highlight, main div.math, main table.docutils, main dl.py > dt, " +
+      "div.cell_output .output pre, div.cell_output .output.text_html").forEach(function (el) {
+      if (el.scrollWidth > el.clientWidth && !el.hasAttribute("tabindex")) el.setAttribute("tabindex", "0");
+    });
+  });
+});
+
 /* The home page's mark resamples its draws unless the reader prefers reduced motion; a button
    stops it (WCAG 2.2.2). */
 (function () {

@@ -301,7 +301,9 @@ A prior is a `PopulationPrior` that holds its arguments; `bind(bins)` returns th
 Facts the implementation relies on, all verified numerically:
 - Dirichlet ⊂ GD ⊂ Dirichlet-tree. A finite Pólya tree is a binary Dirichlet-tree.
 - The tree log-density is linear in the log node masses:
+
   $$\log p(\rho)=\text{const}+\sum_{\text{leaves }k}(\alpha_{\mathrm{pa}(k),k}-1)\log\rho_k+\sum_{\text{internal }c\neq\text{root}}(\alpha_{\mathrm{pa}(c),c}-A_c)\log\rho_c,\qquad A_c=\textstyle\sum_{j\in\mathrm{ch}(c)}\alpha_{cj}.$$
+
   This gives cheap gradients for NUTS.
 - Each tree node updates as $\theta_c\mid n\sim\mathrm{Dir}(\alpha_c + n_{\mathrm{ch}(c)})$.
 

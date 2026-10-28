@@ -243,7 +243,9 @@ class SBCResult:
             :math:`C_j` of ranks at most :math:`j` is
             :math:`\mathrm{Binomial}(S, (j+1)/(M+1))` under uniformity. The
             statistic is the smallest two-sided binomial tail probability
-            :math:`\hat\gamma = \min_j 2\min\{P(C \le C_j), P(C \ge C_j)\}`
+
+            .. math:: \hat\gamma = \min_j 2\min\{P(C \le C_j), P(C \ge C_j)\}
+
             over :math:`j = 0, \dots, M-1`, and the p-value is
             :math:`P(\gamma \le \hat\gamma)` for uniform ranks, computed
             exactly from the joint (multinomial) law of the counts: the smallest
