@@ -7,7 +7,8 @@
   as outlines; the favicon;
 * ``tokens.css``: the colour, type and size tokens of the site theme;
 
-and ``docs/_ext/matplotlibrc``, the style of every executed page's plots (``conf.py`` hands
+the home page's animated mark ``hero.html`` in the theme folder, and
+``docs/_ext/matplotlibrc``, the style of every executed page's plots (``conf.py`` hands
 it to the notebook kernels), with the generated tables of ``brand.md`` (between its
 ``<!-- name:start/end -->`` markers). ``--check`` writes nothing and fails if a committed
 output is stale, or if ``binference.plotting.SAMPLE_COLOR`` differs from the ``sample``
@@ -153,7 +154,10 @@ def _f(x: float) -> str:
     return f"{x:.2f}".rstrip("0").rstrip(".")
 
 
-def mark_geometry(cut: str = "full", seed: int = 3) -> dict:
+SEED = 3  # the seed of the logo's draws
+
+
+def mark_geometry(cut: str = "full", seed: int = SEED) -> dict:
     """The Overlay b: a stem bin, then bins tracing a bowl (a floor plus a semi-ellipse that
     spans them exactly), drawn as log-normally jittered draws with their mean as an outline,
     and an elliptical counter holding one sample."""
@@ -184,10 +188,17 @@ def mark_geometry(cut: str = "full", seed: int = 3) -> dict:
     return {"draws": draws, "mean": step(mean), **counter, **p}
 
 
-def mark_body(cut: str, main: str, dot: str, uid: str) -> str:
-    """The mark's SVG elements in its ``SIZE`` frame, without an ``<svg>`` wrapper."""
+def mark_fills(cut: str, main: str, seed: int = SEED) -> str:
+    """The pale fills of the mark's draws."""
+    g = mark_geometry(cut, seed)
+    return "".join(f'<path d="{d}" fill="{main}" opacity="{g["op"]}"/>' for d in g["draws"])
+
+
+def mark_body(cut: str, main: str, dot: str, uid: str, fills: str | None = None) -> str:
+    """The mark's SVG elements in its ``SIZE`` frame, without an ``<svg>`` wrapper; ``fills``
+    replaces the logo's own draws."""
     g = mark_geometry(cut)
-    fills = "".join(f'<path d="{d}" fill="{main}" opacity="{g["op"]}"/>' for d in g["draws"])
+    fills = mark_fills(cut, main) if fills is None else fills
     counter = f'cx="{_f(g["cx"])}" cy="{_f(g["cy"])}"'
     return (
         f'<mask id="{uid}"><rect width="{SIZE}" height="{SIZE}" fill="#fff"/>'
@@ -195,6 +206,34 @@ def mark_body(cut: str, main: str, dot: str, uid: str) -> str:
         f'<g mask="url(#{uid})">{fills}<path d="{g["mean"]}" fill="none" stroke="{main}" '
         f'stroke-width="{g["sw"]}"/></g><circle {counter} r="{g["dot"]}" fill="{dot}"/>'
     )
+
+
+#: the home page's mark cross-fades between this many sets of draws of the full cut (seeds
+#: SEED onwards, the first the logo's own), showing each for HERO_STEP seconds and fading over
+#: the last HERO_FADE of them
+HERO_FRAMES, HERO_STEP, HERO_FADE = 6, 4, 1
+HERO = DOCS / "_themes" / "binference" / "hero.html"
+
+
+def hero_html() -> str:
+    """The home page's mark, inlined by ``home.html`` (decorative: the page's title names it),
+    with its cross-fade: each set of draws is visible for ``HERO_STEP - HERO_FADE`` s, then fades
+    out as the next fades in. It runs only once ``binference.js`` adds ``moving``."""
+    cycle = HERO_FRAMES * HERO_STEP
+    pct = lambda s: _f(100 * s / cycle)  # noqa: E731
+    style = (
+        f"<style>.hero.moving .hero-draws{{animation:hero-draws {cycle}s linear infinite}}"
+        f"@keyframes hero-draws{{0%,{pct(HERO_STEP - HERO_FADE)}%{{opacity:1}}"
+        f"{pct(HERO_STEP)}%,{pct(cycle - HERO_FADE)}%{{opacity:0}}100%{{opacity:1}}}}</style>"
+    )
+    fills = "".join(
+        f'<g class="hero-draws" style="animation-delay:-{(cycle - i * HERO_STEP) % cycle}s">'
+        f"{mark_fills('full', 'currentColor', SEED + i)}</g>"
+        for i in range(HERO_FRAMES)
+    )
+    body = mark_body("full", "currentColor", "var(--b-sample)", "hero-counter", fills)
+    svg = f'<svg class="hero-mark" viewBox="0 0 {SIZE} {SIZE}" aria-hidden="true">'
+    return f"{style}{svg}{body}</svg>\n"
 
 
 def _svg(width: float, body: str, label: bool = True) -> str:
@@ -413,6 +452,7 @@ def outputs() -> dict[Path, str]:
         STATIC / "tokens.css": tokens_css(),
         STATIC / "brand" / "favicon.svg": favicon_svg(),
         MATPLOTLIBRC: matplotlibrc(),
+        HERO: hero_html(),
     }
     for theme, tag in ((0, "light"), (1, "dark")):
         for cut in CUTS:

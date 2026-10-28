@@ -79,9 +79,24 @@ addEventListener("load", function () {
   });
   var typeset = window.MathJax && MathJax.startup ? MathJax.startup.promise : Promise.resolve();
   typeset.then(function () {
-    document.querySelectorAll(".article div.highlight, .article div.math, .article table.docutils, " +
-      ".article dl.py > dt, div.cell_output .output pre, div.cell_output .output.text_html").forEach(function (el) {
+    document.querySelectorAll("main div.highlight, main div.math, main table.docutils, main dl.py > dt, " +
+      "div.cell_output .output pre, div.cell_output .output.text_html").forEach(function (el) {
       if (el.scrollWidth > el.clientWidth && !el.hasAttribute("tabindex")) el.setAttribute("tabindex", "0");
     });
   });
 });
+
+/* The home page's mark resamples its draws unless the reader prefers reduced motion; a button
+   stops it (WCAG 2.2.2). */
+(function () {
+  var hero = document.querySelector(".hero");
+  if (!hero || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  var button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "Pause animation";
+  button.addEventListener("click", function () {
+    button.textContent = hero.classList.toggle("paused") ? "Play animation" : "Pause animation";
+  });
+  hero.appendChild(button);
+  hero.classList.add("moving");
+})();

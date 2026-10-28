@@ -29,7 +29,6 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
-    "sphinx_design",
     "sphinxcontrib.bibtex",
     "bnf_cite",
     "bnf_explainer",
