@@ -1,27 +1,6 @@
----
-jupytext:
-  text_representation:
-    format_name: myst
-kernelspec:
-  display_name: Python 3
-  name: python3
----
-
 # Priors on the simplex
 
 *What does a prior on the population fractions say, and when does it change the answer?*
-
-```{code-cell} python
-:tags: [remove-cell]
-
-import matplotlib.pyplot as plt
-import numpy as np
-
-import binference
-from binference import priors
-
-INK2 = plt.rcParams["xtick.color"]
-```
 
 ## Every population is a point on the simplex
 
@@ -44,7 +23,7 @@ with this property is {term}`conjugate <conjugate prior>`. Gibbs and mean-field
 VB need it, and so does EM, one of MAP's solvers.
 
 The size of $\alpha$ sets how strongly the prior moves the estimate
-({ref}`figure <fig-dirichlet>`):
+(explainer {ref}`explainer-v7`):
 
 - With every $\alpha_k=1$, the default, every population is equally probable. The
   prior is flat on the simplex.
@@ -52,40 +31,11 @@ The size of $\alpha$ sets how strongly the prior moves the estimate
 - With $\alpha_k<1$, draws crowd into the corners and edges: most bins are nearly
   empty.
 
-```{code-cell} python
----
-tags: [remove-input]
-mystnb:
-  figure:
-    name: fig-dirichlet
-    caption: |
-      1,500 draws each from symmetric Dirichlet priors on three bins, drawn by
-      binference. Every concentration $\alpha_k$ equals the $\alpha$ shown. Each point
-      is one population; each corner puts the whole population in one bin.
-  image:
-    alt: |
-      Four triangles. For alpha 0.2 the points sit on the corners and edges. For
-      alpha 1 they fill the triangle evenly. For alpha 5 they form a cloud around
-      the centre, and for alpha 30 a tight cluster at the centre.
----
-no_data = binference.Likelihoods(np.ones((1, 3)))  # one uninformative object
-corners = np.array([[0.0, 0.0], [1.0, 0.0], [0.5, np.sqrt(3) / 2]])
-names = (r"$\rho_1=1$", r"$\rho_2=1$", r"$\rho_3=1$")
-fig, axes = plt.subplots(2, 2)
-fig.set_figheight(5.0)
-for ax, a in zip(axes.flat, (0.2, 1.0, 5.0, 30.0), strict=True):
-    rho = binference.PopulationModel(no_data, priors.Dirichlet(a)).sample_prior(1500, rng=7)
-    ax.plot(*np.vstack([corners, corners[:1]]).T, color=INK2, lw=1)
-    ax.plot(*(rho @ corners).T, ".", ms=2.5, color="C0", alpha=0.5)
-    for (x, y), name, ha, dy in zip(corners, names, ("right", "left", "center"),
-                                    (-0.04, -0.04, 0.04), strict=True):
-        ax.text(x, y + dy, name, ha=ha, va="top" if dy < 0 else "bottom")
-    ax.set_title(rf"$\alpha = {a:g}$", pad=18)
-    ax.set_aspect("equal")
-    ax.axis("off")
-    ax.set_xlim(-0.12, 1.12)
-    ax.set_ylim(-0.12, 0.98)
-plt.show()
+```{explainer} v7
+1,500 draws from the symmetric Dirichlet prior $\mathrm{Dir}(\alpha,\alpha,\alpha)$ on
+three bins, with $\alpha$ from 0.1 to 32. Each point is one population; each corner puts
+the whole population in one bin. The readout compares the standard deviation of one
+fraction over the draws with the Dirichlet's, $\sqrt{2/(9(3\alpha+1))}$.
 ```
 
 The flat prior is not free. It adds one pseudo-count per bin, $K$ in all. With $K$
@@ -106,6 +56,23 @@ and makes neighbouring values of $\eta$ similar:
 
 - a random walk penalises jumps, or bends, between neighbouring bins;
 - a Gaussian process correlates bins closer than a length scale.
+
+Explainer {ref}`explainer-v8` compares the four kinds of prior on 16 bins. A Dirichlet's
+bins are all slightly anticorrelated, by $-1/(K-1)$ whatever $\alpha$. A
+{term}`Pólya tree`, one of the Dirichlet's conjugate relatives,
+correlates the bins within each half, quarter and so on of the range. The random walk and
+the Gaussian process correlate neighbours, and anticorrelate distant bins, since the
+fractions sum to one.
+
+```{explainer} v8
+Top: three draws from the chosen prior on 16 bins over $[0, 1]$. Bottom: the correlation
+between every two bins' fractions over 2,000 draws. The priors are `Dirichlet(alpha)`,
+`PolyaTree(c)` (four levels), `LogisticRandomWalk(scale=tau)` (order 2) and
+`LogisticGP(amplitude=1, length_scale=ell, n_basis=64)` (Matérn-3/2), with the
+hyperparameter fixed rather than inferred. The scale slider multiplies it by $10^s$,
+from $\alpha=1$, $c=1$, $\tau=0.1$ and $\ell=0.6$. The random walk's linear trend keeps its
+broad default prior, so at small $\tau$ its draws are ramps.
+```
 
 How smooth the population is, is not fixed in advance. binference infers the prior's
 {term}`hyperparameters <hyperparameter>`, such as the size of the jumps or the length

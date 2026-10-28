@@ -69,7 +69,7 @@ remaining error {cite:p}`dempster1977`.
   $I_{\rm obs}$, as they do in EM.
 
 The same number sets the speed of the Gibbs sampler
-([Gibbs](engines.md#gibbs-sampling)) and the choices of
+([Gibbs](engines.md#gibbs-sampling), explainer {ref}`explainer-v14`) and the choices of
 {doc}`auto <auto>`.
 
 ## mix-SQP

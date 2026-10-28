@@ -7,12 +7,12 @@ for (const fig of document.querySelectorAll("figure[data-explainer]")) {
   import(`./${fig.dataset.explainer}.mjs`).then((ex) => {
     const plot = fig.querySelector(".explainer-plot"), out = fig.querySelector(".explainer-readout");
     const live = fig.querySelector(".explainer-live");
-    const inputs = [...fig.querySelectorAll("input[name]")];
+    const inputs = [...fig.querySelectorAll("input[name], select[name]")];
     const state = () => Object.fromEntries(inputs.map((i) => [i.name, Number(i.value)]));
     let pending = false;
     const update = () => {
       pending = false;
-      for (const i of inputs) {
+      for (const i of inputs.filter((i) => i.type === "range")) {
         const text = Number(i.value).toFixed((i.step.split(".")[1] ?? "").length);
         fig.querySelector(`output[for="${i.id}"]`).textContent = text;
         i.setAttribute("aria-valuetext", text);

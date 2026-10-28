@@ -300,14 +300,24 @@ figure.explainer {
 .explainer-plot .fill-ink { fill: var(--b-ink-2); fill-opacity: .18; stroke: none; }
 .explainer-plot .swatch-ink { stroke: var(--b-ink-2); stroke-opacity: .3; stroke-width: 10; }
 .explainer-plot .ink2 { stroke: var(--b-ink-2); stroke-width: 2.5; }
-.explainer-plot .brand.thin { stroke-width: 1.5; }
 .explainer-plot .cat1 { stroke: var(--b-cat-1); stroke-width: 2.5; }
+.explainer-plot .cat2 { stroke: var(--b-cat-2); stroke-width: 2.5; }
+.explainer-plot .thin { stroke-width: 1.5; }
+.explainer-plot .mark { stroke: var(--b-brand); stroke-width: 10; stroke-linecap: round; }
+.explainer-plot .dots { stroke: var(--b-brand); stroke-width: 3; stroke-linecap: round; stroke-opacity: .45; }
+.explainer-plot .div0 { fill: var(--b-div-0); } .explainer-plot .div1 { fill: var(--b-div-1); }
+.explainer-plot .div2 { fill: var(--b-div-2); } .explainer-plot .div3 { fill: var(--b-div-3); }
+.explainer-plot .div4 { fill: var(--b-div-4); }
 .explainer-plot .dashed { stroke-dasharray: 6 4; stroke-width: 1.5; }
 .explainer-plot text { fill: var(--b-ink-2); }
 .explainer-plot text.key { fill: var(--b-ink); }
 .explainer-controls { display: grid; grid-template-columns: auto 1fr 3.5em; gap: 6px 10px; align-items: center; margin-top: 10px; }
 .explainer-controls label { font: var(--b-type-caption); color: var(--b-ink); }
 .explainer-controls input { width: 100%; accent-color: var(--b-brand); }
+.explainer-controls select {
+  grid-column: span 2; justify-self: start; font: var(--b-type-caption); color: var(--b-ink);
+  background: var(--b-bg); border: 1px solid var(--b-rule); border-radius: var(--b-radius); padding: 2px 6px;
+}
 .explainer-controls output, .explainer-readout { font: var(--b-type-code); color: var(--b-ink); }
 .explainer-controls output { text-align: right; }
 .explainer-readout { margin: 6px 0 0; }
