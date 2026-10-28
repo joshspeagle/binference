@@ -48,9 +48,14 @@ def _sections(app, env) -> None:
 
 
 def _level(html: str) -> str:
-    return html.replace(
+    """Fix two roles Sphinx and docutils write: toctree captions are headings without a level,
+    and the bibliography is a list whose children sphinxcontrib-bibtex makes link targets."""
+    html = html.replace(
         'class="caption" role="heading">', 'class="caption" role="heading" aria-level="2">'
     )
+    if 'role="heading">' in html:
+        logger.warning("a heading role without a level remains: Sphinx's caption markup changed")
+    return html.replace('<div role="list" class="citation-list">', '<div class="citation-list">')
 
 
 def _page_context(app, pagename, templatename, context, doctree):

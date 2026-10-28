@@ -71,15 +71,17 @@
   mark();
 })();
 
-/* After sphinx-copybutton has added its buttons: name them, let the keyboard reach every block
-   that scrolls sideways (code, maths, wide tables), and fix the bibliography's list role. */
+/* After sphinx-copybutton has added its buttons, name them; once MathJax has typeset, let the
+   keyboard reach every block that scrolls sideways (the blocks binference.css lets scroll). */
 addEventListener("load", function () {
   document.querySelectorAll("button.copybtn:not([aria-label])").forEach(function (b) {
     b.setAttribute("aria-label", "Copy code");
   });
-  document.querySelectorAll(".article pre, .article div.math, .article table, .article .highlight").forEach(function (el) {
-    if (el.scrollWidth > el.clientWidth && !el.hasAttribute("tabindex")) el.setAttribute("tabindex", "0");
+  var typeset = window.MathJax && MathJax.startup ? MathJax.startup.promise : Promise.resolve();
+  typeset.then(function () {
+    document.querySelectorAll(".article div.highlight, .article div.math, .article table.docutils, " +
+      ".article dl.py > dt, div.cell_output .output pre, div.cell_output .output.text_html").forEach(function (el) {
+      if (el.scrollWidth > el.clientWidth && !el.hasAttribute("tabindex")) el.setAttribute("tabindex", "0");
+    });
   });
-  /* docutils marks the bibliography as a list, but sphinxcontrib-bibtex puts link targets in it */
-  document.querySelectorAll(".citation-list[role=list]").forEach(function (el) { el.removeAttribute("role"); });
 });

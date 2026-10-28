@@ -412,8 +412,6 @@ main form input[type="submit"] {
   .pager { grid-template-columns: 1fr; }
   table.genindextable td { display: block; width: auto; }
   .pager .nx { text-align: left; }
-  /* phones have no hover, and the hidden mark after a long unbreakable name widened the page */
-  a.headerlink { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
