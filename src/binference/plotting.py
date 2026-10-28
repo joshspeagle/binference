@@ -6,6 +6,7 @@ own data say (the stack, an object's own likelihood) takes the second, or
 ``sample_color``; reference lines, error bars and the truth (dashed) take ``text.color``.
 2-D medians ramp from a pale tint of the population colour to the colour, and relative
 uncertainties likewise in ``text.color``; masked bins show the axes background.
+``SAMPLE_COLOR`` is the coral the binference docs give single objects, for ``sample_color``.
 """
 
 from __future__ import annotations
@@ -18,7 +19,18 @@ import numpy as np
 from ._utils import warn
 from .warnings import InputWarning
 
-__all__ = ["plot_corner", "plot_individual", "plot_population", "plot_sbc", "plot_trace"]
+__all__ = [
+    "SAMPLE_COLOR",
+    "plot_corner",
+    "plot_individual",
+    "plot_population",
+    "plot_sbc",
+    "plot_trace",
+]
+
+#: The coral of single objects and samples in the binference docs (its brand ``sample``
+#: colour), to pass as ``sample_color``; written by ``docs/_scripts/brand.py``.
+SAMPLE_COLOR = "#EC5F3E"
 
 
 def _style_color(name: str, value: Any, slot: int):
@@ -162,7 +174,7 @@ def plot_population(
             warn("2-D plots show no truth, stack or label; they are ignored.", InputWarning)
         return _plot_2d(result, X, plt, ax, color)
     if ax is None:
-        _, ax = plt.subplots(figsize=(7, 4))
+        _, ax = plt.subplots()
     ylabel = _YLABEL[which]
     if bins.is_categorical:
         x = np.arange(bins.K)
@@ -420,7 +432,7 @@ def plot_individual(
     own = own / own.sum()
     shrunk = result.assignment_probabilities(idx=[i], n_draws=n_draws)[0]
     if ax is None:
-        _, ax = plt.subplots(figsize=(6, 3.5))
+        _, ax = plt.subplots()
     if bins.is_categorical or bins.ndim > 1:
         x = np.arange(bins.K)
         ax.bar(x - 0.2, own, width=0.4, color=sample_color, label="own likelihood (flat prior)")
@@ -499,7 +511,7 @@ def plot_sbc(
             continue
         a.stairs(hi, np.arange(nb + 1) - 0.5, baseline=lo, fill=True, color=ink, alpha=0.15, lw=0)
         a.bar(np.arange(nb), H[j], width=1.0, color=color, alpha=0.8)
-        a.set_title(names[j], fontsize=9)
+        a.set_title(names[j])
         a.set_yticks([])
     fig.tight_layout()
     return fig

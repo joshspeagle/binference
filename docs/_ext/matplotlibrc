@@ -13,5 +13,10 @@ grid.color: DADCEC
 axes.spines.top: False
 axes.spines.right: False
 legend.frameon: False
-font.size: 11
+legend.handlelength: 1.5
+legend.columnspacing: 1.0
+figure.figsize: 4.8, 3.4
+figure.constrained_layout.use: True
+font.size: 14
+axes.titlesize: medium
 lines.linewidth: 1.8

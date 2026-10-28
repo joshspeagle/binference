@@ -24,22 +24,13 @@ of $z$. This tutorial computes the NPMLE, the full posterior of $\rho$, and the
 {term}`shrinkage` estimates of the units that follow from each.
 
 ```{code-cell} python
-:tags: [remove-cell]
-
-# figures 6 in wide with 17 pt text keep text above 12 px on a 390 px phone screen
-import matplotlib.pyplot as plt
-
-plt.rcParams.update({"figure.figsize": (6, 3.4), "font.size": 17,
-                     "figure.constrained_layout.use": True})
-```
-
-```{code-cell} python
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 from scipy import stats
 
 import binference
+from binference.plotting import SAMPLE_COLOR
 
 rng = np.random.default_rng(81)
 ```
@@ -115,7 +106,7 @@ mystnb:
       hump near 2.5. The NPMLE puts a tall line at zero and shorter ones near 1.9 and
       3.3.
 ---
-fig, ax = plt.subplots(figsize=(6, 4.2))
+fig, ax = plt.subplots()
 fit.plot(ax=ax, which="fractions", truth=rho_true, label="median")
 ax.vlines(bins.centers[atoms], 0, npmle.rho[atoms], color="C1", lw=2.5, label="NPMLE")
 ax.set(xlabel="effect $z$", ylim=(0, 0.35))
@@ -211,8 +202,8 @@ mystnb:
       they lie below it, moved down toward 2.5 to 3. Darker points, with larger errors,
       lie furthest from the diagonal.
 ---
-ramp = LinearSegmentedColormap.from_list("ramp", ["#F7C3B5", "#EC5F3E", "#7A2412"])
-fig, ax = plt.subplots(figsize=(6, 5))
+ramp = LinearSegmentedColormap.from_list("ramp", ["#F7C3B5", SAMPLE_COLOR, "#7A2412"])
+fig, ax = plt.subplots(figsize=(4.8, 4))
 sc = ax.scatter(d, eb_full, c=sigma, s=8, cmap=ramp, lw=0)
 ax.plot([-3, 7], [-3, 7], color="0.45", lw=1, ls="--")
 ax.set(xlabel="raw estimate $d_i$", ylabel="posterior mean of $z_i$", xlim=(-3, 7),

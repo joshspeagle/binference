@@ -16,23 +16,12 @@ sequence, from measurements that are noisy in both coordinates. The two coordina
 $z_1$ and $z_2$.
 
 ```{code-cell} python
-:tags: [remove-cell]
-
-# figures 6 in wide with 17 pt text keep text above 12 px on a 390 px phone screen
-import matplotlib.pyplot as plt
-
-plt.rcParams.update({"figure.figsize": (6, 3.4), "font.size": 17,
-                     "figure.constrained_layout.use": True})
-```
-
-```{code-cell} python
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 
 import binference
-
-OBJECT = "#EC5F3E"   # the colour of single objects in these docs
+from binference.plotting import SAMPLE_COLOR
 
 grid = binference.Bins.grid(np.linspace(0, 1, 13), np.linspace(0, 1, 13))   # 12 x 12 cells
 rho_true = binference.simulate.population(grid, "banana")   # cell fractions of the ridge
@@ -65,11 +54,11 @@ mystnb:
 obs = mock.measurements["mean"]
 e1, e2 = grid.edges
 ramp = LinearSegmentedColormap.from_list("ramp", ["#F1F2FA", "C0"])
-fig, axes = plt.subplots(2, 1, figsize=(6, 9))
+fig, axes = plt.subplots(2, 1, figsize=(4.8, 7.2))
 im = axes[0].pcolormesh(e1, e2, grid.unflatten(mock.truth.rho / grid.volumes).T, cmap=ramp)
 fig.colorbar(im, ax=axes[0], label="density")
 axes[0].set_title("true population", loc="left")
-axes[1].scatter(obs[:, 0], obs[:, 1], s=3, color=OBJECT, alpha=0.4, lw=0)
+axes[1].scatter(obs[:, 0], obs[:, 1], s=3, color=SAMPLE_COLOR, alpha=0.4, lw=0)
 axes[1].set(xlim=(0, 1), ylim=(0, 1))
 axes[1].set_title("measured values", loc="left")
 for ax in axes:
@@ -106,7 +95,7 @@ mystnb:
       darker away from it. It is darkest below the ridge near z1 of 0.5, where the median
       is close to zero.
 ---
-fig, axes = plt.subplots(2, 1, figsize=(6, 9))
+fig, axes = plt.subplots(2, 1, figsize=(4.8, 7.2))
 result.plot(ax=axes)
 for ax in axes:
     ax.set(xlabel="$z_1$", ylabel="$z_2$");
@@ -151,7 +140,7 @@ c2 = grid.centers.reshape(*grid.shape, 2)[0, :, 1]      # z2 at the cell centres
 mean_2 = (draws * c2).sum(axis=2) / marg_1              # mean z2 in each z1 column
 
 true = grid.unflatten(mock.truth.rho)
-fig, axes = plt.subplots(2, 1, figsize=(6, 6.4), sharex=True)
+fig, axes = plt.subplots(2, 1, figsize=(4.8, 5.1), sharex=True)
 for ax, d, t, lab in [(axes[0], marg_1, true.sum(axis=1), "fraction"),
                       (axes[1], mean_2, (true * c2).sum(axis=1) / true.sum(axis=1), "mean $z_2$")]:
     lo, med, hi = np.quantile(d, [0.16, 0.5, 0.84], axis=0)

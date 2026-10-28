@@ -7,8 +7,8 @@
   as outlines; the favicon;
 * ``tokens.css``: the colour, type and size tokens of the site theme;
 
-and ``docs/_ext/matplotlibrc``, the style of the tutorials' plots (``conf.py`` hands it to
-the notebook kernels),
+``docs/_ext/matplotlibrc``, the style of every executed page's plots (``conf.py`` hands it
+to the notebook kernels), the ``SAMPLE_COLOR`` line of ``binference/plotting.py``,
 with the generated tables of ``brand.md`` (between its ``<!-- name:start/end -->``
 markers). ``--check`` writes nothing and fails if a committed output is stale; CI runs it.
 The lockups need fontTools and Sora's variable font, downloaded on first use to
@@ -60,7 +60,7 @@ TOKENS = {
     "warn": ("#9A6200", "#E8AE52", "warnings", "bg"),
     "danger": ("#B42318", "#F97066", "errors", "bg"),
 }
-#: tutorial plots are drawn on the light page in both themes; the dark theme sets them on it
+#: plots are drawn on the light page in both themes; the dark theme sets them on it
 FIGURE_GROUND = TOKENS["bg"][0]
 #: data colours: (light, dark, use); validated with the dataviz palette checks
 DATA = {
@@ -115,6 +115,12 @@ SIZES = {
     "radius": (2, "the largest corner radius, on controls only"),
     "figure-text": (12, "smallest figure text at 390 px wide"),
 }
+#: the default figure: width and height in inches, and its text size in points. A figure
+#: shown 334 px wide (the readable width of a 390 px screen) draws text at
+#: pt x 334 / (72 x width) px: 13.5 px here. Legends and tick labels take this size too
+#: ("medium"), and so do titles, which label panels.
+FIGURE = {"width": 4.8, "height": 3.4, "pt": 14}
+PHONE_READABLE_PX = 334
 
 # --------------------------------------------------------------------------- the mark
 
@@ -313,11 +319,16 @@ def tokens_css() -> str:
 
 
 MATPLOTLIBRC = DOCS / "_ext" / "matplotlibrc"
+PLOTTING = DOCS.parent / "src" / "binference" / "plotting.py"
 
 
 def matplotlibrc() -> str:
-    """Tutorial plots: drawn for the light figure ground in both themes (the theme puts them on
-    that ground in the dark theme), categories in order, readable at phone width."""
+    """Plots of the executed pages: drawn for the light figure ground in both themes (the theme
+    puts them on that ground in the dark theme), categories in order, readable at phone width.
+    """
+    phone_px = FIGURE["pt"] * PHONE_READABLE_PX / (72 * FIGURE["width"])
+    if phone_px < SIZES["figure-text"][0]:
+        raise SystemExit(f"FIGURE draws text at {phone_px:.1f} px on a phone.")
     light = {k: v[0].lstrip("#") for k, v in TOKENS.items()}
     cycle = ", ".join(f"'{c.lstrip('#')}'" for c in DATA["cat"][0])
     lines = {
@@ -335,7 +346,12 @@ def matplotlibrc() -> str:
         "axes.spines.top": False,
         "axes.spines.right": False,
         "legend.frameon": False,
-        "font.size": 11,
+        "legend.handlelength": 1.5,  # compact legends fit above a phone-width plot
+        "legend.columnspacing": 1.0,
+        "figure.figsize": f"{FIGURE['width']}, {FIGURE['height']}",
+        "figure.constrained_layout.use": True,
+        "font.size": FIGURE["pt"],
+        "axes.titlesize": "medium",
         "lines.linewidth": 1.8,
     }
     header = "# Written by docs/_scripts/brand.py; edit the tokens there.\n"
@@ -397,6 +413,10 @@ def outputs() -> dict[Path, str]:
             out[STATIC / "brand" / f"mark-{cut}-{tag}.svg"] = mark_svg(cut, theme)
         out[STATIC / "brand" / f"lockup-{tag}.svg"] = lockup_svg(theme, "mid")
         out[STATIC / "brand" / f"lockup-large-{tag}.svg"] = lockup_svg(theme, "full")
+    plotting = PLOTTING.read_text(encoding="utf-8")
+    out[PLOTTING] = re.sub(
+        r'^SAMPLE_COLOR = ".*"$', f'SAMPLE_COLOR = "{TOKENS["sample"][0]}"', plotting, flags=re.M
+    )
     md = BRAND_MD.read_text(encoding="utf-8")
     for name, table in tables().items():
         start, end = f"<!-- {name}:start -->", f"<!-- {name}:end -->"

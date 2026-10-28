@@ -20,22 +20,11 @@ routes, named by what you have:
   shows how each class scores.
 
 ```{code-cell} python
-:tags: [remove-cell]
-
-# figures 6 in wide with 17 pt text keep text above 12 px on a 390 px phone screen
-import matplotlib.pyplot as plt
-
-plt.rcParams.update({"figure.figsize": (6, 3.4), "font.size": 17,
-                     "figure.constrained_layout.use": True})
-```
-
-```{code-cell} python
 import matplotlib.pyplot as plt
 import numpy as np
 
 import binference
-
-OBJECT = "#EC5F3E"   # the colour of single objects in these docs
+from binference.plotting import SAMPLE_COLOR
 ```
 
 ## Posteriors and the training prevalence
@@ -81,8 +70,8 @@ mystnb:
       probabilities lie above the truth for the rare classes and below it for the
       common one.
 ---
-fig, ax = plt.subplots(figsize=(6, 4.2))
-fit.plot(ax=ax, which="fractions", truth=mock.truth.rho, stack=pcc, sample_color=OBJECT,
+fig, ax = plt.subplots()
+fit.plot(ax=ax, which="fractions", truth=mock.truth.rho, stack=pcc, sample_color=SAMPLE_COLOR,
          label="binference")
 ax.legend(ncol=2, loc="lower left", bbox_to_anchor=(0, 1))
 ax.set_xlabel("class");

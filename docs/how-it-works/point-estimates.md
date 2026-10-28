@@ -187,8 +187,7 @@ import numpy as np
 import binference
 from binference.samplers import MAP
 
-plt.rcParams["font.size"] = 12
-INK2 = "#5D5F86"
+INK2 = plt.rcParams["xtick.color"]
 
 lk = binference.Likelihoods(
     np.array([[1.0, 0.0], [0.0, 1.0]]), binference.Bins.categories(2), weights=[1, 7]
@@ -208,7 +207,7 @@ dx /= np.trapezoid(dx, x)
 cdf = np.concatenate([[0.0], np.cumsum(0.5 * (dr[1:] + dr[:-1]) * np.diff(r))])
 band = (cdf > 0.16) & (cdf < 0.84)
 
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 6.0), constrained_layout=True)
+fig, axes = plt.subplots(2, 1, figsize=(4.8, 6.0))
 for ax, t, d, label in (
     (axes[0], r, dr, r"fraction $\rho_1$"),
     (axes[1], x, dx, r"isometric log-ratio $x$"),

@@ -23,16 +23,6 @@ fits: one that ignores the selection, one that plugs in the injection estimate, 
 that infers both together.
 
 ```{code-cell} python
-:tags: [remove-cell]
-
-# figures 6 in wide with 17 pt text keep text above 12 px on a 390 px phone screen
-import matplotlib.pyplot as plt
-
-plt.rcParams.update({"figure.figsize": (6, 3.4), "font.size": 17,
-                     "figure.constrained_layout.use": True})
-```
-
-```{code-cell} python
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
@@ -146,7 +136,7 @@ mystnb:
       and the heavy ones rise above it. In the other two the bands follow the truth; the
       joint fit's bands are wider in the lightest bins.
 ---
-fig, axes = plt.subplots(3, 1, figsize=(6, 9), sharex=True, sharey=True)
+fig, axes = plt.subplots(3, 1, figsize=(4.8, 7.2), sharex=True, sharey=True)
 for ax, name in zip(axes, ["no selection", "plug-in injections", "joint"]):
     fits[name].plot(ax=ax, which="fractions", truth=rho_true, label="median")
     ax.set_title(name, loc="left")
@@ -227,7 +217,7 @@ S_lo, S_hi = np.quantile(S_draws, [0.05, 0.95], axis=0)
 beta = stats.beta(a_prior + recovered, b_prior + injected - recovered)
 fine = np.linspace(np.log(m_lo), np.log(m_hi), 400)
 
-fig, ax = plt.subplots(figsize=(6, 4.8))
+fig, ax = plt.subplots(figsize=(4.8, 3.8))
 ax.plot(fine, S(np.exp(fine)), "k--", lw=1.2, label="truth")
 for dx, mid, lo, hi, color, marker, label in [
     (-0.02, beta.mean(), beta.ppf(0.05), beta.ppf(0.95), "C1", "s", "injections alone"),

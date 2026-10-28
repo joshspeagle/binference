@@ -20,16 +20,6 @@ way. The same analysis estimates the breeding origins of migrating birds and the
 rookeries of foraging sea turtles.
 
 ```{code-cell} python
-:tags: [remove-cell]
-
-# figures 6 in wide with 17 pt text keep text above 12 px on a 390 px phone screen
-import matplotlib.pyplot as plt
-
-plt.rcParams.update({"figure.figsize": (6, 3.4), "font.size": 17,
-                     "figure.constrained_layout.use": True})
-```
-
-```{code-cell} python
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -186,15 +176,15 @@ mystnb:
       cover them. The squares of classify and count lie too low for A and too high for
       B. For C, D and E all estimates lie close to the truth, C slightly above it.
 ---
-OBJECT = "#EC5F3E"   # the colour of single objects in these docs
-fig, ax = plt.subplots(figsize=(6, 4.8))
+from binference.plotting import SAMPLE_COLOR
+fig, ax = plt.subplots(figsize=(4.8, 3.8))
 pos = np.arange(K)
 for dx, res, name, color, marker in [(-0.14, fit, "baseline fixed", "C0", "o"),
                                      (0.14, fit_c, "matrix inferred", "C1", "^")]:
     lo, hi = res.interval(0.9)
     ax.errorbar(pos + dx, res.mean, yerr=[res.mean - lo, hi - res.mean], fmt=marker,
                 color=color, ms=8, capsize=3, label=name)
-ax.plot(pos, cc, "s", color=OBJECT, ms=8, label="counting")
+ax.plot(pos, cc, "s", color=SAMPLE_COLOR, ms=8, label="counting")
 ax.plot(pos, rho_true, "_", color="k", ms=26, mew=2, label="truth")
 ax.set(xticks=pos, xticklabels=stocks, xlabel="stock", ylabel="proportion")
 ax.legend(ncol=2, loc="lower left", bbox_to_anchor=(0, 1));

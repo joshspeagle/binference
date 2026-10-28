@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.abspath("../src"))
 sys.path.insert(0, os.path.abspath("_ext"))
-# the tutorials' plot style, written by _scripts/brand.py; the notebook kernels inherit it
+# the executed pages' plot style, written by _scripts/brand.py; the notebook kernels inherit it
 os.environ["MATPLOTLIBRC"] = os.path.abspath("_ext/matplotlibrc")
 
 from binference import __version__
@@ -49,7 +49,7 @@ source_suffix = {".rst": "restructuredtext", ".md": "myst-nb"}
 myst_enable_extensions = ["amsmath", "colon_fence", "deflist", "dollarmath"]
 myst_heading_anchors = 3
 nb_execution_mode = os.environ.get("BINFERENCE_DOCS_EXECUTE", "cache")
-# keyed on the plot style too: a new style re-executes the tutorials
+# keyed on the plot style too: a new style re-executes every page
 _style = hashlib.sha256(Path(os.environ["MATPLOTLIBRC"]).read_bytes()).hexdigest()[:12]
 nb_execution_cache_path = os.path.abspath(f"_build/.jupyter_cache/{_style}")
 nb_execution_timeout = 900

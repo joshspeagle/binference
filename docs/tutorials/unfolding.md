@@ -17,23 +17,12 @@ spectrum from the counts is unfolding. This tutorial unfolds a smeared spectrum 
 binference, under a {term}`Dirichlet prior` and under a {term}`smoothness prior`.
 
 ```{code-cell} python
-:tags: [remove-cell]
-
-# figures 6 in wide with 17 pt text keep text above 12 px on a 390 px phone screen
-import matplotlib.pyplot as plt
-
-plt.rcParams.update({"figure.figsize": (6, 3.4), "font.size": 17,
-                     "figure.constrained_layout.use": True})
-```
-
-```{code-cell} python
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 
 import binference
-
-OBJECT = "#EC5F3E"   # the colour of single objects in these docs
+from binference.plotting import SAMPLE_COLOR
 ```
 
 ## The response and the counts
@@ -58,12 +47,12 @@ mu = binference.simulate.mock_unfolding(8000, n_true=20, n_reco=25, rng=3)
 R = mu.response.matrix                   # (measured bins, true bins)
 counts = mu.measurements["reco_counts"]
 
-fig, axes = plt.subplots(2, 1, figsize=(6, 7.2), height_ratios=[1.4, 1])
+fig, axes = plt.subplots(2, 1, figsize=(4.8, 5.8), height_ratios=[1.4, 1])
 ramp = LinearSegmentedColormap.from_list("ramp", ["#F1F2FA", "C0"])
 im = axes[0].imshow(R, origin="lower", aspect="auto", cmap=ramp)
 axes[0].set(xlabel="true bin k", ylabel="measured bin j")
 fig.colorbar(im, ax=axes[0], label="$R_{jk}$")
-axes[1].stairs(counts, np.arange(len(counts) + 1) - 0.5, color=OBJECT, lw=1.8)
+axes[1].stairs(counts, np.arange(len(counts) + 1) - 0.5, color=SAMPLE_COLOR, lw=1.8)
 axes[1].set(xlabel="measured bin j", ylabel="events");
 ```
 
@@ -132,7 +121,7 @@ mystnb:
       narrow and smooth, and follow the dashed truth.
 ---
 truth = mu.truth.rho
-fig, axes = plt.subplots(2, 1, figsize=(6, 6.4), sharex=True, sharey=True)
+fig, axes = plt.subplots(2, 1, figsize=(4.8, 5.1), sharex=True, sharey=True)
 flat.plot(ax=axes[0], truth=truth, which="fractions", label="median")
 smooth.plot(ax=axes[1], truth=truth, which="fractions", label="median")
 axes[0].set_title("Dirichlet prior", loc="left")

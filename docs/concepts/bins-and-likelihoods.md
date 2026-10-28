@@ -18,9 +18,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import binference
+from binference.plotting import SAMPLE_COLOR
 
-plt.rcParams["font.size"] = 14
-CORAL, INK, INK2 = "#EC5F3E", "#1B1D4A", "#5D5F86"
+CORAL, INK, INK2 = SAMPLE_COLOR, plt.rcParams["text.color"], plt.rcParams["xtick.color"]
 ```
 
 ## Objects and bins
@@ -70,7 +70,7 @@ mystnb:
 ---
 bins = binference.Bins.linear(0, 3, 12)
 z = np.linspace(0, 3, 601)
-fig, axes = plt.subplots(2, 1, layout="constrained", figsize=(4.8, 4.5), sharex=True)
+fig, axes = plt.subplots(2, 1, figsize=(4.8, 4.5), sharex=True)
 for ax, sigma in zip(axes, (0.1, 0.4), strict=True):
     lk = binference.Likelihoods.from_gaussian([1.37], [sigma], bins)
     L = lk.toarray()[0] * np.exp(lk.log_scale[0])  # the bin averages at their true scale
@@ -82,7 +82,7 @@ for ax, sigma in zip(axes, (0.1, 0.4), strict=True):
         ax.axvline(e, color=INK2, lw=0.5, alpha=0.4)
     ax.set_ylabel("likelihood")
     ax.text(0.98, 0.9, rf"$\sigma = {sigma}$", transform=ax.transAxes, ha="right", va="top")
-axes[0].legend(loc="lower left", bbox_to_anchor=(0, 1.02), borderaxespad=0, fontsize=12, ncol=2)
+fig.legend(*axes[0].get_legend_handles_labels(), loc="outside upper center", ncol=2)
 axes[1].set_xlabel("true value $z$")
 plt.show()
 ```
@@ -141,7 +141,7 @@ mystnb:
 ---
 unequal = binference.Bins([0, 0.2, 0.4, 0.5, 0.9, 1.0, 1.1, 1.6, 3.0])
 log_spaced = binference.Bins(np.geomspace(0.1, 10, 11), measure="linear")
-fig, axes = plt.subplots(2, 1, layout="constrained", figsize=(4.8, 4.6))
+fig, axes = plt.subplots(2, 1, figsize=(4.8, 4.6))
 for ax, b in zip(axes, (unequal, log_spaced), strict=True):
     dens = binference.Likelihoods.from_gaussian([1.0], [0.35], b).toarray()[0]
     mass = dens * b.volumes
@@ -149,7 +149,7 @@ for ax, b in zip(axes, (unequal, log_spaced), strict=True):
     ax.stairs(mass / mass.max(), b.edges[0], color=INK, lw=1.6, ls=":", label="mass")
     ax.set_ylabel("scaled to peak 1")
 axes[1].set_xscale("log")
-axes[0].legend(loc="lower left", bbox_to_anchor=(0, 1.02), borderaxespad=0, fontsize=12, ncol=2)
+fig.legend(*axes[0].get_legend_handles_labels(), loc="outside upper center", ncol=2)
 axes[1].set_xlabel("true value $z$")
 plt.show()
 ```

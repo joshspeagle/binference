@@ -25,9 +25,9 @@ from myst_nb import glue
 from scipy import stats
 
 import binference
+from binference.plotting import SAMPLE_COLOR
 
-plt.rcParams["font.size"] = 14
-CORAL, INK, INK2 = "#EC5F3E", "#1B1D4A", "#5D5F86"
+CORAL, INK, INK2 = SAMPLE_COLOR, plt.rcParams["text.color"], plt.rcParams["xtick.color"]
 RAMP = ["#B8BBEE", "#8186DE", "#4C53C2", "#2A2F8F"]  # the docs' sequential indigo ramp
 ```
 
@@ -65,7 +65,7 @@ mystnb:
 ---
 bins = binference.Bins.linear(0, 3, 15)
 truth = binference.simulate.population(bins, "bimodal")
-fig, axes = plt.subplots(2, 1, layout="constrained", figsize=(4.8, 5.1), sharex=True,
+fig, axes = plt.subplots(2, 1, figsize=(4.8, 5.1), sharex=True,
                          gridspec_kw={"height_ratios": [1, 1.2]})
 ax = axes[0]
 ax.stairs(truth / bins.volumes, bins.edges[0], color="C0", lw=2.2, label=r"population $\rho$")
@@ -74,7 +74,7 @@ for seed, ls in zip((1, 2, 3), ("-", "--", ":"), strict=True):
     ax.stairs(counts / counts.sum() / bins.volumes, bins.edges[0], color=CORAL, lw=1.4, ls=ls,
               label="realised samples" if seed == 1 else None)
 ax.set_ylabel("density")
-ax.legend(loc="lower left", bbox_to_anchor=(0, 1.02), borderaxespad=0, fontsize=12, ncol=2)
+ax.legend(loc="lower left", bbox_to_anchor=(0, 1.02), borderaxespad=0, ncol=2)
 mock = binference.simulate.mock_1d(25, bins, density=truth, noise=(0.1, 0.3), rng=1)
 order = np.argsort(mock.truth.values)
 rows = np.arange(order.size)
@@ -86,7 +86,7 @@ ax.plot(mock.truth.values[order], rows, "o", ms=6, mfc="none", mec=INK, mew=1.2,
 ax.set_yticks([])
 ax.set_ylabel("objects")
 ax.set_xlabel("value")
-ax.legend(fontsize=12, loc="lower right")
+ax.legend(loc="lower right")
 plt.show()
 ```
 
@@ -146,7 +146,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     fit = binference.infer(lk, method="gibbs", n_samples=1000, rng=1, check=False)
 dens = lambda r: r / bins.volumes  # noqa: E731
-fig, axes = plt.subplots(2, 1, layout="constrained", figsize=(4.8, 5.1), sharex=True)
+fig, axes = plt.subplots(2, 1, figsize=(4.8, 5.1), sharex=True)
 ax = axes[0]
 for (t, r), c in zip(steps.items(), RAMP, strict=True):
     ax.stairs(dens(r), bins.edges[0], color=c, lw=2.0,
@@ -160,7 +160,7 @@ ax.stairs(dens(stack), bins.edges[0], color=RAMP[0], lw=2.0, label="the stack")
 for ax in axes:
     ax.stairs(dens(truth), bins.edges[0], color=INK, lw=1.4, ls="--", label="truth")
     ax.set_ylabel("population density")
-    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.02), borderaxespad=0, fontsize=12, ncol=2)
+    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.02), borderaxespad=0, ncol=2)
 axes[1].set_xlabel("true value $z$")
 plt.show()
 corr = fit.corr()
@@ -216,7 +216,7 @@ mystnb:
 bins = binference.Bins.linear(0, 3, 30)
 one = binference.Likelihoods.from_gaussian([1.9], [0.4], bins)
 unit = lambda m: m / (m.sum() * bins.volumes)  # noqa: E731  (masses to unit-area densities)
-fig, axes = plt.subplots(2, 1, layout="constrained", figsize=(4.8, 4.5), sharex=True)
+fig, axes = plt.subplots(2, 1, figsize=(4.8, 4.5), sharex=True)
 for ax, width, name in zip(axes, (0.25, 1.0), ("narrow population", "broad population"),
                            strict=True):
     pop = binference.simulate.population(bins, stats.norm(1.2, width))
@@ -226,10 +226,9 @@ for ax, width, name in zip(axes, (0.25, 1.0), ("narrow population", "broad popul
     ax.stairs(unit(one.toarray()[0] * bins.volumes), bins.edges[0], color=CORAL, lw=1.4,
               ls="--", label=r"likelihood $L_{ik}$")
     ax.stairs(unit(post), bins.edges[0], color=CORAL, lw=2.4, label=r"posterior $r_{ik}(\rho)$")
-    ax.set_title(name, fontsize=14, loc="left")
+    ax.set_title(name, loc="left")
     ax.set_ylabel("density")
-fig.legend(*axes[0].get_legend_handles_labels(), loc="outside upper center", ncol=2,
-           fontsize=12)
+fig.legend(*axes[0].get_legend_handles_labels(), loc="outside upper center", ncol=2)
 axes[1].set_xlabel("true value $z$")
 plt.show()
 ```
