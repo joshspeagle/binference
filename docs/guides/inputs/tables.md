@@ -51,5 +51,5 @@ print(np.allclose(lk_log.toarray(), lk.toarray()))
 ```
 
 `lk.toarray()` returns the values with each row's largest value set to one. The
-{doc}`mixed-stocks tutorial </tutorials/10_mixed_stocks>` builds a table of
+{doc}`mixed-stocks tutorial </tutorials/mixed-stocks>` builds a table of
 log-likelihoods over categories from genotypes.

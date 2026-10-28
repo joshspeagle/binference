@@ -84,5 +84,5 @@ fit = binference.infer(lk, method="map")
 print(model.kkt_gap(lk.stack()), model.kkt_gap(fit.rho))
 ```
 
-The {doc}`inputs tutorial </tutorials/02_inputs>` shows the bias of a fit that treats
+The {doc}`inputs tutorial </tutorials/posteriors-on-a-grid>` shows the bias of a fit that treats
 posteriors as likelihoods.

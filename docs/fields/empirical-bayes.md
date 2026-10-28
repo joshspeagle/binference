@@ -40,7 +40,7 @@ of about 1.4 million stars.
 | empirical-Bayes term | binference |
 |---|---|
 | prior $g$, mixture proportions $w$ | population fractions $\rho$ |
-| grid of support points | narrow {class}`~binference.Bins` with `Likelihoods.from_gaussian` or `from_density`; or `Bins.categories` with `Likelihoods(L, bins)` |
+| grid of support points | narrow {class}`~binference.Bins` with `Likelihoods.from_gaussian` or `from_density`; or `Bins.categories` with `Likelihoods.from_table(L, bins, kind="likelihood")` |
 | NPMLE | `infer(lk, method="map")` with the default flat Dirichlet |
 | self-consistency check | the {term}`KKT gap`, `binference.diagnostics.kkt_gap` |
 | ashr's Dirichlet-penalised mixture | the MAP with a `Dirichlet` prior |
@@ -52,7 +52,7 @@ of about 1.4 million stars.
 
 The smoothness priors need ordered bins. The
 [point estimates guide](../guides/engines.md#point-estimates) says which solver
-`method="map"` uses. The {doc}`empirical Bayes tutorial <../tutorials/09_empirical_bayes>`
+`method="map"` uses. The {doc}`empirical Bayes tutorial <../tutorials/empirical-bayes>`
 works through the NPMLE, the posterior over $g$ and the shrinkage estimates.
 
 ## Methods and software

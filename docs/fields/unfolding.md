@@ -52,7 +52,7 @@ An event measured in bin $j$ has the likelihood row $R_{j\cdot}$, shared by all 
 that bin. The [inputs guide](../guides/inputs/binned.md)
 describes responses and the folding check. The {doc}`priors guide <../guides/priors>`
 describes the smoothness priors. The
-{doc}`unfolding tutorial <../tutorials/06_categories_unfolding>` unfolds a smeared
+{doc}`unfolding tutorial <../tutorials/unfolding>` unfolds a smeared
 spectrum with a Dirichlet and a Gaussian-process prior.
 
 ## Methods and software

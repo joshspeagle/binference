@@ -14,14 +14,14 @@ tutorials that use it.
 
 | You have, for each object | binference reads it with | Read more |
 |---|---|---|
-| a measured value and its Gaussian error | `Likelihoods.from_gaussian` | [guide](../guides/inputs/gaussian.md), {doc}`quick start <quickstart>`, {doc}`tutorial 9 <../tutorials/09_empirical_bayes>` |
-| likelihoods or log-likelihoods on the bins | `Likelihoods.from_table` | [guide](../guides/inputs/tables.md#conventions), {doc}`tutorial 10 <../tutorials/10_mixed_stocks>` |
+| a measured value and its Gaussian error | `Likelihoods.from_gaussian` | [guide](../guides/inputs/gaussian.md), {doc}`quick start <quickstart>`, {doc}`../tutorials/empirical-bayes` |
+| likelihoods or log-likelihoods on the bins | `Likelihoods.from_table` | [guide](../guides/inputs/tables.md#conventions), {doc}`../tutorials/mixed-stocks` |
 | a likelihood function or a SciPy distribution | `Likelihoods.from_density` | [guide](../guides/inputs/functions.md) |
-| a posterior on the bins, and the prior it was computed under | `Likelihoods.from_table` | [guide](../guides/inputs/posteriors.md), {doc}`tutorial 2 <../tutorials/02_inputs>` |
-| posterior samples, and the prior they were drawn under | `Likelihoods.from_samples` | [guide](../guides/inputs/samples.md), {doc}`tutorial 2 <../tutorials/02_inputs>` |
-| the bin it was measured in, and the detector's {term}`response matrix` | `Likelihoods.from_binned` | [guide](../guides/inputs/binned.md), {doc}`tutorial 6 <../tutorials/06_categories_unfolding>` |
-| a classifier's probabilities, and the class prevalence it was trained on | `Likelihoods.from_table` | [guide](../guides/inputs/binned.md), {doc}`tutorial 6 <../tutorials/06_categories_unfolding>` |
-| a classifier's scores, and a labelled validation set | `Likelihoods.from_binned` with `Response.from_labelled` | [guide](../guides/inputs/binned.md), {doc}`tutorial 6 <../tutorials/06_categories_unfolding>`, {doc}`tutorial 10 <../tutorials/10_mixed_stocks>` |
+| a posterior on the bins, and the prior it was computed under | `Likelihoods.from_table` | [guide](../guides/inputs/posteriors.md), {doc}`../tutorials/posteriors-on-a-grid` |
+| posterior samples, and the prior they were drawn under | `Likelihoods.from_samples` | [guide](../guides/inputs/samples.md), {doc}`../tutorials/posteriors-on-a-grid` |
+| the bin it was measured in, and the detector's {term}`response matrix` | `Likelihoods.from_binned` | [guide](../guides/inputs/binned.md), {doc}`../tutorials/unfolding` |
+| a classifier's probabilities, and the class prevalence it was trained on | `Likelihoods.from_table` | [guide](../guides/inputs/binned.md), {doc}`../tutorials/classifier-outputs` |
+| a classifier's scores, and a labelled validation set | `Likelihoods.from_binned` with `Response.from_labelled` | [guide](../guides/inputs/binned.md), {doc}`../tutorials/classifier-outputs`, {doc}`../tutorials/mixed-stocks` |
 
 Posteriors and posterior samples need their {term}`interim prior`, which binference
 divides out ([pitfalls](../guides/troubleshooting.md#passing-posteriors-as-likelihoods)).
@@ -30,11 +30,11 @@ divides out ([pitfalls](../guides/troubleshooting.md#passing-posteriors-as-likel
 
 | You want | binference gives | Read more |
 |---|---|---|
-| the {term}`population`, with its uncertainty | `result.samples`, `result.summary`, `result.plot` | [guide](../guides/results.md#the-population), {doc}`tutorial 1 <../tutorials/01_quickstart>` |
+| the {term}`population`, with its uncertainty | `result.samples`, `result.summary`, `result.plot` | [guide](../guides/results.md#the-population), {doc}`../tutorials/gaussian-quickstart` |
 | a number computed from the population, such as its mean | `result.functional` | [guide](../guides/results.md#the-population) |
-| each object's value, informed by the population: its {term}`hierarchical posterior` | `result.assignment_probabilities`, `result.sample_values` | [guide](../guides/results.md#individual-objects), {doc}`tutorial 9 <../tutorials/09_empirical_bayes>` |
+| each object's value, informed by the population: its {term}`hierarchical posterior` | `result.assignment_probabilities`, `result.sample_values` | [guide](../guides/results.md#individual-objects), {doc}`../tutorials/empirical-bayes` |
 | the histogram of these objects, the {term}`realised sample` | `result.realized_counts` | [guide](../guides/results.md#population-versus-realised-sample) |
-| totals and rates from an incomplete catalogue, given its {term}`selection function` | `infer`'s `selection`, then `result.total`, `result.rates` | {doc}`guide <../guides/selection>`, {doc}`tutorial 5 <../tutorials/05_selection>`, {doc}`tutorial 11 <../tutorials/11_populations_with_selection>` |
+| totals and rates from an incomplete catalogue, given its {term}`selection function` | `infer`'s `selection`, then `result.total`, `result.rates` | {doc}`guide <../guides/selection>`, {doc}`../tutorials/selection-effects`, {doc}`../tutorials/selection-from-injections` |
 | a quick single answer, a {term}`point estimate` | `method="map"` | [guide](../guides/engines.md#point-estimates) |
 
 ## What binference does not do

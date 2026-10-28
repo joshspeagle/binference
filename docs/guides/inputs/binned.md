@@ -95,5 +95,5 @@ through the response. If the {term}`posterior predictive p-value` is very small,
 warns ([warnings](../../reference/warnings.md#inputwarning)). For a classifier, that
 means label shift is violated.
 
-The {doc}`classifier and unfolding tutorial </tutorials/06_categories_unfolding>` runs
+The {doc}`classifier </tutorials/classifier-outputs>` and {doc}`unfolding </tutorials/unfolding>` tutorials run
 both classifier routes and an unfolding.

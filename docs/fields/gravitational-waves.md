@@ -57,7 +57,7 @@ binference can infer it from injections with the population, as the selection tu
 does. The {doc}`inputs guide <../guides/inputs/index>` describes posterior samples. The
 [selection guide](../guides/selection.md#selection-measured-by-injections) describes
 injections and selection on the measurement. The
-{doc}`selection tutorial <../tutorials/11_populations_with_selection>` infers a mass
+{doc}`selection tutorial <../tutorials/selection-from-injections>` infers a mass
 distribution with a selection measured by injections.
 
 ## Methods and software

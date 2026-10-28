@@ -125,7 +125,7 @@ result.assignment_probabilities()[0].round(2)
 
 ## Next
 
-- {doc}`../tutorials/01_quickstart` goes further with a similar mock: stacking, correlated bins,
+- {doc}`../tutorials/gaussian-quickstart` goes further with a similar mock: stacking, correlated bins,
   smoothness priors and the {term}`realised sample`.
 - The {doc}`results guide <../guides/results>` lists everything a result holds.
 - The {doc}`engines guide <../guides/engines>` explains how `method="auto"` chooses.

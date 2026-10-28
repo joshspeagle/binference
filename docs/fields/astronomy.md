@@ -54,8 +54,8 @@ The model needs the bin average of each likelihood. {cite:t}`leistedt2016` and t
 Y3 analysis integrate over the bins; RAIL evaluates each PDF at grid points. The
 {doc}`inputs guide <../guides/inputs/index>` says how binference averages each input.
 
-The {doc}`quick start <../tutorials/01_quickstart>` fits a redshift distribution. The
-{doc}`selection tutorial <../tutorials/05_selection>` fits an occurrence rate.
+The {doc}`quick start <../tutorials/gaussian-quickstart>` fits a redshift distribution. The
+{doc}`selection tutorial <../tutorials/selection-effects>` fits an occurrence rate.
 
 ## Methods and software
 

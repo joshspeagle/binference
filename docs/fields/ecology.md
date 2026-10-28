@@ -49,7 +49,7 @@ item belongs to a latent source.
 | reporting units | `result.rebin`, which sums fine fractions per draw |
 | equivalence classes of reads | `lk.compress()`, which merges identical rows |
 
-The {doc}`mixed-stock tutorial <../tutorials/10_mixed_stocks>` estimates the stock
+The {doc}`mixed-stock tutorial <../tutorials/mixed-stocks>` estimates the stock
 proportions of a simulated catch. It carries the baseline's uncertainty with a confusion
 matrix, tallied by self-assignment of the baseline (`Response.from_labelled`).
 
@@ -106,5 +106,5 @@ Not done:
   concentration per bin ({doc}`priors guide <../guides/priors>`).
 - **The baseline is an estimate.** A fit that treats baseline frequencies as exact can
   give intervals that are too narrow, as the
-  {doc}`tutorial <../tutorials/10_mixed_stocks>` shows. rubias's baseline resampling and
+  {doc}`tutorial <../tutorials/mixed-stocks>` shows. rubias's baseline resampling and
   SPAM's Dirichlet draws of allele frequencies carry this uncertainty.

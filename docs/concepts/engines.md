@@ -181,5 +181,5 @@ bootstrap answers a different question.
 ## Where next
 
 - Do it: the {doc}`engines guide <../guides/engines>`.
-- See it: the tutorial {doc}`../tutorials/03_engines`.
+- See it: the tutorial {doc}`../tutorials/choosing-an-engine`.
 - Derivation: [the engines](../how-it-works/engines.md) in How it works.

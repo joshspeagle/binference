@@ -173,7 +173,7 @@ mixed in. Take that guess out before you ask what the population is.
 - Do it: the inputs guide converts
   [posteriors](../guides/inputs/posteriors.md) with
   their interim prior.
-- See it: the tutorial {doc}`../tutorials/02_inputs` repeats
+- See it: the tutorial {doc}`../tutorials/posteriors-on-a-grid` repeats
   {ref}`the drift figure <fig-interim-drift>` with a photometric-redshift mock.
 - Derivation: [likelihoods versus posteriors](../how-it-works/model.md#likelihoods-versus-posteriors)
   in How it works.

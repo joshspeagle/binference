@@ -333,6 +333,6 @@ print("expected total:", est.rates.sum().round(0), " actually drawn:", mock.trut
 Two mistakes are common: correcting for the selection twice, and not at all
 ([pitfall](troubleshooting.md#ignoring-selection-or-modelling-it-twice)).
 
-The {doc}`selection tutorial </tutorials/05_selection>` and the
-{doc}`populations-with-selection tutorial </tutorials/11_populations_with_selection>`
+The {doc}`selection tutorial </tutorials/selection-effects>` and the
+{doc}`populations-with-selection tutorial </tutorials/selection-from-injections>`
 work through both modes and injections.

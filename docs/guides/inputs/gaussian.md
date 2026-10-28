@@ -51,5 +51,5 @@ lk2 = binference.Likelihoods.from_gaussian(mean, bins=grid, cov=cov)
 print(lk2.N, lk2.K)
 ```
 
-The {doc}`quick start </tutorials/01_quickstart>` fits a population from Gaussian
+The {doc}`quick start </tutorials/gaussian-quickstart>` fits a population from Gaussian
 measurements end to end.

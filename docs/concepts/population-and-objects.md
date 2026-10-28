@@ -248,6 +248,6 @@ population.
 - Do it: the results guide reads [the population](../guides/results.md#the-population),
   [individual objects](../guides/results.md#individual-objects) and
   [the realised sample](../guides/results.md#population-versus-realised-sample) from a fit.
-- See it: the tutorial {doc}`../tutorials/01_quickstart`.
+- See it: the tutorial {doc}`../tutorials/gaussian-quickstart`.
 - Derivation: [the augmented form](../how-it-works/model.md#the-augmented-form)
   in How it works.

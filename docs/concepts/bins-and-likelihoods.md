@@ -180,6 +180,6 @@ The answers, one per bin, are all it needs.
 ## Where next
 
 - Do it: the {doc}`inputs guide <../guides/inputs/index>`.
-- See it: the tutorial {doc}`../tutorials/02_inputs`.
+- See it: the tutorial {doc}`../tutorials/posteriors-on-a-grid`.
 - Derivation: [objects, bins and likelihoods](../how-it-works/model.md#objects-bins-and-likelihoods)
   in How it works.

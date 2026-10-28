@@ -176,5 +176,5 @@ the true value or on the measurement.
 
 - Do it: the {doc}`selection guide <../guides/selection>`, including selections that
   vary within bins and selections measured by injections.
-- See it: the tutorial {doc}`../tutorials/05_selection`.
+- See it: the tutorial {doc}`../tutorials/selection-effects`.
 - Derivation: [selection effects](../how-it-works/model.md#selection-effects) in How it works.
