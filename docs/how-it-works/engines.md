@@ -107,18 +107,19 @@ $f$ rises towards one as the likelihoods widen compared with the bins (explainer
 {ref}`explainer-v14`).
 
 ```{explainer} v14
-Top: the missing information $f$ at the most probable population of 500 mock objects
-in ten bins on $[0, 3]$, half of them from two peaks and half uniform, one mock for each
-likelihood width, in units of the bin width. The dot marks the chosen width. Bottom: 400
-iterations of a Gibbs sampler (data augmentation under the default Dirichlet prior)
-started at that population, for the bin whose trace has the largest lag-one
-autocorrelation. The readout gives $f$, the predicted $\tau_{\rm int}\approx(1+f)/(1-f)$
-and the trace's lag-one autocorrelation. $f$ predicts it for the slowest direction; a
-single bin mixes somewhat faster.
+Top: the missing information $f$ against the width of the likelihoods, in bins, for mock
+catalogues of 500 objects in ten bins on $[0, 3]$, half of them from two peaks and half
+uniform, one mock for each width. $f$ is taken at the mock's true population, which
+occupies every bin; the dot marks the chosen width. Bottom: 400 iterations of a Gibbs
+sampler (data augmentation under the default Dirichlet prior) started at that population,
+for the bin whose trace has the largest lag-one autocorrelation. The readout gives $f$, the
+predicted $\tau_{\rm int}\approx(1+f)/(1-f)$ and the trace's lag-one autocorrelation. $f$
+predicts the slowest direction; a single bin mixes somewhat faster.
 ```
 
-The figure below shows longer runs on a mock catalogue of 1,000 objects in ten bins on
-$[0,1]$, with Gaussian errors.
+The figure below shows longer runs, up to likelihoods one bin wide, on a different
+mock: 1,000 objects in ten bins on $[0,1]$, with $f$ at the most probable population. Its
+numbers therefore differ from those of explainer {ref}`explainer-v14` at the same widths.
 
 ```{code-cell} python
 ---
@@ -132,7 +133,8 @@ mystnb:
   figure:
     caption: >-
       Gibbs traces of the slowest-mixing bin for likelihoods 0.1, 0.3 and 1 bin widths
-      wide: the first 400 of 4,000 iterations of one chain. Each label gives the
+      wide, on 1,000 mock objects in ten bins on $[0,1]$: the first 400 of 4,000
+      iterations of one chain. Each label gives the
       predicted autocorrelation time $(1+f)/(1-f)$, with $f$ at the most probable
       population, and the time measured on all 4,000 iterations. The prediction
       approximately predicts the slowest direction, not any one bin. A run of about 20

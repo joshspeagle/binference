@@ -303,6 +303,8 @@ figure.explainer {
 .explainer-plot .cat1 { stroke: var(--b-cat-1); stroke-width: 2.5; }
 .explainer-plot .cat2 { stroke: var(--b-cat-2); stroke-width: 2.5; }
 .explainer-plot .thin { stroke-width: 1.5; }
+.explainer-plot .dash { stroke-dasharray: 9 4; }
+.explainer-plot .dotted { stroke-dasharray: 2 3; }
 .explainer-plot .mark { stroke: var(--b-brand); stroke-width: 10; stroke-linecap: round; }
 .explainer-plot .dots { stroke: var(--b-brand); stroke-width: 3; stroke-linecap: round; stroke-opacity: .45; }
 .explainer-plot .div0 { fill: var(--b-div-0); } .explainer-plot .div1 { fill: var(--b-div-1); }

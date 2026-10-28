@@ -58,7 +58,9 @@ and makes neighbouring values of $\eta$ similar:
 - a Gaussian process correlates bins closer than a length scale.
 
 Explainer {ref}`explainer-v8` compares the four kinds of prior on 16 bins. A Dirichlet's
-bins are all slightly anticorrelated, by $-1/(K-1)$ whatever $\alpha$. A
+bins are all slightly anticorrelated, whatever $\alpha$
+([the Dirichlet family](../how-it-works/priors.md#the-dirichlet-family-as-trees) gives
+the number). A
 {term}`Pólya tree`, one of the Dirichlet's conjugate relatives,
 correlates the bins within each half, quarter and so on of the range. The random walk and
 the Gaussian process correlate neighbours, and anticorrelate distant bins, since the

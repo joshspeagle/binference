@@ -10,9 +10,10 @@ import pytest
 from scipy import stats
 
 import binference
-from binference.samplers import MAP, Gibbs
+from binference.samplers import Gibbs
 
-SCRIPT = Path(__file__).parents[1] / "docs" / "_scripts" / "explainers.mjs"
+DOCS = Path(__file__).parents[1] / "docs"
+SCRIPT = DOCS / "_scripts" / "explainers.mjs"
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="needs Node.js")
 
 
@@ -95,7 +96,8 @@ def _batch_correlation_se(draws, n):
 
 
 @pytest.mark.parametrize(
-    ("prior", "s"), [(0, 0.0), (1, -1.0), (2, 0.0), (2, 1.0), (3, -1.0), (3, 0.0)]
+    ("prior", "s"),
+    [(0, 0.0), (1, -1.0), (2, -1.0), (2, 0.0), (2, 1.0), (3, -1.0), (3, 0.0), (3, 1.0)],
 )
 def test_prior_explainer_correlations_match_binference_prior_draws(prior, s):
     v8 = explainer("v8", prior=prior, s=s)
@@ -139,19 +141,26 @@ def test_polya_explainer_matches_binference_mean_and_variance_at_every_level(lev
         np.testing.assert_array_less(np.abs(js.var(axis=0) - m2), tol)
 
 
-@pytest.mark.parametrize("width", [0.05, 0.3])
-def test_missing_information_explainer_matches_binference_at_its_map(width):
+@pytest.mark.parametrize("width", [0.05, 0.3, 0.6])
+def test_missing_information_explainer_matches_binference_at_the_mock_population(width):
     v14 = explainer("v14", width=width)
-    lk = binference.Likelihoods(np.array(v14["L"]))
-    model = binference.PopulationModel(lk)
-    rho = np.array(v14["rho"])
-    np.testing.assert_allclose(v14["f"], model.missing_information(rho), atol=1e-9)
-    # the explainer's EM stops when the log-likelihood gains less than 1e-9 per object, which
-    # left rho within 3e-6 of binference's MAP for widths up to 0.5 bins
-    np.testing.assert_allclose(rho, MAP(model).run().rho, atol=1e-5)
+    model = binference.PopulationModel(binference.Likelihoods(np.array(v14["L"])))
+    # the mock's population: two normal peaks cut to [0, 3], and a flat share of 0.5 that
+    # grows a little because a value of the peaks outside [0, 3] is redrawn from the start
+    edges = np.linspace(0, 3, 11)
+    peaks = [(0.6, 0.9, 0.25), (0.4, 2.1, 0.3)]
+    cdf = lambda x: sum(a * stats.norm.cdf(x, c, w) for a, c, w in peaks)  # noqa: E731
+    q = cdf(3) - cdf(0)
+    share = 0.5 / (0.5 + 0.5 * q)
+    rho = share * np.diff(edges) / 3 + (1 - share) * np.diff(cdf(edges)) / q
+    np.testing.assert_allclose(v14["rho"], rho, rtol=1e-6)  # the explainer's CDF: error < 1.2e-7
+    # the same formula at the same population: round-off
+    np.testing.assert_allclose(
+        v14["f"], model.missing_information(np.array(v14["rho"])), atol=1e-9
+    )
 
 
-@pytest.mark.parametrize("width", [0.05, 0.3])
+@pytest.mark.parametrize("width", [0.05, 0.3, 0.6])
 def test_missing_information_explainer_gibbs_draws_the_binference_posterior(width):
     v14 = explainer("v14", width=width)
     model = binference.PopulationModel(binference.Likelihoods(np.array(v14["L"])))
@@ -163,3 +172,14 @@ def test_missing_information_explainer_gibbs_draws_the_binference_posterior(widt
     sd = ref.std(axis=0)
     tol = 5 * sd * np.sqrt(tau / len(js) + tau / len(ref))
     np.testing.assert_array_less(np.abs(js.mean(axis=0) - ref.mean(axis=0)), tol)
+
+
+def test_a_control_with_options_is_a_disabled_select_with_its_default_chosen(monkeypatch):
+    monkeypatch.syspath_prepend(str(DOCS / "_ext"))
+    from bnf_explainer import _control
+
+    html = _control(
+        "v-8", {"name": "prior", "label": "prior", "options": ["a", "b<c"], "value": 1}
+    )
+    assert '<select id="v-8-prior" name="prior" disabled>' in html
+    assert '<option value="0">a</option><option value="1" selected>b&lt;c</option>' in html
