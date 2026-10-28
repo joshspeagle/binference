@@ -266,6 +266,8 @@ table.docutils thead th {
   background: none;
 }
 table.docutils td p, table.docutils th p { margin: 0; }
+/* tables scroll sideways, so their cells keep words whole */
+table.docutils td a, table.docutils td code { overflow-wrap: break-word; }
 table caption { caption-side: top; text-align: left; color: var(--b-ink-2); font-size: .86rem; padding-bottom: 6px; }
 div.math { overflow-x: auto; overflow-y: hidden; }
 span.eqno { float: right; color: var(--b-ink-2); }

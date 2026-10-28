@@ -1,11 +1,24 @@
-# Priors
+# Choose a prior
 
-The prior on the population matters most when the data are least
-informative: many bins, few objects, or measurement errors as large as the
-bins. binference's priors fall into three families. The **Dirichlet family** is
-conjugate and works with every engine. The **logistic family** adds
-smoothness across neighbouring bins. **Gamma rates** model expected counts
-rather than fractions.
+The prior on the population matters most when the data say least: many bins, few
+objects, or measurement errors as wide as the bins. Start with the default. Change it
+when the checks at the end of this page say the prior, not the data, sets the answer.
+What each prior means is in the [theory](../how-it-works/priors.md).
+
+| Your situation | Prior to try |
+|---|---|
+| no strong reason to choose | `Dirichlet(1.0)`, the default |
+| about as many bins as objects | `Dirichlet.reference()` |
+| a jagged fit, with errors as wide as the bins | `LogisticGP()` or `LogisticRandomWalk(order=2)` |
+| a reference sample of the same population | `Dirichlet.from_counts(counts, strength)` |
+| unequal bins, with a Dirichlet | `Dirichlet.from_base_measure(...)` |
+| expected numbers of objects, with prior information on them | `GammaRates(shape, rate)` |
+
+binference's priors fall into three families. The {term}`Dirichlet prior` family is
+{term}`conjugate <conjugate prior>`, so every engine takes it. The
+{term}`logistic priors <logistic prior>` add smoothness across neighbouring bins; Gibbs
+and VB do not accept them. The {term}`Gamma rates prior` models expected counts rather than
+fractions.
 
 ```python
 import numpy as np
@@ -18,36 +31,31 @@ lk = mock.likelihoods
 
 Pass a prior as the second argument of {func}`~binference.infer`, or as `prior=`
 to {class}`~binference.PopulationModel` and {class}`~binference.PopulationEstimator`.
-The default is `Dirichlet(1.0)`.
 
 ## The Dirichlet family
 
 ```python
-flat = priors.Dirichlet(1.0)                   # uniform on the simplex (default)
-sparse = priors.Dirichlet.reference()          # alpha = 1/K: K pseudo-counts become 1
-by_volume = priors.Dirichlet.from_base_measure(5.0)  # alpha proportional to bin width (in u)
+flat = priors.Dirichlet(1.0)                         # the default
+sparse = priors.Dirichlet.reference()                # concentration 1/K per bin
+by_volume = priors.Dirichlet.from_base_measure(5.0)  # concentration in proportion to bin width
 ref_counts = np.bincount(mock.truth.labels[:50], minlength=30)
-informed = priors.Dirichlet.from_counts(ref_counts, strength=0.5)  # alpha = 1 + 0.5 m
+informed = priors.Dirichlet.from_counts(ref_counts, strength=0.5)
 
 for p in (flat, sparse, informed):
     print(p, binference.infer(lk, p, method="map").rho[:3].round(4))
 ```
 
-- **`alpha = 1`** is uniform over all possible populations, but it adds one
-  pseudo-count per bin. With $K$ comparable to $N$ that flattens the
-  estimate; `Dirichlet.reference()` ($\alpha=1/K$) adds one pseudo-count in
-  total.
-- **Unequal bins.** A symmetric $\alpha$ is not consistent under merging
-  bins. `from_base_measure` makes $\alpha_k$ proportional to the bin masses of
-  a base measure, a `binference.Density` (by default flat in the measure
-  coordinate: bin widths on linear bins, widths in $\log z$ on log bins), so the
-  prior describes the same density however you bin it.
-- **Reference samples.** `from_counts(m, strength)` encodes a reference
-  sample with counts $m$ as a power prior. `strength=1` trusts it fully;
-  smaller values down-weight a sample that may not be representative.
+- **`Dirichlet(1.0)`**: use it unless you have a reason not to.
+- **`Dirichlet.reference()`**: use it when the number of bins $K$ is comparable to the
+  number of objects $N$. There the default biases the fit toward equal fractions.
+- **`Dirichlet.from_base_measure(a)`**: use it on unequal bins, so the prior means the
+  same density however you bin.
+- **`Dirichlet.from_counts(counts, strength)`**: use it when you have the counts
+  $n^{\rm ref}_k$ of a reference sample. `strength` is $\kappa$: 1 trusts the sample
+  fully, and smaller values trust it less.
 
-`GeneralizedDirichlet`, `DirichletTree` and `PolyaTree` relax the
-Dirichlet's rigid covariance while staying conjugate:
+`GeneralizedDirichlet`, `DirichletTree` and `PolyaTree` stay conjugate, with more
+freedom in how bins co-vary:
 
 ```python
 gd = priors.GeneralizedDirichlet(a=2.0, b=6.0)        # stick-breaking Betas
@@ -56,83 +64,63 @@ polya = priors.PolyaTree(c=2.0)                       # dyadic, multi-scale
 print(binference.infer(lk, polya, method="map").rho[:3].round(4))
 ```
 
-- A **Dirichlet tree** puts a Dirichlet on every internal node, so bins
-  under the same node co-vary. Pass the tree as nested lists of bin indices.
-- A **Pólya tree** is the balanced binary tree over an ordered grid. It is
-  centred on a base measure, and its fluctuations shrink at finer scales. It
-  is a conjugate, multi-scale alternative to the smoothness priors below.
+- **`DirichletTree`**: use it when groups of bins belong together, such as subclasses
+  of a class. Pass the tree as nested lists of bin indices.
+- **`PolyaTree`**: use it on 1-D ordered bins for a conjugate prior with structure at
+  several scales.
 
 ## Smoothness: the logistic family
 
-With broad likelihoods, neighbouring bins trade mass and a Dirichlet
-posterior is jagged. That is honest, since the data really cannot separate
-them, but it is rarely what the population looks like. Logistic priors put a
-Gaussian prior on the log-density and infer how smooth it is. By default they
-are centred on a density flat in the measure coordinate (log-fractions equal
-to the log bin widths in $u$: in $z$ on linear bins, in $\log z$ on log bins),
-so the penalty acts on the density whatever the binning, `Bins.log`
-included:
+If the Dirichlet fit is jagged and the errors are as wide as the bins, use a
+{term}`smoothness prior`. It infers how smooth the population is:
 
 ```python
-rw = priors.LogisticRandomWalk(order=2)        # penalise curvature of log rho
-gp = priors.LogisticGP(kernel="matern32")       # Hilbert-space Gaussian process
+rw = priors.LogisticRandomWalk(order=2)
+gp = priors.LogisticGP(kernel="matern32")
 print(binference.infer(lk, gp, method="map").rho[:3].round(4))
 ```
 
-| prior | smoothness | hyperparameters (inferred by default) |
+| prior | use it when | hyperparameters (inferred by default) |
 |---|---|---|
-| `LogisticRandomWalk(order=1)` | penalises jumps between neighbours | `scale` of the differences |
-| `LogisticRandomWalk(order=2)` | penalises curvature; linear trends (and, on 2-D grids, the surface $xy$) are free | `scale` |
-| `LogisticGP(kernel=...)` | stationary GP: `"matern12"`, `"matern32"`, `"matern52"`, `"rbf"` | `amplitude`, `length_scale` (one per axis) |
-| `LogisticNormal(mean, cov)` | any fixed covariance, or independent bins | `scale` (by default inferred without `cov`, fixed at 1 with one) |
+| `LogisticRandomWalk(order=1)` | neighbouring bins should be close | `scale` |
+| `LogisticRandomWalk(order=2)` | the population follows smooth trends | `scale` |
+| `LogisticGP(kernel=...)` | you want a stationary Gaussian process: `"matern12"`, `"matern32"`, `"matern52"`, `"rbf"` | `amplitude`, `length_scale` (one per axis) |
+| `LogisticNormal(mean, cov)` | you have a covariance, or want independent bins | `scale` |
 
-- **Grids.** All of them work on 1-D bins and N-D grids. The random walk
-  then uses the sum of per-axis difference penalties, and the GP takes one
-  length scale per axis. The random walk and the GP do not accept masked
-  grids or categories; `LogisticNormal` accepts both.
-- **GP length scales** are in the measure coordinate ($\log z$ on `Bins.log`).
-  The default prior keeps them above what the basis of `n_basis` sines per
-  axis (default: one per bin) can represent; for rougher fields raise
-  `n_basis`, which lowers that bound too.
-- **Hyperparameters.** Pass a number to fix one, or a hyperprior:
+- **Grids.** All four work on 1-D bins and on grids. Only `LogisticNormal` accepts
+  masked grids and categories.
+- **Rough populations.** If a `LogisticGP` fit looks too smooth, raise `n_basis`
+  ({doc}`defaults <../reference/defaults>`).
+- **Hyperpriors.** Give a {term}`hyperparameter` a {term}`hyperprior`, or a number to
+  fix it:
   ```python
   gp_fixed = priors.LogisticGP(amplitude=1.5, length_scale=priors.LogNormal(np.log(0.5), 0.5))
   rw_tight = priors.LogisticRandomWalk(order=2, scale=priors.HalfNormal(0.3))
   ```
-- **Reference means.** `mean=np.log(reference)`, with `reference` the
-  fraction of a reference population in each bin, centres the prior on that
-  distribution; the amplitude or scale then says how far the population may
-  depart from it.
-- **Engines.** Logistic priors are not conjugate. Use NUTS (which the default
-  `method="auto"` picks for them unless the Laplace check passes), MAP or Laplace; Gibbs and VB need conjugate priors.
-
-```{tip}
-Which prior should I use? Start with the default. If the posterior is
-jagged, your measurement errors are comparable to the bins. Try
-`LogisticGP()` or `LogisticRandomWalk(order=2)`, and compare the fits on
-held-out objects with `result.log_predictive` (see {doc}`results`).
-```
+- **A reference population.** With `reference` its fraction in each bin,
+  `mean=np.log(reference)` centres the prior on it.
 
 ## Rates instead of fractions
 
 `GammaRates(shape, rate)` puts independent Gamma priors on the **expected
 number** of objects per bin, $\lambda_k$. The data then form a Poisson
-process. Every fit of fractions already gives the total and the rates under a
-scale-free prior on the total (see {doc}`selection`); use `GammaRates` when
-the rates need their own prior, for example bin-specific shapes or an
-informative total, and combine them with an exposure or selection function.
+process. Every fit of fractions already gives the total and the rates, under a
+scale-free prior on the total ({doc}`selection`). Use `GammaRates` when the rates need
+their own prior, for example bin-specific shapes or an informative total. Combine it
+with an exposure or a selection function. Occurrence rates per star, or counts per unit
+time or area, are estimated this way.
 
 ```python
 est = binference.infer(lk, priors.GammaRates(shape=1.0, rate=1e-3), method="map")
 print(est.rates.sum().round(1), est.rho.sum())
 ```
 
-Sampled results expose both `rates` (draws of $\lambda$) and `samples` (the
-implied fractions); NUTS and Gibbs both support rates.
+Sampled results hold both `rates`, the draws of $\lambda$, and `samples`, the fractions
+they imply. NUTS and Gibbs both sample rates.
 
-## Checking a prior
+## Check a prior
 
-Draw from the prior to see what it believes before seeing data:
+Draw from the prior to see which populations it allows before any data:
 
 ```python
 model = binference.PopulationModel(lk, gp)
@@ -140,6 +128,18 @@ draws = model.sample_prior(5, rng=0)       # five populations from the prior
 print(draws.shape, np.allclose(draws.sum(axis=1), 1.0))
 ```
 
-{func}`binference.simulate.prior_predictive` goes one step further: it simulates
-whole catalogues from the prior, which is what simulation-based calibration
-needs (see {doc}`validation`).
+After a fit, two numbers say how much the prior sets the answer. A bin with little
+{term}`data support` takes its fraction from the prior ({doc}`bins`).
+`result.prior_information_ratio()` compares the prior's information with the data's.
+It is small when the data dominate, and near one or above when the prior does.
+
+```python
+fit = binference.infer(lk, rw, method="map")
+print(round(fit.prior_information_ratio(), 3))
+```
+
+To choose between priors, fit each and compare the
+{term}`log predictive density <log predictive density>` of held-out objects
+({doc}`results`). {func}`binference.simulate.prior_predictive` simulates whole
+catalogues from the prior, which is what simulation-based calibration needs
+({doc}`checking`).
