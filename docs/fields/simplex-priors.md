@@ -111,7 +111,7 @@ chooses.
   cells". The two observed cells kept only 0.008 of the posterior mass. The uniform prior
   "is even worse". {cite:t}`berger2015` recommend $\alpha\approx1/K$, which
   `Dirichlet.reference()` sets. See
-  [too many bins](../guides/pitfalls.md#too-many-bins-for-a-flat-dirichlet).
+  [too many bins](../guides/troubleshooting.md#too-many-bins-for-a-flat-dirichlet).
 - **A symmetric $\alpha$ is not consistent under merging bins.** See the aggregation
   bias on the {doc}`ecology` page and the {doc}`priors guide <../guides/priors>`.
 - **Sparse priors need samplers.** The MAP with $\alpha_k<1$ lies on the boundary of the

@@ -171,7 +171,7 @@ mixed in. Take that guess out before you ask what the population is.
 ## Where next
 
 - Do it: the inputs guide converts
-  [posteriors](../guides/inputs.md#posteriors-computed-under-an-interim-prior) with
+  [posteriors](../guides/inputs/posteriors.md) with
   their interim prior.
 - See it: the tutorial {doc}`../tutorials/02_inputs` repeats
   {ref}`the drift figure <fig-interim-drift>` with a photometric-redshift mock.

@@ -118,7 +118,7 @@ a {term}`mass`, and a mass equals the density times the bin volume.
 With equal bins the two differ by one constant, which cancels. With unequal bins they
 have different shapes. If you pass masses as densities, the peak moves toward the
 widest bins ({ref}`the mass figure <fig-mass-density>`). Say which you pass, as the
-[inputs guide](../guides/inputs.md#likelihood-matrices) shows.
+[inputs guide](../guides/inputs/tables.md#conventions) shows.
 
 ```{code-cell} python
 ---
@@ -169,7 +169,7 @@ population changes least across a bin.
 
 When the population is not flat within the bins, the resulting {term}`binning bias`
 does not shrink as you add objects; the inputs guide shows how a
-[within-bin basis](../guides/inputs.md#within-bin-shape-and-internal-resolution-basis)
+[within-bin basis](../guides/inputs/advanced.md#shape-within-bins-basis)
 reduces it.
 
 ```{plain-words}
@@ -179,7 +179,7 @@ The answers, one per bin, are all it needs.
 
 ## Where next
 
-- Do it: the {doc}`inputs guide <../guides/inputs>`.
+- Do it: the {doc}`inputs guide <../guides/inputs/index>`.
 - See it: the tutorial {doc}`../tutorials/02_inputs`.
 - Derivation: [objects, bins and likelihoods](../how-it-works/model.md#objects-bins-and-likelihoods)
   in How it works.

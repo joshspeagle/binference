@@ -54,7 +54,7 @@ covered about $8\times10^4$ bins in four dimensions in a 2026 example.
 Detection depends on the measured signal, so the selection acts on the measurement, and
 binference keeps it fixed. A completeness in the true parameters acts on the truth, and
 binference can infer it from injections with the population, as the selection tutorial
-does. The {doc}`inputs guide <../guides/inputs>` describes posterior samples. The
+does. The {doc}`inputs guide <../guides/inputs/index>` describes posterior samples. The
 [selection guide](../guides/selection.md#selection-measured-by-injections) describes
 injections and selection on the measurement. The
 {doc}`selection tutorial <../tutorials/11_populations_with_selection>` infers a mass

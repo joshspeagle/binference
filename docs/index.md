@@ -58,8 +58,7 @@ Executed, end-to-end examples from several fields.
 :::{grid-item-card} Guides
 :link: guides/index
 :link-type: doc
-Inputs and conventions, priors, selection, engines, results, performance and
-pitfalls.
+Prepare inputs, choose bins and priors, correct for selection, run, read and check a fit.
 :::
 
 :::{grid-item-card} Theory

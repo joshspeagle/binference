@@ -59,13 +59,13 @@ for all of them:
 - binference samples the exact posterior of $\rho$ with NUTS or Gibbs, and flags
   approximations ({doc}`engines guide <../guides/engines>`).
 - It divides the {term}`interim prior` out of posteriors and posterior samples
-  ({doc}`inputs guide <../guides/inputs>`).
+  ({doc}`inputs guide <../guides/inputs/index>`).
 - It models {term}`selection` on the truth or on the measurement
   ({doc}`selection guide <../guides/selection>`).
 - It infers a tallied {term}`response matrix` jointly with the fractions
-  ([binned measurements](../guides/inputs.md#binned-measurements-and-classifiers)).
+  ([binned measurements](../guides/inputs/binned.md)).
 - It checks a whole analysis by simulation-based calibration
-  ({doc}`validation guide <../guides/validation>`).
+  ({doc}`checking guide <../guides/checking>`).
 
 ## Pages
 

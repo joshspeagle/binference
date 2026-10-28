@@ -4,7 +4,7 @@ How do we know a result is right? Two kinds of check answer two questions. Diagn
 ask whether one run computed its posterior well. Calibration asks whether the whole
 pipeline, from likelihoods and prior to engine, gives posteriors that are right on
 average. This page defines both, and lists the statistical checks binference's own test
-suite runs. The {doc}`validation guide <../guides/validation>` shows how to run them on
+suite runs. The {doc}`validation guide <../guides/checking>` shows how to run them on
 your own analysis.
 
 ## Diagnostics of one run
@@ -28,7 +28,7 @@ your own analysis.
   point estimate is from the optimum.
 
 `result.check()` turns these into warnings; the
-[results guide](../guides/results.md#diagnostics) lists what it flags, and the
+[results guide](../guides/checking.md#diagnostics) lists what it flags, and the
 [defaults](../reference/defaults.md#results-and-diagnostics) hold its thresholds.
 
 These diagnostics cannot tell whether the posterior itself is right: whether the

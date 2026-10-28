@@ -21,7 +21,7 @@ $v_k$: widths in one dimension, areas or volumes on a grid, and one for a catego
   shape matters: a constant factor per object cancels from every population quantity.
 - The {term}`bin-averaged likelihood` is its average over each bin in the
   {term}`measure` coordinate $u=T(z)$. By default $u=z$; for logarithmic bins
-  $u=\log z$ ([measures](../guides/inputs.md#measures-flat-in-which-coordinate)). With
+  $u=\log z$ ([measures](../guides/inputs/advanced.md#measures-flat-in-which-coordinate)). With
   $|T(B_k)|$ the volume of bin $k$ in $u$ and $T'$ the derivative of $T$,
 
   $$
@@ -237,7 +237,7 @@ then gain $\mathrm{logit}\,S_k$, with each $S_k$'s posterior given the injection
 prior ([injections](../guides/selection.md#selection-measured-by-injections)). A
 {term}`response matrix` tallied from simulated events is inferred the same way, with a
 Dirichlet posterior for each of its columns
-([binned measurements](../guides/inputs.md#binned-measurements-and-classifiers)).
+([binned measurements](../guides/inputs/binned.md)).
 
 ## Assumptions
 
@@ -255,13 +255,13 @@ show how to check it or what to do when it fails.
 4. **A flat population within each bin.** The population density is constant within
    each bin in the measure coordinate $u$. A {term}`basis` replaces this with fixed
    shapes inside the bins
-   ([basis](../guides/inputs.md#within-bin-shape-and-internal-resolution-basis)). When
+   ([basis](../guides/inputs/advanced.md#shape-within-bins-basis)). When
    the assumption fails, the result has a {term}`binning bias` (below).
 5. **A known interim prior.** Posterior inputs were computed under the interim prior
    given, and that prior is roughly constant within each bin.
 6. **Exact bin averages.** The model treats $L_{ik}$ as exact. Likelihoods estimated from
    {term}`posterior samples` carry Monte Carlo noise, which `result.check()` measures
-   ([posterior samples](../guides/inputs.md#posterior-samples)).
+   ([posterior samples](../guides/inputs/samples.md)).
 7. **A selection of the stated kind.** The probability of entering the catalogue depends
    only on the true bin (`"on_truth"`) or only on the measured data
    (`"on_measurement"`). It is known, or inferred from injections or tallies.
@@ -281,5 +281,5 @@ and the bins are coarse compared with the measurement errors. Then {eq}`eq-L` we
 the wrong parts of each bin. The resulting bias does not shrink as $N$ grows, so it
 eventually dominates the error bars, as a slow test shows
 ([validation](validation.md#binning-bias)). The
-[pitfalls guide](../guides/pitfalls.md#bins-that-are-too-coarse) says how to choose
+[pitfalls guide](../guides/troubleshooting.md#bins-that-are-too-coarse) says how to choose
 bins that avoid it.

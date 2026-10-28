@@ -14,17 +14,17 @@ tutorials that use it.
 
 | You have, for each object | binference reads it with | Read more |
 |---|---|---|
-| a measured value and its Gaussian error | `Likelihoods.from_gaussian` | [guide](../guides/inputs.md#gaussian-measurements), {doc}`quick start <quickstart>`, {doc}`tutorial 9 <../tutorials/09_empirical_bayes>` |
-| likelihoods or log-likelihoods on the bins | `Likelihoods.from_table` | [guide](../guides/inputs.md#likelihood-matrices), {doc}`tutorial 10 <../tutorials/10_mixed_stocks>` |
-| a likelihood function or a SciPy distribution | `Likelihoods.from_density` | [guide](../guides/inputs.md#likelihood-functions-and-distributions) |
-| a posterior on the bins, and the prior it was computed under | `Likelihoods.from_table` | [guide](../guides/inputs.md#posteriors-computed-under-an-interim-prior), {doc}`tutorial 2 <../tutorials/02_inputs>` |
-| posterior samples, and the prior they were drawn under | `Likelihoods.from_samples` | [guide](../guides/inputs.md#posterior-samples), {doc}`tutorial 2 <../tutorials/02_inputs>` |
-| the bin it was measured in, and the detector's {term}`response matrix` | `Likelihoods.from_binned` | [guide](../guides/inputs.md#binned-measurements-and-classifiers), {doc}`tutorial 6 <../tutorials/06_categories_unfolding>` |
-| a classifier's probabilities, and the class prevalence it was trained on | `Likelihoods.from_table` | [guide](../guides/inputs.md#binned-measurements-and-classifiers), {doc}`tutorial 6 <../tutorials/06_categories_unfolding>` |
-| a classifier's scores, and a labelled validation set | `Likelihoods.from_binned` with `Response.from_labelled` | [guide](../guides/inputs.md#binned-measurements-and-classifiers), {doc}`tutorial 6 <../tutorials/06_categories_unfolding>`, {doc}`tutorial 10 <../tutorials/10_mixed_stocks>` |
+| a measured value and its Gaussian error | `Likelihoods.from_gaussian` | [guide](../guides/inputs/gaussian.md), {doc}`quick start <quickstart>`, {doc}`tutorial 9 <../tutorials/09_empirical_bayes>` |
+| likelihoods or log-likelihoods on the bins | `Likelihoods.from_table` | [guide](../guides/inputs/tables.md#conventions), {doc}`tutorial 10 <../tutorials/10_mixed_stocks>` |
+| a likelihood function or a SciPy distribution | `Likelihoods.from_density` | [guide](../guides/inputs/functions.md) |
+| a posterior on the bins, and the prior it was computed under | `Likelihoods.from_table` | [guide](../guides/inputs/posteriors.md), {doc}`tutorial 2 <../tutorials/02_inputs>` |
+| posterior samples, and the prior they were drawn under | `Likelihoods.from_samples` | [guide](../guides/inputs/samples.md), {doc}`tutorial 2 <../tutorials/02_inputs>` |
+| the bin it was measured in, and the detector's {term}`response matrix` | `Likelihoods.from_binned` | [guide](../guides/inputs/binned.md), {doc}`tutorial 6 <../tutorials/06_categories_unfolding>` |
+| a classifier's probabilities, and the class prevalence it was trained on | `Likelihoods.from_table` | [guide](../guides/inputs/binned.md), {doc}`tutorial 6 <../tutorials/06_categories_unfolding>` |
+| a classifier's scores, and a labelled validation set | `Likelihoods.from_binned` with `Response.from_labelled` | [guide](../guides/inputs/binned.md), {doc}`tutorial 6 <../tutorials/06_categories_unfolding>`, {doc}`tutorial 10 <../tutorials/10_mixed_stocks>` |
 
 Posteriors and posterior samples need their {term}`interim prior`, which binference
-divides out ([pitfalls](../guides/pitfalls.md#feeding-posteriors-in-as-likelihoods)).
+divides out ([pitfalls](../guides/troubleshooting.md#passing-posteriors-as-likelihoods)).
 
 ## What you want
 

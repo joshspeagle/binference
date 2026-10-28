@@ -26,7 +26,7 @@ autocorrelation time
 basis
   A set of components finer than the bins, for a population that is not flat within
   bins. The fit uses the components; the fractions are still reported in the bins. See
-  [`Basis`](../guides/inputs.md#within-bin-shape-and-internal-resolution-basis).
+  [`Basis`](../guides/inputs/advanced.md#shape-within-bins-basis).
 
 bin
   One of the $K$ cells $B_1,\dots,B_K$ that partition the true value $z$. A bin is an
@@ -47,7 +47,7 @@ binned measurement
   A measurement that records only the measured bin of each object, such as a
   reconstructed energy bin or a predicted class. Its likelihood rows come from a
   {term}`response matrix`. See
-  [binned measurements](../guides/inputs.md#binned-measurements-and-classifiers).
+  [binned measurements](../guides/inputs/binned.md).
 
 binning bias
   The bias from assuming the population is flat within each bin. It does not shrink as
@@ -76,16 +76,17 @@ coverage
   The share of simulated data sets in which a credible interval contains the true value.
   A calibrated 68% interval covers the truth in 68% of them.
   `binference.validation.coverage` measures it; see the
-  {doc}`validation guide <../guides/validation>`.
+  {doc}`checking guide <../guides/checking>`.
 
 credible interval
   An interval that holds a stated posterior probability of a quantity.
   `result.interval(level)` returns equal-tailed or highest-density intervals per bin.
 
 data support
-  The number of objects' worth of likelihood in each bin, `result.data_support`. The
-  prior sets the fraction of a bin with less than about one. See
-  [the population](../guides/results.md#the-population).
+  The number of objects' worth of likelihood in each bin, `result.data_support`:
+  $\sum_iw_iL_{ik}/\sum_{k'}L_{ik'}$, each object's likelihood normalised over the
+  bins. The prior sets the fraction of a bin with less than about one. See
+  [check the binning](../guides/bins.md#check-the-binning).
 
 Dirichlet prior
   The default prior on {term}`population fractions`, `Dirichlet(alpha)`. With every
@@ -115,7 +116,7 @@ ESS
   The number of independent draws that would estimate a quantity as precisely as the
   correlated draws do. The bulk ESS concerns the centre of a distribution and the tail
   ESS its 5% and 95% quantiles. See
-  [diagnostics](../guides/results.md#diagnostics).
+  [diagnostics](../guides/checking.md#diagnostics).
 
 efficiency
   $\epsilon_k$: the probability that an object in true bin $k$ is observed at all. It is
@@ -137,7 +138,7 @@ engine
 exposure
   An absolute {term}`selection` for {term}`rates`, such as observing time times area. It
   is declared with `scale="exposure"` and may exceed one. See
-  [rates and exposure](../guides/selection.md#rates-and-exposure).
+  [totals and rates](../guides/selection.md#totals-and-rates).
 
 expected counts
   $\hat n_k$: the number of objects the data assign to bin $k$ under a given population,
@@ -155,7 +156,7 @@ Gibbs
   An engine that alternates drawing every object's bin given the population and the
   population given the bins. It is exact for {term}`conjugate priors <conjugate prior>`
   and slow when {term}`missing information` is high. See
-  [Gibbs sampling](../guides/engines.md#gibbs-sampling).
+  [Gibbs sampling](../guides/engines.md#gibbs).
 
 hierarchical posterior
   Object $i$'s posterior over bins under the inferred population, $P(k_i=k\mid D)$. It
@@ -188,7 +189,7 @@ interim prior
   $\pi$: the prior under which per-object posteriors or samples were computed.
   binference divides it out to recover likelihoods. It is also called the PE prior in
   gravitational-wave astronomy and the training prevalence in quantification. See
-  [posteriors](../guides/inputs.md#posteriors-computed-under-an-interim-prior).
+  [posteriors](../guides/inputs/posteriors.md).
 
 KKT gap
   How far a point estimate is from the optimality conditions of its problem. It is zero
@@ -265,7 +266,7 @@ mean-field VB
 measure
   The coordinate $u=T(z)$ in which the population is taken as flat within each bin,
   such as $z$ itself or $\log z$. See
-  [measures](../guides/inputs.md#measures-flat-in-which-coordinate).
+  [measures](../guides/inputs/advanced.md#measures-flat-in-which-coordinate).
 
 missing information
   $f$, between 0 and 1: how much the data leave each object's bin uncertain. It is near
@@ -281,7 +282,7 @@ mix-SQP
 mock catalogue
   A simulated set of objects with a known population, from `binference.simulate`. It
   tests whether a fit recovers the truth. See
-  [mock catalogues](../guides/validation.md#mock-catalogues).
+  [mock catalogues](../guides/checking.md#mock-catalogues).
 
 NUTS
   The No-U-Turn Sampler, a Hamiltonian Monte Carlo engine, `method="nuts"`. It samples
@@ -320,16 +321,16 @@ posterior predictive p-value
 posterior samples
   Draws from each object's own posterior, computed under an {term}`interim prior`.
   `Likelihoods.from_samples` turns them into likelihoods. See
-  [posterior samples](../guides/inputs.md#posterior-samples).
+  [posterior samples](../guides/inputs/samples.md).
 
 R-hat
   $\hat R$: a convergence diagnostic that compares the spread within chains with the
   spread between them. Values near one mean the chains agree. See
-  [diagnostics](../guides/results.md#diagnostics).
+  [diagnostics](../guides/checking.md#diagnostics).
 
 rates
   $\lambda_k$: the expected number of objects in bin $k$, per unit {term}`exposure`.
-  Their sum is the {term}`total`. See [rates and exposure](../guides/selection.md#rates-and-exposure).
+  Their sum is the {term}`total`. See [totals and rates](../guides/selection.md#totals-and-rates).
 
 realised sample
 realised histogram
@@ -359,7 +360,7 @@ SBC
 simulation-based calibration
   A test of a whole pipeline. It ranks the true values of simulated data sets among
   their posterior draws; calibrated fits give uniform ranks. See
-  [SBC](../guides/validation.md#simulation-based-calibration).
+  [SBC](../guides/checking.md#simulation-based-calibration).
 
 selected population
   $\phi_k$: the fractions of the objects that are observed, $S_k\rho_k/S\cdot\rho$.
@@ -374,7 +375,7 @@ selection function
 selection mode
   Whether selection acts on the true value (`"on_truth"`) or on the measured data
   (`"on_measurement"`). The two give different likelihoods, so it must be stated. See
-  [three ways selection can act](../guides/selection.md#three-ways-selection-can-act).
+  [say how the selection acts](../guides/selection.md#say-how-the-selection-acts).
 
 shrinkage
   The narrowing of each object's posterior when the inferred population informs it. The
@@ -392,7 +393,7 @@ stacking
   Averaging per-object posteriors computed under an {term}`interim prior`. It is one EM
   step from that prior, so it is biased when likelihoods are broad. It is also called
   probabilistic classify and count in quantification. See
-  [stacking](../guides/pitfalls.md#stacking).
+  [stacking is not the answer](../guides/inputs/posteriors.md#stacking-is-not-the-answer).
 
 total
   $\Lambda$: the expected number of objects in the population, including those the

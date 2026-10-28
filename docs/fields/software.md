@@ -90,4 +90,4 @@ and selection.
 
 binference's interface borrows patterns from other scientific Python packages; the
 {doc}`design notes <../design/python-patterns>` list them. The
-{doc}`validation guide <../guides/validation>` describes how binference checks a fit.
+{doc}`checking guide <../guides/checking>` describes how binference checks a fit.

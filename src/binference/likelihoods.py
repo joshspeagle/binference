@@ -329,7 +329,7 @@ class Likelihoods:
 
     Use the ``from_*`` constructors to convert posteriors (with their interim
     prior), posterior samples, analytic measurement models, response
-    matrices or classifier outputs into likelihoods. See :doc:`/guides/inputs`
+    matrices or classifier outputs into likelihoods. See :doc:`/guides/inputs/index`
     for the conventions.
 
     Parameters

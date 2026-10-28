@@ -98,7 +98,7 @@ print("largest shift between the two fits:", shift.max().round(2), "posterior sd
 
 The fit from samples warns about this noise: the Monte Carlo variance of the
 likelihoods at the fitted population is too large
-([posterior samples](../guides/inputs.md#posterior-samples)). To reduce it,
+([posterior samples](../guides/inputs/samples.md)). To reduce it,
 use more samples per object, coarser bins, or `floor=`.
 
 ## Unequal bins: masses versus densities

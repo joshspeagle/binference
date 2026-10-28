@@ -48,7 +48,7 @@ A classifier reaches binference by one of two routes:
 - **posteriors and the training prevalence**, which needs classifier calibration;
 - **scores and a labelled set**, which needs only label shift.
 
-The [inputs guide](../guides/inputs.md#binned-measurements-and-classifiers) gives the
+The [inputs guide](../guides/inputs/binned.md) gives the
 code for each and the conditions under which each is exact. The
 {doc}`categories tutorial <../tutorials/06_categories_unfolding>` runs both routes on a
 mock classifier under prior shift.

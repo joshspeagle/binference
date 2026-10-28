@@ -49,7 +49,7 @@ fifteen variants followed.
 | folding check | `result.check()`, when there are more measured than true bins |
 
 An event measured in bin $j$ has the likelihood row $R_{j\cdot}$, shared by all events in
-that bin. The [inputs guide](../guides/inputs.md#binned-measurements-and-classifiers)
+that bin. The [inputs guide](../guides/inputs/binned.md)
 describes responses and the folding check. The {doc}`priors guide <../guides/priors>`
 describes the smoothness priors. The
 {doc}`unfolding tutorial <../tutorials/06_categories_unfolding>` unfolds a smeared
@@ -111,11 +111,11 @@ Not done:
   standard bootstrap confidence intervals succeed in achieving good frequentist coverage
   ... due to the inherent bias" {cite:p}`kuusela2015`. An iteratively bias-corrected
   bootstrap restored nearly nominal coverage. {func}`~binference.validation.coverage`
-  measures coverage on simulations ({doc}`../guides/validation`).
+  measures coverage on simulations ({doc}`../guides/checking`).
 - **Wide bins.** The response "depends on the unknown shape of the true spectrum".
   Regularising with wide bins introduces "a non-trivial bias" {cite:p}`stanley2022`. The
   remedy is fine bins and intervals for functionals of them. In binference, see
-  [is the binning fine enough?](../guides/results.md#is-the-binning-fine-enough).
+  [is the binning fine enough?](../guides/bins.md#check-the-binning).
 - **Noisy response matrices.** A response from a finite simulation "can inadvertently
   regularize the problem" {cite:p}`zhu2026`.
 - **Bin-by-bin correction** "provably accounts for smearing effects incorrectly"

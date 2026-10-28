@@ -52,7 +52,7 @@ Poisson-process likelihood with a selection function {cite:p}`loredo2004,kelly20
 
 The model needs the bin average of each likelihood. {cite:t}`leistedt2016` and the HSC
 Y3 analysis integrate over the bins; RAIL evaluates each PDF at grid points. The
-{doc}`inputs guide <../guides/inputs>` says how binference averages each input.
+{doc}`inputs guide <../guides/inputs/index>` says how binference averages each input.
 
 The {doc}`quick start <../tutorials/01_quickstart>` fits a redshift distribution. The
 {doc}`selection tutorial <../tutorials/05_selection>` fits an occurrence rate.
@@ -139,12 +139,12 @@ Not done:
   posteriors missed the accuracy requirement by five to ten times before correction
   {cite:p}`ilbert2021`. Rubin's first data-preview paper still reports stacked $n(z)$
   without an uncertainty band {cite:p}`zhang2026`. See
-  [stacking](../guides/pitfalls.md#stacking).
+  [stacking](../guides/inputs/posteriors.md#stacking-is-not-the-answer).
 - **Posteriors used as likelihoods.** A misspecified interim prior was "disastrous" for
   every estimator CHIPPR tested {cite:p}`malz2022`. The stacked PDFs of machine-learning
   codes "show the imprint of the training sample" {cite:p}`zhang2026`. In the frankenz
   audit, such posteriors cut the coverage of 68% intervals to 0.29
-  ([pitfalls](../guides/pitfalls.md#feeding-posteriors-in-as-likelihoods)).
+  ([pitfalls](../guides/troubleshooting.md#passing-posteriors-as-likelihoods)).
 - **Shot noise only.** Dirichlet resampling of calibration counts "is only propagating
   shot noise". Sample variance can be "an order of magnitude larger"
   {cite:p}`sanchez2020`. DES Y3's Dirichlet step "only reproduces the variance expected
@@ -157,7 +157,7 @@ Not done:
 - **Correlated bins.** Broad likelihoods make adjacent bins anti-correlated. The naive
   histogram estimator "fails in the regime of strong inter-bin correlations or
   quasi-empty bins" {cite:p}`leistedt2016`. See
-  [per-bin error bars](../guides/pitfalls.md#reading-per-bin-error-bars-as-independent).
+  [per-bin error bars](../guides/troubleshooting.md#reading-per-bin-error-bars-as-independent).
 - **Binning.** Over-smoothing with coarse bins "can lead to posteriors that can be too
   narrow" {cite:p}`rau2022`. RAIL's example notebook warns that `VarInfStack` "tends to
   get a little wonky if you use too many bins".
@@ -179,4 +179,4 @@ Not done:
   ([sblunt/eccentricities](https://github.com/sblunt/eccentricities)) replaces $\log 0$ by zero.
   It therefore drops such objects without a warning. binference raises an error for a
   likelihood row of zeros, unless you pass
-  [`drop_empty=True`](../guides/inputs.md#likelihood-matrices).
+  [`drop_empty=True`](../guides/inputs/tables.md#conventions).

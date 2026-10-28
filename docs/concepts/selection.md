@@ -146,7 +146,7 @@ plt.show()
 ```
 
 The pitfalls guide describes the
-[two common mistakes](../guides/pitfalls.md#ignoring-selection-or-modelling-it-twice)
+[two common mistakes](../guides/troubleshooting.md#ignoring-selection-or-modelling-it-twice)
 with the normaliser.
 
 For the fractions, only the ratios of the $S_k$ matter. A selection known only up to a

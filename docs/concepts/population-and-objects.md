@@ -182,7 +182,7 @@ likelihood, so their fractions are anti-correlated. In the fit of
 {ref}`the EM figure <fig-em>`, the median correlation between neighbouring bins is
 {glue:text}`neighbour_corr:.2f`. Per-bin error bars therefore do not combine like
 independent errors; the pitfalls guide shows
-[how to combine them](../guides/pitfalls.md#reading-per-bin-error-bars-as-independent).
+[how to combine them](../guides/troubleshooting.md#reading-per-bin-error-bars-as-independent).
 
 ## Shrinkage: each object under the population
 
