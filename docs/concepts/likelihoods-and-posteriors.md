@@ -15,8 +15,6 @@ difference, and why does it matter for the population?*
 ```{code-cell} python
 :tags: [remove-cell]
 
-import warnings
-
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
@@ -24,7 +22,7 @@ from scipy import stats
 import binference
 from binference.plotting import SAMPLE_COLOR
 
-CORAL, INK, INK2 = SAMPLE_COLOR, plt.rcParams["text.color"], plt.rcParams["xtick.color"]
+CORAL, INK2 = SAMPLE_COLOR, plt.rcParams["xtick.color"]
 INTERIMS = {"broad interim prior": stats.norm(1.5, 0.9), "narrow interim prior": stats.norm(0.9, 0.3)}
 ```
 
@@ -101,60 +99,14 @@ Treating posteriors as likelihoods counts the interim prior once per object. The
 then constrain the product of $\pi$ and the population rather than the population
 itself. The fit then favours populations that are large where $\pi$ is large. It moves
 toward the interim prior, more so the narrower $\pi$ is
-({ref}`figure <fig-interim-drift>`). With uninformative data it equals the interim
+(explainer V-3). With uninformative data it equals the interim
 prior's peak.
 
-```{code-cell} python
----
-tags: [remove-input]
-mystnb:
-  figure:
-    name: fig-interim-drift
-    caption: |
-      Population fits to the posteriors of 2,000 mock objects on 15 bins. The
-      measurement errors are between 0.1 and 0.25, and the posteriors use the two
-      interim priors above. Indigo: the interim prior divided out. Amber: the
-      posteriors used as likelihoods. Each shows its posterior mean and 68% band,
-      from 1,000 Gibbs draws. Dashed: the true population. Dotted: the interim prior.
-  image:
-    alt: |
-      Two stacked panels of population densities. In both, the indigo band follows
-      the dashed truth, which has two humps. In the top panel the amber band is close
-      to the truth. In the bottom panel the amber band rises above the truth between
-      0.4 and 1.6, under the narrow dotted interim prior. It falls below the truth on
-      both sides.
----
-bins = binference.Bins.linear(0, 3, 15)
-truth = binference.simulate.population(bins, "bimodal")
-fig, axes = plt.subplots(2, 1, sharex=True)
-fig.set_figheight(4.8)
-for ax, (name, pi) in zip(axes, INTERIMS.items(), strict=True):
-    mock = binference.simulate.mock_1d(2000, bins, density=truth, noise=(0.1, 0.25),
-                                       interim=pi, rng=3)
-    fits = {}
-    for label, how in (("prior divided out", {"interim": mock.interim}),
-                       ("used as likelihoods", {"kind": "likelihood"})):
-        lk = binference.Likelihoods.from_table(mock.posteriors, bins, **how)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            fits[label] = binference.infer(lk, method="gibbs", n_samples=250, rng=1, check=False)
-    for (label, fit), color in zip(fits.items(), ("C0", "C1"), strict=True):
-        fit.plot(ax=ax, levels=(0.68,), color=color, label=label)
-    ax.stairs(truth / bins.volumes, bins.edges[0], color=INK, lw=1.4, ls="--", label="truth")
-    ax.stairs(mock.interim / bins.volumes, bins.edges[0], color=INK2, lw=1.4, ls=":",
-              label="interim prior")
-    ax.get_legend().remove()
-    ax.set_xlabel("")
-    ax.set_ylabel("density")
-    ax.set_title(name, loc="left")
-handles, labels = axes[0].get_legend_handles_labels()
-keep = [i for i, t in enumerate(labels) if "interval" not in t]
-fig.legend([handles[i] for i in keep], [labels[i] for i in keep], ncol=2,
-           loc="outside upper center")
-for ax in axes:
-    ax.set_ylim(0, 1.3)
-axes[1].set_xlabel("true value $z$")
-plt.show()
+```{explainer} v3
+Population fits to 600 mock objects on 15 bins, measured with error 0.3, whose posteriors
+use a Gaussian interim prior of width 0.4 (grey). Indigo: EM with the interim prior divided
+out. Amber: EM on the posteriors used as likelihoods. Dashed: the true population. Move the
+interim prior: the amber fit follows it, the indigo fit does not.
 ```
 
 ## Stacking is one step from the interim prior
@@ -175,6 +127,6 @@ mixed in. Take that guess out before you ask what the population is.
   [posteriors](../guides/inputs/posteriors.md) with
   their interim prior.
 - See it: the tutorial {doc}`../tutorials/posteriors-on-a-grid` repeats
-  {ref}`the drift figure <fig-interim-drift>` with a photometric-redshift mock.
+  the comparison of explainer V-3 with a photometric-redshift mock.
 - Derivation: [likelihoods versus posteriors](../how-it-works/model.md#likelihoods-versus-posteriors)
   in How it works.

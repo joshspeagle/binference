@@ -161,6 +161,10 @@ jobs:
         run: python docs/_scripts/brand.py --check
       - name: Check the defaults page against the code and its docstrings
         run: python docs/_scripts/defaults_table.py --check
+      - name: Check the explainers' still frames and their maths against binference
+        run: |
+          node docs/_scripts/explainers.mjs --check
+          pip install pytest && pytest tests/test_explainers.py
       - name: Run the code of the README, installation page and guides
         run: python docs/_scripts/run_snippets.py README.md docs/index.md docs/start/install.md docs/guides/*.md docs/guides/inputs/*.md
       # Executed notebooks are reused while the package, the plot style and the docs

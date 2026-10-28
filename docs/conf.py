@@ -32,6 +32,7 @@ extensions = [
     "sphinx_design",
     "sphinxcontrib.bibtex",
     "bnf_cite",
+    "bnf_explainer",
 ]
 
 exclude_patterns = [

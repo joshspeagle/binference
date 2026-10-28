@@ -282,6 +282,36 @@ figcaption, .article p.caption {
 }
 figcaption p { margin: 0; }
 
+/* ---------------------------------------------------------------- explainers (bnf_explainer.py) */
+figure.explainer {
+  background: var(--b-surface); border-top: var(--b-accent-rule) solid var(--b-brand);
+  padding: 12px 14px; max-width: var(--b-figure-max); margin-left: auto; margin-right: auto;
+}
+.explainer-title { font: var(--b-type-minor); margin: 0 0 8px; }
+.explainer-plot svg { display: block; width: 100%; height: auto; font: 16px var(--b-font-body); }
+.explainer-plot path { fill: none; stroke-width: 1.5; }
+.explainer-plot .axis { stroke: var(--b-ink-2); stroke-width: 1; }
+.explainer-plot .grid { stroke: var(--b-rule); stroke-width: 1; }
+.explainer-plot .ink { stroke: var(--b-ink); }
+.explainer-plot .brand { stroke: var(--b-brand); stroke-width: 2.5; }
+.explainer-plot .sample { stroke: var(--b-sample); stroke-width: 2.5; }
+.explainer-plot .fill-brand { fill: var(--b-brand); fill-opacity: .15; stroke: none; }
+.explainer-plot .fill-sample { fill: var(--b-sample); fill-opacity: .15; stroke: none; }
+.explainer-plot .fill-ink { fill: var(--b-ink-2); fill-opacity: .18; stroke: none; }
+.explainer-plot .swatch-ink { stroke: var(--b-ink-2); stroke-opacity: .3; stroke-width: 10; }
+.explainer-plot .seq { stroke: var(--b-seq-1); stroke-width: 2.5; }
+.explainer-plot .brand.thin { stroke-width: 1.5; }
+.explainer-plot .cat1 { stroke: var(--b-cat-1); stroke-width: 2.5; }
+.explainer-plot .dashed { stroke-dasharray: 6 4; stroke-width: 1.5; }
+.explainer-plot text { fill: var(--b-ink-2); }
+.explainer-plot text.key { fill: var(--b-ink); }
+.explainer-controls { display: grid; grid-template-columns: auto 1fr 3.5em; gap: 6px 10px; align-items: center; margin-top: 10px; }
+.explainer-controls label { font: var(--b-type-caption); color: var(--b-ink); }
+.explainer-controls input { width: 100%; accent-color: var(--b-brand); }
+.explainer-controls output, .explainer-readout { font: var(--b-type-code); color: var(--b-ink); }
+.explainer-controls output { text-align: right; }
+.explainer-readout { margin: 6px 0 0; }
+
 /* ---------------------------------------------------------------- API (autodoc, numpydoc) */
 dl.py { margin: 1.6rem 0; }
 dl.py > dt {
