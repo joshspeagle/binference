@@ -442,3 +442,8 @@ Append-only. One entry per working session (or per step within a long session).
 - Code and docstring bugs found and fixed on the way: the `from_injections` docstring now says only a selection on the truth, for fractions, is inferred jointly; the `Auto` and `infer` docstrings lost their DECISIONS citations and point to the auto page; the `MAP` docstring names `grad_norm` and the NaN `kkt_gap`; a CSS change that broke wrapping site-wide was scoped to table cells.
 - Statistical findings from the reviews: the 2-D tutorial's poor coverage was binning bias (a ridge narrower than a cell), and the validation tutorial's under-coverage came from unconverged Gibbs runs; neither is a bug. Open: whether `LogisticGP` is calibrated on grids (#129).
 - Process slip: PR #128 sat green overnight because the session waited for a CI notification that never came. Every open PR now has a timed check-in.
+
+## 2026-10-28: docs phase, the final pass (D5)
+
+- #131 (PR #132) merged: one figure style for every executed page (DECISIONS #101). The smallest figure text is 12.4 px on a 390 px phone and about 18 px on a desktop; pages set only a height; `SAMPLE_COLOR` is public and checked against the brand token; the package plots take their size from the style. Left open: `plot_corner`'s tick labels overlap at 4.8 in (no page draws one).
+- Why PR events went missing: the repository was renamed to `joshspeagle/binference`, and the session had subscribed under the old name. Subscriptions now use the new name; the timed check-ins stay.

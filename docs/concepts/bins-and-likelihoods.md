@@ -20,7 +20,7 @@ import numpy as np
 import binference
 from binference.plotting import SAMPLE_COLOR
 
-CORAL, INK, INK2 = SAMPLE_COLOR, plt.rcParams["text.color"], plt.rcParams["xtick.color"]
+CORAL, INK = SAMPLE_COLOR, plt.rcParams["text.color"]
 ```
 
 ## Objects and bins
@@ -47,45 +47,14 @@ L_{ik}=\frac{1}{v_k}\int_{B_k}\ell_i(z)\,dz ,
 $$
 
 the average of $\ell_i$ over bin $k$ (the measures section below covers other bins). The $N\times K$ table of these numbers is the
-{term}`likelihood matrix`. {ref}`The bin-average figure <fig-bin-average>` shows one object's
-likelihood and its bin averages for a precise and a noisy measurement.
+{term}`likelihood matrix`. Explainer {ref}`explainer-v1` below shows one object's likelihood and its bin averages for any
+error and bin width.
 
-```{code-cell} python
----
-tags: [remove-input]
-mystnb:
-  figure:
-    name: fig-bin-average
-    caption: |
-      One object measured at $d_i=1.37$ with a Gaussian error $\sigma$, on 12 bins.
-      The dashed curve is the likelihood $\ell_i(z)$. The steps are its bin averages
-      $L_{ik}$, computed by binference. With $\sigma=0.1$ almost all of the likelihood
-      lies in three bins; with $\sigma=0.4$ it spreads over eight.
-  image:
-    alt: |
-      Two stacked panels. In the top panel a narrow dashed bell curve peaks at z of
-      about 1.4. Solid steps put almost all of its height into the bin from 1.25 to
-      1.5. In the bottom panel a broad bell curve is followed closely by steps that
-      rise and fall over about eight bins.
----
-bins = binference.Bins.linear(0, 3, 12)
-z = np.linspace(0, 3, 601)
-fig, axes = plt.subplots(2, 1, sharex=True)
-fig.set_figheight(4.5)
-for ax, sigma in zip(axes, (0.1, 0.4), strict=True):
-    lk = binference.Likelihoods.from_gaussian([1.37], [sigma], bins)
-    L = lk.toarray()[0] * np.exp(lk.log_scale[0])  # the bin averages at their true scale
-    ell = np.exp(-0.5 * ((z - 1.37) / sigma) ** 2) / (sigma * np.sqrt(2 * np.pi))
-    ax.plot(z, ell, color=CORAL, lw=1.2, ls="--", label=r"likelihood $\ell_i(z)$")
-    ax.stairs(L, bins.edges[0], color=CORAL, lw=2.2, label=r"bin averages $L_{ik}$")
-    ax.stairs(L, bins.edges[0], color=CORAL, alpha=0.15, fill=True)
-    for e in bins.edges[0]:
-        ax.axvline(e, color=INK2, lw=0.5, alpha=0.4)
-    ax.set_ylabel("likelihood")
-    ax.text(0.98, 0.9, rf"$\sigma = {sigma}$", transform=ax.transAxes, ha="right", va="top")
-fig.legend(*axes[0].get_legend_handles_labels(), loc="outside upper center", ncol=2)
-axes[1].set_xlabel("true value $z$")
-plt.show()
+```{explainer} v1
+One object measured at $d_i=1.37$ with a Gaussian error $\sigma$. The dashed curve is the
+likelihood $\ell_i(z)$; the steps are its bin averages $L_{ik}$, the same numbers
+`Likelihoods.from_gaussian` computes. Move the sliders: a narrow likelihood puts almost all
+its weight in one or two bins, a broad one spreads it over many.
 ```
 
 When the likelihood is much narrower than the bins, each object places nearly all its

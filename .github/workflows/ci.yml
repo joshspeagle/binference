@@ -156,11 +156,18 @@ jobs:
           python-version: "3.13"
           cache: pip
           cache-dependency-path: pyproject.toml
-      - run: pip install -e ".[docs,xarray]"
+      - run: pip install -e ".[docs,xarray,test]"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"  # the still frames are exact strings; CONTRIBUTING names this version
       - name: Check the brand assets and tokens against docs/_scripts/brand.py
         run: python docs/_scripts/brand.py --check
       - name: Check the defaults page against the code and its docstrings
         run: python docs/_scripts/defaults_table.py --check
+      - name: Check the explainers' still frames and their maths against binference
+        run: |
+          node docs/_scripts/explainers.mjs --check
+          pytest tests/test_explainers.py
       - name: Run the code of the README, installation page and guides
         run: python docs/_scripts/run_snippets.py README.md docs/index.md docs/start/install.md docs/guides/*.md docs/guides/inputs/*.md
       # Executed notebooks are reused while the package, the plot style and the docs

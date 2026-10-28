@@ -1,0 +1,78 @@
+{
+ "v1": {
+  "title": "Bin averages of one likelihood",
+  "controls": [
+   {
+    "name": "sigma",
+    "label": "error σ",
+    "min": 0.05,
+    "max": 0.6,
+    "step": 0.05,
+    "value": 0.2
+   },
+   {
+    "name": "width",
+    "label": "bin width",
+    "min": 0.1,
+    "max": 1,
+    "step": 0.05,
+    "value": 0.25
+   }
+  ],
+  "svg": "<svg viewBox=\"0 0 400 272\" role=\"img\" aria-label=\"A dashed bell curve of width 0.20 centred on z = 1.37, and steps at its average over each of 12 bins.\"><path class=\"grid\" d=\"M58,34V224\"/><path class=\"grid\" d=\"M85.5,34V224\"/><path class=\"grid\" d=\"M113,34V224\"/><path class=\"grid\" d=\"M140.5,34V224\"/><path class=\"grid\" d=\"M168,34V224\"/><path class=\"grid\" d=\"M195.5,34V224\"/><path class=\"grid\" d=\"M223,34V224\"/><path class=\"grid\" d=\"M250.5,34V224\"/><path class=\"grid\" d=\"M278,34V224\"/><path class=\"grid\" d=\"M305.5,34V224\"/><path class=\"grid\" d=\"M333,34V224\"/><path class=\"grid\" d=\"M360.5,34V224\"/><path class=\"grid\" d=\"M388,34V224\"/><path class=\"fill-sample\" d=\"M58,224V224H85.5V224H113V223.76H140.5V216.1H168V162.67H195.5V105.47H223V165.95H250.5V216.93H278V223.79H305.5V224H333V224H360.5V224H388V224\"/><path class=\"sample\" d=\"M58,224V224H85.5V224H113V223.76H140.5V216.1H168V162.67H195.5V105.47H223V165.95H250.5V216.93H278V223.79H305.5V224H333V224H360.5V224H388V224\"/><path class=\"sample dashed\" d=\"M58,224L60.75,224L63.5,224L66.25,224L69,224L71.75,224L74.5,224L77.25,224L80,224L82.75,224L85.5,224L88.25,224L91,224L93.75,224L96.5,224L99.25,224L102,224L104.75,224L107.5,224L110.25,223.99L113,223.99L115.75,223.98L118.5,223.97L121.25,223.95L124,223.92L126.75,223.88L129.5,223.81L132.25,223.7L135,223.54L137.75,223.3L140.5,222.97L143.25,222.49L146,221.82L148.75,220.92L151.5,219.7L154.25,218.09L157,216.01L159.75,213.37L162.5,210.07L165.25,206.03L168,201.18L170.75,195.47L173.5,188.88L176.25,181.43L179,173.21L181.75,164.34L184.5,155.01L187.25,145.46L190,135.97L192.75,126.87L195.5,118.48L198.25,111.15L201,105.17L203.75,100.83L206.5,98.3L209.25,97.71L212,99.08L214.75,102.36L217.5,107.38L220.25,113.93L223,121.73L225.75,130.44L228.5,139.74L231.25,149.29L234,158.79L236.75,167.96L239.5,176.59L242.25,184.51L245,191.62L247.75,197.86L250.5,203.22L253.25,207.74L256,211.48L258.75,214.5L261.5,216.91L264.25,218.79L267,220.23L269.75,221.31L272.5,222.12L275.25,222.7L278,223.12L280.75,223.41L283.5,223.61L286.25,223.75L289,223.84L291.75,223.9L294.5,223.94L297.25,223.96L300,223.98L302.75,223.99L305.5,223.99L308.25,224L311,224L313.75,224L316.5,224L319.25,224L322,224L324.75,224L327.5,224L330.25,224L333,224L335.75,224L338.5,224L341.25,224L344,224L346.75,224L349.5,224L352.25,224L355,224L357.75,224L360.5,224L363.25,224L366,224L368.75,224L371.5,224L374.25,224L377,224L379.75,224L382.5,224L385.25,224L388,224\"/><path class=\"axis\" d=\"M58,34V224H388\"/><text x=\"58\" y=\"244\" text-anchor=\"middle\">0</text><text x=\"168\" y=\"244\" text-anchor=\"middle\">1</text><text x=\"278\" y=\"244\" text-anchor=\"middle\">2</text><text x=\"388\" y=\"244\" text-anchor=\"middle\">3</text><text x=\"52\" y=\"229\" text-anchor=\"end\">0</text><text x=\"52\" y=\"165.67\" text-anchor=\"end\">1</text><text x=\"52\" y=\"102.33\" text-anchor=\"end\">2</text><text x=\"52\" y=\"39\" text-anchor=\"end\">3</text><text x=\"223\" y=\"264\" text-anchor=\"middle\">true value z</text><text transform=\"translate(16,129) rotate(-90)\" text-anchor=\"middle\">likelihood</text><path class=\"sample dashed\" d=\"M14,13h22\"/><text class=\"key\" x=\"42\" y=\"18\">likelihood ℓ(z)</text><path class=\"sample\" d=\"M210,13h22\"/><text class=\"key\" x=\"238\" y=\"18\">bin averages L</text></svg>",
+  "readout": "3 bins hold more than 5% of the likelihood"
+ },
+ "v3": {
+  "title": "Posteriors used as likelihoods",
+  "controls": [
+   {
+    "name": "centre",
+    "label": "interim prior peak",
+    "min": 0.3,
+    "max": 2.7,
+    "step": 0.1,
+    "value": 2.4
+   },
+   {
+    "name": "width",
+    "label": "interim prior width",
+    "min": 0.2,
+    "max": 1.2,
+    "step": 0.1,
+    "value": 0.4
+   }
+  ],
+  "svg": "<svg viewBox=\"0 0 400 294\" role=\"img\" aria-label=\"Population fits of 2000 mock objects. With the prior divided out the fit follows the dashed truth. With posteriors used as likelihoods it is pulled toward the interim prior, centred at 2.4 with width 0.4.\"><path class=\"fill-ink\" d=\"M58,246V246H80V246H102V246H124V245.99H146V245.93H168V245.62H190V244.35H212V240.39H234V231.05H256V214.83H278V195.14H300V181.03H322V181.03H344V195.14H366V214.83H388V246\"/><path class=\"ink dashed\" d=\"M58,246V245.54H80V242.16H102V228.45H124V202.36H146V186.89H168V202.21H190V227.38H212V237.35H234V231.49H256V219.25H278V212.9H300V219.28H322V231.95H344V241.19H366V244.93H388V246\"/><path class=\"brand\" d=\"M58,246V245.87H80V243.52H102V231.21H124V200.42H146V180.68H168V204.33H190V226.71H212V234.73H234V234.05H256V223.57H278V206.2H300V215.99H322V237.71H344V243.67H366V244.65H388V246\"/><path class=\"cat1\" d=\"M58,246V246H80V246H102V246H124V246H146V246H168V245.92H190V193.59H212V117.86H234V229.32H256V238.31H278V204.16H300V177.88H322V244.3H344V246H366V246H388V246\"/><path class=\"axis\" d=\"M58,56V246H388\"/><text x=\"58\" y=\"266\" text-anchor=\"middle\">0</text><text x=\"168\" y=\"266\" text-anchor=\"middle\">1</text><text x=\"278\" y=\"266\" text-anchor=\"middle\">2</text><text x=\"388\" y=\"266\" text-anchor=\"middle\">3</text><text x=\"52\" y=\"251\" text-anchor=\"end\">0</text><text x=\"52\" y=\"187.67\" text-anchor=\"end\">1</text><text x=\"52\" y=\"124.33\" text-anchor=\"end\">2</text><text x=\"52\" y=\"61\" text-anchor=\"end\">3</text><text x=\"223\" y=\"286\" text-anchor=\"middle\">true value z</text><text transform=\"translate(16,151) rotate(-90)\" text-anchor=\"middle\">density</text><path class=\"swatch-ink\" d=\"M14,13h22\"/><text class=\"key\" x=\"42\" y=\"18\">interim prior</text><path class=\"ink dashed\" d=\"M210,13h22\"/><text class=\"key\" x=\"238\" y=\"18\">truth</text><path class=\"brand\" d=\"M14,35h22\"/><text class=\"key\" x=\"42\" y=\"40\">prior divided out</text><path class=\"cat1\" d=\"M210,35h22\"/><text class=\"key\" x=\"238\" y=\"40\">used as likelihoods</text></svg>",
+  "readout": "mean z: truth 1.38, prior divided out 1.37, posteriors as likelihoods 1.74"
+ },
+ "v4": {
+  "title": "Stacking, then EM",
+  "controls": [
+   {
+    "name": "step",
+    "label": "EM step",
+    "min": 1,
+    "max": 200,
+    "step": 1,
+    "value": 1
+   }
+  ],
+  "svg": "<svg viewBox=\"0 0 400 294\" role=\"img\" aria-label=\"EM step 1 for 800 mock objects. The stack, step 1, is broad and misses the dip between the two peaks of the dashed truth; later steps sharpen the peaks.\"><path class=\"ink2\" d=\"M58,246V228.07H74.5V219.43H91V208.73H107.5V197.48H124V187.55H140.5V180.83H157V178.74H173.5V181.4H190V187.27H206.5V193.74H223V198.71H239.5V201.59H256V203.06H272.5V204.16H289V205.8H305.5V208.73H322V213.34H338.5V219.33H355V225.78H371.5V231.82H388V246\"/><path class=\"ink dashed\" d=\"M58,246V245.4H74.5V242.53H91V231.94H107.5V205.88H124V165.29H140.5V131.54H157V131.48H173.5V164.92H190V204.23H206.5V226.35H223V227.64H239.5V214.35H256V195.27H272.5V181.28H289V181.29H305.5V195.34H322V214.96H338.5V231.11H355V240.41H371.5V244.36H388V246\"/><path class=\"brand\" d=\"M58,246V228.07H74.5V219.43H91V208.73H107.5V197.48H124V187.55H140.5V180.83H157V178.74H173.5V181.4H190V187.27H206.5V193.74H223V198.71H239.5V201.59H256V203.06H272.5V204.16H289V205.8H305.5V208.73H322V213.34H338.5V219.33H355V225.78H371.5V231.82H388V246\"/><path class=\"axis\" d=\"M58,56V246H388\"/><text x=\"58\" y=\"266\" text-anchor=\"middle\">0</text><text x=\"168\" y=\"266\" text-anchor=\"middle\">1</text><text x=\"278\" y=\"266\" text-anchor=\"middle\">2</text><text x=\"388\" y=\"266\" text-anchor=\"middle\">3</text><text x=\"52\" y=\"251\" text-anchor=\"end\">0</text><text x=\"52\" y=\"187.67\" text-anchor=\"end\">0.5</text><text x=\"52\" y=\"124.33\" text-anchor=\"end\">1</text><text x=\"52\" y=\"61\" text-anchor=\"end\">1.5</text><text x=\"223\" y=\"286\" text-anchor=\"middle\">true value z</text><text transform=\"translate(16,151) rotate(-90)\" text-anchor=\"middle\">density</text><path class=\"ink2\" d=\"M14,13h22\"/><text class=\"key\" x=\"42\" y=\"18\">step 1, the stack</text><path class=\"ink dashed\" d=\"M210,13h22\"/><text class=\"key\" x=\"238\" y=\"18\">truth</text><path class=\"brand\" d=\"M14,35h22\"/><text class=\"key\" x=\"42\" y=\"40\">step 1</text></svg>",
+  "readout": "step 1 is the stack: mean log-likelihood per object −1.041"
+ },
+ "v5": {
+  "title": "Shrinkage toward the population",
+  "controls": [
+   {
+    "name": "width",
+    "label": "population width",
+    "min": 0.1,
+    "max": 1.5,
+    "step": 0.05,
+    "value": 0.35
+   }
+  ],
+  "svg": "<svg viewBox=\"0 0 400 294\" role=\"img\" aria-label=\"A population of width 0.35 centred on 1.2, one object's likelihood centred on 1.9, and its posterior between them.\"><path class=\"fill-brand\" d=\"M58,246V245.32H69V244.35H80V242.29H91V238.31H102V231.28H113V220.04H124V203.77H135V182.67H146V158.4H157V134.28H168V114.61H179V103.52H190V103.52H201V114.61H212V134.28H223V158.4H234V182.67H245V203.77H256V220.04H267V231.28H278V238.31H289V242.29H300V244.35H311V245.32H322V245.74H333V245.91H344V245.97H355V245.99H366V246H377V246H388V246\"/><path class=\"brand thin\" d=\"M58,246V245.32H69V244.35H80V242.29H91V238.31H102V231.28H113V220.04H124V203.77H135V182.67H146V158.4H157V134.28H168V114.61H179V103.52H190V103.52H201V114.61H212V134.28H223V158.4H234V182.67H245V203.77H256V220.04H267V231.28H278V238.31H289V242.29H300V244.35H311V245.32H322V245.74H333V245.91H344V245.97H355V245.99H366V246H377V246H388V246\"/><path class=\"sample dashed\" d=\"M58,246V246H69V245.99H80V245.97H91V245.93H102V245.82H113V245.56H124V245.02H135V243.93H146V241.9H157V238.36H168V232.63H179V224.01H190V212.02H201V196.65H212V178.66H223V159.64H234V141.94H245V128.16H256V120.6H267V120.6H278V128.16H289V141.94H300V159.64H311V178.66H322V196.65H333V212.02H344V224.01H355V232.63H366V238.36H377V241.9H388V246\"/><path class=\"sample\" d=\"M58,246V246H69V246H80V246H91V245.99H102V245.93H113V245.72H124V244.97H135V242.73H146V237.05H157V224.74H168V202.25H179V167.98H190V125.43H201V84.55H212V58.66H223V57.64H234V81.88H245V122.09H256V164.94H267V200.05H278V223.43H289V236.39H300V242.46H311V244.87H322V245.69H333V245.92H344V245.98H355V246H366V246H377V246H388V246\"/><path class=\"axis\" d=\"M58,56V246H388\"/><text x=\"58\" y=\"266\" text-anchor=\"middle\">0</text><text x=\"168\" y=\"266\" text-anchor=\"middle\">1</text><text x=\"278\" y=\"266\" text-anchor=\"middle\">2</text><text x=\"388\" y=\"266\" text-anchor=\"middle\">3</text><text x=\"52\" y=\"251\" text-anchor=\"end\">0</text><text x=\"52\" y=\"187.67\" text-anchor=\"end\">0.5</text><text x=\"52\" y=\"124.33\" text-anchor=\"end\">1</text><text x=\"52\" y=\"61\" text-anchor=\"end\">1.5</text><text x=\"223\" y=\"286\" text-anchor=\"middle\">true value z</text><text transform=\"translate(16,151) rotate(-90)\" text-anchor=\"middle\">density</text><path class=\"brand thin\" d=\"M14,13h22\"/><text class=\"key\" x=\"42\" y=\"18\">population ρ</text><path class=\"sample dashed\" d=\"M210,13h22\"/><text class=\"key\" x=\"238\" y=\"18\">likelihood</text><path class=\"sample\" d=\"M14,35h22\"/><text class=\"key\" x=\"42\" y=\"40\">posterior</text></svg>",
+  "readout": "measured at 1.9; posterior mean 1.50"
+ }
+}

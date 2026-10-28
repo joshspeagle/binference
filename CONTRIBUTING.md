@@ -78,6 +78,18 @@ python docs/_scripts/check_dois.py
 The tutorials in `docs/tutorials/` are MyST notebooks executed at build time,
 so keep each under a minute or two.
 
+The interactive explainers (V-1, V-3, …) are JavaScript modules in
+`docs/_static/explainers/`, one per explainer, each with `controls`, `compute`, `readout`
+and `draw`; a page shows one with ```` ```{explainer} v1 ```` and its caption, and cites it
+as ``{ref}`explainer-v1` ``. After
+changing a module, redraw the still frames the page shows before JavaScript runs, and
+check the explainers' numbers against binference (both need Node.js 22, the version CI uses):
+
+```bash
+node docs/_scripts/explainers.mjs
+pytest tests/test_explainers.py
+```
+
 ## Issues and pull requests
 
 * Every change starts from an issue that states its scope and how we will know it is
