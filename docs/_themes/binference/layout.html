@@ -42,8 +42,7 @@
 {%- block content %}
 <div class="docs">
   <nav class="side" id="sidebar" aria-label="Documentation">
-    {# Sphinx marks section captions as headings without a level #}
-    {{ toctree(collapse=True, titles_only=True, maxdepth=2, includehidden=True)|replace('role="heading"', 'role="heading" aria-level="2"') }}
+    {{ toctree(collapse=True, titles_only=True, maxdepth=2, includehidden=True) }}
   </nav>
   <main role="main" class="article" id="main">
     {%- if section and section.docname != pagename %}
