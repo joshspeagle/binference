@@ -369,34 +369,24 @@ main form input[type="submit"] {
   max-width: 1180px; margin: 0 auto; padding: 40px var(--gutter-r) 72px var(--gutter-l);
 }
 .home p { max-width: var(--measure); }
-/* the hero: the full mark (hero.html), its draws cross-fading once binference.js starts them,
-   one set every 4 s; still before JavaScript and under reduced motion */
+/* the hero: the full mark, cross-fading between sets of draws once binference.js adds
+   `moving` (the timing is written into hero.html by brand.py); still before JavaScript and
+   under reduced motion */
 .hero { float: right; width: min(36%, 260px); margin: 0 0 24px 40px; }
 .hero-mark { display: block; width: 100%; height: auto; color: var(--b-brand); }
-.hero-draws path { fill: currentColor; }
-.hero-mean { fill: none; stroke: currentColor; }
-.hero-sample { fill: var(--b-sample); }
 .hero-draws:not(:first-child) { opacity: 0; }
-.hero.moving .hero-draws { animation: hero-draws 24s linear infinite; }
-.hero.moving .hero-draws:nth-child(2) { animation-delay: -20s; }
-.hero.moving .hero-draws:nth-child(3) { animation-delay: -16s; }
-.hero.moving .hero-draws:nth-child(4) { animation-delay: -12s; }
-.hero.moving .hero-draws:nth-child(5) { animation-delay: -8s; }
-.hero.moving .hero-draws:nth-child(6) { animation-delay: -4s; }
 .hero.paused .hero-draws { animation-play-state: paused; }
-@keyframes hero-draws { 0%, 12.5% { opacity: 1; } 20.8%, 95.8% { opacity: 0; } 100% { opacity: 1; } }
 .hero button {
-  display: block; margin: 8px auto 0; font: var(--b-type-label); color: var(--b-ink-2);
+  display: block; min-height: 24px; margin: 8px auto 0; font: var(--b-type-label); color: var(--b-ink-2);
   background: none; border: 1px solid var(--b-rule); border-radius: var(--b-radius); padding: 2px 8px; cursor: pointer;
 }
-.home .paths ul, .home .sections ul { list-style: none; padding: 0; display: grid; gap: 12px; }
-.home .paths ul { grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin: 1.4rem 0 2rem; }
-.home .sections ul { grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
-.home .paths li, .home .sections li {
-  margin: 0; padding: 14px 16px; background: var(--b-surface); border-top: var(--b-accent-rule) solid var(--b-brand);
+.home :is(.paths, .sections) ul {
+  list-style: none; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
 }
-.home .sections li { border-top-color: var(--b-rule); }
-.home .paths li > p, .home .sections li > p { margin: 0; }
+.home .paths ul { margin: 1.4rem 0 2rem; }
+.home :is(.paths, .sections) li { margin: 0; padding: 14px 16px; background: var(--b-surface); border-top: var(--b-accent-rule) solid var(--b-rule); }
+.home .paths li { border-top-color: var(--b-brand); }
+.home :is(.paths, .sections) li > p { margin: 0; }
 .mobilenav { display: none; }
 
 /* ---------------------------------------------------------------- phones and tablets */
@@ -430,7 +420,7 @@ main form input[type="submit"] {
     overflow-y: auto; border-top: 1px solid var(--b-rule);
   }
   .side.open { display: block; }
-  .article h1 { font: var(--b-type-title-phone); }
+  .article h1, .home h1 { font: var(--b-type-title-phone); }
 }
 @media (max-width: 520px) {
   .hero { float: none; width: 140px; margin: 0 0 16px; }
@@ -445,6 +435,7 @@ main form input[type="submit"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .hero button { display: none; }
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
 @media print {

@@ -78,9 +78,9 @@
   if (!hero || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   var button = document.createElement("button");
   button.type = "button";
-  button.textContent = "Pause";
+  button.textContent = "Pause animation";
   button.addEventListener("click", function () {
-    button.textContent = hero.classList.toggle("paused") ? "Play" : "Pause";
+    button.textContent = hero.classList.toggle("paused") ? "Play animation" : "Pause animation";
   });
   hero.appendChild(button);
   hero.classList.add("moving");

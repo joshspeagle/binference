@@ -51,20 +51,20 @@ print(result.summary())
 ```
 
 :::{container} sections
-- **[Start](start/what-it-does.md)** What binference does, whether it suits your data, how
+- **[Start](start/what-it-does.md).** What binference does, whether it suits your data, how
   to install it, and a first fit.
-- **[Concepts](concepts/index.md)** Bins and likelihoods, posteriors, the population and its
+- **[Concepts](concepts/index.md).** Bins and likelihoods, posteriors, the population and its
   objects, priors, selection and engines, in words and figures.
-- **[Tutorials](tutorials/index.md)** Executed examples from end to end, grouped by the
+- **[Tutorials](tutorials/index.md).** Executed examples from end to end, grouped by the
   kind of input.
-- **[Guides](guides/index.md)** Prepare inputs, choose bins and priors, correct for
+- **[Guides](guides/index.md).** Prepare inputs, choose bins and priors, correct for
   selection, then run, read and check a fit.
-- **[How it works](how-it-works/index.md)** The model, point estimates, priors, the engines,
+- **[How it works](how-it-works/index.md).** The model, point estimates, priors, the engines,
   how `auto` chooses, and validation.
-- **[Fields](fields/index.md)** The same model in astronomy, gravitational waves, unfolding,
+- **[Fields](fields/index.md).** The same model in astronomy, gravitational waves, unfolding,
   empirical Bayes, quantification, ecology and neural deconvolution.
-- **[Reference](reference/api/index.md)** Every public class and function, the glossary,
-  notation, defaults and warnings.
+- **[Reference](reference/api/index.md).** Every public class and function, the glossary,
+  notation, defaults, warnings, bibliography and changelog, and how to cite binference.
 :::
 
 ```{toctree}
