@@ -20,9 +20,9 @@ export function readout({ step }) {
 
 export function draw({ step }, { rho }) {
   const p = plot({ edges: EDGES, ymax: YMAX, ylabel: "density",
-    key: [["pale", "step 1, the stack"], ["ink dashed", "truth"], ["brand", `step ${step}`]] });
+    key: [["ink2", "step 1, the stack"], ["ink dashed", "truth"], ["brand", `step ${step}`]] });
   const alt = `EM step ${step} for ${L.length} mock objects. The stack, step 1, is broad and misses ` +
     `the dip between the two peaks of the dashed truth; later steps sharpen the peaks.`;
-  return svg(p.h, alt, p.masses(PATH[1], "pale") + p.masses(TRUTH, "ink dashed") +
+  return svg(p.h, alt, p.masses(PATH[1], "ink2") + p.masses(TRUTH, "ink dashed") +
     p.masses(rho, "brand") + p.axes());
 }

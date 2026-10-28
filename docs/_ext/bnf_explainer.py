@@ -40,7 +40,7 @@ class Explainer(SphinxDirective):
     def run(self):
         name = self.arguments[0]
         self.env.note_dependency(str(JSON))  # a redrawn frame rebuilds the page
-        frames = json.loads(JSON.read_text())
+        frames = json.loads(JSON.read_text(encoding="utf-8"))
         if name not in frames:
             raise self.error(f"no explainer {name!r}: run node docs/_scripts/explainers.mjs")
         frame, number = frames[name], f"V-{name[1:]}"
@@ -50,18 +50,22 @@ class Explainer(SphinxDirective):
         )
         controls = "".join(_control(fid, c) for c in frame["controls"])
         head = (
-            f'<figure class="explainer" id="{fid}" data-explainer="{name}" '
+            f'<figure class="explainer" data-explainer="{name}" '
             f'aria-labelledby="{fid}-title">'
             f'<p class="explainer-title" id="{fid}-title">{number} · {escape(frame["title"])}</p>'
             f'<div class="explainer-plot">{frame["svg"]}</div>'
             f'<div class="explainer-controls">{controls}</div>'
-            f'<p class="explainer-readout" aria-live="polite">{escape(frame["readout"])}</p>'
+            f'<p class="explainer-readout">{escape(frame["readout"])}</p>'
+            '<p class="explainer-live" aria-live="polite"></p>'
             "<figcaption>"
         )
         caption = nodes.container()
         self.state.nested_parse(self.content, self.content_offset, caption)
         raw = lambda s: nodes.raw("", s, format="html")  # noqa: E731
-        return [raw(head), *caption.children, raw("</figcaption></figure>")]
+        # the label's target is a real node, so docutils knows the id is taken
+        anchor = nodes.container(ids=[fid], classes=["explainer-anchor"])
+        anchor += [raw(head), *caption.children, raw("</figcaption></figure>")]
+        return [anchor]
 
 
 def _scripts(app, pagename, templatename, context, doctree) -> None:

@@ -104,18 +104,19 @@ prior's peak.
 
 ```{explainer} v3
 Population fits to 2,000 mock objects on 15 bins, measured with error 0.3, whose
-posteriors use a Gaussian interim prior of width 0.4 (grey). Each fit is 50 EM steps from a
+posteriors use a Gaussian interim prior (grey). Each fit is 50 EM steps from a
 flat population. Indigo: the interim prior divided out. Amber: the posteriors used as
-likelihoods. Dashed: the true population. Move the
-interim prior: the amber fit follows it, the indigo fit does not.
+likelihoods. Dashed: the true population. Move or
+narrow the interim prior: the amber fit follows it, the indigo fit does not.
 ```
 
 ## Stacking is one step from the interim prior
 
 {term}`Stacking` averages the objects' posteriors and calls the average the
 population. The stack is one step of {term}`EM` started from the interim prior, so it
-leans toward $\pi$; [the EM figure](population-and-objects.md#stacking-and-the-hierarchical-fit)
-shows the steps that follow.
+leans toward $\pi$; explainer {ref}`explainer-v4` on the
+[population page](population-and-objects.md#stacking-and-the-hierarchical-fit) steps through
+the iterations that follow.
 
 ```{plain-words}
 A posterior is a likelihood with someone else's guess about the population already

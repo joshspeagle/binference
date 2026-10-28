@@ -42,7 +42,7 @@ def test_bin_average_explainer_matches_from_gaussian(sigma, width):
 
 
 def test_interim_prior_explainer_fits_by_binference_em_steps():
-    v3 = explainer("v3", centre=2.4)
+    v3 = explainer("v3", centre=2.4, width=0.4)
     lk = binference.Likelihoods(np.array(v3["L"]))
     post = binference.PopulationModel(lk).responsibilities(np.array(v3["prior"]))
     np.testing.assert_allclose(v3["posteriors"], post, rtol=1e-12)

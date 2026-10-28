@@ -83,7 +83,7 @@ The interactive explainers (V-1, V-3, …) are JavaScript modules in
 and `draw`; a page shows one with ```` ```{explainer} v1 ```` and its caption, and cites it
 as ``{ref}`explainer-v1` ``. After
 changing a module, redraw the still frames the page shows before JavaScript runs, and
-check the explainers' numbers against binference (both need Node.js):
+check the explainers' numbers against binference (both need Node.js 22, the version CI uses):
 
 ```bash
 node docs/_scripts/explainers.mjs

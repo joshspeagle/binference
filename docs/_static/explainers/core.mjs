@@ -46,10 +46,14 @@ export const posterior = (row, rho) => normalise(row.map((l, k) => l * rho[k]));
 // EM from a flat population: element t is the population after t steps, each step the mean of
 // the objects' posteriors (PopulationModel.expected_counts(rho) / N). Element 1 is the stack.
 export function emPath(L, steps) {
-  const K = L[0].length, path = [new Array(K).fill(1 / K)];
+  const K = L[0].length, w = new Float64Array(K), path = [new Array(K).fill(1 / K)];
   for (let t = 0; t < steps; t++) {
-    const next = new Array(K).fill(0);
-    for (const row of L) posterior(row, path[t]).forEach((r, k) => { next[k] += r / L.length; });
+    const rho = path[t], next = new Array(K).fill(0);
+    for (const row of L) { // posterior(row, rho), without allocating it
+      let s = 0;
+      for (let k = 0; k < K; k++) { w[k] = row[k] * rho[k]; s += w[k]; }
+      for (let k = 0; k < K; k++) next[k] += w[k] / s / L.length;
+    }
     path.push(next);
   }
   return path;

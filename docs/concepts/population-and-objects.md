@@ -114,7 +114,7 @@ prior. {term}`EM` repeats the average under each new estimate
 
 ```{explainer} v4
 800 mock objects on 20 bins, measured with error 0.3. Indigo: the population after the
-chosen number of EM steps from a flat one; pale: step 1, the stack; dashed: the true
+chosen number of EM steps from a flat one; grey: step 1, the stack; dashed: the true
 population. Step forward and the two peaks sharpen; by step 200 the estimate swings
 between neighbouring bins.
 ```
