@@ -21,9 +21,9 @@ export const readout = (state, c) => `measured at ${D}; posterior mean ${fmt(mea
 
 export function draw({ width }, { rho, posterior: post }) {
   const p = plot({ edges: EDGES, ymax: Math.max(...rho, ...post) / WIDTH, ylabel: "density",
-    key: [["brand thin", "population ρ"], ["sample dashed", "likelihood"], ["sample", "posterior"]] });
+    key: [["brand thin", "population ρ"], ["sample dashed thin", "likelihood"], ["sample", "posterior"]] });
   const alt = `A population of width ${fmt(width, 2)} centred on ${CENTRE}, one object's ` +
     `likelihood centred on ${D}, and its posterior between them.`;
   return svg(p.h, alt, p.masses(rho, "fill-brand") + p.masses(rho, "brand thin") +
-    p.masses(normalise(L), "sample dashed") + p.masses(post, "sample") + p.axes());
+    p.masses(normalise(L), "sample dashed thin") + p.masses(post, "sample") + p.axes());
 }

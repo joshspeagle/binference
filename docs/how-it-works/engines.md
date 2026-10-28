@@ -103,8 +103,23 @@ $$
 \tau_{\rm int}\approx\frac{1+f}{1-f}.
 $$
 
-$f$ rises towards one as the likelihoods widen compared with the bins. The figures show
-it on a mock catalogue of 1,000 objects in ten bins on $[0,1]$, with Gaussian errors.
+$f$ rises towards one as the likelihoods widen compared with the bins (explainer
+{ref}`explainer-v14`).
+
+```{explainer} v14
+Top: the missing information $f$ against the width of the likelihoods, in bins, for mock
+catalogues of 500 objects in ten bins on $[0, 3]$, half of them from two peaks and half
+uniform, one mock for each width. $f$ is taken at the mock's true population, which
+occupies every bin; the dot marks the chosen width. Bottom: 400 iterations of a Gibbs
+sampler (data augmentation under the default Dirichlet prior) started at that population,
+for the bin whose trace has the largest lag-one autocorrelation. The readout gives $f$, the
+predicted $\tau_{\rm int}\approx(1+f)/(1-f)$ and the trace's lag-one autocorrelation. $f$
+predicts the slowest direction; a single bin mixes somewhat faster.
+```
+
+The figure below shows longer runs, up to likelihoods one bin wide, on a different
+mock: 1,000 objects in ten bins on $[0,1]$, with $f$ at the most probable population. Its
+numbers therefore differ from those of explainer {ref}`explainer-v14` at the same widths.
 
 ```{code-cell} python
 ---
@@ -112,17 +127,19 @@ tags: [remove-input]
 mystnb:
   image:
     alt: >-
-      A curve of the missing information against the likelihood width in bins. The
-      width axis is logarithmic, from 0.05 to 3 bins. It rises from about 0.1 to nearly 1 by half
-      a bin width and stays there. Three marked points at 0.1, 0.3 and 1 bin widths carry
-      their predicted autocorrelation times.
+      Three stacked traces of one bin's fraction over 400 Gibbs iterations. At 0.1 bin
+      widths the trace looks like independent noise. At 0.3 bin widths it wanders a
+      little. At 1 bin width it drifts slowly up and down over hundreds of iterations.
   figure:
     caption: >-
-      Missing information $f$ at the most probable population, against the width of
-      the likelihoods in bins. Mock catalogues of 1,000 objects in ten bins, one for each
-      width. The marked widths are those of the traces below, with their predicted
-      autocorrelation times $\tau_{\rm int}\approx(1+f)/(1-f)$.
-    name: fig-missing-information
+      Gibbs traces of the slowest-mixing bin for likelihoods 0.1, 0.3 and 1 bin widths
+      wide, on 1,000 mock objects in ten bins on $[0,1]$: the first 400 of 4,000
+      iterations of one chain. Each label gives the
+      predicted autocorrelation time $(1+f)/(1-f)$, with $f$ at the most probable
+      population, and the time measured on all 4,000 iterations. The prediction
+      approximately predicts the slowest direction, not any one bin. A run of about 20
+      autocorrelation times, as at 1 bin width, underestimates the measured time.
+    name: fig-gibbs-traces
 ---
 import warnings
 
@@ -139,58 +156,13 @@ K, N = 10, 1000
 bins = Bins.linear(0.0, 1.0, K)
 # every bin populated: half uniform, half the bimodal shape
 rho = 0.5 / K + 0.5 * binference.simulate.population(bins, "bimodal")
-
-
-def model_for(width):
-    mock = binference.simulate.mock_1d(N, bins, density=rho, noise=width / K, rng=1)
-    return PopulationModel(mock.likelihoods)
-
-
-def missing(model):
-    return model.missing_information(MAP(model).run().rho)
-
-
 marked = (0.1, 0.3, 1.0)
-widths = np.union1d(np.geomspace(0.05, 3.0, 25), marked)
-models = {w: model_for(w) for w in widths}
-f = np.array([missing(models[w]) for w in widths])
-fm = dict(zip(widths, f))
+models = {
+    w: PopulationModel(binference.simulate.mock_1d(N, bins, density=rho, noise=w / K, rng=1).likelihoods)
+    for w in marked
+}
+fm = {w: m.missing_information(MAP(m).run().rho) for w, m in models.items()}
 
-fig, ax = plt.subplots()
-ax.plot(widths, f, color="C0")
-for w in marked:
-    ax.plot(w, fm[w], "o", color="C0", ms=7)
-    tau = (1 + fm[w]) / (1 - fm[w])
-    ax.annotate(rf"$\tau_{{\rm int}}$ ≈ {tau:.0f}", (w, fm[w]), xytext=(8, -16), textcoords="offset points",
-                color=INK2)
-ax.set_xscale("log")
-ax.set_xticks([0.05, 0.1, 0.3, 1, 3], ["0.05", "0.1", "0.3", "1", "3"])
-ax.minorticks_off()
-ax.set_xlabel("likelihood width (bins)")
-ax.set_ylabel("missing information $f$")
-ax.set_ylim(0, 1.05)
-plt.show()
-```
-
-```{code-cell} python
----
-tags: [remove-input]
-mystnb:
-  image:
-    alt: >-
-      Three stacked traces of one bin's fraction over 400 Gibbs iterations. At 0.1 bin
-      widths the trace looks like independent noise. At 0.3 bin widths it wanders a
-      little. At 1 bin width it drifts slowly up and down over hundreds of iterations.
-  figure:
-    caption: >-
-      Gibbs traces of the slowest-mixing bin for the three marked widths: the first 400
-      of 4,000 iterations of one chain. Each label gives the predicted autocorrelation
-      time $(1+f)/(1-f)$ and the time measured on all 4,000 iterations. The prediction
-      approximately predicts the slowest direction, not any one bin. A run of
-      about 20 autocorrelation times, as at 1 bin width, underestimates the measured
-      time.
-    name: fig-gibbs-traces
----
 fig, axes = plt.subplots(3, 1, sharex=True)
 fig.set_figheight(6.0)
 for ax, w in zip(axes, marked):

@@ -31,7 +31,9 @@ shape of their tree.
 - **`Dirichlet(alpha)`** is a tree with one node. The {term}`Dirichlet prior` with every
   {term}`concentration` $\alpha_k=1$ is uniform on the simplex and is the default. Its
   correlation between any two bins is $-1/(K-1)$ when the concentrations are equal,
-  whatever their value.
+  whatever their value. Explainer {ref}`explainer-v8` on the
+  [concepts page](../concepts/priors-on-the-simplex.md#smoothness-priors) maps it beside
+  the correlations of a Pólya tree, a random walk and a Gaussian process.
   - `Dirichlet.reference()` sets $\alpha_k=1/K$, the {term}`reference prior`
     {cite:p}`berger2015`. It adds one pseudo-object in all rather than $K$, which
     matters when there are many bins and few objects.
@@ -58,8 +60,19 @@ shape of their tree.
   c_{\rm PT}\,h^{p_{\rm PT}}\cdot\frac{2G_0(\text{child})}{G_0(\text{parent})}.
   $$
 
-  Its prior mean is the base measure $G_0$, and its fluctuations shrink at finer scales.
-  With $p_{\rm PT}=2$ its limit as the bins shrink is a continuous density.
+  Its prior mean is the base measure $G_0$, and its fluctuations shrink at finer scales
+  (explainer {ref}`explainer-v9`). With $p_{\rm PT}=2$ its limit as the bins shrink is a
+  continuous density.
+
+```{explainer} v9
+Three draws of `PolyaTree(c)` with $p_{\rm PT}=2$ and a flat base measure on $[0, 1]$,
+with one to five levels: 2 to 32 bins. The dashed line is the prior mean, $G_0$. Each
+level splits every bin in two with Beta concentrations $c_{\rm PT}h^2$, so the deeper
+levels add less variation. The readout compares the standard deviation of a bin's
+density over 1,000 draws with its exact value: a bin's fraction is a product of
+independent shares, with second moment $\prod_h(a_h+1)/(2(2a_h+1))$ for
+$a_h=c_{\rm PT}h^2$.
+```
 
 Concentrations below one, and the Pólya tree, give densities that are unbounded at the
 edge of the simplex. Their most probable population is then found in unconstrained
