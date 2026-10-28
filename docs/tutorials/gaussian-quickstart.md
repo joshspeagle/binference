@@ -71,7 +71,7 @@ ax.set(xlabel="z", ylabel="likelihood", xlim=(0, 3));
 
 Stacking adds up the galaxies' likelihoods and gives no error bars. It is the first step
 of EM, which converges to the most likely population
-([theory](../how-it-works/theory.md#point-estimates-em-is-iterated-stacking)).
+([theory](../how-it-works/point-estimates.md#em-is-iterated-stacking)).
 binference samples the posterior of the {term}`population fractions` $\rho_k$ instead,
 here with {term}`NUTS`:
 

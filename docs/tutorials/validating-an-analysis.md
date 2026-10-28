@@ -54,13 +54,13 @@ print("NUTS  mean", nuts.mean.round(4), " sd", nuts.std.round(4))
 print("Gibbs mean", gibbs.mean.round(4), " sd", gibbs.std.round(4))
 ```
 
-The [theory page](../how-it-works/theory.md#diagnostics-and-validation) describes the
+The [theory page](../how-it-works/validation.md) describes the
 test suite's comparisons.
 
 ## Simulation-based calibration
 
 SBC {cite:p}`talts2018` checks the whole loop of prior, simulator and inference
-([simulation-based calibration](../guides/validation.md#simulation-based-calibration)).
+([simulation-based calibration](../guides/checking.md#simulation-based-calibration)).
 Here it checks 150 fits of 50 objects in four bins. The measurement errors are 0.1,
 less than half a bin, so that every Gibbs fit converges in a short run:
 
@@ -179,4 +179,4 @@ calibrated fit.
 ## Validating your own pipeline
 
 To check your own analysis, simulate catalogues like yours and call `sbc` or `coverage`
-with the settings of the real fit ([mock catalogues](../guides/validation.md#mock-catalogues)).
+with the settings of the real fit ([mock catalogues](../guides/checking.md#mock-catalogues)).

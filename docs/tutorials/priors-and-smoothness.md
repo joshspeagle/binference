@@ -97,7 +97,7 @@ assert max(smooth_widths) < min(width["Dirichlet(1)"], width["Pólya tree"])
 
 `Dirichlet.reference()` sets the {term}`concentration` $\alpha_k=1/K$, where $K=40$ is
 the number of bins. That is a single pseudo-count in all, which suits many bins with few
-objects. The [engines guide](../guides/engines.md#choosing-an-engine) says which sampler
+objects. The [engines guide](../guides/engines.md#when-to-override-auto) says which sampler
 handles it best.
 
 ## Learning the smoothness

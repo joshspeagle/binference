@@ -49,7 +49,7 @@ convert between the two layouts.
 The mock draws the true values uniformly within each cell, as the model assumes. The
 ridge is narrower than a cell, so true values drawn from the continuous ridge would bias
 the fit toward a sharper ridge
-([bins that are too coarse](../guides/pitfalls.md#bins-that-are-too-coarse)).
+([bins that are too coarse](../guides/troubleshooting.md#bins-that-are-too-coarse)).
 
 ```{code-cell} python
 ---

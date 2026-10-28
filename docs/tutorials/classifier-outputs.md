@@ -112,7 +112,7 @@ assert acc_after > acc_before
 
 Dividing out the training prevalence is exact only when the probabilities are
 calibrated. A labelled set gives a route that needs no calibration
-([inputs guide](../guides/inputs.md#binned-measurements-and-classifiers)). Bin the
+([inputs guide](../guides/inputs/binned.md)). Bin the
 classifier's score, and tally how each class of the labelled set falls into the score
 bins with {meth}`~binference.Response.from_labelled`. The tally is a
 {term}`response matrix` $R_{jk}$: the probability of score bin $j$ for an object of class

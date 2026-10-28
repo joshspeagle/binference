@@ -140,7 +140,7 @@ assert model.missing_information(est.rho) > 0.9
 ```
 
 The fraction of {term}`missing information` printed above is close to one, which is why
-Gibbs mixes slowly here ([Gibbs sampling](../guides/engines.md#gibbs-sampling)). The
+Gibbs mixes slowly here ([Gibbs sampling](../guides/engines.md#gibbs)). The
 trace of the bin with the largest R-hat shows it:
 
 ```{code-cell} python
@@ -183,5 +183,5 @@ assert not narrow_fits["nuts"].check() and not narrow_fits["gibbs"].check()
 assert per_second["gibbs"] > per_second["nuts"]
 ```
 
-The [engines guide](../guides/engines.md#choosing-an-engine) says which engine to use
+The [engines guide](../guides/engines.md#when-to-override-auto) says which engine to use
 when, and what `method="auto"` chooses.

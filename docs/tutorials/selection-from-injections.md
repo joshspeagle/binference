@@ -202,7 +202,7 @@ Both totals fall below the truth: the plug-in total by 2.6 of its standard devia
 joint total by 1.8 of its own.
 
 A total this poorly determined also depends on the prior, which by default biases it
-low ([selection guide](../guides/selection.md#rates-and-exposure)). Before you quote a
+low ([selection guide](../guides/selection.md#totals-and-rates)). Before you quote a
 total from such data, check its calibration on simulations
 ({doc}`validating-an-analysis`).
 

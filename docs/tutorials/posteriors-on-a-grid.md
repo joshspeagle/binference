@@ -112,7 +112,7 @@ the team that made the table, because binference cannot recover it from the post
 
 The model needs {term}`bin-averaged likelihoods <bin-averaged likelihood>`, so a table of
 {term}`masses <mass>` must be divided by the bin widths
-([masses versus densities](../guides/pitfalls.md#masses-versus-densities-with-unequal-bins)).
+([masses versus densities](../guides/troubleshooting.md#masses-versus-densities-with-unequal-bins)).
 With equal bins the difference cannot matter. With unequal bins it does.
 
 Here five unequal bins hold 5000 objects. Their posteriors under a flat prior are given
@@ -150,7 +150,7 @@ assert as_densities[1] < rho_true[1] - 10 * binomial_sd[1]
 Read as densities, the masses distort the population. Mass moves from the narrow second
 bin into its neighbours, by far more than the statistical error of 5000 objects.
 `from_table` with an interim prior reads the table as masses by default; the
-[inputs guide](../guides/inputs.md#likelihood-matrices) gives the other
+[inputs guide](../guides/inputs/tables.md#conventions) gives the other
 {term}`representation`.
 
 ## What to take away
@@ -158,6 +158,6 @@ bin into its neighbours, by far more than the statistical error of 5000 objects.
 - Pass the interim prior with the posteriors: `Likelihoods.from_table(P, bins,
   interim=interim)`.
 - Say whether the table holds masses or densities whenever the bins are unequal.
-- The [inputs guide](../guides/inputs.md#posteriors-computed-under-an-interim-prior)
+- The [inputs guide](../guides/inputs/posteriors.md)
   lists the forms an interim prior can take. {doc}`posterior-samples` starts from samples
   instead of a table.

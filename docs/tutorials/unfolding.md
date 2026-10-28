@@ -114,7 +114,7 @@ assert d["rhat"].max() < 1.01 and d["ess_bulk"].min() > 400
 largest {term}`R-hat` is below 1.01 and the smallest bulk
 {term}`effective sample size` is above 400. {term}`Divergent transitions <divergent
 transition>`, if any, are rare; the
-[pitfalls guide](../guides/pitfalls.md#not-looking-at-the-diagnostics) says when they
+[pitfalls guide](../guides/troubleshooting.md#not-looking-at-the-diagnostics) says when they
 matter.
 
 ## The unfolded spectrum
@@ -164,7 +164,7 @@ toward zero. This narrow region of the posterior makes NUTS report divergences. 
 - Counts in measured bins and a response enter through
   `Likelihoods.from_binned(response, counts=counts)`, which also attaches the efficiency.
 - A smoothness prior regularises the unfolding and infers its own strength.
-- The [inputs guide](../guides/inputs.md#binned-measurements-and-classifiers) shows how
+- The [inputs guide](../guides/inputs/binned.md) shows how
   to build a response from simulated events. The
   [unfolding background page](../fields/unfolding) relates this to the methods of
   particle physics.

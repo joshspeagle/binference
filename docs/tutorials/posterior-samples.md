@@ -140,7 +140,7 @@ assert g_flat.mean() - rho_true @ ln_m > 3 * g_flat.std()
 ```
 
 Each sample carries the PE prior. The {term}`interim prior` of the
-[inputs guide](../guides/inputs.md#posterior-samples) is the same thing under a general
+[inputs guide](../guides/inputs/samples.md) is the same thing under a general
 name. A catalogue states it with the samples; check it before you fit.
 
 ## How many samples each event needs
@@ -191,7 +191,7 @@ assert V_1000.sum() < 1 < V_30.sum()
 ```
 
 If the sum is large, use more samples per event or wider bins; the
-[inputs guide](../guides/inputs.md#posterior-samples) lists the other options.
+[inputs guide](../guides/inputs/samples.md) lists the other options.
 
 ## What to take away
 
