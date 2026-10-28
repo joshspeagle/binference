@@ -1,3 +1,7 @@
+---
+layout: home
+---
+
 # binference
 
 **Infer the population, then every object.**
