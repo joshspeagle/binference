@@ -70,7 +70,8 @@ mystnb:
 ---
 bins = binference.Bins.linear(0, 3, 12)
 z = np.linspace(0, 3, 601)
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 4.5), sharex=True)
+fig, axes = plt.subplots(2, 1, sharex=True)
+fig.set_figheight(4.5)
 for ax, sigma in zip(axes, (0.1, 0.4), strict=True):
     lk = binference.Likelihoods.from_gaussian([1.37], [sigma], bins)
     L = lk.toarray()[0] * np.exp(lk.log_scale[0])  # the bin averages at their true scale
@@ -141,7 +142,8 @@ mystnb:
 ---
 unequal = binference.Bins([0, 0.2, 0.4, 0.5, 0.9, 1.0, 1.1, 1.6, 3.0])
 log_spaced = binference.Bins(np.geomspace(0.1, 10, 11), measure="linear")
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 4.6))
+fig, axes = plt.subplots(2, 1)
+fig.set_figheight(4.6)
 for ax, b in zip(axes, (unequal, log_spaced), strict=True):
     dens = binference.Likelihoods.from_gaussian([1.0], [0.35], b).toarray()[0]
     mass = dens * b.volumes

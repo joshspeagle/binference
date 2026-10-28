@@ -207,7 +207,8 @@ dx /= np.trapezoid(dx, x)
 cdf = np.concatenate([[0.0], np.cumsum(0.5 * (dr[1:] + dr[:-1]) * np.diff(r))])
 band = (cdf > 0.16) & (cdf < 0.84)
 
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 6.0))
+fig, axes = plt.subplots(2, 1)
+fig.set_figheight(6.0)
 for ax, t, d, label in (
     (axes[0], r, dr, r"fraction $\rho_1$"),
     (axes[1], x, dx, r"isometric log-ratio $x$"),

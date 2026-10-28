@@ -67,7 +67,8 @@ mystnb:
 fine = binference.Bins.linear(0, 3, 60)
 L = binference.Likelihoods.from_gaussian([1.9], [0.3], fine).toarray()[0]
 unit = lambda m: m / (m.sum() * fine.volumes)  # noqa: E731  (masses to unit-area densities)
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 4.5), sharex=True)
+fig, axes = plt.subplots(2, 1, sharex=True)
+fig.set_figheight(4.5)
 for ax, (name, pi) in zip(axes, INTERIMS.items(), strict=True):
     Pi = binference.Density.coerce(pi).masses(fine)
     ax.stairs(unit(L * fine.volumes), fine.edges[0], color=CORAL, lw=1.4, ls="--",
@@ -76,7 +77,7 @@ for ax, (name, pi) in zip(axes, INTERIMS.items(), strict=True):
     ax.stairs(unit(L * Pi), fine.edges[0], color=CORAL, lw=2.4, label="posterior")
     ax.set_ylabel("density")
     ax.set_title(name, loc="left")
-fig.legend(*axes[0].get_legend_handles_labels(), loc="outside upper center", ncol=3)
+fig.legend(*axes[0].get_legend_handles_labels(), loc="outside upper center", ncol=2)
 axes[1].set_xlabel("true value $z$")
 plt.show()
 ```
@@ -125,13 +126,14 @@ mystnb:
 ---
 bins = binference.Bins.linear(0, 3, 15)
 truth = binference.simulate.population(bins, "bimodal")
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 4.8), sharex=True)
+fig, axes = plt.subplots(2, 1, sharex=True)
+fig.set_figheight(4.8)
 for ax, (name, pi) in zip(axes, INTERIMS.items(), strict=True):
     mock = binference.simulate.mock_1d(2000, bins, density=truth, noise=(0.1, 0.25),
                                        interim=pi, rng=3)
     fits = {}
-    for label, how in (("interim prior divided out", {"interim": mock.interim}),
-                       ("posteriors as likelihoods", {"kind": "likelihood"})):
+    for label, how in (("prior divided out", {"interim": mock.interim}),
+                       ("used as likelihoods", {"kind": "likelihood"})):
         lk = binference.Likelihoods.from_table(mock.posteriors, bins, **how)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")

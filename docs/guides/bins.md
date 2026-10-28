@@ -123,13 +123,14 @@ bias = {"flat in each bin": abs(flat.rho - truth)[k], "hat basis": abs(hat.rho -
 
 ink = plt.rcParams["text.color"]
 e = bins.edges[0]
-fig, (a, b) = plt.subplots(2, 1, figsize=(4.8, 6.6))
+fig, (a, b) = plt.subplots(2, 1)
+fig.set_figheight(6.6)
 a.axvspan(e[k], e[k + 1], color="C0", alpha=0.12, lw=0)
 a.plot(zz, peak(zz), ls="--", color=ink, label="truth")
 a.stairs(flat.rho / bins.volumes, e, color="C0", lw=2, label="flat in each bin")
 a.plot(zz, hat.value @ H, color="C1", lw=2, label="hat basis")
 a.set(xlabel="true value $z$", ylabel="density", xlim=(0.3, 2.7))
-a.legend(loc="upper left")
+fig.legend(*a.get_legend_handles_labels(), loc="outside upper center", ncol=2)
 a.set_title("Fits with unlimited data", loc="left")
 
 N = np.logspace(2, 6, 50)

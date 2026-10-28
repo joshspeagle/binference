@@ -18,7 +18,7 @@ $z_1$ and $z_2$.
 ```{code-cell} python
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import LinearSegmentedColormap, to_rgb
 
 import binference
 from binference.plotting import SAMPLE_COLOR
@@ -53,8 +53,10 @@ mystnb:
 ---
 obs = mock.measurements["mean"]
 e1, e2 = grid.edges
-ramp = LinearSegmentedColormap.from_list("ramp", ["#F1F2FA", "C0"])
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 7.2))
+c0, ground = np.array(to_rgb("C0")), np.array(to_rgb(plt.rcParams["axes.facecolor"]))
+ramp = LinearSegmentedColormap.from_list("ramp", [0.15 * c0 + 0.85 * ground, c0])
+fig, axes = plt.subplots(2, 1)
+fig.set_figheight(7.2)
 im = axes[0].pcolormesh(e1, e2, grid.unflatten(mock.truth.rho / grid.volumes).T, cmap=ramp)
 fig.colorbar(im, ax=axes[0], label="density")
 axes[0].set_title("true population", loc="left")
@@ -95,7 +97,8 @@ mystnb:
       darker away from it. It is darkest below the ridge near z1 of 0.5, where the median
       is close to zero.
 ---
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 7.2))
+fig, axes = plt.subplots(2, 1)
+fig.set_figheight(7.2)
 result.plot(ax=axes)
 for ax in axes:
     ax.set(xlabel="$z_1$", ylabel="$z_2$");
@@ -140,7 +143,8 @@ c2 = grid.centers.reshape(*grid.shape, 2)[0, :, 1]      # z2 at the cell centres
 mean_2 = (draws * c2).sum(axis=2) / marg_1              # mean z2 in each z1 column
 
 true = grid.unflatten(mock.truth.rho)
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 5.1), sharex=True)
+fig, axes = plt.subplots(2, 1, sharex=True)
+fig.set_figheight(5.1)
 for ax, d, t, lab in [(axes[0], marg_1, true.sum(axis=1), "fraction"),
                       (axes[1], mean_2, (true * c2).sum(axis=1) / true.sum(axis=1), "mean $z_2$")]:
     lo, med, hi = np.quantile(d, [0.16, 0.5, 0.84], axis=0)

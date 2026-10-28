@@ -135,13 +135,14 @@ def ellipse(ax, mean, cov, **kw):
     ax.plot(*(mean[:, None] + radius * (U * np.sqrt(w)) @ np.vstack([np.cos(t), np.sin(t)])), **kw)
 
 
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 6.6), sharex=True, sharey=True)
+fig, axes = plt.subplots(2, 1, sharex=True, sharey=True)
+fig.set_figheight(6.6)
 ax = axes[0]
 ax.plot(*xn.T, ".", ms=3, color="C0", alpha=0.6, label="NUTS draws")
 ax.plot(*xg.T, "x", ms=4, mew=0.8, color="C1", alpha=0.6, label="Gibbs draws")
 ax.legend(loc="lower left", bbox_to_anchor=(0, 1.02), borderaxespad=0, ncol=2, markerscale=2)
 ax = axes[1]
-ax.plot(*xn.T, ".", ms=2, color="#B8BBEE", label="NUTS")
+ax.plot(*xn.T, ".", ms=2, color="C0", alpha=0.35, label="NUTS")
 ellipse(ax, lap.info["mode"], lap.info["cov"], color="C2", lw=2, label="Laplace, 95%")
 ellipse(ax, xv.mean(axis=0), np.cov(xv.T), color="C3", lw=2, ls="--", label="VB, 95%")
 ax.plot(*lap.info["mode"], "D", ms=7, mfc="none", color=INK, label="mode in $x$")

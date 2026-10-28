@@ -136,7 +136,8 @@ mystnb:
       and the heavy ones rise above it. In the other two the bands follow the truth; the
       joint fit's bands are wider in the lightest bins.
 ---
-fig, axes = plt.subplots(3, 1, figsize=(4.8, 7.2), sharex=True, sharey=True)
+fig, axes = plt.subplots(3, 1, sharex=True, sharey=True)
+fig.set_figheight(7.2)
 for ax, name in zip(axes, ["no selection", "plug-in injections", "joint"]):
     fits[name].plot(ax=ax, which="fractions", truth=rho_true, label="median")
     ax.set_title(name, loc="left")
@@ -217,7 +218,8 @@ S_lo, S_hi = np.quantile(S_draws, [0.05, 0.95], axis=0)
 beta = stats.beta(a_prior + recovered, b_prior + injected - recovered)
 fine = np.linspace(np.log(m_lo), np.log(m_hi), 400)
 
-fig, ax = plt.subplots(figsize=(4.8, 3.8))
+fig, ax = plt.subplots()
+fig.set_figheight(3.8)
 ax.plot(fine, S(np.exp(fine)), "k--", lw=1.2, label="truth")
 for dx, mid, lo, hi, color, marker, label in [
     (-0.02, beta.mean(), beta.ppf(0.05), beta.ppf(0.95), "C1", "s", "injections alone"),

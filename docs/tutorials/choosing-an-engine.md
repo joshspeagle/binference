@@ -68,7 +68,8 @@ mystnb:
       0.5 in most bins.
 ---
 ref = fits["nuts"]
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 5.8), sharex=True)
+fig, axes = plt.subplots(2, 1, sharex=True)
+fig.set_figheight(5.8)
 zc = bins.centers
 styles = {"laplace": "s", "vb": "^", "bootstrap": "D"}
 for m, mk in styles.items():
@@ -144,8 +145,7 @@ mystnb:
       and the chains spend long stretches at different levels.
 ---
 worst = int(np.argmax(gibbs.diagnostics["rhat"]))
-fig = plt.figure(figsize=(4.8, 2.9), layout="tight")
-gibbs.plot_trace(idx=[worst], fig=fig);
+gibbs.plot_trace(idx=[worst]);
 ```
 
 The four {term}`chains <chain>` have not mixed. Run much longer, or use NUTS.

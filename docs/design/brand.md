@@ -124,6 +124,7 @@ own fonts.
 | `radius` | 2 px | the largest corner radius, on controls only |
 | `figure-text` | 12 px | smallest figure text at 390 px wide |
 | mark : wordmark | 1.45 | the mark's height over the wordmark's font size |
+| `figure-max` | 30 rem | the widest a plot is shown |
 <!-- sizes:end -->
 
 ## Drawing rules

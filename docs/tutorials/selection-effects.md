@@ -88,7 +88,8 @@ from binference.plotting import SAMPLE_COLOR
 radius = 10 ** log_radius
 mean = fit.rates.mean(axis=0)
 lo, hi = fit.interval(0.68, which="rates")
-fig, ax = plt.subplots(figsize=(4.8, 3.8))
+fig, ax = plt.subplots()
+fig.set_figheight(3.8)
 ax.errorbar(radius, mean, yerr=[mean - lo, hi - mean], fmt="o", color="C0", ms=7,
             capsize=3, label="binference")
 ax.plot(radius, rate_true, "k--", lw=1.5, label="truth")
@@ -178,7 +179,8 @@ mystnb:
       2.5. In the bottom one the population drops to zero at the cut, while the truth
       continues.
 ---
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 5.1), sharex=True, sharey=True)
+fig, axes = plt.subplots(2, 1, sharex=True, sharey=True)
+fig.set_figheight(5.1)
 for ax, (name, res) in zip(axes, fits.items()):
     res.plot(ax=ax, truth=rho_true, label="median")
     ax.set_title(name, loc="left")

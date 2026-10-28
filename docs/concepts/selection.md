@@ -77,7 +77,8 @@ z, d = mock.truth.values, mock.measurements["mean"]
 rng = np.random.default_rng(5)
 kept = {"selection on the truth": rng.random(z.size) < completeness(z),
         "selection on the measurement": d < CUT}
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 5.1), sharex=True)
+fig, axes = plt.subplots(2, 1, sharex=True)
+fig.set_figheight(5.1)
 for ax, (title, keep) in zip(axes, kept.items(), strict=True):
     ax.plot(z[keep], d[keep], "o", ms=4, color=CORAL, label="selected")
     ax.plot(z[~keep], d[~keep], "o", ms=4, mfc="none", mec=INK2, mew=0.8, label="missed")
@@ -126,8 +127,9 @@ S = {"on the truth": binference.Selection.from_function(completeness, bins, "on_
      "on the measurement": mock.likelihoods.selection.values}
 rho = binference.simulate.population(bins, "gaussian")
 area = S["on the measurement"] @ rho
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 4.6), sharex=True,
+fig, axes = plt.subplots(2, 1, sharex=True,
                          gridspec_kw={"height_ratios": [1, 1.3]})
+fig.set_figheight(4.6)
 ax = axes[0]
 for (mode, s), ls in zip(S.items(), ("-", "--"), strict=True):
     ax.stairs(s, bins.edges[0], color=INK, lw=1.8, ls=ls, label=mode)

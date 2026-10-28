@@ -21,6 +21,7 @@ import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import to_rgb
 from myst_nb import glue
 from scipy import stats
 
@@ -28,7 +29,8 @@ import binference
 from binference.plotting import SAMPLE_COLOR
 
 CORAL, INK, INK2 = SAMPLE_COLOR, plt.rcParams["text.color"], plt.rcParams["xtick.color"]
-RAMP = ["#B8BBEE", "#8186DE", "#4C53C2", "#2A2F8F"]  # the docs' sequential indigo ramp
+c0, ground = np.array(to_rgb("C0")), np.array(to_rgb(plt.rcParams["axes.facecolor"]))
+RAMP = [t * c0 + (1 - t) * ground for t in (0.35, 0.7, 1)] + [0.6 * c0]  # pale to dark indigo
 ```
 
 ## The population and the realised sample
@@ -65,8 +67,9 @@ mystnb:
 ---
 bins = binference.Bins.linear(0, 3, 15)
 truth = binference.simulate.population(bins, "bimodal")
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 5.1), sharex=True,
+fig, axes = plt.subplots(2, 1, sharex=True,
                          gridspec_kw={"height_ratios": [1, 1.2]})
+fig.set_figheight(5.1)
 ax = axes[0]
 ax.stairs(truth / bins.volumes, bins.edges[0], color="C0", lw=2.2, label=r"population $\rho$")
 for seed, ls in zip((1, 2, 3), ("-", "--", ":"), strict=True):
@@ -74,7 +77,7 @@ for seed, ls in zip((1, 2, 3), ("-", "--", ":"), strict=True):
     ax.stairs(counts / counts.sum() / bins.volumes, bins.edges[0], color=CORAL, lw=1.4, ls=ls,
               label="realised samples" if seed == 1 else None)
 ax.set_ylabel("density")
-ax.legend(loc="lower left", bbox_to_anchor=(0, 1.02), borderaxespad=0, ncol=2)
+fig.legend(*ax.get_legend_handles_labels(), loc="outside upper center", ncol=2)
 mock = binference.simulate.mock_1d(25, bins, density=truth, noise=(0.1, 0.3), rng=1)
 order = np.argsort(mock.truth.values)
 rows = np.arange(order.size)
@@ -146,7 +149,8 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     fit = binference.infer(lk, method="gibbs", n_samples=1000, rng=1, check=False)
 dens = lambda r: r / bins.volumes  # noqa: E731
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 5.1), sharex=True)
+fig, axes = plt.subplots(2, 1, sharex=True)
+fig.set_figheight(5.1)
 ax = axes[0]
 for (t, r), c in zip(steps.items(), RAMP, strict=True):
     ax.stairs(dens(r), bins.edges[0], color=c, lw=2.0,
@@ -160,7 +164,7 @@ ax.stairs(dens(stack), bins.edges[0], color=RAMP[0], lw=2.0, label="the stack")
 for ax in axes:
     ax.stairs(dens(truth), bins.edges[0], color=INK, lw=1.4, ls="--", label="truth")
     ax.set_ylabel("population density")
-    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.02), borderaxespad=0, ncol=2)
+    ax.legend(loc="lower right", bbox_to_anchor=(1, 1.02), borderaxespad=0, ncol=2)
 axes[1].set_xlabel("true value $z$")
 plt.show()
 corr = fit.corr()
@@ -216,7 +220,8 @@ mystnb:
 bins = binference.Bins.linear(0, 3, 30)
 one = binference.Likelihoods.from_gaussian([1.9], [0.4], bins)
 unit = lambda m: m / (m.sum() * bins.volumes)  # noqa: E731  (masses to unit-area densities)
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 4.5), sharex=True)
+fig, axes = plt.subplots(2, 1, sharex=True)
+fig.set_figheight(4.5)
 for ax, width, name in zip(axes, (0.25, 1.0), ("narrow population", "broad population"),
                            strict=True):
     pop = binference.simulate.population(bins, stats.norm(1.2, width))

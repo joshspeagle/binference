@@ -61,7 +61,8 @@ mystnb:
       toward the grey interim prior that peaks at 1.8, and misses the truth.
 ---
 ip = interim / bins.volumes
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 5.6), sharex=True, sharey=True)
+fig, axes = plt.subplots(2, 1, sharex=True, sharey=True)
+fig.set_figheight(5.6)
 right.plot(ax=axes[0], truth=mock.truth.rho, label="median")
 wrong.plot(ax=axes[1], truth=mock.truth.rho, color="C1", label="median")
 for ax, title in zip(axes, ["interim prior divided out", "posteriors used as likelihoods"]):

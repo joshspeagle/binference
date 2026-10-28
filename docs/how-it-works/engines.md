@@ -191,7 +191,8 @@ mystnb:
       time.
     name: fig-gibbs-traces
 ---
-fig, axes = plt.subplots(3, 1, figsize=(4.8, 6.0), sharex=True)
+fig, axes = plt.subplots(3, 1, sharex=True)
+fig.set_figheight(6.0)
 for ax, w in zip(axes, marked):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", binference.BinferenceWarning)

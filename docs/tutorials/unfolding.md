@@ -19,7 +19,7 @@ binference, under a {term}`Dirichlet prior` and under a {term}`smoothness prior`
 ```{code-cell} python
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import LinearSegmentedColormap, to_rgb
 
 import binference
 from binference.plotting import SAMPLE_COLOR
@@ -47,8 +47,10 @@ mu = binference.simulate.mock_unfolding(8000, n_true=20, n_reco=25, rng=3)
 R = mu.response.matrix                   # (measured bins, true bins)
 counts = mu.measurements["reco_counts"]
 
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 5.8), height_ratios=[1.4, 1])
-ramp = LinearSegmentedColormap.from_list("ramp", ["#F1F2FA", "C0"])
+fig, axes = plt.subplots(2, 1, height_ratios=[1.4, 1])
+fig.set_figheight(5.8)
+c0, ground = np.array(to_rgb("C0")), np.array(to_rgb(plt.rcParams["axes.facecolor"]))
+ramp = LinearSegmentedColormap.from_list("ramp", [0.15 * c0 + 0.85 * ground, c0])
 im = axes[0].imshow(R, origin="lower", aspect="auto", cmap=ramp)
 axes[0].set(xlabel="true bin k", ylabel="measured bin j")
 fig.colorbar(im, ax=axes[0], label="$R_{jk}$")
@@ -121,7 +123,8 @@ mystnb:
       narrow and smooth, and follow the dashed truth.
 ---
 truth = mu.truth.rho
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 5.1), sharex=True, sharey=True)
+fig, axes = plt.subplots(2, 1, sharex=True, sharey=True)
+fig.set_figheight(5.1)
 flat.plot(ax=axes[0], truth=truth, which="fractions", label="median")
 smooth.plot(ax=axes[1], truth=truth, which="fractions", label="median")
 axes[0].set_title("Dirichlet prior", loc="left")

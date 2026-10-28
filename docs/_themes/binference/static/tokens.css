@@ -47,6 +47,7 @@
   --b-radius: 2px;
   --b-figure-text: 12px;
   --b-figure-ground: #FBFBFE;
+  --b-figure-max: 30rem;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {

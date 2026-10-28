@@ -122,7 +122,7 @@ ink = plt.rcParams["text.color"]
 
 ten = binference.Bins.linear(0.0, 3.0, 10)
 traces = {}
-for name, noise in [("narrow likelihoods", 0.05), ("broad likelihoods", 0.6)]:
+for name, noise in [("narrow", 0.05), ("broad", 0.6)]:  # likelihood widths
     lk_t = binference.simulate.mock_1d(1000, ten, noise=noise, rng=4).likelihoods
     traces[name] = binference.infer(lk_t, method="gibbs", n_samples=500, rng=1, check=False)
 
@@ -152,7 +152,8 @@ pipelines = {
 ranks = {name: sbc(simulate_3, fit, n_simulations=200, n_draws=19, log_likelihood=False,
                    rng=0) for name, fit in pipelines.items()}
 
-fig = plt.figure(figsize=(4.8, 8.6))
+fig = plt.figure()
+fig.set_figheight(8.6)
 top, bottom = fig.subfigures(2, 1, height_ratios=[1, 1.25])
 axes = top.subplots(2, 1, sharex=True)
 for a, (name, r) in zip(axes, traces.items()):

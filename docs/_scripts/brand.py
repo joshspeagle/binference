@@ -7,10 +7,11 @@
   as outlines; the favicon;
 * ``tokens.css``: the colour, type and size tokens of the site theme;
 
-``docs/_ext/matplotlibrc``, the style of every executed page's plots (``conf.py`` hands it
-to the notebook kernels), the ``SAMPLE_COLOR`` line of ``binference/plotting.py``,
-with the generated tables of ``brand.md`` (between its ``<!-- name:start/end -->``
-markers). ``--check`` writes nothing and fails if a committed output is stale; CI runs it.
+and ``docs/_ext/matplotlibrc``, the style of every executed page's plots (``conf.py`` hands
+it to the notebook kernels), with the generated tables of ``brand.md`` (between its
+``<!-- name:start/end -->`` markers). ``--check`` writes nothing and fails if a committed
+output is stale, or if ``binference.plotting.SAMPLE_COLOR`` differs from the ``sample``
+token; CI runs it.
 The lockups need fontTools and Sora's variable font, downloaded on first use to
 ``docs/_build/brand/`` and verified against its SHA-256.
 """
@@ -121,6 +122,9 @@ SIZES = {
 #: ("medium"), and so do titles, which label panels.
 FIGURE = {"width": 4.8, "height": 3.4, "pt": 14}
 PHONE_READABLE_PX = 334
+#: the widest a plot is shown (``--b-figure-max``), in rem: 480 px at a 16 px root, which
+#: less the plot panel's 8 px padding draws its text at 14 x 464 / (72 x 4.8) = 18.8 px
+FIGURE_MAX_REM = 30
 
 # --------------------------------------------------------------------------- the mark
 
@@ -308,6 +312,7 @@ def tokens_css() -> str:
     ]
     fixed += [f"  --b-{k}: {v}px;" for k, (v, _) in SIZES.items()]
     fixed.append(f"  --b-figure-ground: {FIGURE_GROUND};")
+    fixed.append(f"  --b-figure-max: {FIGURE_MAX_REM}rem;")
     dark = colours(1)
     return (
         "/* Written by docs/_scripts/brand.py; edit the tokens there. */\n"
@@ -399,6 +404,7 @@ def tables() -> dict[str, str]:
     sz = ["| Size | Value | Use |", "|---|---|---|"]
     sz += [f"| `{k}` | {v} px | {use} |" for k, (v, use) in SIZES.items()]
     sz.append(f"| mark : wordmark | {MARK_EM} | the mark's height over the wordmark's font size |")
+    sz.append(f"| `figure-max` | {FIGURE_MAX_REM} rem | the widest a plot is shown |")
     return {k: "\n".join(v) for k, v in {"tokens": t, "cuts": c, "type": ty, "sizes": sz}.items()}
 
 
@@ -413,10 +419,6 @@ def outputs() -> dict[Path, str]:
             out[STATIC / "brand" / f"mark-{cut}-{tag}.svg"] = mark_svg(cut, theme)
         out[STATIC / "brand" / f"lockup-{tag}.svg"] = lockup_svg(theme, "mid")
         out[STATIC / "brand" / f"lockup-large-{tag}.svg"] = lockup_svg(theme, "full")
-    plotting = PLOTTING.read_text(encoding="utf-8")
-    out[PLOTTING] = re.sub(
-        r'^SAMPLE_COLOR = ".*"$', f'SAMPLE_COLOR = "{TOKENS["sample"][0]}"', plotting, flags=re.M
-    )
     md = BRAND_MD.read_text(encoding="utf-8")
     for name, table in tables().items():
         start, end = f"<!-- {name}:start -->", f"<!-- {name}:end -->"
@@ -424,6 +426,18 @@ def outputs() -> dict[Path, str]:
         md = md[:i] + "\n" + table + "\n" + md[j:]
     out[BRAND_MD] = md
     return out
+
+
+def sample_color_problems() -> list[str]:
+    """Whether ``binference.plotting.SAMPLE_COLOR``, the package's copy of the ``sample``
+    token, still equals it."""
+    found = re.findall(r'^SAMPLE_COLOR = "(#[0-9A-Fa-f]{6})"$', PLOTTING.read_text(), re.M)
+    if len(found) != 1:
+        return [f"{PLOTTING.name} must define SAMPLE_COLOR once as a hex string"]
+    if found[0].upper() != TOKENS["sample"][0].upper():
+        token = TOKENS["sample"][0]
+        return [f"SAMPLE_COLOR is {found[0]} in {PLOTTING.name}, the sample token {token}"]
+    return []
 
 
 def font_problems() -> list[str]:
@@ -454,7 +468,7 @@ def main(argv=None) -> int:
             path.write_text(text, encoding="utf-8")
         elif not path.exists() or path.read_text(encoding="utf-8") != text:
             stale.append(f"{path.relative_to(DOCS.parent)} is stale (run docs/_scripts/brand.py)")
-    stale += font_problems()
+    stale += font_problems() + sample_color_problems()
     if stale:
         print(*stale, sep="\n")
     return 1 if stale else 0

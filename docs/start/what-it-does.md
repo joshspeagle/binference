@@ -75,7 +75,8 @@ z_obs, sigma = mock.measurements["mean"], mock.measurements["sigma"]
 pick = np.random.default_rng(3).choice(lk.N, 8, replace=False)
 pick = pick[np.argsort(z_obs[pick])]
 
-fig, axes = plt.subplots(3, 1, figsize=(4.8, 7.8), sharex=True)
+fig, axes = plt.subplots(3, 1, sharex=True)
+fig.set_figheight(7.8)
 for ax in axes[:2]:
     for e in edges:
         ax.axvline(e, color=plt.rcParams["grid.color"], lw=0.8, zorder=0)

@@ -26,7 +26,7 @@ of $z$. This tutorial computes the NPMLE, the full posterior of $\rho$, and the
 ```{code-cell} python
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import LinearSegmentedColormap, to_rgb
 from scipy import stats
 
 import binference
@@ -202,8 +202,9 @@ mystnb:
       they lie below it, moved down toward 2.5 to 3. Darker points, with larger errors,
       lie furthest from the diagonal.
 ---
-ramp = LinearSegmentedColormap.from_list("ramp", ["#F7C3B5", SAMPLE_COLOR, "#7A2412"])
-fig, ax = plt.subplots(figsize=(4.8, 4))
+coral = np.array(to_rgb(SAMPLE_COLOR))   # from a pale tint to a dark shade of coral
+ramp = LinearSegmentedColormap.from_list("ramp", [0.35 * coral + 0.65, coral, 0.5 * coral])
+fig, ax = plt.subplots()
 sc = ax.scatter(d, eb_full, c=sigma, s=8, cmap=ramp, lw=0)
 ax.plot([-3, 7], [-3, 7], color="0.45", lw=1, ls="--")
 ax.set(xlabel="raw estimate $d_i$", ylabel="posterior mean of $z_i$", xlim=(-3, 7),

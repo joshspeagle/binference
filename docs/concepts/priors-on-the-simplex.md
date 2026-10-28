@@ -71,7 +71,8 @@ mystnb:
 no_data = binference.Likelihoods(np.ones((1, 3)))  # one uninformative object
 corners = np.array([[0.0, 0.0], [1.0, 0.0], [0.5, np.sqrt(3) / 2]])
 names = (r"$\rho_1=1$", r"$\rho_2=1$", r"$\rho_3=1$")
-fig, axes = plt.subplots(2, 2, figsize=(4.8, 5.0))
+fig, axes = plt.subplots(2, 2)
+fig.set_figheight(5.0)
 for ax, a in zip(axes.flat, (0.2, 1.0, 5.0, 30.0), strict=True):
     rho = binference.PopulationModel(no_data, priors.Dirichlet(a)).sample_prior(1500, rng=7)
     ax.plot(*np.vstack([corners, corners[:1]]).T, color=INK2, lw=1)

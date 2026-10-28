@@ -57,7 +57,8 @@ mystnb:
       Under the random walk and the Gaussian process the bands are narrow and smooth,
       and follow the dashed truth with its two peaks.
 ---
-fig, axes = plt.subplots(4, 1, figsize=(4.8, 8.8), sharex=True, sharey=True)
+fig, axes = plt.subplots(4, 1, sharex=True, sharey=True)
+fig.set_figheight(8.8)
 for ax, (name, res) in zip(axes, fits.items()):
     res.plot(ax=ax, truth=mock.truth.rho, label="median")
     ax.set_title(name, loc="left")
@@ -108,7 +109,8 @@ mystnb:
 ---
 gp = fits["Gaussian process"]
 hyper = gp.info["hyperparameters"]
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 4.5))
+fig, axes = plt.subplots(2, 1)
+fig.set_figheight(4.5)
 for ax, (name, draws) in zip(axes, hyper.items()):
     ax.hist(draws.ravel(), bins=40, color="C0", alpha=0.8)
     ax.set(xlabel=name, ylabel="draws")

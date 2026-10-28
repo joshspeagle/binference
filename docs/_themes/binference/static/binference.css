@@ -236,12 +236,12 @@ div.cell_output .output.stderr, div.cell_output .output.traceback {
 div.cell_output .output.stderr pre { color: var(--b-ink-2); }
 div.cell_output .output.text_html { padding: 10px 14px; overflow-x: auto; }
 /* plots are drawn on the light page (brand.py); in the dark theme they sit on a light panel.
-   Wide screens show them at most 30rem wide, which draws their 14 pt text at about 19 px;
-   narrower columns show them full width. */
+   Wide screens show them at most figure-max wide; narrower columns show them full width. */
 div.cell_output img {
   display: block; margin: 0 auto; box-sizing: border-box; padding: 8px; background: var(--b-figure-ground);
-  max-width: min(100%, 30rem);
+  max-width: min(100%, var(--b-figure-max));
 }
+img.figure-max { width: var(--b-figure-max); }
 div.cell_output table { font-size: .84rem; }
 
 /* ---------------------------------------------------------------- admonitions */

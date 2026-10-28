@@ -177,7 +177,8 @@ mystnb:
       B. For C, D and E all estimates lie close to the truth, C slightly above it.
 ---
 from binference.plotting import SAMPLE_COLOR
-fig, ax = plt.subplots(figsize=(4.8, 3.8))
+fig, ax = plt.subplots()
+fig.set_figheight(3.8)
 pos = np.arange(K)
 for dx, res, name, color, marker in [(-0.14, fit, "baseline fixed", "C0", "o"),
                                      (0.14, fit_c, "matrix inferred", "C1", "^")]:

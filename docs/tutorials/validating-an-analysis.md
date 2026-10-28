@@ -18,7 +18,6 @@ failure looks like.
 ```{code-cell} python
 import warnings
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 import binference
@@ -79,10 +78,7 @@ mystnb:
     alt: Five small histograms of ranks from 0 to 19. The bars stay within or at the
       edge of the grey bands, so the histograms are flat within the noise.
 ---
-fig = plt.figure(figsize=(4.8, 4.3), layout="tight")
-result.plot(fig=fig)
-for ax in fig.axes:
-    ax.title.set_fontsize("medium")    # plot_sbc titles its panels at 9 pt
+result.plot();
 ```
 
 ```{code-cell} python
@@ -125,10 +121,7 @@ mystnb:
       shaped like a U, with the lowest and highest ranks far above the grey band. The
       last, for the log-likelihood, piles up at the lowest ranks.
 ---
-fig = plt.figure(figsize=(4.8, 4.3), layout="tight")
-bad.plot(fig=fig)
-for ax in fig.axes:
-    ax.title.set_fontsize("medium")    # plot_sbc titles its panels at 9 pt
+bad.plot();
 ```
 
 ```{code-cell} python

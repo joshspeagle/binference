@@ -95,7 +95,8 @@ mystnb:
       bands follow the dashed truth. In the bottom plot the light bins fall below the
       truth and the heavy bins rise above it.
 ---
-fig, axes = plt.subplots(2, 1, figsize=(4.8, 5.1), sharex=True, sharey=True)
+fig, axes = plt.subplots(2, 1, sharex=True, sharey=True)
+fig.set_figheight(5.1)
 for ax, (name, fit), color in zip(axes, fits.items(), ["C0", "C1"]):
     fit.plot(ax=ax, which="fractions", truth=rho_true, color=color, label="median")
     ax.set_title(name, loc="left")

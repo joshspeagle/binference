@@ -92,7 +92,8 @@ mystnb:
 ---
 import matplotlib.pyplot as plt
 
-fig, ax = plt.subplots(figsize=(4.8, 4.4))
+fig, ax = plt.subplots()
+fig.set_figheight(4.4)
 result.plot(ax=ax, truth=mock.truth.rho)
 ax.get_legend().set(loc="lower left", bbox_to_anchor=(0, 1))  # above the plot
 ax.set_xlabel("z");

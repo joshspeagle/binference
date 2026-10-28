@@ -174,7 +174,8 @@ z_fig = rng_fig.uniform(0.0, 3.0, 450)
 found = rng_fig.random(450) < edge(z_fig)
 S_draws = binference.Selection.from_injections(z_fig, found, fine, "on_truth").draw(4000, rng=1)
 e = fine.edges[0]
-fig, (top, bottom) = plt.subplots(2, 1, figsize=(4.8, 6.4), sharex=True)
+fig, (top, bottom) = plt.subplots(2, 1, sharex=True)
+fig.set_figheight(6.4)
 top.stairs(np.histogram(z_fig, e)[0], e, color=ink, lw=1.5, label="injected")
 top.stairs(np.histogram(z_fig[found], e)[0], e, color=coral, fill=True, alpha=0.8,
            label="recovered")
@@ -295,7 +296,8 @@ lk_seen = binference.Likelihoods.from_gaussian(
 )
 fit_seen = binference.infer(lk_seen, selection=binference.Selection(S10, "on_truth"), rng=1)
 detected = np.median(fit_seen.realized_counts(rng=2), axis=0)
-fig, ax = plt.subplots(figsize=(4.8, 4.6))
+fig, ax = plt.subplots()
+fig.set_figheight(4.6)
 ax.stairs(detected, e, color=coral, fill=True, alpha=0.8, label="detected objects")
 bands(ax, e, fit_seen.realized_counts(rng=2, full=True), "all objects, inferred")
 ax.stairs(np.bincount(labels, minlength=10), e, baseline=None, color=ink, ls="--",
