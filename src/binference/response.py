@@ -46,7 +46,10 @@ class Response:
     Parameters
     ----------
     matrix : array_like (J, K)
-        :math:`R_{jk} = P(\\text{measured } j, \\text{observed} \\mid \\text{true } k)`;
+        The response
+
+        .. math:: R_{jk} = P(\\text{measured } j, \\text{observed} \\mid \\text{true } k);
+
         each column sums to the efficiency of its true bin, at most one. With
         ``efficiency`` it is instead a migration matrix
         :math:`P(\\text{measured } j \\mid \\text{true } k, \\text{observed})` whose

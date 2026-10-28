@@ -155,6 +155,7 @@ hr { border: 0; border-top: 1px solid var(--b-rule); margin: 2rem 0; }
 /* ---------------------------------------------------------------- text */
 .article h1, .home h1 {
   font: var(--b-type-title); letter-spacing: -.015em; margin: 0 0 .5rem; text-wrap: balance;
+  overflow-wrap: break-word; /* a long dotted name, on an API page, wraps on a phone */
 }
 .article h2 { font: var(--b-type-section); margin: 2.4rem 0 .6rem; text-wrap: balance; }
 .article h3 { font: var(--b-type-subsection); margin: 1.8rem 0 .4rem; }
@@ -325,7 +326,7 @@ dl.py > dt .sig-param { font-style: normal; }
 dl.py > dt .viewcode-link { float: right; font: .8rem var(--b-font-body); }
 dl.py > dd { margin: 8px 0 0 16px; }
 dl.py dl.py > dt { background: transparent; border-left: 0; border-top: 1px solid var(--b-rule); padding: 6px 0; }
-dl.field-list { display: grid; grid-template-columns: 1fr; gap: 4px; margin: 1rem 0; }
+dl.field-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; margin: 1rem 0; }
 dl.field-list > dt { color: var(--b-ink-2); background: none; padding: 0; margin-top: 8px; }
 dl.field-list > dt .colon { display: none; }
 dl.field-list > dd { margin: 0; }
@@ -411,6 +412,8 @@ main form input[type="submit"] {
   .pager { grid-template-columns: 1fr; }
   table.genindextable td { display: block; width: auto; }
   .pager .nx { text-align: left; }
+  /* phones have no hover, and the hidden mark after a long unbreakable name widened the page */
+  a.headerlink { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

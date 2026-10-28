@@ -70,3 +70,16 @@
   }, { passive: true });
   mark();
 })();
+
+/* After sphinx-copybutton has added its buttons: name them, let the keyboard reach every block
+   that scrolls sideways (code, maths, wide tables), and fix the bibliography's list role. */
+addEventListener("load", function () {
+  document.querySelectorAll("button.copybtn:not([aria-label])").forEach(function (b) {
+    b.setAttribute("aria-label", "Copy code");
+  });
+  document.querySelectorAll(".article pre, .article div.math, .article table, .article .highlight").forEach(function (el) {
+    if (el.scrollWidth > el.clientWidth && !el.hasAttribute("tabindex")) el.setAttribute("tabindex", "0");
+  });
+  /* docutils marks the bibliography as a list, but sphinxcontrib-bibtex puts link targets in it */
+  document.querySelectorAll(".citation-list[role=list]").forEach(function (el) { el.removeAttribute("role"); });
+});
