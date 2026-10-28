@@ -5,8 +5,9 @@ Caption in MyST.
 ```
 
 inlines frame ``v1`` from ``explainers.json`` (written by ``docs/_scripts/explainers.mjs``) as
-figure V-1, with its controls disabled; ``_static/explainers/run.mjs`` enables them on pages
-that have an explainer.
+figure V-1, with its controls disabled, and labels it ``explainer-v1``, so a page cites it as
+{ref}`explainer-v1` ("V-1"). ``_static/explainers/run.mjs`` enables the controls on pages that
+have an explainer.
 """
 
 from __future__ import annotations
@@ -19,16 +20,16 @@ from docutils import nodes
 from sphinx.util.docutils import SphinxDirective
 
 JSON = Path(__file__).parent / "explainers.json"
-FRAMES = json.loads(JSON.read_text())
 
 
 def _control(fid: str, c: dict) -> str:
-    value = f"{c['value']:.{c['digits']}f}"
+    cid = f"{fid}-{c['name']}"
+    value = f"{c['value']:.{len(str(c['step']).partition('.')[2])}f}"
     return (
-        f'<label for="{fid}-{c["name"]}">{escape(c["label"])}</label>'
-        f'<input type="range" id="{fid}-{c["name"]}" name="{c["name"]}" min="{c["min"]}" '
-        f'max="{c["max"]}" step="{c["step"]}" value="{c["value"]}" disabled>'
-        f'<output for="{fid}-{c["name"]}">{value}</output>'
+        f'<label for="{cid}">{escape(c["label"])}</label>'
+        f'<input type="range" id="{cid}" name="{c["name"]}" min="{c["min"]}" max="{c["max"]}" '
+        f'step="{c["step"]}" value="{c["value"]}" aria-valuetext="{value}" disabled>'
+        f'<output for="{cid}">{value}</output>'
     )
 
 
@@ -38,18 +39,24 @@ class Explainer(SphinxDirective):
 
     def run(self):
         name = self.arguments[0]
-        if name not in FRAMES:
-            raise self.error(f"no explainer {name!r}: run node docs/_scripts/explainers.mjs")
         self.env.note_dependency(str(JSON))  # a redrawn frame rebuilds the page
-        frame, fid = FRAMES[name], f"v-{name[1:]}"
+        frames = json.loads(JSON.read_text())
+        if name not in frames:
+            raise self.error(f"no explainer {name!r}: run node docs/_scripts/explainers.mjs")
+        frame, number = frames[name], f"V-{name[1:]}"
+        fid = number.lower()
+        self.env.get_domain("std").note_hyperlink_target(
+            f"explainer-{name}", self.env.docname, fid, number
+        )
         controls = "".join(_control(fid, c) for c in frame["controls"])
-        readout = escape(frame["readout"])
         head = (
-            f'<figure class="explainer" id="{fid}" data-explainer="{name}">'
-            f'<p class="explainer-title">V-{name[1:]} · {escape(frame["title"])}</p>'
+            f'<figure class="explainer" id="{fid}" data-explainer="{name}" '
+            f'aria-labelledby="{fid}-title">'
+            f'<p class="explainer-title" id="{fid}-title">{number} · {escape(frame["title"])}</p>'
             f'<div class="explainer-plot">{frame["svg"]}</div>'
             f'<div class="explainer-controls">{controls}</div>'
-            f'<p class="explainer-readout" aria-live="polite">{readout}</p><figcaption>'
+            f'<p class="explainer-readout" aria-live="polite">{escape(frame["readout"])}</p>'
+            "<figcaption>"
         )
         caption = nodes.container()
         self.state.nested_parse(self.content, self.content_offset, caption)
@@ -58,9 +65,7 @@ class Explainer(SphinxDirective):
 
 
 def _scripts(app, pagename, templatename, context, doctree) -> None:
-    if doctree is not None and any(
-        'data-explainer="' in n.astext() for n in doctree.findall(nodes.raw)
-    ):
+    if 'data-explainer="' in context.get("body", ""):
         app.add_js_file("explainers/run.mjs", type="module")
 
 

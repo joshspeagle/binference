@@ -20,7 +20,7 @@ import numpy as np
 import binference
 from binference.plotting import SAMPLE_COLOR
 
-CORAL, INK, INK2 = SAMPLE_COLOR, plt.rcParams["text.color"], plt.rcParams["xtick.color"]
+CORAL, INK = SAMPLE_COLOR, plt.rcParams["text.color"]
 ```
 
 ## Objects and bins
@@ -47,7 +47,7 @@ L_{ik}=\frac{1}{v_k}\int_{B_k}\ell_i(z)\,dz ,
 $$
 
 the average of $\ell_i$ over bin $k$ (the measures section below covers other bins). The $N\times K$ table of these numbers is the
-{term}`likelihood matrix`. Explainer V-1 below shows one object's likelihood and its bin averages for any
+{term}`likelihood matrix`. Explainer {ref}`explainer-v1` below shows one object's likelihood and its bin averages for any
 error and bin width.
 
 ```{explainer} v1

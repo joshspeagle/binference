@@ -20,7 +20,8 @@ if (mode === "--compute") {
   for (const name of readdirSync(dir).filter((f) => /^v\d+\.mjs$/.test(f)).sort()) {
     const ex = await load(name.slice(0, -4));
     const start = Object.fromEntries(ex.controls.map((c) => [c.name, c.value]));
-    frames[name.slice(0, -4)] = { title: ex.title, controls: ex.controls, svg: ex.draw(start), readout: ex.readout(start) };
+    const c = ex.compute(start);
+    frames[name.slice(0, -4)] = { title: ex.title, controls: ex.controls, svg: ex.draw(start, c), readout: ex.readout(start, c) };
   }
   const text = JSON.stringify(frames, null, 1) + "\n";
   if (mode === "--check") {

@@ -80,7 +80,8 @@ so keep each under a minute or two.
 
 The interactive explainers (V-1, V-3, …) are JavaScript modules in
 `docs/_static/explainers/`, one per explainer, each with `controls`, `compute`, `readout`
-and `draw`; a page shows one with ```` ```{explainer} v1 ```` and its caption. After
+and `draw`; a page shows one with ```` ```{explainer} v1 ```` and its caption, and cites it
+as ``{ref}`explainer-v1` ``. After
 changing a module, redraw the still frames the page shows before JavaScript runs, and
 check the explainers' numbers against binference (both need Node.js):
 

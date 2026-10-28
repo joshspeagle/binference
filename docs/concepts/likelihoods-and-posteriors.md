@@ -99,7 +99,7 @@ Treating posteriors as likelihoods counts the interim prior once per object. The
 then constrain the product of $\pi$ and the population rather than the population
 itself. The fit then favours populations that are large where $\pi$ is large. It moves
 toward the interim prior, more so the narrower $\pi$ is
-(explainer V-3). With uninformative data it equals the interim
+(explainer {ref}`explainer-v3`). With uninformative data it equals the interim
 prior's peak.
 
 ```{explainer} v3
@@ -128,6 +128,6 @@ mixed in. Take that guess out before you ask what the population is.
   [posteriors](../guides/inputs/posteriors.md) with
   their interim prior.
 - See it: the tutorial {doc}`../tutorials/posteriors-on-a-grid` repeats
-  the comparison of explainer V-3 with a photometric-redshift mock.
+  the comparison of explainer {ref}`explainer-v3` with a photometric-redshift mock.
 - Derivation: [likelihoods versus posteriors](../how-it-works/model.md#likelihoods-versus-posteriors)
   in How it works.

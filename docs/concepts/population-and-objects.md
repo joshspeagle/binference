@@ -27,7 +27,7 @@ from myst_nb import glue
 import binference
 from binference.plotting import SAMPLE_COLOR
 
-CORAL, INK, INK2 = SAMPLE_COLOR, plt.rcParams["text.color"], plt.rcParams["xtick.color"]
+CORAL, INK = SAMPLE_COLOR, plt.rcParams["text.color"]
 c0, ground = np.array(to_rgb("C0")), np.array(to_rgb(plt.rcParams["axes.facecolor"]))
 PALE = 0.35 * c0 + 0.65 * ground  # a pale indigo
 ```
@@ -110,7 +110,7 @@ $$
 Averaging them over the objects gives a new estimate of the population. Starting from a
 flat population, the first average is the stack of the objects' posteriors under a flat
 prior. {term}`EM` repeats the average under each new estimate
-(explainer V-4). Each step removes more of the widening caused by measurement errors.
+(explainer {ref}`explainer-v4`). Each step removes more of the widening caused by measurement errors.
 
 ```{explainer} v4
 800 mock objects on 20 bins, measured with error 0.3. Indigo: the population after the
@@ -160,7 +160,7 @@ Run to convergence, EM reaches the most probable population, the {term}`MAP`. A
 hierarchical fit goes further: it gives the posterior of the population, with its
 uncertainty ({ref}`the hierarchical-fit figure <fig-em>`). The stack does neither. It is one step
 of the iteration, too smooth wherever the likelihoods are broader than the features of
-the population. The later EM steps in explainer V-4 turn jagged, for the reason the next
+the population. The later EM steps in explainer {ref}`explainer-v4` turn jagged, for the reason the next
 section gives.
 
 ## Correlations between bins
@@ -180,7 +180,7 @@ the data of all objects. Object $i$'s {term}`hierarchical posterior` $P(k_i=k\mi
 is its responsibilities averaged over the posterior of $\rho$. It is narrower than the object's own likelihood wherever the
 population is informative. This is {term}`shrinkage`, and it is strongest when the
 population is narrow compared with the measurement error
-(explainer V-5).
+(explainer {ref}`explainer-v5`).
 
 ```{explainer} v5
 One object measured at 1.9 with error 0.4, on 30 bins, under a population centred at 1.2

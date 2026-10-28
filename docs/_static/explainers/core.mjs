@@ -1,10 +1,13 @@
-// Shared pieces of the docs' explainers: seeded random numbers, the normal CDF and an SVG plot.
+// Shared pieces of the docs' explainers: seeded random numbers, the normal CDF, the model's
+// sums (bin averages, an object's posterior, EM), a mock catalogue and an SVG plot.
 // Every function is pure, so docs/_scripts/explainers.mjs can draw the still frames in Node.
 // Colours are CSS classes (binference.css), so a frame follows the page's theme.
 
-export const WIDTH = 400; // viewBox width; text is 16 units, 13.4 px when drawn 334 px wide
+// The viewBox width. Text is 16 units: 13.4 px when drawn 334 px wide, the readable width of a
+// 390 px phone, above figure-text (12 px; docs/_scripts/brand.py).
+const WIDTH = 400;
 
-export function rng(seed) { // mulberry32: uniform numbers in (0, 1)
+function rng(seed) { // mulberry32: uniform numbers in (0, 1)
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -14,11 +17,9 @@ export function rng(seed) { // mulberry32: uniform numbers in (0, 1)
   };
 }
 
-export function normal(u) { // a standard normal draw from the uniform source u
-  return Math.sqrt(-2 * Math.log(u())) * Math.cos(2 * Math.PI * u());
-}
+const normal = (u) => Math.sqrt(-2 * Math.log(u())) * Math.cos(2 * Math.PI * u());
 
-export function Phi(x) { // the standard normal CDF, through erfc (W. J. Cody's rational fit, error < 1.2e-7)
+function Phi(x) { // the standard normal CDF, through erfc (W. J. Cody's rational fit, error < 1.2e-7)
   const z = Math.abs(x) / Math.SQRT2, t = 1 / (1 + 0.5 * z);
   const erfc = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 +
     t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 +
@@ -28,48 +29,94 @@ export function Phi(x) { // the standard normal CDF, through erfc (W. J. Cody's 
 
 export const fmt = (x, d) => (x < 0 ? "−" : "") + Math.abs(x).toFixed(d);
 const num = (x) => +x.toFixed(2);
-const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+
+export const linspace = (a, b, n) => Array.from({ length: n }, (_, i) => a + ((b - a) * i) / (n - 1));
+export const normalise = (w) => { const s = w.reduce((a, b) => a + b, 0); return w.map((x) => x / s); };
+// The mean of z under bin masses m, each bin's mass at its centre.
+export const meanZ = (m, edges) => m.reduce((s, x, k) => s + (x * (edges[k] + edges[k + 1])) / 2, 0);
+
+// Bin averages of a Gaussian likelihood N(d, sigma^2) on the given edges (Likelihoods.from_gaussian).
+export const binAverages = (d, sigma, edges) =>
+  edges.slice(1).map((b, k) => (Phi((b - d) / sigma) - Phi((edges[k] - d) / sigma)) / (b - edges[k]));
+
+// An object's posterior masses r_k = L_k rho_k / sum_j L_j rho_j (PopulationModel.responsibilities).
+export const posterior = (row, rho) => normalise(row.map((l, k) => l * rho[k]));
+
+// EM from a flat population: element t is the population after t steps, each step the mean of
+// the objects' posteriors (PopulationModel.expected_counts(rho) / N). Element 1 is the stack.
+export function emPath(L, steps) {
+  const K = L[0].length, path = [new Array(K).fill(1 / K)];
+  for (let t = 0; t < steps; t++) {
+    const next = new Array(K).fill(0);
+    for (const row of L) posterior(row, path[t]).forEach((r, k) => { next[k] += r / L.length; });
+    path.push(next);
+  }
+  return path;
+}
+
+// The mock population: two normal peaks, cut to [0, 3].
+const PEAKS = [[0.6, 0.9, 0.25], [0.4, 2.1, 0.3]]; // weight, centre, width
+
+// n true values from the mock population, each measured with Gaussian error sigma, as the
+// likelihood matrix on the edges.
+export function mock(n, sigma, edges, seed) {
+  const u = rng(seed), z = [];
+  while (z.length < n) {
+    const [, c, w] = u() < PEAKS[0][0] ? PEAKS[0] : PEAKS[1], v = c + w * normal(u);
+    if (v > 0 && v < 3) z.push(v);
+  }
+  return { z, L: z.map((v) => binAverages(v + sigma * normal(u), sigma, edges)) };
+}
+
+// The mock population's masses in each bin.
+export function truth(edges) {
+  const cdf = (x) => PEAKS.reduce((s, [a, c, w]) => s + a * Phi((x - c) / w), 0);
+  return normalise(edges.slice(1).map((b, k) => cdf(b) - cdf(edges[k])));
+}
 
 // Round tick values from 0 to at least max: at most five, at steps of 1, 2, 2.5 or 5 times a power of 10.
-export function ticks(max) {
+function ticks(max) {
   const p = 10 ** Math.floor(Math.log10(max / 4));
   const step = [1, 2, 2.5, 5, 10].map((s) => s * p).find((s) => max / s <= 4);
   return Array.from({ length: Math.ceil(max / step - 1e-9) + 1 }, (_, i) => +(i * step).toFixed(6));
 }
 
-// A plot whose data run over x horizontally and from 0 to ymax vertically, with its legend
-// (key: [class, label] pairs, two to a row) in a band above. Its methods return SVG strings;
-// h is the height of the frame without the legend band, and p.h the whole height.
-export function plot({ h = 250, x, ymax, xlabel = "", ylabel = "", xticks = [], key = [] }) {
+// A plot over the bins with the given edges, from 0 to ymax, with its legend (key: [class, label]
+// pairs, two to a row) in a band above. h is the frame's height without that band, p.h the whole.
+// stairs draws values per bin; masses draws masses per bin as densities.
+export function plot({ h = 250, edges, ymax, ylabel, key, xlabel = "true value z" }) {
+  const x = [edges[0], edges[edges.length - 1]], xticks = ticks(x[1]);
   const yticks = ticks(ymax), top = yticks[yticks.length - 1], band = 22 * Math.ceil(key.length / 2);
-  const m = { l: ylabel ? 58 : 14, r: 12, t: 12 + band, b: xlabel ? 48 : 28 };
+  const m = { l: 58, r: 12, t: 12 + band, b: 48 };
   h += band;
   const sx = (v) => m.l + ((v - x[0]) / (x[1] - x[0])) * (WIDTH - m.l - m.r);
   const sy = (v) => h - m.b - (Math.min(v, top) / top) * (h - m.t - m.b);
+  const text = (px, py, s, anchor) =>
+    `<text x="${num(px)}" y="${num(py)}" text-anchor="${anchor}">${esc(s)}</text>`;
   const p = {
-    h, sx, sy,
+    h,
     line(xs, ys, cls) {
       return `<path class="${cls}" d="M${xs.map((v, i) => `${num(sx(v))},${num(sy(ys[i]))}`).join("L")}"/>`;
     },
-    stairs(edges, values, cls) { // a step at each value between its two edges, closed to the baseline
+    stairs(values, cls) { // a step at each value across its bin, closed to the baseline
       let d = `M${num(sx(edges[0]))},${num(sy(0))}`;
       values.forEach((v, k) => { d += `V${num(sy(v))}H${num(sx(edges[k + 1]))}`; });
       return `<path class="${cls}" d="${d}V${num(sy(0))}"/>`;
     },
+    masses(ms, cls) { return p.stairs(ms.map((v, k) => v / (edges[k + 1] - edges[k])), cls); },
     vline(v, cls) { return `<path class="${cls}" d="M${num(sx(v))},${m.t}V${h - m.b}"/>`; },
-    text(px, py, s, cls = "", anchor = "start") {
-      return `<text class="${cls}" x="${num(px)}" y="${num(py)}" text-anchor="${anchor}">${esc(s)}</text>`;
-    },
     axes() { // the axes, their ticks and labels, and the legend
       const base = sy(0);
       let s = `<path class="axis" d="M${m.l},${m.t}V${base}H${WIDTH - m.r}"/>`;
-      xticks.forEach((v) => { s += p.text(sx(v), base + 20, v, "tick", "middle"); });
-      yticks.forEach((v) => { s += p.text(m.l - 6, sy(v) + 5, v, "tick", "end"); });
-      if (xlabel) s += p.text((m.l + WIDTH - m.r) / 2, h - 8, xlabel, "label", "middle");
-      if (ylabel) s += `<text class="label" transform="translate(16,${num((m.t + base) / 2)}) rotate(-90)" text-anchor="middle">${esc(ylabel)}</text>`;
+      xticks.forEach((v) => { s += text(sx(v), base + 20, v, "middle"); });
+      yticks.forEach((v) => { s += text(m.l - 6, sy(v) + 5, v, "end"); });
+      s += text((m.l + WIDTH - m.r) / 2, h - 8, xlabel, "middle");
+      s += `<text transform="translate(16,${num((m.t + base) / 2)}) rotate(-90)" text-anchor="middle">${esc(ylabel)}</text>`;
       key.forEach(([cls, label], i) => {
         const kx = 14 + (i % 2) * 196, ky = 18 + 22 * Math.floor(i / 2);
-        s += `<path class="${cls}" d="M${kx},${ky - 5}h22"/>` + p.text(kx + 28, ky, label, "key");
+        s += `<path class="${cls}" d="M${kx},${ky - 5}h22"/>` +
+          `<text class="key" x="${kx + 28}" y="${ky}">${esc(label)}</text>`;
       });
       return s;
     },
@@ -78,44 +125,4 @@ export function plot({ h = 250, x, ymax, xlabel = "", ylabel = "", xticks = [], 
 }
 
 // The whole frame: an svg element whose accessible name is the explainer's alt text.
-export const svg = (h, alt, body) =>
-  `<svg viewBox="0 0 ${WIDTH} ${h}" role="img" aria-label="${esc(alt).replace(/"/g, "&quot;")}">${body}</svg>`;
-
-// Bin averages of a Gaussian likelihood N(d, sigma^2) on the given edges (Likelihoods.from_gaussian).
-export const binAverages = (d, sigma, edges) =>
-  edges.slice(1).map((b, k) => (Phi((b - d) / sigma) - Phi((edges[k] - d) / sigma)) / (b - edges[k]));
-
-// One EM step for the population masses rho: the mean over objects of their posteriors
-// L_ik rho_k / sum_j L_ij rho_j (PopulationModel.expected_counts(rho) / N).
-export function emStep(L, rho) {
-  const next = rho.map(() => 0);
-  for (const row of L) {
-    const w = row.map((l, k) => l * rho[k]), s = w.reduce((a, b) => a + b, 0);
-    w.forEach((x, k) => { next[k] += x / s / L.length; });
-  }
-  return next;
-}
-
-// A mock catalogue: n true values from a two-peaked population on [0, 3], each measured with
-// Gaussian error sigma, as the likelihood matrix on the edges.
-export function mock(n, sigma, edges, seed) {
-  const u = rng(seed), z = [];
-  while (z.length < n) {
-    const v = u() < 0.6 ? 0.9 + 0.25 * normal(u) : 2.1 + 0.3 * normal(u);
-    if (v > 0 && v < 3) z.push(v);
-  }
-  return { z, L: z.map((v) => binAverages(v + sigma * normal(u), sigma, edges)) };
-}
-
-// The masses of that population in each bin (its two normal peaks, cut to [0, 3]).
-export function truth(edges) {
-  const cdf = (x) => 0.6 * Phi((x - 0.9) / 0.25) + 0.4 * Phi((x - 2.1) / 0.3);
-  const m = edges.slice(1).map((b, k) => cdf(b) - cdf(edges[k])), s = m.reduce((a, b) => a + b, 0);
-  return m.map((x) => x / s);
-}
-
-export const normalise = (w) => { const s = w.reduce((a, b) => a + b, 0); return w.map((x) => x / s); };
-// The mean of z under bin masses m, each bin's mass at its centre.
-export const meanZ = (m, edges) => m.reduce((s, x, k) => s + (x * (edges[k] + edges[k + 1])) / 2, 0);
-export const linspace = (a, b, n) => Array.from({ length: n }, (_, i) => a + ((b - a) * i) / (n - 1));
-export const density = (masses, edges) => masses.map((m, k) => m / (edges[k + 1] - edges[k]));
+export const svg = (h, alt, body) => `<svg viewBox="0 0 ${WIDTH} ${h}" role="img" aria-label="${esc(alt)}">${body}</svg>`;
