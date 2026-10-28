@@ -40,12 +40,14 @@ class Explainer(SphinxDirective):
         if name not in FRAMES:
             raise self.error(f"no explainer {name!r}: run node docs/_scripts/explainers.mjs")
         frame, fid = FRAMES[name], f"v-{name[1:]}"
+        controls = "".join(_control(fid, c) for c in frame["controls"])
+        readout = escape(frame["readout"])
         head = (
             f'<figure class="explainer" id="{fid}" data-explainer="{name}">'
             f'<p class="explainer-title">V-{name[1:]} · {escape(frame["title"])}</p>'
             f'<div class="explainer-plot">{frame["svg"]}</div>'
-            f'<div class="explainer-controls">{"".join(_control(fid, c) for c in frame["controls"])}</div>'
-            f'<p class="explainer-readout" aria-live="polite">{escape(frame["readout"])}</p><figcaption>'
+            f'<div class="explainer-controls">{controls}</div>'
+            f'<p class="explainer-readout" aria-live="polite">{readout}</p><figcaption>'
         )
         caption = nodes.container()
         self.state.nested_parse(self.content, self.content_offset, caption)
