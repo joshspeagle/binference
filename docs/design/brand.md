@@ -55,7 +55,7 @@ One brand hue, indigo, is the population: draws, bins, estimates and the mark. C
 an object or a sample, and nothing else. Neutrals lean toward indigo. Both themes are
 designed; the dark theme is not an inversion.
 
-Tutorial plots are drawn on the light `bg` in both themes; the dark theme sets each one on a
+Plots are drawn on the light `bg` in both themes; the dark theme sets each one on a
 panel of that colour (`--b-figure-ground`), so a plot never needs a dark version.
 
 Each contrast is the WCAG ratio against the token named in the last column: surfaces
@@ -124,6 +124,7 @@ own fonts.
 | `radius` | 2 px | the largest corner radius, on controls only |
 | `figure-text` | 12 px | smallest figure text at 390 px wide |
 | mark : wordmark | 1.45 | the mark's height over the wordmark's font size |
+| `figure-max` | 30 rem | the widest a plot is shown |
 <!-- sizes:end -->
 
 ## Drawing rules

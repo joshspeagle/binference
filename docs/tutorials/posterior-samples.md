@@ -16,16 +16,6 @@ from such samples. It shows why the PE prior must be divided out, and how many s
 each event needs.
 
 ```{code-cell} python
-:tags: [remove-cell]
-
-# figures 6 in wide with 17 pt text keep text above 12 px on a 390 px phone screen
-import matplotlib.pyplot as plt
-
-plt.rcParams.update({"figure.figsize": (6, 3.4), "font.size": 17,
-                     "figure.constrained_layout.use": True})
-```
-
-```{code-cell} python
 import warnings
 
 import matplotlib.pyplot as plt
@@ -105,7 +95,8 @@ mystnb:
       bands follow the dashed truth. In the bottom plot the light bins fall below the
       truth and the heavy bins rise above it.
 ---
-fig, axes = plt.subplots(2, 1, figsize=(6, 6.4), sharex=True, sharey=True)
+fig, axes = plt.subplots(2, 1, sharex=True, sharey=True)
+fig.set_figheight(5.1)
 for ax, (name, fit), color in zip(axes, fits.items(), ["C0", "C1"]):
     fit.plot(ax=ax, which="fractions", truth=rho_true, color=color, label="median")
     ax.set_title(name, loc="left")

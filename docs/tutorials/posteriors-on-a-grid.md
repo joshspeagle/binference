@@ -16,16 +16,6 @@ object $i$'s posterior in bin $k$. Each posterior was computed under some prior,
 holds: the prior to divide out, and whether the numbers are masses or densities.
 
 ```{code-cell} python
-:tags: [remove-cell]
-
-# figures 6 in wide with 17 pt text keep text above 12 px on a 390 px phone screen
-import matplotlib.pyplot as plt
-
-plt.rcParams.update({"figure.figsize": (6, 3.4), "font.size": 17,
-                     "figure.constrained_layout.use": True})
-```
-
-```{code-cell} python
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -71,7 +61,8 @@ mystnb:
       toward the grey interim prior that peaks at 1.8, and misses the truth.
 ---
 ip = interim / bins.volumes
-fig, axes = plt.subplots(2, 1, figsize=(6, 7), sharex=True, sharey=True)
+fig, axes = plt.subplots(2, 1, sharex=True, sharey=True)
+fig.set_figheight(5.6)
 right.plot(ax=axes[0], truth=mock.truth.rho, label="median")
 wrong.plot(ax=axes[1], truth=mock.truth.rho, color="C1", label="median")
 for ax, title in zip(axes, ["interim prior divided out", "posteriors used as likelihoods"]):

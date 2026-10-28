@@ -6,6 +6,7 @@ own data say (the stack, an object's own likelihood) takes the second, or
 ``sample_color``; reference lines, error bars and the truth (dashed) take ``text.color``.
 2-D medians ramp from a pale tint of the population colour to the colour, and relative
 uncertainties likewise in ``text.color``; masked bins show the axes background.
+``SAMPLE_COLOR`` is the coral the binference docs give single objects, for ``sample_color``.
 """
 
 from __future__ import annotations
@@ -18,7 +19,18 @@ import numpy as np
 from ._utils import warn
 from .warnings import InputWarning
 
-__all__ = ["plot_corner", "plot_individual", "plot_population", "plot_sbc", "plot_trace"]
+__all__ = [
+    "SAMPLE_COLOR",
+    "plot_corner",
+    "plot_individual",
+    "plot_population",
+    "plot_sbc",
+    "plot_trace",
+]
+
+#: The coral of single objects and samples in the binference docs (their brand ``sample``
+#: colour), to pass as ``sample_color``; ``docs/_scripts/brand.py --check`` keeps the two equal.
+SAMPLE_COLOR = "#EC5F3E"
 
 
 def _style_color(name: str, value: Any, slot: int):
@@ -162,7 +174,7 @@ def plot_population(
             warn("2-D plots show no truth, stack or label; they are ignored.", InputWarning)
         return _plot_2d(result, X, plt, ax, color)
     if ax is None:
-        _, ax = plt.subplots(figsize=(7, 4))
+        _, ax = plt.subplots()
     ylabel = _YLABEL[which]
     if bins.is_categorical:
         x = np.arange(bins.K)
@@ -263,9 +275,13 @@ def _plot_2d(result, X, plt, ax, color):
     sd = bins.unflatten(X.std(axis=0)) if X.shape[0] > 1 else None
     ex, ey = bins.edges
     if ax is None:
-        ncol = 2 if sd is not None else 1
-        _, ax = plt.subplots(1, ncol, figsize=(5 * ncol, 4), squeeze=False)
-        ax = ax[0]
+        n = 2 if sd is not None else 1
+        # side by side when each panel, with its colour bar, keeps at least 4 in, else stacked
+        shape = (1, n) if plt.rcParams["figure.figsize"][0] / n >= 4 else (n, 1)
+        fig, ax = plt.subplots(*shape, figsize=_figsize(plt, *shape, 0.8), squeeze=False)
+        ax = ax.ravel()
+    else:
+        fig = None
     axes = np.atleast_1d(ax)
     im = axes[0].pcolormesh(ex, ey, med.T, shading="flat", cmap=_ramp(axes[0], color))
     plt.colorbar(im, ax=axes[0], label="posterior median")
@@ -278,14 +294,31 @@ def _plot_2d(result, X, plt, ax, color):
         im2 = axes[1].pcolormesh(ex, ey, rel.T, shading="flat", cmap=grey)
         plt.colorbar(im2, ax=axes[1], label="relative uncertainty (sd / median)")
         axes[1].set_xlabel("axis 0")
+    if fig is not None:
+        _tight(fig)
     return axes
 
 
-def _subplots(plt, fig, nrow: int, ncol: int, figsize: tuple, **kwargs: Any):
+def _figsize(plt, nrow: int, ncol: int, aspect: float) -> tuple:
+    """The style's figure width, and a height of ``nrow`` panels of height ``aspect`` x
+    their width, each with room for two lines of text (labels, titles)."""
+    width = plt.rcParams["figure.figsize"][0]
+    text = 2 * plt.rcParams["font.size"] / 72
+    return width, nrow * (aspect * width / ncol + text)
+
+
+def _subplots(plt, fig, nrow: int, ncol: int, aspect: float, **kwargs: Any):
     # a new figure of nrow x ncol axes, or those axes added to fig
     if fig is None:
+        figsize = _figsize(plt, nrow, ncol, aspect)
         return plt.subplots(nrow, ncol, figsize=figsize, squeeze=False, **kwargs)
     return fig, np.asarray(fig.subplots(nrow, ncol, squeeze=False, **kwargs))
+
+
+def _tight(fig) -> None:
+    # tidy a figure the style left without a layout engine (a docs-style figure has one)
+    if fig.get_layout_engine() is None:
+        fig.tight_layout()
 
 
 def _chosen_bins(result: Any, which: str, idx: Any, max_bins: int):
@@ -331,7 +364,7 @@ def plot_corner(
     color = _style_color("color", color, 0)
     X, idx, name = _chosen_bins(result, which, idx, max_bins)
     n = len(idx)
-    fig, axes = _subplots(plt, fig, n, n, (2.2 * n, 2.2 * n))
+    fig, axes = _subplots(plt, fig, n, n, 1.0)
     for i, ki in enumerate(idx):
         for j, kj in enumerate(idx):
             a = axes[i, j]
@@ -347,7 +380,7 @@ def plot_corner(
                 a.set_xlabel(f"{name}[{kj}]")
             if j == 0 and i > 0:
                 a.set_ylabel(f"{name}[{ki}]")
-    fig.tight_layout()
+    _tight(fig)
     return fig
 
 
@@ -376,13 +409,13 @@ def plot_trace(
     """
     X, idx, name = _chosen_bins(result, which, idx, max_bins)
     C = X.reshape(result.n_chains, -1, result.K)
-    fig, axes = _subplots(_plt(), fig, len(idx), 1, (8, 1.8 * len(idx)), sharex=True)
+    fig, axes = _subplots(_plt(), fig, len(idx), 1, 0.4, sharex=True)
     for a, k in zip(axes[:, 0], idx, strict=True):
         for c in range(C.shape[0]):
             a.plot(C[c, :, k], lw=0.6, alpha=0.8)
         a.set_ylabel(f"{name}[{k}]")
     axes[-1, 0].set_xlabel("iteration")
-    fig.tight_layout()
+    _tight(fig)
     return fig
 
 
@@ -420,7 +453,7 @@ def plot_individual(
     own = own / own.sum()
     shrunk = result.assignment_probabilities(idx=[i], n_draws=n_draws)[0]
     if ax is None:
-        _, ax = plt.subplots(figsize=(6, 3.5))
+        _, ax = plt.subplots()
     if bins.is_categorical or bins.ndim > 1:
         x = np.arange(bins.K)
         ax.bar(x - 0.2, own, width=0.4, color=sample_color, label="own likelihood (flat prior)")
@@ -486,7 +519,7 @@ def plot_sbc(
     q = min(len(names), max_panels)
     ncol = min(4, q)
     nrow = int(np.ceil(q / ncol))
-    fig, axes = _subplots(plt, fig, nrow, ncol, (3 * ncol, 2.4 * nrow))
+    fig, axes = _subplots(plt, fig, nrow, ncol, 1.2)
     n_sims = sbc_result.ranks.shape[0]
     nb = H.shape[1]
     # per bin: bins can hold different numbers of the possible ranks (audit G-1)
@@ -499,7 +532,7 @@ def plot_sbc(
             continue
         a.stairs(hi, np.arange(nb + 1) - 0.5, baseline=lo, fill=True, color=ink, alpha=0.15, lw=0)
         a.bar(np.arange(nb), H[j], width=1.0, color=color, alpha=0.8)
-        a.set_title(names[j], fontsize=9)
+        a.set_title(names[j])
         a.set_yticks([])
-    fig.tight_layout()
+    _tight(fig)
     return fig

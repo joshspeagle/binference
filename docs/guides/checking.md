@@ -122,7 +122,7 @@ ink = plt.rcParams["text.color"]
 
 ten = binference.Bins.linear(0.0, 3.0, 10)
 traces = {}
-for name, noise in [("narrow likelihoods", 0.05), ("broad likelihoods", 0.6)]:
+for name, noise in [("narrow", 0.05), ("broad", 0.6)]:  # likelihood widths
     lk_t = binference.simulate.mock_1d(1000, ten, noise=noise, rng=4).likelihoods
     traces[name] = binference.infer(lk_t, method="gibbs", n_samples=500, rng=1, check=False)
 
@@ -152,31 +152,31 @@ pipelines = {
 ranks = {name: sbc(simulate_3, fit, n_simulations=200, n_draws=19, log_likelihood=False,
                    rng=0) for name, fit in pipelines.items()}
 
-with plt.rc_context({"font.size": 12}):
-    fig = plt.figure(figsize=(5.0, 8.6), constrained_layout=True)
-    top, bottom = fig.subfigures(2, 1, height_ratios=[1, 1.25])
-    axes = top.subplots(2, 1, sharex=True)
-    for a, (name, r) in zip(axes, traces.items()):
-        for c in range(r.chains.shape[0]):
-            a.plot(r.chains[c, :, 4], lw=0.8, alpha=0.8, color=f"C{c}")
-        d = r.diagnostics
-        a.set_title(f"{name}: $\\hat R$ = {d['rhat'].max():.2f}, "
-                    f"ESS = {d['ess_bulk'].min():.0f}", loc="left", fontsize=12)
-        a.set_ylabel("fraction, bin 5")
-    axes[1].set_xlabel("draw")
-    grid = bottom.subplots(2, 2, sharex=True, sharey=True)
-    for a, (name, s) in zip(grid.flat, ranks.items()):
-        n_sim = s.ranks.shape[0]
-        lo, hi = stats.binom.interval(0.99, n_sim, s.expected(10)[0] / n_sim)
-        a.axhspan(lo, hi, color=ink, alpha=0.1, lw=0)
-        a.stairs(s.histogram(10)[0], np.arange(11), color="C0", fill=True, alpha=0.7)
-        a.set_title(name, loc="left", fontsize=12)
-        a.set_xticks([0, 10], ["low", "high"])
-    for a in grid[1]:
-        a.set_xlabel("rank of the truth")
-    for a in grid[:, 0]:
-        a.set_ylabel("simulations")
-    plt.show()
+fig = plt.figure()
+fig.set_figheight(8.6)
+top, bottom = fig.subfigures(2, 1, height_ratios=[1, 1.25])
+axes = top.subplots(2, 1, sharex=True)
+for a, (name, r) in zip(axes, traces.items()):
+    for c in range(r.chains.shape[0]):
+        a.plot(r.chains[c, :, 4], lw=0.8, alpha=0.8, color=f"C{c}")
+    d = r.diagnostics
+    a.set_title(f"{name}: $\\hat R$ = {d['rhat'].max():.2f}, "
+                f"ESS = {d['ess_bulk'].min():.0f}", loc="left")
+    a.set_ylabel("fraction, bin 5")
+axes[1].set_xlabel("draw")
+grid = bottom.subplots(2, 2, sharex=True, sharey=True)
+for a, (name, s) in zip(grid.flat, ranks.items()):
+    n_sim = s.ranks.shape[0]
+    lo, hi = stats.binom.interval(0.99, n_sim, s.expected(10)[0] / n_sim)
+    a.axhspan(lo, hi, color=ink, alpha=0.1, lw=0)
+    a.stairs(s.histogram(10)[0], np.arange(11), color="C0", fill=True, alpha=0.7)
+    a.set_title(name, loc="left")
+    a.set_xticks([0, 10], ["low", "high"])
+for a in grid[1]:
+    a.set_xlabel("rank of the truth")
+for a in grid[:, 0]:
+    a.set_ylabel("simulations")
+plt.show()
 ```
 
 **Traces.** Good chains overlap and look like noise around one level. Bad chains

@@ -14,15 +14,6 @@ to a population with its uncertainty. It needs binference with the `plot` extra
 ({doc}`install`). If your data are posteriors, samples, counts or classifier outputs,
 {doc}`is-it-right` names the constructor to use instead.
 
-```{code-cell} python
-:tags: [remove-cell]
-
-import matplotlib.pyplot as plt
-
-# narrower and with larger text than the site style, to stay legible at phone width
-plt.rcParams.update({"font.size": 14, "figure.figsize": (5.2, 3.6)})
-```
-
 ## Your data
 
 Here a simulation stands in for your data: 2000 galaxies with photometric redshifts
@@ -99,7 +90,12 @@ mystnb:
       The population inferred from 2000 simulated galaxies: the posterior median
       density with its 68% and 95% bands, and the true density (dashed).
 ---
-ax = result.plot(truth=mock.truth.rho)
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots()
+fig.set_figheight(4.4)
+result.plot(ax=ax, truth=mock.truth.rho)
+ax.get_legend().set(loc="lower left", bbox_to_anchor=(0, 1))  # above the plot
 ax.set_xlabel("z");
 ```
 

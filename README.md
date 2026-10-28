@@ -13,7 +13,7 @@ population.
 [figure]: https://raw.githubusercontent.com/joshspeagle/binference/main/docs/_static/quickstart.png
 
 *The population inferred from 2000 simulated objects, under the default Dirichlet prior
-(left) and a Gaussian-process prior (right). Each panel shows the posterior median, its
+(top) and a Gaussian-process prior (bottom). Each panel shows the posterior median, its
 68% and 95% intervals, the true density (dashed) and the stacked estimate (dotted).*
 
 ## Install

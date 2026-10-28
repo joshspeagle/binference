@@ -148,8 +148,9 @@ import numpy as np
 from myst_nb import glue
 
 import binference
+from binference.plotting import SAMPLE_COLOR
 
-ink, coral = plt.rcParams["text.color"], "#EC5F3E"
+ink, coral = plt.rcParams["text.color"], SAMPLE_COLOR
 
 
 def bands(ax, e, X, label):
@@ -173,20 +174,19 @@ z_fig = rng_fig.uniform(0.0, 3.0, 450)
 found = rng_fig.random(450) < edge(z_fig)
 S_draws = binference.Selection.from_injections(z_fig, found, fine, "on_truth").draw(4000, rng=1)
 e = fine.edges[0]
-with plt.rc_context({"font.size": 12}):
-    fig, (top, bottom) = plt.subplots(2, 1, figsize=(5.0, 6.4), sharex=True,
-                                      constrained_layout=True)
-    top.stairs(np.histogram(z_fig, e)[0], e, color=ink, lw=1.5, label="injected")
-    top.stairs(np.histogram(z_fig[found], e)[0], e, color=coral, fill=True, alpha=0.8,
-               label="recovered")
-    top.set_ylabel("injections per bin")
-    top.legend(loc="upper right")
-    bands(bottom, e, S_draws, "median")
-    zz = np.linspace(0, 3, 400)
-    bottom.plot(zz, edge(zz), ls="--", color=ink, label="truth")
-    bottom.set(xlabel="true value $z$", ylabel="selection $S$", ylim=(0, 1.05))
-    bottom.legend(loc="lower left")
-    plt.show()
+fig, (top, bottom) = plt.subplots(2, 1, sharex=True)
+fig.set_figheight(6.4)
+top.stairs(np.histogram(z_fig, e)[0], e, color=ink, lw=1.5, label="injected")
+top.stairs(np.histogram(z_fig[found], e)[0], e, color=coral, fill=True, alpha=0.8,
+           label="recovered")
+top.set_ylabel("injections per bin")
+top.legend(loc="upper right")
+bands(bottom, e, S_draws, "median")
+zz = np.linspace(0, 3, 400)
+bottom.plot(zz, edge(zz), ls="--", color=ink, label="truth")
+bottom.set(xlabel="true value $z$", ylabel="selection $S$", ylim=(0, 1.05))
+bottom.legend(loc="lower left")
+plt.show()
 ```
 
 binference then infers the selection together with the population. The catalogue's
@@ -296,16 +296,15 @@ lk_seen = binference.Likelihoods.from_gaussian(
 )
 fit_seen = binference.infer(lk_seen, selection=binference.Selection(S10, "on_truth"), rng=1)
 detected = np.median(fit_seen.realized_counts(rng=2), axis=0)
-with plt.rc_context({"font.size": 12}):
-    fig, ax = plt.subplots(figsize=(5.0, 4.4), constrained_layout=True)
-    ax.stairs(detected, e, color=coral, fill=True, alpha=0.8, label="detected objects")
-    bands(ax, e, fit_seen.realized_counts(rng=2, full=True), "all objects, inferred")
-    ax.stairs(np.bincount(labels, minlength=10), e, baseline=None, color=ink, ls="--",
-              lw=1.5, label="all objects, truth")
-    ax.set(xlabel="true value $z$", ylabel="objects per bin")
-    ax.set_ylim(0, 1.45 * ax.get_ylim()[1])
-    ax.legend(loc="upper right", fontsize=10, ncol=2)
-    plt.show()
+fig, ax = plt.subplots()
+fig.set_figheight(4.6)
+ax.stairs(detected, e, color=coral, fill=True, alpha=0.8, label="detected objects")
+bands(ax, e, fit_seen.realized_counts(rng=2, full=True), "all objects, inferred")
+ax.stairs(np.bincount(labels, minlength=10), e, baseline=None, color=ink, ls="--",
+          lw=1.5, label="all objects, truth")
+ax.set(xlabel="true value $z$", ylabel="objects per bin")
+fig.legend(loc="outside upper center", ncol=2)
+plt.show()
 
 glue("sel_detected", int(seen.sum()), display=False)
 glue("sel_total", float(fit_seen.total.mean()), display=False)

@@ -16,7 +16,7 @@ problem appears under different names in several fields
 alt: >-
   Population posteriors for a mock catalogue under a flat Dirichlet prior and a
   Gaussian-process prior
-width: 100%
+class: figure-max
 ---
 ```
 

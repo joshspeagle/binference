@@ -15,22 +15,11 @@ with {term}`stacking` the galaxies' likelihoods. It then derives quantities with
 bars, and shows what the population says about single galaxies.
 
 ```{code-cell} python
-:tags: [remove-cell]
-
-# figures 6 in wide with 17 pt text keep text above 12 px on a 390 px phone screen
-import matplotlib.pyplot as plt
-
-plt.rcParams.update({"figure.figsize": (6, 3.4), "font.size": 17,
-                     "figure.constrained_layout.use": True})
-```
-
-```{code-cell} python
 import matplotlib.pyplot as plt
 import numpy as np
 
 import binference
-
-OBJECT = "#EC5F3E"   # the colour of single objects in these docs
+from binference.plotting import SAMPLE_COLOR
 ```
 
 ## A mock catalogue
@@ -63,7 +52,7 @@ mystnb:
 fig, ax = plt.subplots()
 L = lk.toarray()
 for i in range(5):
-    ax.step(bins.edges[0], np.append(L[i], L[i, -1]), where="post", color=OBJECT, lw=1.2)
+    ax.step(bins.edges[0], np.append(L[i], L[i, -1]), where="post", color=SAMPLE_COLOR, lw=1.2)
 ax.set(xlabel="z", ylabel="likelihood", xlim=(0, 3));
 ```
 
@@ -99,8 +88,8 @@ mystnb:
       bands are wide. It follows the dashed truth, which has a broad peak near 0.6 and a
       narrower one near 1.6. The dotted stack is smoother and broader than the truth.
 ---
-fig, ax = plt.subplots(figsize=(6, 4.2))
-result.plot(ax=ax, truth=mock.truth.rho, stack=stack, sample_color=OBJECT, label="median")
+fig, ax = plt.subplots()
+result.plot(ax=ax, truth=mock.truth.rho, stack=stack, sample_color=SAMPLE_COLOR, label="median")
 ax.legend(ncol=3, loc="lower left", bbox_to_anchor=(0, 1))    # above the plot
 ax.set_xlabel("z");
 ```
@@ -207,11 +196,11 @@ candidates = np.flatnonzero(broad)[np.argsort(np.abs(ratio[broad] - np.median(ra
 i = int(next(j for j in candidates if inside_68(j)))
 print(f"galaxy {i}: narrowing {ratio[i]:.2f}")
 
-fig, ax = plt.subplots(figsize=(6, 4.2))
-plot_individual(result, i, ax=ax, sample_color=OBJECT)
+fig, ax = plt.subplots()
+plot_individual(result, i, ax=ax, sample_color=SAMPLE_COLOR)
 ax.axvline(mock.truth.values[i], color="k", lw=1, ls=":", label="true z")
 ax.set_xlabel("z")
-ax.legend(loc="upper right");
+ax.legend(loc="lower left", bbox_to_anchor=(0, 1));    # above the plot
 ```
 
 ```{code-cell} python

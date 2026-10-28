@@ -123,27 +123,27 @@ bias = {"flat in each bin": abs(flat.rho - truth)[k], "hat basis": abs(hat.rho -
 
 ink = plt.rcParams["text.color"]
 e = bins.edges[0]
-with plt.rc_context({"font.size": 12}):
-    fig, (a, b) = plt.subplots(2, 1, figsize=(5.0, 6.6), constrained_layout=True)
-    a.axvspan(e[k], e[k + 1], color="C0", alpha=0.12, lw=0)
-    a.plot(zz, peak(zz), ls="--", color=ink, label="truth")
-    a.stairs(flat.rho / bins.volumes, e, color="C0", lw=2, label="flat in each bin")
-    a.plot(zz, hat.value @ H, color="C1", lw=2, label="hat basis")
-    a.set(xlabel="true value $z$", ylabel="density", xlim=(0.3, 2.7))
-    a.legend(loc="upper right")
-    a.set_title("Fits with unlimited data", loc="left")
+fig, (a, b) = plt.subplots(2, 1)
+fig.set_figheight(6.6)
+a.axvspan(e[k], e[k + 1], color="C0", alpha=0.12, lw=0)
+a.plot(zz, peak(zz), ls="--", color=ink, label="truth")
+a.stairs(flat.rho / bins.volumes, e, color="C0", lw=2, label="flat in each bin")
+a.plot(zz, hat.value @ H, color="C1", lw=2, label="hat basis")
+a.set(xlabel="true value $z$", ylabel="density", xlim=(0.3, 2.7))
+fig.legend(*a.get_legend_handles_labels(), loc="outside upper center", ncol=2)
+a.set_title("Fits with unlimited data", loc="left")
 
-    N = np.logspace(2, 6, 50)
-    sd = fit.std[k] * np.sqrt(mock.likelihoods.W / N)
-    b.loglog(N, sd, color=ink, lw=1.5)
-    b.text(2e5, sd[-1] * 3.2, "posterior s.d.", ha="center")
-    for (name, value), c in zip(bias.items(), ["C0", "C1"]):
-        b.axhline(value, color=c, lw=2)
-        b.text(1.2e2, value * 1.15, f"bias, {name}", color=c)
-        b.plot(mock.likelihoods.W * (fit.std[k] / value) ** 2, value, "o", color=c)
-    b.set(xlabel="number of objects $N$", ylabel="error of the fraction")
-    b.set_title(f"Bin [{e[k]:.1f}, {e[k + 1]:.1f})", loc="left")
-    plt.show()
+N = np.logspace(2, 6, 50)
+sd = fit.std[k] * np.sqrt(mock.likelihoods.W / N)
+b.loglog(N, sd, color=ink, lw=1.5)
+b.text(2e5, sd[-1] * 3.2, "posterior s.d.", ha="center")
+for (name, value), c in zip(bias.items(), ["C0", "C1"]):
+    b.axhline(value, color=c, lw=2)
+    b.text(1.2e2, value * 1.15, f"bias, {name}", color=c)
+    b.plot(mock.likelihoods.W * (fit.std[k] / value) ** 2, value, "o", color=c)
+b.set(xlabel="number of objects $N$", ylabel="error of the fraction")
+b.set_title(f"Bin [{e[k]:.1f}, {e[k + 1]:.1f})", loc="left")
+plt.show()
 
 n_equal = mock.likelihoods.W * (fit.std[k] / bias["flat in each bin"]) ** 2
 glue("bins_n_equal", float(f"{n_equal:.1g}"), display=False)

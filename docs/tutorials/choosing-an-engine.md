@@ -14,16 +14,6 @@ tutorial runs all of them on one problem, and compares their accuracy, speed and
 diagnostics. {term}`NUTS`, which is exact for any prior, is the reference.
 
 ```{code-cell} python
-:tags: [remove-cell]
-
-# figures 6 in wide with 17 pt text keep text above 12 px on a 390 px phone screen
-import matplotlib.pyplot as plt
-
-plt.rcParams.update({"figure.figsize": (6, 3.4), "font.size": 17,
-                     "figure.constrained_layout.use": True})
-```
-
-```{code-cell} python
 import time
 import warnings
 
@@ -78,7 +68,8 @@ mystnb:
       0.5 in most bins.
 ---
 ref = fits["nuts"]
-fig, axes = plt.subplots(2, 1, figsize=(6, 7.2), sharex=True)
+fig, axes = plt.subplots(2, 1, sharex=True)
+fig.set_figheight(5.8)
 zc = bins.centers
 styles = {"laplace": "s", "vb": "^", "bootstrap": "D"}
 for m, mk in styles.items():
@@ -154,8 +145,7 @@ mystnb:
       and the chains spend long stretches at different levels.
 ---
 worst = int(np.argmax(gibbs.diagnostics["rhat"]))
-fig = plt.figure(figsize=(6, 3.6), layout="tight")
-gibbs.plot_trace(idx=[worst], fig=fig);
+gibbs.plot_trace(idx=[worst]);
 ```
 
 The four {term}`chains <chain>` have not mixed. Run much longer, or use NUTS.

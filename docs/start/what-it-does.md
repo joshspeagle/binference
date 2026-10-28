@@ -56,10 +56,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import binference
+from binference.plotting import SAMPLE_COLOR
 
-plt.rcParams["font.size"] = 14
-CORAL = "#EC5F3E"
-INK = plt.rcParams["text.color"]
+CORAL, INK = SAMPLE_COLOR, plt.rcParams["text.color"]
 
 bins = binference.Bins.linear(0.0, 3.0, 15)
 edges = bins.edges[0]
@@ -76,9 +75,8 @@ z_obs, sigma = mock.measurements["mean"], mock.measurements["sigma"]
 pick = np.random.default_rng(3).choice(lk.N, 8, replace=False)
 pick = pick[np.argsort(z_obs[pick])]
 
-fig, axes = plt.subplots(
-    3, 1, figsize=(5.2, 8.4), sharex=True, constrained_layout=True
-)
+fig, axes = plt.subplots(3, 1, sharex=True)
+fig.set_figheight(7.8)
 for ax in axes[:2]:
     for e in edges:
         ax.axvline(e, color=plt.rcParams["grid.color"], lw=0.8, zorder=0)
@@ -94,8 +92,8 @@ ax.plot(
 )
 ax.set(yticks=[], ylabel="objects", ylim=(-0.8, pick.size + 1.0))
 ax.spines["left"].set_visible(False)
-ax.legend(loc="upper left", ncols=2, fontsize=12, handletextpad=0.3, columnspacing=1.0)
-ax.set_title("1. Each object is measured with noise", loc="left", fontsize=14)
+ax.legend(loc="upper left", ncols=2, handletextpad=0.3)
+ax.set_title("1. Each object is measured with noise", loc="left")
 
 ax = axes[1]
 L = lk.toarray()
@@ -105,7 +103,7 @@ for i in pick[[0, 4, 7]]:
         edges, np.append(L[i], L[i, -1]), step="post", color=CORAL, alpha=0.15, lw=0
     )
 ax.set(yticks=[0, 1], ylabel="likelihood", ylim=(0, 1.1))
-ax.set_title("2. Each measurement gives a likelihood", loc="left", fontsize=14)
+ax.set_title("2. Each measurement gives a likelihood", loc="left")
 
 ax = axes[2]
 dens = result.density()
@@ -115,9 +113,9 @@ ax.plot([], [], color="C0", lw=0.8, alpha=0.5, label="posterior draws")
 steps(ax, dens.mean(axis=0), color="C0", lw=2.2, label="posterior mean")
 steps(ax, mock.truth.rho / bins.volumes, color=INK, ls="--", lw=1.6, label="truth")
 ax.set(xlim=(0, 3), xlabel="true value z", ylabel="density")
-ax.set_ylim(0, None)
-ax.legend(loc="upper right", fontsize=12)
-ax.set_title("3. Together they give the population", loc="left", fontsize=14)
+ax.set_ylim(0, 1.6 * ax.get_ylim()[1])  # room for the legend above the draws
+ax.legend(loc="upper right")
+ax.set_title("3. Together they give the population", loc="left")
 plt.show()
 ```
 

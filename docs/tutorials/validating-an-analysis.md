@@ -16,19 +16,8 @@ binference's validation tools: an exact reference for a small problem,
 failure looks like.
 
 ```{code-cell} python
-:tags: [remove-cell]
-
-# figures 6 in wide with 17 pt text keep text above 12 px on a 390 px phone screen
-import matplotlib.pyplot as plt
-
-plt.rcParams.update({"figure.figsize": (6, 3.4), "font.size": 17,
-                     "figure.constrained_layout.use": True})
-```
-
-```{code-cell} python
 import warnings
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 import binference
@@ -89,10 +78,7 @@ mystnb:
     alt: Five small histograms of ranks from 0 to 19. The bars stay within or at the
       edge of the grey bands, so the histograms are flat within the noise.
 ---
-fig = plt.figure(figsize=(6, 5.4), layout="tight")
-result.plot(fig=fig)
-for ax in fig.axes:
-    ax.title.set_fontsize(17)
+result.plot();
 ```
 
 ```{code-cell} python
@@ -135,10 +121,7 @@ mystnb:
       shaped like a U, with the lowest and highest ranks far above the grey band. The
       last, for the log-likelihood, piles up at the lowest ranks.
 ---
-fig = plt.figure(figsize=(6, 5.4), layout="tight")
-bad.plot(fig=fig)
-for ax in fig.axes:
-    ax.title.set_fontsize(17)
+bad.plot();
 ```
 
 ```{code-cell} python

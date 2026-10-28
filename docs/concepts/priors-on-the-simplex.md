@@ -20,8 +20,7 @@ import numpy as np
 import binference
 from binference import priors
 
-plt.rcParams["font.size"] = 14
-INK2 = "#5D5F86"
+INK2 = plt.rcParams["xtick.color"]
 ```
 
 ## Every population is a point on the simplex
@@ -72,15 +71,16 @@ mystnb:
 no_data = binference.Likelihoods(np.ones((1, 3)))  # one uninformative object
 corners = np.array([[0.0, 0.0], [1.0, 0.0], [0.5, np.sqrt(3) / 2]])
 names = (r"$\rho_1=1$", r"$\rho_2=1$", r"$\rho_3=1$")
-fig, axes = plt.subplots(2, 2, layout="constrained", figsize=(4.8, 5.0))
+fig, axes = plt.subplots(2, 2)
+fig.set_figheight(5.0)
 for ax, a in zip(axes.flat, (0.2, 1.0, 5.0, 30.0), strict=True):
     rho = binference.PopulationModel(no_data, priors.Dirichlet(a)).sample_prior(1500, rng=7)
     ax.plot(*np.vstack([corners, corners[:1]]).T, color=INK2, lw=1)
     ax.plot(*(rho @ corners).T, ".", ms=2.5, color="C0", alpha=0.5)
     for (x, y), name, ha, dy in zip(corners, names, ("right", "left", "center"),
                                     (-0.04, -0.04, 0.04), strict=True):
-        ax.text(x, y + dy, name, ha=ha, va="top" if dy < 0 else "bottom", fontsize=12)
-    ax.set_title(rf"$\alpha = {a:g}$", fontsize=14, pad=18)
+        ax.text(x, y + dy, name, ha=ha, va="top" if dy < 0 else "bottom")
+    ax.set_title(rf"$\alpha = {a:g}$", pad=18)
     ax.set_aspect("equal")
     ax.axis("off")
     ax.set_xlim(-0.12, 1.12)

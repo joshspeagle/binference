@@ -20,16 +20,6 @@ terms of the [selection guide](../guides/selection):
    `"on_measurement"`.
 
 ```{code-cell} python
-:tags: [remove-cell]
-
-# figures 6 in wide with 17 pt text keep text above 12 px on a 390 px phone screen
-import matplotlib.pyplot as plt
-
-plt.rcParams.update({"figure.figsize": (6, 3.4), "font.size": 17,
-                     "figure.constrained_layout.use": True})
-```
-
-```{code-cell} python
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
@@ -94,15 +84,16 @@ mystnb:
       for small planets. The squares fall below the truth for planets smaller than about
       3 Earth radii, by a factor of ten in the smallest bin.
 ---
-OBJECT = "#EC5F3E"   # the colour of single objects in these docs
+from binference.plotting import SAMPLE_COLOR
 radius = 10 ** log_radius
 mean = fit.rates.mean(axis=0)
 lo, hi = fit.interval(0.68, which="rates")
-fig, ax = plt.subplots(figsize=(6, 4.8))
+fig, ax = plt.subplots()
+fig.set_figheight(3.8)
 ax.errorbar(radius, mean, yerr=[mean - lo, hi - mean], fmt="o", color="C0", ms=7,
             capsize=3, label="binference")
 ax.plot(radius, rate_true, "k--", lw=1.5, label="truth")
-ax.plot(radius, naive, "s", color=OBJECT, ms=7, label="detected / stars")
+ax.plot(radius, naive, "s", color=SAMPLE_COLOR, ms=7, label="detected / stars")
 ax.set(xscale="log", yscale="log", xlabel=r"planet radius [$R_\oplus$]",
        ylabel="planets per star")
 ax.legend(ncol=2, loc="lower left", bbox_to_anchor=(0, 1));
@@ -188,7 +179,8 @@ mystnb:
       2.5. In the bottom one the population drops to zero at the cut, while the truth
       continues.
 ---
-fig, axes = plt.subplots(2, 1, figsize=(6, 6.4), sharex=True, sharey=True)
+fig, axes = plt.subplots(2, 1, sharex=True, sharey=True)
+fig.set_figheight(5.1)
 for ax, (name, res) in zip(axes, fits.items()):
     res.plot(ax=ax, truth=rho_true, label="median")
     ax.set_title(name, loc="left")

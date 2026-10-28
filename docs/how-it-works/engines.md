@@ -134,8 +134,7 @@ from binference import Bins, PopulationModel
 from binference.diagnostics import autocorr_time
 from binference.samplers import MAP, Gibbs
 
-plt.rcParams["font.size"] = 12
-INK2 = "#5D5F86"
+INK2 = plt.rcParams["xtick.color"]
 K, N = 10, 1000
 bins = Bins.linear(0.0, 1.0, K)
 # every bin populated: half uniform, half the bimodal shape
@@ -157,7 +156,7 @@ models = {w: model_for(w) for w in widths}
 f = np.array([missing(models[w]) for w in widths])
 fm = dict(zip(widths, f))
 
-fig, ax = plt.subplots(figsize=(4.8, 3.4), constrained_layout=True)
+fig, ax = plt.subplots()
 ax.plot(widths, f, color="C0")
 for w in marked:
     ax.plot(w, fm[w], "o", color="C0", ms=7)
@@ -192,7 +191,8 @@ mystnb:
       time.
     name: fig-gibbs-traces
 ---
-fig, axes = plt.subplots(3, 1, figsize=(4.8, 6.0), sharex=True, constrained_layout=True)
+fig, axes = plt.subplots(3, 1, sharex=True)
+fig.set_figheight(6.0)
 for ax, w in zip(axes, marked):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", binference.BinferenceWarning)
@@ -201,10 +201,10 @@ for ax, w in zip(axes, marked):
     k = int(np.argmax(taus))
     ax.plot(chain[:400, k], color="C0", lw=1.2)
     ax.set_title(
-        f"width {w:g} bin{'s' if w != 1 else ''}: " + r"$\tau_{\rm int}$"
+        f"{w:g} bin{'s' if w != 1 else ''}: " + r"$\tau_{\rm int}$"
         + f" predicted {(1 + fm[w]) / (1 - fm[w]):.0f}, "
         f"measured {taus[k]:.0f}",
-        fontsize=12, loc="left", color=INK2,
+        loc="left", color=INK2,
     )
     ax.set_ylabel(rf"$\rho_{{{k + 1}}}$")
 axes[-1].set_xlabel("iteration")

@@ -16,16 +16,6 @@ on a small catalogue. It shows how binference infers the smoothness
 priors.
 
 ```{code-cell} python
-:tags: [remove-cell]
-
-# figures 6 in wide with 17 pt text keep text above 12 px on a 390 px phone screen
-import matplotlib.pyplot as plt
-
-plt.rcParams.update({"figure.figsize": (6, 3.4), "font.size": 17,
-                     "figure.constrained_layout.use": True})
-```
-
-```{code-cell} python
 import warnings
 
 import matplotlib.pyplot as plt
@@ -67,7 +57,8 @@ mystnb:
       Under the random walk and the Gaussian process the bands are narrow and smooth,
       and follow the dashed truth with its two peaks.
 ---
-fig, axes = plt.subplots(4, 1, figsize=(6, 11), sharex=True, sharey=True)
+fig, axes = plt.subplots(4, 1, sharex=True, sharey=True)
+fig.set_figheight(8.8)
 for ax, (name, res) in zip(axes, fits.items()):
     res.plot(ax=ax, truth=mock.truth.rho, label="median")
     ax.set_title(name, loc="left")
@@ -118,7 +109,8 @@ mystnb:
 ---
 gp = fits["Gaussian process"]
 hyper = gp.info["hyperparameters"]
-fig, axes = plt.subplots(2, 1, figsize=(6, 5.6))
+fig, axes = plt.subplots(2, 1)
+fig.set_figheight(4.5)
 for ax, (name, draws) in zip(axes, hyper.items()):
     ax.hist(draws.ravel(), bins=40, color="C0", alpha=0.8)
     ax.set(xlabel=name, ylabel="draws")
@@ -180,7 +172,7 @@ mystnb:
 ref = binference.simulate.population(bins, "gaussian")   # a deliberately wrong reference
 centred = binference.infer(lk, priors.LogisticGP(mean=np.log(ref)), method="nuts", rng=1,
                            n_samples=300, n_warmup=300, n_jobs=-1)
-fig, ax = plt.subplots(figsize=(6, 4.2))
+fig, ax = plt.subplots()
 centred.plot(ax=ax, truth=mock.truth.rho, label="median")
 ax.step(bins.edges[0], np.append(ref, ref[-1]) / bins.volumes[0], where="post",
         color="0.45", lw=1.2, label="reference")

@@ -250,6 +250,7 @@ Figures of a population, its draws, the per-object posteriors and calibration.
    plot_trace
    plot_individual
    plot_sbc
+   SAMPLE_COLOR
 ```
 
 ## Saving and loading
