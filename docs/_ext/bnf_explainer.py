@@ -24,6 +24,15 @@ JSON = Path(__file__).parent / "explainers.json"
 
 def _control(fid: str, c: dict) -> str:
     cid = f"{fid}-{c['name']}"
+    if "options" in c:  # a choice among names; the state holds the index of the chosen one
+        options = "".join(
+            f'<option value="{i}"{" selected" * (i == c["value"])}>{escape(o)}</option>'
+            for i, o in enumerate(c["options"])
+        )
+        return (
+            f'<label for="{cid}">{escape(c["label"])}</label>'
+            f'<select id="{cid}" name="{c["name"]}" disabled>{options}</select>'
+        )
     value = f"{c['value']:.{len(str(c['step']).partition('.')[2])}f}"
     return (
         f'<label for="{cid}">{escape(c["label"])}</label>'

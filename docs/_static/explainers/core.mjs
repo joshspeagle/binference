@@ -7,7 +7,7 @@
 // 390 px phone, above figure-text (12 px; docs/_scripts/brand.py).
 const WIDTH = 400;
 
-function rng(seed) { // mulberry32: uniform numbers in (0, 1)
+export function rng(seed) { // mulberry32: uniform numbers in (0, 1)
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -17,7 +17,37 @@ function rng(seed) { // mulberry32: uniform numbers in (0, 1)
   };
 }
 
-const normal = (u) => Math.sqrt(-2 * Math.log(u())) * Math.cos(2 * Math.PI * u());
+export const normal = (u) => Math.sqrt(-2 * Math.log(u())) * Math.cos(2 * Math.PI * u());
+
+// The logarithm of a Gamma(a, 1) draw (Marsaglia & Tsang), shapes below one boosted in log
+// space so that small concentrations do not underflow.
+function logGamma(a, u) {
+  if (a < 1) return logGamma(a + 1, u) + Math.log(u()) / a;
+  const d = a - 1 / 3, c = 1 / Math.sqrt(9 * d);
+  for (;;) {
+    let x, v;
+    do { x = normal(u); v = 1 + c * x; } while (v <= 0);
+    v = v * v * v;
+    if (Math.log(u()) < 0.5 * x * x + d - d * v + d * Math.log(v)) return Math.log(d * v);
+  }
+}
+
+// A Dir(alpha) draw: the softmax of log-gamma variates, floored at 1e-300 (_dirichlet_draw).
+export const dirichlet = (alpha, u) => softmax(alpha.map((a) => logGamma(a, u))).map((x) => Math.max(x, 1e-300));
+
+// A draw of the 2^levels bin fractions of a Polya tree with a flat base measure (PolyaTree):
+// each split at depth h (the root has h = 1) is Dir(c h^power, c h^power).
+export function polya(levels, c, u, power = 2) {
+  let rho = [1];
+  for (let h = 1; h <= levels; h++) {
+    const a = c * h ** power;
+    rho = rho.flatMap((r) => { // a Beta(a, a) share, from two log-gamma variates
+      const v = 1 / (1 + Math.exp(logGamma(a, u) - logGamma(a, u)));
+      return [Math.max(r * v, 1e-300), Math.max(r * (1 - v), 1e-300)];
+    });
+  }
+  return rho;
+}
 
 function Phi(x) { // the standard normal CDF, through erfc (W. J. Cody's rational fit, error < 1.2e-7)
   const z = Math.abs(x) / Math.SQRT2, t = 1 / (1 + 0.5 * z);
@@ -28,11 +58,16 @@ function Phi(x) { // the standard normal CDF, through erfc (W. J. Cody's rationa
 }
 
 export const fmt = (x, d) => (x < 0 ? "−" : "") + Math.abs(x).toFixed(d);
-const num = (x) => +x.toFixed(2);
+// A number in subscript digits, for labels such as ρ₄.
+export const sub = (n) => String(n).replace(/\d/g, (d) => "₀₁₂₃₄₅₆₇₈₉"[d]);
+export const num = (x) => +x.toFixed(2);
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 
 export const linspace = (a, b, n) => Array.from({ length: n }, (_, i) => a + ((b - a) * i) / (n - 1));
-export const normalise = (w) => { const s = w.reduce((a, b) => a + b, 0); return w.map((x) => x / s); };
+export const sum = (x) => x.reduce((a, b) => a + b, 0);
+export const mean = (x) => sum(x) / x.length;
+export const normalise = (w) => { const s = sum(w); return w.map((x) => x / s); };
+export const softmax = (eta) => { const top = Math.max(...eta); return normalise(eta.map((x) => Math.exp(x - top))); };
 // The mean of z under bin masses m, each bin's mass at its centre.
 export const meanZ = (m, edges) => m.reduce((s, x, k) => s + (x * (edges[k] + edges[k + 1])) / 2, 0);
 
@@ -45,11 +80,13 @@ export const posterior = (row, rho) => normalise(row.map((l, k) => l * rho[k]));
 
 // EM from a flat population: element t is the population after t steps, each step the mean of
 // the objects' posteriors (PopulationModel.expected_counts(rho) / N). Element 1 is the stack.
+// Each posterior is computed as in posterior(), into one buffer: allocating it per object made
+// V-4's 200 steps two to three times slower.
 export function emPath(L, steps) {
   const K = L[0].length, w = new Float64Array(K), path = [new Array(K).fill(1 / K)];
   for (let t = 0; t < steps; t++) {
     const rho = path[t], next = new Array(K).fill(0);
-    for (const row of L) { // posterior(row, rho), without allocating it
+    for (const row of L) {
       let s = 0;
       for (let k = 0; k < K; k++) { w[k] = row[k] * rho[k]; s += w[k]; }
       for (let k = 0; k < K; k++) next[k] += w[k] / s / L.length;
@@ -59,25 +96,34 @@ export function emPath(L, steps) {
   return path;
 }
 
-// The mock population: two normal peaks, cut to [0, 3].
-const PEAKS = [[0.6, 0.9, 0.25], [0.4, 2.1, 0.3]]; // weight, centre, width
+// The mock population: two normal peaks, cut to the domain [0, Z]. mock() and truth() work on
+// this domain only; their edges must span it.
+const Z = 3, PEAKS = [[0.6, 0.9, 0.25], [0.4, 2.1, 0.3]]; // weight, centre, width
 
-// n true values from the mock population, each measured with Gaussian error sigma, as the
-// likelihood matrix on the edges.
-export function mock(n, sigma, edges, seed) {
+// n true values from the mock population, a share flat of them drawn uniformly on [0, 3]
+// instead, each measured with Gaussian error sigma, as the likelihood matrix on the edges.
+export function mock(n, sigma, edges, seed, flat = 0) {
   const u = rng(seed), z = [];
   while (z.length < n) {
+    if (flat && u() < flat) { z.push(Z * u()); continue; }
     const [, c, w] = u() < PEAKS[0][0] ? PEAKS[0] : PEAKS[1], v = c + w * normal(u);
-    if (v > 0 && v < 3) z.push(v);
+    if (v > 0 && v < Z) z.push(v);
   }
   return { z, L: z.map((v) => binAverages(v + sigma * normal(u), sigma, edges)) };
 }
 
-// The mock population's masses in each bin.
-export function truth(edges) {
+// The masses in each bin of the population mock() draws from, with the same flat share.
+// mock() redraws a value of the peaks that falls outside [0, 3] from the start, so the flat
+// share of the values it keeps is flat / (flat + (1 - flat) q), with q the peaks' mass inside.
+export function truth(edges, flat = 0) {
   const cdf = (x) => PEAKS.reduce((s, [a, c, w]) => s + a * Phi((x - c) / w), 0);
-  return normalise(edges.slice(1).map((b, k) => cdf(b) - cdf(edges[k])));
+  const q = cdf(Z) - cdf(0), share = flat / (flat + (1 - flat) * q);
+  return edges.slice(1).map((b, k) => share * (b - edges[k]) / Z + (1 - share) * (cdf(b) - cdf(edges[k])) / q);
 }
+
+// The legend of three draws from a prior: their lines differ in dash as well as colour, so
+// they stay apart in greyscale.
+export const DRAWS = [["brand", "draw 1"], ["cat1 dashed", "draw 2"], ["cat2 dotted", "draw 3"]];
 
 // Round tick values from 0 to at least max: at most five, at steps of 1, 2, 2.5 or 5 times a power of 10.
 function ticks(max) {
@@ -92,7 +138,7 @@ function ticks(max) {
 export function plot({ h = 250, edges, ymax, ylabel, key, xlabel = "true value z" }) {
   const x = [edges[0], edges[edges.length - 1]], xticks = ticks(x[1]);
   const yticks = ticks(ymax), top = yticks[yticks.length - 1], band = 22 * Math.ceil(key.length / 2);
-  const m = { l: 58, r: 12, t: 12 + band, b: 48 };
+  const m = { l: 58, r: 16, t: 12 + band, b: 48 };
   h += band;
   const sx = (v) => m.l + ((v - x[0]) / (x[1] - x[0])) * (WIDTH - m.l - m.r);
   const sy = (v) => h - m.b - (Math.min(v, top) / top) * (h - m.t - m.b);
