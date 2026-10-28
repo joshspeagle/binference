@@ -78,39 +78,36 @@ export const binAverages = (d, sigma, edges) =>
 // An object's posterior masses r_k = L_k rho_k / sum_j L_j rho_j (PopulationModel.responsibilities).
 export const posterior = (row, rho) => normalise(row.map((l, k) => l * rho[k]));
 
-// One EM step: the mean of the objects' posteriors (PopulationModel.expected_counts(rho) / N),
-// and the log-likelihood at rho. Each posterior is computed as in posterior(), into one buffer:
-// allocating it per object made V-4's 200 steps two to three times slower.
-export function emStep(L, rho) {
-  const K = rho.length, w = new Float64Array(K), next = new Array(K).fill(0);
-  let loglike = 0;
-  for (const row of L) {
-    let s = 0;
-    for (let k = 0; k < K; k++) { w[k] = row[k] * rho[k]; s += w[k]; }
-    for (let k = 0; k < K; k++) next[k] += w[k] / s / L.length;
-    loglike += Math.log(s);
-  }
-  return [next, loglike];
-}
-
-// EM from a flat population: element t is the population after t steps. Element 1 is the stack.
+// EM from a flat population: element t is the population after t steps, each step the mean of
+// the objects' posteriors (PopulationModel.expected_counts(rho) / N). Element 1 is the stack.
+// Each posterior is computed as in posterior(), into one buffer: allocating it per object made
+// V-4's 200 steps two to three times slower.
 export function emPath(L, steps) {
-  const path = [new Array(L[0].length).fill(1 / L[0].length)];
-  for (let t = 0; t < steps; t++) path.push(emStep(L, path[t])[0]);
+  const K = L[0].length, w = new Float64Array(K), path = [new Array(K).fill(1 / K)];
+  for (let t = 0; t < steps; t++) {
+    const rho = path[t], next = new Array(K).fill(0);
+    for (const row of L) {
+      let s = 0;
+      for (let k = 0; k < K; k++) { w[k] = row[k] * rho[k]; s += w[k]; }
+      for (let k = 0; k < K; k++) next[k] += w[k] / s / L.length;
+    }
+    path.push(next);
+  }
   return path;
 }
 
-// The mock population: two normal peaks, cut to [0, 3].
-const PEAKS = [[0.6, 0.9, 0.25], [0.4, 2.1, 0.3]]; // weight, centre, width
+// The mock population: two normal peaks, cut to the domain [0, Z]. mock() and truth() work on
+// this domain only; their edges must span it.
+const Z = 3, PEAKS = [[0.6, 0.9, 0.25], [0.4, 2.1, 0.3]]; // weight, centre, width
 
 // n true values from the mock population, a share flat of them drawn uniformly on [0, 3]
 // instead, each measured with Gaussian error sigma, as the likelihood matrix on the edges.
 export function mock(n, sigma, edges, seed, flat = 0) {
   const u = rng(seed), z = [];
   while (z.length < n) {
-    if (flat && u() < flat) { z.push(3 * u()); continue; }
+    if (flat && u() < flat) { z.push(Z * u()); continue; }
     const [, c, w] = u() < PEAKS[0][0] ? PEAKS[0] : PEAKS[1], v = c + w * normal(u);
-    if (v > 0 && v < 3) z.push(v);
+    if (v > 0 && v < Z) z.push(v);
   }
   return { z, L: z.map((v) => binAverages(v + sigma * normal(u), sigma, edges)) };
 }
@@ -120,13 +117,13 @@ export function mock(n, sigma, edges, seed, flat = 0) {
 // share of the values it keeps is flat / (flat + (1 - flat) q), with q the peaks' mass inside.
 export function truth(edges, flat = 0) {
   const cdf = (x) => PEAKS.reduce((s, [a, c, w]) => s + a * Phi((x - c) / w), 0);
-  const q = cdf(3) - cdf(0), share = flat / (flat + (1 - flat) * q);
-  return edges.slice(1).map((b, k) => share * (b - edges[k]) / 3 + (1 - share) * (cdf(b) - cdf(edges[k])) / q);
+  const q = cdf(Z) - cdf(0), share = flat / (flat + (1 - flat) * q);
+  return edges.slice(1).map((b, k) => share * (b - edges[k]) / Z + (1 - share) * (cdf(b) - cdf(edges[k])) / q);
 }
 
 // The legend of three draws from a prior: their lines differ in dash as well as colour, so
 // they stay apart in greyscale.
-export const DRAWS = [["brand", "draw 1"], ["cat1 dash", "draw 2"], ["cat2 dotted", "draw 3"]];
+export const DRAWS = [["brand", "draw 1"], ["cat1 dashed", "draw 2"], ["cat2 dotted", "draw 3"]];
 
 // Round tick values from 0 to at least max: at most five, at steps of 1, 2, 2.5 or 5 times a power of 10.
 function ticks(max) {

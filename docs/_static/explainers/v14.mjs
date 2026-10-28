@@ -91,18 +91,18 @@ export const controls = [
 const { min, max, step } = controls[0];
 const CASES = linspace(min, max, Math.round((max - min) / step) + 1).map((width) => {
   const { L } = mock(N, width * BIN, EDGES, 14, FLAT);
-  return { width, L, rho: RHO, f: missing(L, RHO) };
+  return { width, L, f: missing(L, RHO) };
 });
 
 export function compute({ width }) {
   const c = CASES[Math.round((width - min) / step)];
   if (!c.chain) {
-    c.chain = gibbs(c.L, c.rho, 5);
-    const ac = c.rho.map((_, k) => lag1(c.chain.map((r) => r[k])));
+    c.chain = gibbs(c.L, RHO, 5);
+    const ac = RHO.map((_, k) => lag1(c.chain.map((r) => r[k])));
     c.bin = ac.indexOf(Math.max(...ac));
     c.lag1 = ac[c.bin];
   }
-  return c;
+  return { ...c, rho: RHO };
 }
 
 export const readout = (state, { f, bin, lag1: a }) =>

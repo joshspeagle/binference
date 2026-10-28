@@ -20,7 +20,7 @@ export function compute({ loga }) {
 export function readout(state, { alpha, draws }) {
   const x = draws.map((d) => d[0]), m = mean(x);
   const sd = Math.sqrt(x.reduce((a, v) => a + (v - m) ** 2, 0) / (N - 1));
-  return `α = ${+alpha.toPrecision(2)}: SD of each fraction ${fmt(sd, 3)} (Dirichlet ${fmt(Math.sqrt(2 / 9 / (3 * alpha + 1)), 3)})`;
+  return `α = ${+alpha.toPrecision(2)}: SD of ρ₁ ${fmt(sd, 3)} (Dirichlet ${fmt(Math.sqrt(2 / 9 / (3 * alpha + 1)), 3)})`;
 }
 
 export function draw({ loga }, { draws }) {

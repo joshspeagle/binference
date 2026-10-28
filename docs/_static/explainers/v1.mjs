@@ -24,10 +24,10 @@ export const readout = (state, { share }) =>
 export function draw({ sigma }, { edges, L }) {
   const peak = 1 / (sigma * Math.sqrt(2 * Math.PI));
   const p = plot({ edges, ymax: 1.05 * peak, ylabel: "likelihood",
-    key: [["sample dashed", "likelihood ℓ(z)"], ["sample", "bin averages L"]] });
+    key: [["sample dashed thin", "likelihood ℓ(z)"], ["sample", "bin averages L"]] });
   const alt = `A dashed bell curve of width ${fmt(sigma, 2)} centred on z = ${D}, and steps at its ` +
     `average over each of ${L.length} bins.`;
   return svg(p.h, alt,
     edges.map((e) => p.vline(e, "grid")).join("") + p.stairs(L, "fill-sample") + p.stairs(L, "sample") +
-    p.line(Z, Z.map((z) => peak * Math.exp(-0.5 * ((z - D) / sigma) ** 2)), "sample dashed") + p.axes());
+    p.line(Z, Z.map((z) => peak * Math.exp(-0.5 * ((z - D) / sigma) ** 2)), "sample dashed thin") + p.axes());
 }

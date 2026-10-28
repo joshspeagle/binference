@@ -22,6 +22,7 @@ function start(fig) {
       plot.innerHTML = ex.draw(s, c);
       out.textContent = ex.readout(s, c);
     };
+    update(); // a value the browser restored on reload is drawn at once
     for (const i of inputs) {
       i.disabled = false;
       i.addEventListener("input", () => { if (!pending) { pending = true; requestAnimationFrame(update); } });

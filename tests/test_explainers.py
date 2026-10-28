@@ -113,8 +113,11 @@ def test_prior_explainer_correlations_match_binference_prior_draws(prior, s):
     n, batches = 2000, 20  # the explainer's 2,000 draws; binference's 20 times as many
     draws = model.sample_prior(n * batches, rng=3)
     se = _batch_correlation_se(draws, n)
-    # the explainer's error and binference's (sqrt(20) times smaller), 5 standard errors
-    tol = 5 * se * np.sqrt(1 + 1 / batches) + 1e-12  # the diagonal is 1 in both
+    # the explainer's error and binference's (sqrt(20) times smaller). The standard error comes
+    # from 20 batches, so each entry's ratio is Student t with 19 degrees of freedom; the
+    # quantile keeps a false failure below 1e-3 over the 120 distinct entries of all 8 cases
+    t19 = stats.t.ppf(1 - 1e-3 / (2 * 120 * 8), batches - 1)
+    tol = t19 * se * np.sqrt(1 + 1 / batches) + 1e-12  # the diagonal is 1 in both
     np.testing.assert_array_less(np.abs(corr - np.corrcoef(draws, rowvar=False)), tol)
 
 
@@ -160,7 +163,8 @@ def test_missing_information_explainer_matches_binference_at_the_mock_population
     )
 
 
-@pytest.mark.parametrize("width", [0.05, 0.3, 0.6])
+# at 0.6 bins the 400-step chain holds about 4 independent draws, too few to test anything
+@pytest.mark.parametrize("width", [0.05, 0.3])
 def test_missing_information_explainer_gibbs_draws_the_binference_posterior(width):
     v14 = explainer("v14", width=width)
     model = binference.PopulationModel(binference.Likelihoods(np.array(v14["L"])))
@@ -175,6 +179,7 @@ def test_missing_information_explainer_gibbs_draws_the_binference_posterior(widt
 
 
 def test_a_control_with_options_is_a_disabled_select_with_its_default_chosen(monkeypatch):
+    pytest.importorskip("sphinx")  # the docs job installs it; the test matrix does not
     monkeypatch.syspath_prepend(str(DOCS / "_ext"))
     from bnf_explainer import _control
 
