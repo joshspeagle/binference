@@ -218,7 +218,7 @@ jobs:
       - name: Check that a release version is also in CITATION.cff and CHANGELOG.md
         run: |
           version=$(python -I -c "import runpy; print(runpy.run_path('src/binference/_version.py')['__version__'])")
-          case "$version" in *dev*|*rc*) exit 0 ;; esac
+          case "$version" in *dev*) exit 0 ;; esac
           grep -qx "version: $version" CITATION.cff || { echo "::error::CITATION.cff does not give version $version"; exit 1; }
           grep -q "^## \[$version\]" CHANGELOG.md || { echo "::error::CHANGELOG.md has no section [$version]"; exit 1; }
       - run: pip install build twine
