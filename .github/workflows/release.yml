@@ -6,35 +6,54 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    tags: ["v[0-9]*"]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# Two runs for one ref never upload at once.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: read
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0  # the main check below needs the history
+          persist-credentials: false
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - if: github.event_name == 'push'
-        name: Check that the tag names the package version and is on main
+        name: Check the tag against the version, main and CI
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          fail() { echo "::error::$1"; exit 1; }
           version=$(python -I -c "import runpy; print(runpy.run_path('src/binference/_version.py')['__version__'])")
-          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
-            echo "::error::tag $GITHUB_REF_NAME does not match the package version $version"
-            exit 1
-          fi
-          git merge-base --is-ancestor HEAD origin/main || { echo "::error::$GITHUB_REF_NAME is not on main"; exit 1; }
+          [ "$GITHUB_REF_NAME" = "v$version" ] || fail "tag $GITHUB_REF_NAME is not v$version, the package version"
+          grep -qx "version: $version" CITATION.cff || fail "CITATION.cff does not give version $version"
+          grep -q "^## \[$version\]" CHANGELOG.md || fail "CHANGELOG.md has no section [$version]"
+          git merge-base --is-ancestor HEAD origin/main || fail "$GITHUB_REF_NAME is not on main"
+          ci=$(gh api "repos/$GITHUB_REPOSITORY/commits/$(git rev-parse HEAD)/check-runs?check_name=ci-ok" \
+            --jq '[.check_runs[] | select(.app.slug == "github-actions") | .conclusion] | first')
+          [ "$ci" = "success" ] || fail "CI's ci-ok check on this commit is '$ci', not success; re-run this workflow once it passes"
       - run: pip install build twine
       - run: python -m build
       - run: twine check --strict dist/*
+      # -I keeps the working directory off the import path.
+      - run: |
+          python -m venv "$RUNNER_TEMP/clean"
+          "$RUNNER_TEMP/clean/bin/python" -m pip install dist/*.whl
+          "$RUNNER_TEMP/clean/bin/python" -I -c "import binference; print(binference.__version__)"
       - uses: actions/upload-artifact@v4
         with:
           name: dist
