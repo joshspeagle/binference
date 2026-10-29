@@ -102,3 +102,34 @@ pytest tests/test_explainers.py
   bring `main` into a branch with a merge, not a rebase.
 * CI is defined in `.github/workflows/ci.yml`; label a pull request `slow` to run the
   slow statistical suite on it. Pushes to `main` publish the docs to GitHub Pages.
+
+## Releasing
+
+Releases go to PyPI from `.github/workflows/release.yml` through trusted publishing; no
+token is stored anywhere. The publishers on PyPI and TestPyPI name that file and the
+environments `pypi` and `testpypi`.
+
+1. In a pull request: set the version in `src/binference/_version.py` and in
+   `CITATION.cff` (with `date-released`), and turn *Unreleased* in `CHANGELOG.md` into
+   the version and date.
+2. Rehearse: run the Release workflow by hand on that branch (Actions → Release → Run
+   workflow). It uploads to TestPyPI; check the page and install it in a clean
+   environment:
+
+   ```bash
+   pip install --index-url https://test.pypi.org/simple/ \
+       --extra-index-url https://pypi.org/simple/ "binference==X.Y.Z"
+   ```
+
+   An index accepts each version once, so a second rehearsal needs a new version
+   (`X.Y.Zrc2`, say).
+3. Merge the pull request, then tag the merge commit on `main` and push the tag:
+
+   ```bash
+   git tag -a vX.Y.Z -m "binference X.Y.Z" && git push origin vX.Y.Z
+   ```
+
+   The workflow refuses a tag that is not `v` plus the package version or not on `main`.
+4. Create the GitHub release from the tag, with the version's CHANGELOG section as notes.
+5. In the next pull request, set the version to the next `.dev0` and open a new
+   *Unreleased* section.
