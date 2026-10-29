@@ -467,3 +467,5 @@ Append-only. One entry per working session (or per step within a long session).
   reviews Josh wants first.
 - #143 merged. #144: Josh does not need the TestPyPI rehearsal; the release workflow
   now only publishes a tag on `main` to PyPI (DECISIONS #105).
+- #146: release 0.1.0 prepared: version, citation, dated CHANGELOG section, install from
+  PyPI in the README and install page. Josh tags `v0.1.0` after merge.

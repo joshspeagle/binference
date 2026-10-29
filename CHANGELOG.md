@@ -5,9 +5,9 @@ All notable changes to binference are recorded here. The format follows
 [Semantic Versioning](https://semver.org/) (with the usual 0.x caveat that minor
 releases may break the API).
 
-## [Unreleased] - 0.1.0.dev0
+## [0.1.0] - 2026-10-29
 
-First development version.
+First release.
 
 ### Changed (landing on `main`)
 

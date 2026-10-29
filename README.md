@@ -19,7 +19,7 @@ population.
 ## Install
 
 ```bash
-pip install "binference[plot] @ git+https://github.com/joshspeagle/binference"
+pip install "binference[plot]"
 ```
 
 The [installation page](https://joshspeagle.github.io/binference/start/install.html)
