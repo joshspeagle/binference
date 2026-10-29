@@ -10,7 +10,8 @@ type: software
 authors:
   - family-names: Speagle
     given-names: Joshua S.
-version: 0.1.0.dev0
+version: 0.1.0
+date-released: 2026-10-29
 license: MIT
 repository-code: "https://github.com/joshspeagle/binference"
 keywords:
