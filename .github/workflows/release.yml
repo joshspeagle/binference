@@ -15,7 +15,6 @@ permissions:
 # Two runs for one ref never upload at once.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
 
 jobs:
   build:
@@ -27,12 +26,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0  # the main check below needs the history
           persist-credentials: false
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - if: github.event_name == 'push'
+        # CI's dist job checks that CITATION.cff and CHANGELOG.md give a release version.
         name: Check the tag against the version, main and CI
         env:
           GH_TOKEN: ${{ github.token }}
@@ -40,10 +39,10 @@ jobs:
           fail() { echo "::error::$1"; exit 1; }
           version=$(python -I -c "import runpy; print(runpy.run_path('src/binference/_version.py')['__version__'])")
           [ "$GITHUB_REF_NAME" = "v$version" ] || fail "tag $GITHUB_REF_NAME is not v$version, the package version"
-          grep -qx "version: $version" CITATION.cff || fail "CITATION.cff does not give version $version"
-          grep -q "^## \[$version\]" CHANGELOG.md || fail "CHANGELOG.md has no section [$version]"
-          git merge-base --is-ancestor HEAD origin/main || fail "$GITHUB_REF_NAME is not on main"
-          ci=$(gh api "repos/$GITHUB_REPOSITORY/commits/$(git rev-parse HEAD)/check-runs?check_name=ci-ok" \
+          sha=$(git rev-parse HEAD)
+          on_main=$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$sha" --jq '.status')
+          [ "$on_main" = "identical" ] || [ "$on_main" = "behind" ] || fail "$GITHUB_REF_NAME is not on main"
+          ci=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/check-runs?check_name=ci-ok" \
             --jq '[.check_runs[] | select(.app.slug == "github-actions") | .conclusion] | first')
           [ "$ci" = "success" ] || fail "CI's ci-ok check on this commit is '$ci', not success; re-run this workflow once it passes"
       - run: pip install build twine

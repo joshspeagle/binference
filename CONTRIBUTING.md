@@ -128,9 +128,7 @@ environments `pypi` and `testpypi`.
    git tag -a vX.Y.Z -m "binference X.Y.Z" && git push origin vX.Y.Z
    ```
 
-   The workflow refuses a tag that is not `v` plus the package version, a version that
-   `CITATION.cff` or `CHANGELOG.md` does not give, and a commit that is not on `main` or
-   whose CI has not passed.
+   The workflow's first step lists what it checks before anything is uploaded.
 4. Create the GitHub release from the tag, with the version's CHANGELOG section as notes.
 5. In the next pull request, set the version to the next `.dev0` and open a new
    *Unreleased* section.
