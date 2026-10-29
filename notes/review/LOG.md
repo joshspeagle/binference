@@ -455,3 +455,13 @@ Append-only. One entry per working session (or per step within a long session).
 ## 2026-10-28: back to step 3.1
 
 - #140: the 3.1 briefing (`briefings/3.1-dirichlet-family.{md,html}`, and its published page) refreshed after the docs phase. The priors code changed only in docstrings and named constants since 26 October, so the briefing holds; its correlation table, re-measured on `main` (40,000 draws per row, another seed), agrees within Monte Carlo error. It now points to explainers V-7, V-8 and V-9. The five questions are unchanged; the walkthrough resumes at 3.1 with Josh.
+
+## 2026-10-29: release workflow
+
+- #142: Josh asked for the steps to a first PyPI release. The package already built and
+  passed `twine check --strict`; the README renders on PyPI (its one image is an absolute
+  URL). Added `.github/workflows/release.yml` (tag on `main` → PyPI, manual run →
+  TestPyPI, trusted publishing with environments `pypi` and `testpypi`, as Josh
+  registered them) and a Releasing section in `CONTRIBUTING.md`. Josh chose 0.1.0, not a
+  pre-release, for the first version (DECISIONS #104). The release itself waits for the
+  reviews Josh wants first.
