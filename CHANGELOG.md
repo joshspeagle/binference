@@ -19,8 +19,8 @@ First development version.
 - CI runs the pre-commit hooks, the fast suite on three systems with Python 3.13 and
   3.14, minimum dependencies, the README and user-guide code, the docs build and a
   clean-wheel import; pushes to `main` publish the docs to GitHub Pages.
-- Releases: a tag `vX.Y.Z` on `main` publishes to PyPI, and a manual run of the Release
-  workflow to TestPyPI, both by trusted publishing (DECISIONS #104).
+- Releases: a tag `vX.Y.Z` on `main` publishes to PyPI by trusted publishing
+  (DECISIONS #104, #105).
 - Development process: issue and pull-request templates and the rules in `CLAUDE.md` and
   `CONTRIBUTING.md`.
 - The prior base class is now `binference.priors.PopulationPrior` (was `Prior`).

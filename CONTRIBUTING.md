@@ -106,29 +106,20 @@ pytest tests/test_explainers.py
 ## Releasing
 
 Releases go to PyPI from `.github/workflows/release.yml` through trusted publishing; no
-token is stored anywhere. The publishers on PyPI and TestPyPI name that file and the
-environments `pypi` and `testpypi`.
+token is stored anywhere. The publisher on PyPI names that file and the environment
+`pypi`.
 
-1. In a pull request, rehearse: set `src/binference/_version.py` to `X.Y.Zrc1` and run
-   the Release workflow by hand on that branch (Actions → Release → Run workflow). It
-   uploads to TestPyPI; check the page and install it in a clean environment:
-
-   ```bash
-   pip install --index-url https://test.pypi.org/simple/ \
-       --extra-index-url https://pypi.org/simple/ "binference==X.Y.Zrc1"
-   ```
-
-   An index accepts each version once, so after a fix rehearse again as `rc2`.
-2. Once a rehearsal is clean, set the version to `X.Y.Z` in `_version.py` and in
+1. In a pull request, set the version to `X.Y.Z` in `src/binference/_version.py` and in
    `CITATION.cff` (with `date-released`), and turn *Unreleased* in `CHANGELOG.md` into
    `## [X.Y.Z] - YYYY-MM-DD`.
-3. Merge the pull request, then tag the merge commit on `main` and push the tag:
+2. Merge the pull request, then tag the merge commit on `main` and push the tag:
 
    ```bash
    git tag -a vX.Y.Z -m "binference X.Y.Z" && git push origin vX.Y.Z
    ```
 
-   The workflow's first step lists what it checks before anything is uploaded.
-4. Create the GitHub release from the tag, with the version's CHANGELOG section as notes.
-5. In the next pull request, set the version to the next `.dev0` and open a new
+   The workflow's step "Check the tag against the version, main and CI" lists what it
+   checks before anything is uploaded.
+3. Create the GitHub release from the tag, with the version's CHANGELOG section as notes.
+4. In the next pull request, set the version to the next `.dev0` and open a new
    *Unreleased* section.

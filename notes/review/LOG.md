@@ -465,3 +465,5 @@ Append-only. One entry per working session (or per step within a long session).
   registered them) and a Releasing section in `CONTRIBUTING.md`. Josh chose 0.1.0, not a
   pre-release, for the first version (DECISIONS #104). The release itself waits for the
   reviews Josh wants first.
+- #143 merged. #144: Josh does not need the TestPyPI rehearsal; the release workflow
+  now only publishes a tag on `main` to PyPI (DECISIONS #105).
