@@ -107,7 +107,8 @@ pytest tests/test_explainers.py
 
 Releases go to PyPI from `.github/workflows/release.yml` through trusted publishing; no
 token is stored anywhere. The publisher on PyPI names that file and the environment
-`pypi`.
+`pypi`. The same workflow then creates the GitHub release, with the version's CHANGELOG
+section as notes and the wheel and sdist attached.
 
 1. In a pull request, set the version to `X.Y.Z` in `src/binference/_version.py` and in
    `CITATION.cff` (with `date-released`), and turn *Unreleased* in `CHANGELOG.md` into
@@ -118,8 +119,8 @@ token is stored anywhere. The publisher on PyPI names that file and the environm
    git tag -a vX.Y.Z -m "binference X.Y.Z" && git push origin vX.Y.Z
    ```
 
-   The workflow's step "Check the tag against the version, main and CI" lists what it
-   checks before anything is uploaded.
-3. Create the GitHub release from the tag, with the version's CHANGELOG section as notes.
-4. In the next pull request, set the version to the next `.dev0` and open a new
+   Push the tag once CI on the merge commit has passed: a tag pushed earlier fails the
+   step "Check the tag against the version, main and CI", which lists what is checked
+   before anything is uploaded, and its run can be re-run once CI is green.
+3. In the next pull request, set the version to the next `.dev0` and open a new
    *Unreleased* section.

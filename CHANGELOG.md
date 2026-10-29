@@ -5,6 +5,11 @@ All notable changes to binference are recorded here. The format follows
 [Semantic Versioning](https://semver.org/) (with the usual 0.x caveat that minor
 releases may break the API).
 
+## [Unreleased]
+
+- The Release workflow also creates the GitHub release, with the version's CHANGELOG
+  section as notes and the wheel and sdist attached (DECISIONS #106).
+
 ## [0.1.0] - 2026-10-29
 
 First release.
