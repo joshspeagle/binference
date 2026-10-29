@@ -77,7 +77,7 @@ Order is a proposal: Josh may jump around. Rough default levels in brackets.
 
 ### Phase 8. Docs, tutorials and infrastructure [L1–L2]
 - 8.1 User guide, theory page, tutorials: what they teach and in what order.
-- 8.2 Packaging, dependencies, CI, contributing, citation, release plan (name, Python floor, publicity, JOSS).
+- 8.2 Packaging, dependencies, CI, contributing, citation, release plan (name, Python floor, publicity, JOSS). Release mechanics done early (#142, DECISIONS #104): the workflow and the steps in `CONTRIBUTING.md`; 0.1.0 is published when Josh calls it.
 
 ### Phase 9. Roadmap
 - 9.1 Priorities beyond v0.1: flows / continuous densities, JAX backend, hierarchical models, others (spec §12).

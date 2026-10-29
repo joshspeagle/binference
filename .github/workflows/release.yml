@@ -1,0 +1,95 @@
+name: Release
+
+# A tag vX.Y.Z on a commit in main publishes that version to PyPI. A manual run, on any
+# branch, publishes the branch's version to TestPyPI as a rehearsal. Both use PyPI's trusted
+# publishing: the publisher registered on each index names this file and the environment.
+
+on:
+  push:
+    tags: ["v[0-9]*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Two runs for one ref never upload at once.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - if: github.event_name == 'push'
+        # CI's dist job checks that CITATION.cff and CHANGELOG.md give a release version.
+        name: Check the tag against the version, main and CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          version=$(python -I -c "import runpy; print(runpy.run_path('src/binference/_version.py')['__version__'])")
+          [ "$GITHUB_REF_NAME" = "v$version" ] || fail "tag $GITHUB_REF_NAME is not v$version, the package version"
+          sha=$(git rev-parse HEAD)
+          on_main=$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$sha" --jq '.status')
+          [ "$on_main" = "identical" ] || [ "$on_main" = "behind" ] || fail "$GITHUB_REF_NAME is not on main"
+          ci=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/check-runs?check_name=ci-ok" \
+            --jq '[.check_runs[] | select(.app.slug == "github-actions") | .conclusion] | first')
+          [ "$ci" = "success" ] || fail "CI's ci-ok check on this commit is '$ci', not success; re-run this workflow once it passes"
+      - run: pip install build twine
+      - run: python -m build
+      - run: twine check --strict dist/*
+      # -I keeps the working directory off the import path.
+      - run: |
+          python -m venv "$RUNNER_TEMP/clean"
+          "$RUNNER_TEMP/clean/bin/python" -m pip install dist/*.whl
+          "$RUNNER_TEMP/clean/bin/python" -I -c "import binference; print(binference.__version__)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  testpypi:
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/binference
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  pypi:
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/p/binference
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
