@@ -1,7 +1,8 @@
 name: Release
 
-# A tag vX.Y.Z on a commit in main publishes that version to PyPI by trusted publishing: the
-# publisher registered on PyPI names this file and the environment.
+# A tag vX.Y.Z on a commit in main publishes that version to PyPI by trusted publishing (the
+# publisher registered on PyPI names this file and the environment), then creates the GitHub
+# release with the version's CHANGELOG section as notes.
 
 on:
   push:
@@ -70,3 +71,28 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    # After the upload, so a GitHub release always has its PyPI version.
+    needs: pypi
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Create the release with the version's CHANGELOG section as notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          awk -v head="## [$version]" '/^## \[/ { p = index($0, head) == 1; next } p' \
+            CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" \
+            --verify-tag --title "binference $version" --notes-file "$RUNNER_TEMP/notes.md"

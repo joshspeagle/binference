@@ -469,3 +469,13 @@ Append-only. One entry per working session (or per step within a long session).
   now only publishes a tag on `main` to PyPI (DECISIONS #105).
 - #146: release 0.1.0 prepared: version, citation, dated CHANGELOG section, install from
   PyPI in the README and install page. Josh tags `v0.1.0` after merge.
+
+## 2026-10-29: binference 0.1.0 on PyPI
+
+- #147 merged at Josh's call while its docs build was still running (every other job had
+  passed); `main`'s full CI then passed on the merge commit.
+- The first `v0.1.0` run stopped at the CI check because the tag was pushed before CI on
+  `main` had finished; nothing was uploaded. Re-run once CI was green, it published 0.1.0.
+  A clean install from PyPI imports 0.1.0 and runs the README example.
+- The GitHub release was missed (a manual step) and must be made by hand for 0.1.0;
+  #148 makes the workflow create it from now on (DECISIONS #106).
