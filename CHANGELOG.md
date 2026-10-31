@@ -463,9 +463,10 @@ First release.
   - per-object posteriors with their interim prior;
   - posterior samples;
   - SciPy distributions and arbitrary likelihood functions;
-  - response matrices (unfolding) and classifier outputs (quantification).
-- **Selection.** `Selection` functions with explicit `"observed"` and `"true"`
-  modes, attached to the data or passed to the model.
+  - response matrices (unfolding) and classifier scores or labels (quantification),
+    as binned measurements with a `Response`.
+- **Selection.** `Selection` functions with explicit `"on_measurement"` and
+  `"on_truth"` modes, attached to the data or passed to the model.
 - **Model.** `PopulationModel` for bin fractions or Poisson rates, with
   log-density and gradient in unconstrained coordinates, expected counts,
   responsibilities, an optimality (KKT) gap and the missing-information fraction.
@@ -476,15 +477,17 @@ First release.
     (Hilbert-space GP) on N-D grids, with inferred hyperparameters.
   - Rates: `GammaRates`.
 - **Engines.**
-  - `NUTS` (default): multinomial NUTS with windowed metric adaptation.
+  - `NUTS`: multinomial NUTS with windowed metric adaptation.
     Smoothness priors get partial non-centring (where the data constrain
     their scales) and a curvature-based dense metric. Chains are resumable
     and can run in parallel processes, which share the cores' BLAS threads
     (via `threadpoolctl`) rather than oversubscribing them.
   - Data-augmentation `Gibbs` for conjugate priors, with selection augmentation.
-  - `MAP` with an optimality certificate: mix-SQP for Dirichlet priors
-    (including maximum likelihood under selection), SQUAREM-accelerated EM
-    for the other conjugate priors, L-BFGS otherwise.
+  - `MAP` with an optimality certificate: mix-SQP for Dirichlet priors with
+    concentrations of at least one (under a selection only `Dirichlet(1)`, which
+    gives maximum likelihood) and for `GammaRates` with shapes of at least one;
+    SQUAREM-accelerated EM for the other conjugate priors whose density is bounded;
+    L-BFGS otherwise.
   - `Laplace` with PSIS importance correction.
   - `MeanFieldVB` (flagged as approximate) and `Bootstrap` (nonparametric or
     Bayesian, over objects, with variable totals for rate models).
