@@ -11,141 +11,137 @@ releases may break the API).
 
 - `describe(bins, counts=None)` on `Dirichlet` and the tree priors draws the tree as
   text: each branch's concentration, mean share and mean mass, or the posterior given
-  counts (DECISIONS #108).
+  counts.
 - `DirichletTree` takes named groups (nested dicts, with bin labels on categorical bins),
   and `alpha` as a dict from group names, and bins as the tree writes them, to the
-  concentration of the branch into each (DECISIONS #108).
+  concentration of the branch into each.
 - `BoundPrior.long_log_tails()`: whether a bin without data has a long tail in the
-  unconstrained coordinates NUTS samples (DECISIONS #109).
+  unconstrained coordinates NUTS samples.
 - `Selection.from_function` and `Selection.combined` take `max_depth`, the most
   refinements of their adaptive quadrature; the default, 20, allows the halvings a jump
-  inside a bin needs (DECISIONS #113).
+  inside a bin needs.
 - `Likelihoods.from_density`, `Density.from_function` and `Density.coerce` take
   `bounded=`: the bin averages of a bounded density, such as a box, and of
   `from_density`'s interim prior given as a function, are checked for jumps near bin
-  edges as a selection function's are, at 13/8 the points per cell in 1-D
-  (DECISIONS #115).
+  edges as a selection function's are, at 13/8 the points per cell in 1-D.
 - `Density` compares by value and is hashable: flat densities by coordinate, arrays by
   their values and reading, frozen SciPy distributions by family and parameters,
-  functions by identity (DECISIONS #119).
+  functions by identity.
 
 ### Changed
 
 - The `test` extra installs scikit-learn 1.6 or later, so the test of
-  `PopulationEstimator` with scikit-learn's model selection runs (DECISIONS #110).
+  `PopulationEstimator` with scikit-learn's model selection runs.
 - `Selection.at_mean()` is renamed `Selection.fixed()`, the name the same operation has
-  on `Response` (DECISIONS #113).
+  on `Response`.
 - A selection function's bin averages are also checked against Lobatto's 5-point rule
   read just inside each cell's ends, so a jump near a cell's edge is refined to `tol`
-  instead of being missed without a warning (DECISIONS #113).
+  instead of being missed without a warning.
 - `Likelihoods.from_samples` refuses NaN and infinite samples, which counted as samples
-  outside the bins (DECISIONS #113).
+  outside the bins.
 - `Likelihoods.from_density` evaluates frozen SciPy distributions of one family in one
   call, for their exact bin masses and for their densities; the densities' check for one
-  family never matched, so each distribution was evaluated separately (DECISIONS #113).
+  family never matched, so each distribution was evaluated separately.
 - `plot(stack=...)` takes the stack as `Likelihoods.stack` returns it, and on a fit with a
   `Basis` shares its component weights among the bins, so `result.plot(stack=lk.stack())`
   works on every fit; it failed with more components than bins and, with as many, drew
   the component weights as bin fractions. A stack mapped to the bins first, as
   `Likelihoods.stack`'s docstring advised, is now refused when the numbers of components
   and bins differ and mapped twice when they agree. A `truth` or `stack` of the wrong
-  length is refused by name (DECISIONS #114).
+  length is refused by name.
 - `PopulationResult` and `PointEstimate` keep read-only copies of every array they are
   given (draws, total, `value`, `x`, labels, and the arrays in `info`), freeze what they
   cache, and stay read-only through pickling: writing into `samples`, `chains`,
   `component_draws`, `total`, `selected`, `data_support` or a column of `summary()`
   raises, `diagnostics` is a read-only mapping, and changing the array passed in no
-  longer changes the result (DECISIONS #117).
+  longer changes the result.
 - `check()` flags Markov chains that give no R-hat or ESS, shorter than 8 draws
-  (`MIXING_MIN_DRAWS`) or constant; they passed with no message (DECISIONS #117).
+  (`MIXING_MIN_DRAWS`) or constant; they passed with no message.
 - `PointEstimate` refuses rates with the same message as `PopulationResult`.
 - `Measure` objects are immutable, as `Bins` are; renaming the shared `Measure.log()`
   broke the saving of bins. `Bins`, `Selection`, `Response` and `Measure` also refuse
-  `del` of an attribute, after which it could be set again (DECISIONS #116).
+  `del` of an attribute, after which it could be set again.
 - `PopulationModel.log_likelihood` refuses a value that is not finite and non-negative,
-  or is all zero; a negative fraction gave a finite log-likelihood (DECISIONS #116).
+  or is all zero; a negative fraction gave a finite log-likelihood.
 - `sbc` ranks the log-likelihood of a model that infers its selection or response in one
-  pass over the draws: the same values, about 11 times faster (DECISIONS #116).
+  pass over the draws: the same values, about 11 times faster.
 - `method="auto"` records first in `info["auto_reason"]` why a rule left Gibbs out, and
-  keeps an extended Gibbs result rather than rebuilding it (DECISIONS #119).
+  keeps an extended Gibbs result rather than rebuilding it.
 - `binference.io` and `binference.plotting` are imported with the package and listed by
   `dir()`; they stay out of `__all__`.
 - The partial-centring weights of the logistic priors' bound form are named `gamma` (was
   `lam`), also in `with_centering` and `recentre`; `info["centring"]` is unchanged.
 - Tree priors take their EM weights from the concentrations, and binding no longer
   builds a slot-by-node matrix: a `PolyaTree` on 2048 bins binds in 0.06 s (was 0.64 s)
-  (#166, DECISIONS #119).
+  (#166).
 - `BoundPrior` documents the interface a new prior implements.
 - `method="auto"` builds every engine it may run when it is made, so a bad engine
-  option, or options that no engine takes, raise before any fit (#174, DECISIONS #120).
+  option, or options that no engine takes, raise before any fit (#174).
 - Breaking: `init` given to `method="auto"` is fractions or rates of shape (K,), as for
   Gibbs and MAP, and reaches NUTS converted to its unconstrained coordinates. Before, a
   fraction refused NUTS's start, a rate was read as a log-rate, and a point in NUTS's
   coordinates (when NUTS was the only candidate) was used as given; such a point is now
-  refused by its shape or, for rates, read as rates (#174, DECISIONS #120).
+  refused by its shape or, for rates, read as rates (#174).
 - Above 200 dimensions, NUTS takes a logistic prior's hyperparameter curvature at one
-  chain, like the rest of its warm-up curvature (DECISIONS #120).
+  chain, like the rest of its warm-up curvature.
 - The defaults page lists NUTS's divergence threshold, `_MAX_ENERGY_ERROR`.
 
 ### Removed
 
 - `PopulationModel.prior_transform`, `BoundPrior.prior_transform` (on the Dirichlet, tree
   and `GammaRates` priors) and `BoundPrior.has_prior_transform`: the unit-cube map for
-  nested samplers, which nothing in binference used (DECISIONS #107).
-- `Engine.name` and `Engine.approximate`, which nothing read (DECISIONS #112).
+  nested samplers, which nothing in binference used.
+- `Engine.name` and `Engine.approximate`, which nothing read.
 - `Response.measured_fractions`, which only a test used and which ignored the posterior
-  means of a tallied response (DECISIONS #113).
+  means of a tallied response.
 - `binference.diagnostics.kkt_gap` and `binference.diagnostics.missing_information`: use
   `PopulationModel.kkt_gap` and `PopulationModel.missing_information`, or
-  `PointEstimate.kkt_gap` (DECISIONS #117).
+  `PointEstimate.kkt_gap`.
 - `simulate.Truth.extra`, which nothing set or read.
-- `Bins.widths`, which nothing used; per-axis widths are `np.diff(bins.edges[d])`
-  (DECISIONS #116).
+- `Bins.widths`, which nothing used; per-axis widths are `np.diff(bins.edges[d])`.
 - `Dirichlet("reference")` and the `K` argument of `Dirichlet.reference()`, which takes `K`
-  from the bins (DECISIONS #119).
+  from the bins.
 - `PopulationPrior.kind` and `GammaRates.kind`; the bound prior's `kind` remains.
 - The lazy `binference.__getattr__`.
 
 ### Fixed
 
+- Docstrings, error messages, attribute comments on the API pages and this changelog no
+  longer cite design records, which the site does not include.
 - The NUTS tree-depth hint of `check()` names long log tails only for priors that have
   them where NUTS samples, such as a tree with a branch concentration below one; it no
   longer blames trees whose concentrations are all at least one, such as
   `GeneralizedDirichlet(1, 1)` or the default `PolyaTree()` on 4 bins, and suggests
-  `method="gibbs"` only when Gibbs can fit the model (DECISIONS #109).
+  `method="gibbs"` only when Gibbs can fit the model.
 - A tree prior with a branch whose exponent on the simplex is exactly zero no longer
-  counts as unbounded through rounding, so MAP keeps it on the simplex (DECISIONS #109).
+  counts as unbounded through rounding, so MAP keeps it on the simplex.
 - The sdist no longer includes walkthrough notes, and its tests skip the checks that
-  need `docs/` or `benchmarks/`, which it does not ship (DECISIONS #110).
+  need `docs/` or `benchmarks/`, which it does not ship.
 - `plot_individual` on a fit with a `Basis` drew the object's likelihood over the
   components as if they were bins, or failed when there were more components than bins;
-  it is now shared among the bins as the hierarchical posterior is (DECISIONS #111).
+  it is now shared among the bins as the hierarchical posterior is.
 - The stack overlay of `plot(which="selected")` is no longer reweighted by the selection:
-  an average over the observed objects, it already estimates the selected population
-  (DECISIONS #111).
+  an average over the observed objects, it already estimates the selected population.
 - `plot_sbc` always shows the joint log-likelihood; with 12 or more other quantities it
   was left out. A `max_panels` below one is refused by name.
 - A list or array of colours is accepted for the bars of categories only, one per
   category; the other plots failed with a matplotlib error and now raise one naming the
-  argument, and `plot_sbc`, which coloured its rank bars from a list, refuses it too
-  (DECISIONS #111).
+  argument, and `plot_sbc`, which coloured its rank bars from a list, refuses it too.
 - A truth overlay on `which="selected"` of a fit with a `Basis` is drawn as given
   without a selection and refused with one, unless the basis is the bins; it failed
-  with a broadcasting error or, with as many components as bins, drew a wrong overlay
-  (DECISIONS #111).
+  with a broadcasting error or, with as many components as bins, drew a wrong overlay.
 - `MAP` checks `init`'s shape and sign, and that it is not all zero, when the engine is
   made; a wrong shape failed inside NumPy. EM raises zeros in its start to 1e-12 of the
   largest value, so a zero, from `init` or from mix-SQP's hand-off to EM, no longer
-  leaves a wrong mode with only a convergence warning (DECISIONS #112).
+  leaves a wrong mode with only a convergence warning.
 - `NUTS` checks `model` and the shape and finiteness of `init` when it is made.
-- The start for rates with a selection is near the mode for broad likelihoods too
-  (DECISIONS #112).
+- The start for rates with a selection is near the mode for broad likelihoods too.
 - Gibbs refuses a negative `n_warmup`; `Laplace.run` with fewer than 3 samples draws 5
-  importance proposals rather than failing in Pareto smoothing (DECISIONS #112); the
+  importance proposals rather than failing in Pareto smoothing; the
   engines that can infer a selection are each named once in the refusal of those that
   cannot.
 - `Response(matrix, efficiency=...)` divides a migration column that sums to one within
-  `MIGRATION_ATOL` by its sum, so the efficiency given is exact (DECISIONS #113).
+  `MIGRATION_ATOL` by its sum, so the efficiency given is exact.
 - Boolean category labels reload as booleans; they came back as 0 and 1.
 - Errors name the input at fault: a single distribution passed to `from_density`;
   objects in a measured bin whose response row is zero (the error suggested
@@ -159,7 +155,7 @@ releases may break the API).
   rule reads something, until its cells are below `tol` of their bin, and warn where
   the function is still unread there; such a row was read as zero, so a selection
   function, or a bounded density, that is non-zero only within 4.7% of a bin edge was
-  missed without a warning (DECISIONS #115).
+  missed without a warning.
 - `check()` computes and checks the tail ESS of a selection or response inferred with the
   population (`ess_tail_selection`, `ess_tail_response`); it looked for these keys, which
   were never computed.
@@ -188,7 +184,7 @@ releases may break the API).
 - `missing_information(include_prior=True)` adds a `GammaRates` prior's pseudo-counts as
   the MAP EM does: 0.49 instead of 0.89 for `GammaRates(200, 1)`, which corrects the
   missing information reported when the rates EM does not converge. It is NaN where
-  shapes below one outweigh the data (DECISIONS #116).
+  shapes below one outweigh the data.
 - A distribution with `cdf` and `sf` but no `logsf` keeps its upper tail.
 - `Likelihoods.from_samples` names the measure when a sample falls where a
   `Measure.transform` has no finite slope, and `Measure.log_jacobian` no longer emits
@@ -224,23 +220,22 @@ First release.
 
 ### Changed (landing on `main`)
 
-- Renamed from `pastry` to `binference` (package, import and PyPI name; DECISIONS #45).
+- Renamed from `pastry` to `binference` (package, import and PyPI name).
   The warning base class is `BinferenceWarning` and the environment variables start
   with `BINFERENCE_`.
 
-- Python ≥ 3.13, NumPy ≥ 2.1, SciPy ≥ 1.14.1, matplotlib ≥ 3.9.2 (DECISIONS #41, #61).
+- Python ≥ 3.13, NumPy ≥ 2.1, SciPy ≥ 1.14.1, matplotlib ≥ 3.9.2.
 - CI runs the pre-commit hooks, the fast suite on three systems with Python 3.13 and
   3.14, minimum dependencies, the README and user-guide code, the docs build and a
   clean-wheel import; pushes to `main` publish the docs to GitHub Pages.
-- Releases: a tag `vX.Y.Z` on `main` publishes to PyPI by trusted publishing
-  (DECISIONS #104, #105).
+- Releases: a tag `vX.Y.Z` on `main` publishes to PyPI by trusted publishing.
 - Development process: issue and pull-request templates and the rules in `CLAUDE.md` and
   `CONTRIBUTING.md`.
 - The prior base class is now `binference.priors.PopulationPrior` (was `Prior`).
 - On log bins, the default base measures of `Dirichlet.from_base_measure` and
   `PolyaTree`, the default mean of the logistic priors and the "flat" interim prior
-  are flat in log z (they were flat in z; DECISIONS #63).
-- Results (audit O-1–O-21, DECISIONS #82): a result keeps its selection through `save`,
+  are flat in log z (they were flat in z).
+- Results (audit O-1–O-21): a result keeps its selection through `save`,
   `load` and `attach`, which refuses other bins or another selection;
   `result_to_dict` is what `save` writes (`meta` plus arrays, `label_draws` apart from
   the bin labels); `check()` also flags tail ESS, E-BFMI, one-chain R-hat and
@@ -254,7 +249,7 @@ First release.
   `result.plot_individual`; `PopulationEstimator` works with
   scikit-learn model selection (`Likelihoods.shape`); the xarray export uses ArviZ's
   statistic names, numeric bin centres and hyperparameter draws.
-- `infer` defaults to `method="auto"` (was `"nuts"`; DECISIONS #14, #88): Gibbs for
+- `infer` defaults to `method="auto"` (was `"nuts"`): Gibbs for
   joint conjugate models and for conjugate priors with at most 0.98 missing
   information (run long enough for a bulk ESS of about 400), else Laplace when its
   importance check passes with an ESS of at least 400, else NUTS. The choice and
@@ -263,7 +258,7 @@ First release.
   `gibbs_max_missing`, `nnz_limit`) are options; `PopulationEstimator` defaults to it
   too. Pass `method="nuts"` for the previous behaviour. Without `n_samples`, a Gibbs run
   chosen by auto is extended until its ESS and R-hat pass, or gives way to the next
-  engine beyond `max_gibbs_draws` (DECISIONS #89). Laplace draws that auto keeps
+  engine beyond `max_gibbs_draws`. Laplace draws that auto keeps
   without passing its check (on very large inputs, or as the last candidate) are flagged
   `approximate`.
 - `Laplace` finds its mode and curvature once per engine (and `step`), not on every
@@ -273,7 +268,7 @@ First release.
   `assignment_probabilities` already did), so its memory no longer grows with the
   number of objects times the number of draws.
 
-- Names (DECISIONS #90): `sbc` and `coverage` take `progress=` (was `progress_bar=`);
+- Names: `sbc` and `coverage` take `progress=` (was `progress_bar=`);
   `CoverageResult.coverage_rates()` (was `rates()`); `Likelihoods.with_weights(
   fractional_weights=)` (was `fractional=`); `simulate.mock_unfolding(n_objects=)` (was
   `n_events=`). Plots label rates `lambda[k]`, as SBC names them (was `rate[k]`). The
@@ -298,7 +293,7 @@ First release.
   `sample_color` argument on `plot_population` and `plot_individual`; `color` defaults to
   the style and is added to `plot_individual` and `plot_sbc`; 2-D maps and the corner
   plot's 2-D histograms are drawn on ramps to the population colour (relative uncertainty
-  to the text colour) instead of viridis, magma and Blues; `POSTERIOR_COLOR`, `STACK_COLOR` and `INK` are removed (DECISIONS #98).
+  to the text colour) instead of viridis, magma and Blues; `POSTERIOR_COLOR`, `STACK_COLOR` and `INK` are removed.
 
 ### Fixed (phase-wide review)
 
@@ -330,22 +325,22 @@ First release.
 ### Added
 
 - `benchmarks/matrix.py`: the benchmark matrix of scenario × prior × engine against
-  long reference runs (DECISIONS #42), with its results in `benchmarks/results/`.
+  long reference runs, with its results in `benchmarks/results/`.
 
-- **Results** (DECISIONS #12, #41, #49, #53, #83): `result.selected` (the selected
+- **Results**: `result.selected` (the selected
   population, also `which="selected"`), `realized_counts(full=True)` (with the missed
   objects), `data_support` and the `support` summary column, `prior_information_ratio()`
   (Efron's ratio), `check(support_min=)`, and `PointEstimate.check()` for the KKT gap.
-- **Binning-bias check** (DECISIONS #6, #20, #86): `result.binning_bias()` refits the
+- **Binning-bias check**: `result.binning_bias()` refits the
   data on linear B-spline components over the same bins (Gaussian inputs rebuild
   themselves; others take `build`) and reports each bin's shift in posterior s.d. and,
   for flagged bins, `n_crit`, the number of objects at which the binning bias equals
   the statistical error.
-- **Best fit and leave-one-out** (DECISIONS #35, #51, #52, #85): every result has
+- **Best fit and leave-one-out**: every result has
   `result.best` (the MAP estimate, computed on first use) and per-object outputs at it
   with a `_best` suffix; `assignment_probabilities_loo` gives leave-one-out posteriors
   by Pareto-smoothed importance sampling, with the Pareto k-hat per object.
-- **Value draws from within-bin information** (DECISIONS #50, #84): `sample_values`
+- **Value draws from within-bin information**: `sample_values`
   resamples the samples of `from_samples` inside the drawn bin (`keep_samples=`),
   evaluates `from_density` densities inside 1-D bins (interim divided out for
   posteriors), and draws correlated Gaussians jointly by Gibbs sweeps (`n_sweeps=`);
@@ -353,24 +348,24 @@ First release.
   not kept and density functions that could not be pickled fall back to flat within
   the bin, with a warning naming the source.
 
-- **Measures** (DECISIONS #21): each grid axis has a `Measure`, the coordinate
+- **Measures**: each grid axis has a `Measure`, the coordinate
   `u = T(z)` in which the population is flat within a bin: linear, log, a transform with
   its inverse, or the cumulative integral of a positive density. `Bins.log` uses the log
   measure; bin centres are midpoints in `u`; `Bins.from_centers` takes midpoints in `u`
   (positive edges for log-spaced centres, I-16). Geometric hand-built edges warn.
-- **Selection from injections** (DECISIONS #10, #30, #79, #80): `Selection.from_injections`
+- **Selection from injections**: `Selection.from_injections`
   gives a completeness with Beta posteriors per bin, inferred jointly with the population
   by Gibbs, NUTS, Laplace and `MAP(space="unconstrained")` (logit S as extra
   coordinates); `smooth=τ` ties neighbouring bins by a random walk on logit S;
   `at_mean()` fixes it for VB and the bootstrap.
-- **Responses inferred with the population** (DECISIONS #28, #81): a response tallied
+- **Responses inferred with the population**: a response tallied
   from events (`Response.from_counts`, `from_simulation`, `from_labelled`) has a
   Dirichlet posterior per column (`prior=β`, default 1 per cell) and is inferred jointly
   by Gibbs, NUTS, Laplace and unconstrained MAP; `response.fixed()` takes it as known.
-- **Totals and rates from fractions** (DECISIONS #9, #78): every fractions result has
+- **Totals and rates from fractions**: every fractions result has
   `total` (draws of Λ ~ Gamma(W, S·ρ), exact under a scale-free prior) and `rates`
   (Λρ), with an absolute or no selection; point estimates give W/(S·ρ̂).
-- **Mixture basis and internal resolution** (DECISIONS #4, #5, #47, #76):
+- **Mixture basis and internal resolution**:
   `binference.Basis(bins, order=0|1, resolution=r)` fits components on the bins refined
   `r` times, flat (`order=0`) or linear B-spline hats (`order=1`), and reports in the
   bins. Every constructor takes a `Basis` for `bins` (`Likelihoods.on_basis` for
@@ -378,35 +373,33 @@ First release.
   weight. Results report per bin and keep `component_draws`; save and load keep the
   basis. `Bins.refine` is the counterpart of `coarsen`. `sample_values` on non-linear
   measures now draws flat in `u` within a bin (it ignored `T'(z)`).
-- `from_samples` stores likelihoods sparsely below 10% non-zero entries (was 30%; DECISIONS
-  #77).
-- **Masked grids** (DECISIONS #19): `mask=` on `Bins`, `Bins.grid`, `Bins.linear` and
+- `from_samples` stores likelihoods sparsely below 10% non-zero entries (was 30%).
+- **Masked grids**: `mask=` on `Bins`, `Bins.grid`, `Bins.linear` and
   `Bins.log`; masked cells leave the support and the model. Saved and loaded with
   results.
 - `Bins` with edges `-0.0` and `0.0` now hash alike (I-12); `Bins.index` refuses
   multi-column values for 1-D bins (I-22).
-- **`Density`** (DECISIONS #26, #63): one fixed density over the bin coordinate for
+- **`Density`**: one fixed density over the bin coordinate for
   interim priors, the Dirichlet base measure and simulation truth. `Density.flat()` is
   flat in the measure coordinate. An array interim prior on unequal bins needs
   `interim_representation`, so every constructor reads it the same way (I-1); a
   callable on categories receives the labels (I-17).
 - `Likelihoods.stack()` uses the interim prior the likelihoods were built with
   (I-5) and raises on rows with no support under it (I-6).
-- **Constructors by input form** (DECISIONS #32, #64): `Likelihoods.from_table` and
+- **Constructors by input form**: `Likelihoods.from_table` and
   `Likelihoods.from_density` replace `from_posteriors`, `from_function` and
   `from_distributions`; each needs `kind="likelihood"` or `interim=`. `interim_prior`
   is now `interim` (also in `stack()` and `simulate.mock_1d`).
-- **Adaptive quadrature** (DECISIONS #23): bin averages of functions and distributions
-  are refined to `tol` (default 1e-3), in the measure coordinate for likelihoods
-  (DECISIONS #21); `from_gaussian` averages in u on non-linear axes. Far tails no longer
+- **Adaptive quadrature**: bin averages of functions and distributions
+  are refined to `tol` (default 1e-3), in the measure coordinate for likelihoods; `from_gaussian` averages in u on non-linear axes. Far tails no longer
   underflow to empty rows (I-2, I-3).
-- **Samples** (DECISIONS #31, #67): one estimator for every interim prior (per-sample
+- **Samples**: one estimator for every interim prior (per-sample
   weights T'(z)/π(z); a per-bin prior is flat in u within bins), an opt-in Dirichlet
   `floor` in pseudo-samples,
   `n_eff` inside the bins with a warning on the share of noisy objects (I-23),
   `Likelihoods.sample_variance` and a Monte Carlo variance check in `result.check()`;
   `Measure.log_jacobian`.
-- **Binned measurements** (DECISIONS #27, #29, #68): `binference.Response` holds
+- **Binned measurements**: `binference.Response` holds
   P(measured bin, observed | true bin) with real truth bins, from a matrix, tallies
   (`Response.from_counts`), simulated events (`Response.from_simulation`) or a labelled
   validation set (`Response.from_labelled`: open-ended score bins or a confusion matrix).
@@ -417,7 +410,7 @@ First release.
   shift. `check()` raises `InputWarning` for problems with the inputs (this test and the
   samples' Monte Carlo variance) and `ConvergenceWarning` for sampler problems. `simulate.mock_categorical` gains `temperature` and a labelled `mock.response`;
   `simulate.mock_unfolding` returns `mock.response`.
-- **Selection** (DECISIONS #7, #8, #10, #46, #47, #48, #69): the modes are
+- **Selection**: the modes are
   `"on_truth"` and `"on_measurement"` (the old names raise an error naming the new
   ones); `Selection.combined(on_truth, on_measurement)` selects on both; a selection may
   be a function of the true value, averaged over each bin (`Selection.from_function`,
@@ -428,7 +421,7 @@ First release.
   within bins).
   `simulate.mock_1d(measured_range=...)` simulates selection on the measurement, alone
   or with `selection=` (combined). `sbc`/`coverage` name rates `lambda[k]` (G-10).
-- **Model** (DECISIONS #15, #56, #57, #70): `PopulationModel.log_prob` and
+- **Model**: `PopulationModel.log_prob` and
   `log_prob_and_grad` are renamed `log_density_unconstrained` and
   `log_density_unconstrained_and_grad`; the theory page explains the two densities
   and their modes. `kkt_gap` is infinite where an object is impossible and, for rates,
@@ -440,7 +433,7 @@ First release.
   `LogisticGP()` works on two bins (M-14). `PopulationResult.log_prob` is now
   `log_density_unconstrained` (old files still load); `MAP.run` no longer takes
   `weights=`.
-- **MAP** (DECISIONS #71): `tol` (default 1e-8, was 1e-10 on the objective) is the
+- **MAP**: `tol` (default 1e-8, was 1e-10 on the objective) is the
   tolerance on the KKT gap for every simplex algorithm and on the largest gradient over
   `max(1, W)` for L-BFGS (mix-SQP bounds the gap of the problem it solves), and EM is
   converged only when the gap is below it, or below `1e3 * tol` once the objective
@@ -453,7 +446,7 @@ First release.
   quadratic step hands over to EM instead of raising (M-13); Dirichlet priors
   mixing concentrations of one and above one no longer warn (T-4). The rates KKT gap
   is one-sided, so a rate EM drives towards zero no longer reads as a violation.
-- **Priors** (DECISIONS #72): `LogisticRandomWalk(trend_scale=3.0)` is the standard
+- **Priors**: `LogisticRandomWalk(trend_scale=3.0)` is the standard
   deviation of each unpenalised mode's root-mean-square size across the grid, so its
   meaning no longer depends on K (was 10 in basis units, which tightened as 1/√K; P-6).
   Arguments are checked when a prior is made: `DirichletTree` per-node alphas of
@@ -466,14 +459,14 @@ First release.
   `GeneralizedDirichlet` and `PolyaTree` are no longer subclasses of `DirichletTree`
   (P-13). `LogisticRandomWalk(2).bind` at K = 1000 and 20,000 GP draws are about twice
   as fast (P-20).
-- **GP prior** (DECISIONS #73): `LogisticGP` is stationary in the measure coordinate
+- **GP prior**: `LogisticGP` is stationary in the measure coordinate
   (log z on `Bins.log`; length scales are in that coordinate; P-1). Defaults:
   `boundary_factor=3` (was 1.5; P-3), `n_basis` one per bin up to 1024 modes in all
   (was at most 48 per axis), and a
   length-scale prior whose lower 1% quantile is the shortest length scale that basis
   resolves (P-2), or `LogNormal(log(range/2), 1)` on coarse grids (P-7). Partially
   centred GP densities and gradients agree where scales underflow (P-5).
-- **NUTS and Laplace** (DECISIONS #74): NUTS results (`x`, `log_density_unconstrained`,
+- **NUTS and Laplace**: NUTS results (`x`, `log_density_unconstrained`,
   `model`) and the positions `sample()` yields are in the model's own coordinates, not
   the partly centred sampling ones (`info["centring"]` holds the weights; N-1, N-2).
   `diagnostics.psis_threshold(n)` gives the k̂ threshold for n importance weights. Parallel workers receive the model
@@ -483,7 +476,7 @@ First release.
   (N-5); Laplace returns every draw asked for without importance resampling (N-4) and
   judges k̂ against min(1 − 1/log10 S, 0.7) (N-6). Dense momentum draws use a
   precomputed triangular factor (N-9).
-- **Validation, Gibbs, bootstrap** (DECISIONS #75): SBC p-values and bands use the
+- **Validation, Gibbs, bootstrap**: SBC p-values and bands use the
   expected count per rank bin (G-1) and `sbc` warns when the ESS is below `n_draws` (G-9);
   `exact_posterior` integrates by stick-breaking Gauss–Legendre quadrature that resolves
   the simplex boundary, also for concentrations below one, adds `log_density`, and bounds
@@ -492,17 +485,16 @@ First release.
   `store_labels` and `init`, and chains start apart, from counts that include missed
   objects (G-6, G-7); SBC rejects `n_bins` above `n_draws + 1`; `Bootstrap(kind=)` is now
   `scheme=`, non-converged replicates are counted and the base fit warns (G-8).
-- **Correlated Gaussians** (DECISIONS #2, #25, #66): `from_gaussian(..., cov=)` takes full
+- **Correlated Gaussians**: `from_gaussian(..., cov=)` takes full
   per-object covariances, averaged over N-D bins by adaptive cubature in log space.
 - `weights` are integer multiplicities; non-integer weights need `fractional_weights=True`
-  and warn that the result is a pseudo-likelihood (DECISIONS #1, #65). Stored arrays
+  and warn that the result is a pseudo-likelihood. Stored arrays
   are read-only (I-14); `compress()` keeps sparse storage and is fast on it (I-7, I-19);
   warnings point at the caller's line; clearer errors for bad `rtol`, Gaussian shapes,
   zero objects and 2-D arrays passed to `Bins.grid` (I-8, I-10, I-11, I-20); broad
   Gaussians keep full precision near the mean (I-15).
 - Each object's likelihood mass outside the bins is recorded in
-  `meta["outside_fraction"]`, with a warning when many objects lose most of it
-  (DECISIONS #18).
+  `meta["outside_fraction"]`, with a warning when many objects lose most of it.
 
 - **Inputs.** `Bins` (linear, log, from centres, N-D grids, categories) and
   `Likelihoods` with constructors for:
@@ -512,9 +504,10 @@ First release.
   - per-object posteriors with their interim prior;
   - posterior samples;
   - SciPy distributions and arbitrary likelihood functions;
-  - response matrices (unfolding) and classifier outputs (quantification).
-- **Selection.** `Selection` functions with explicit `"observed"` and `"true"`
-  modes, attached to the data or passed to the model.
+  - response matrices (unfolding) and classifier scores or labels (quantification),
+    as binned measurements with a `Response`.
+- **Selection.** `Selection` functions with explicit `"on_measurement"` and
+  `"on_truth"` modes, attached to the data or passed to the model.
 - **Model.** `PopulationModel` for bin fractions or Poisson rates, with
   log-density and gradient in unconstrained coordinates, expected counts,
   responsibilities, an optimality (KKT) gap and the missing-information fraction.
@@ -525,15 +518,17 @@ First release.
     (Hilbert-space GP) on N-D grids, with inferred hyperparameters.
   - Rates: `GammaRates`.
 - **Engines.**
-  - `NUTS` (default): multinomial NUTS with windowed metric adaptation.
+  - `NUTS`: multinomial NUTS with windowed metric adaptation.
     Smoothness priors get partial non-centring (where the data constrain
     their scales) and a curvature-based dense metric. Chains are resumable
     and can run in parallel processes, which share the cores' BLAS threads
     (via `threadpoolctl`) rather than oversubscribing them.
   - Data-augmentation `Gibbs` for conjugate priors, with selection augmentation.
-  - `MAP` with an optimality certificate: mix-SQP for Dirichlet priors
-    (including maximum likelihood under selection), SQUAREM-accelerated EM
-    for the other conjugate priors, L-BFGS otherwise.
+  - `MAP` with an optimality certificate: mix-SQP for Dirichlet priors with
+    concentrations of at least one (under a fixed selection only `Dirichlet(1)`, which
+    gives maximum likelihood) and for `GammaRates` with shapes of at least one;
+    SQUAREM-accelerated EM for the other conjugate priors whose density is bounded;
+    L-BFGS otherwise.
   - `Laplace` with PSIS importance correction.
   - `MeanFieldVB` (flagged as approximate) and `Bootstrap` (nonparametric or
     Bayesian, over objects, with variable totals for rate models).

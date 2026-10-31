@@ -188,10 +188,10 @@ class _IndividualMixin:
         if which == "fractions":
             return self._rho_draws()
         X = self.selected if which == "selected" else self.rates
-        if X is None:
+        if X is None:  # DECISIONS #46
             raise ValueError(
                 "This result has no rates: its selection is only relative, so the total is "
-                "not identified (DECISIONS #46), or it has no model (attach the likelihoods "
+                "not identified, or it has no model (attach the likelihoods "
                 "to a loaded result)."
             )
         return np.atleast_2d(X)
@@ -235,12 +235,13 @@ class _IndividualMixin:
     def _object_draws(self, n_draws: int | None):
         """The likelihoods and per-draw column weights for per-object methods.
 
-        With a selection inferred jointly (DECISIONS #79) these are the bare
+        With a selection inferred jointly these are the bare
         likelihoods and :math:`\\rho\\circ S` with each draw's own :math:`S`, which is
-        also returned; with a response inferred jointly (DECISIONS #81), each draw's
+        also returned; with a response inferred jointly, each draw's
         rows ``(n_draws, N, K)`` and :math:`\\rho`; otherwise the model's likelihoods
         (selection on the truth applied) and :math:`\\rho`, and ``None``.
         """
+        # DECISIONS #79, #81
         model = self._require_model()
         R = self._select_draws(n_draws, components=True)
         Rd = self._response_rows(n_draws)
@@ -297,8 +298,7 @@ class _IndividualMixin:
         self, idx: Any = None, n_draws: int | None = N_DRAWS, chunk: int = 4096
     ) -> tuple[np.ndarray, np.ndarray]:
         r"""Each object's posterior over bins under the population fitted without it,
-        :math:`P(z_i = k \mid D_{-i})`: leave-one-out, for calibration checks
-        (DECISIONS #52).
+        :math:`P(z_i = k \mid D_{-i})`: leave-one-out, for calibration checks.
 
         Pareto-smoothed importance sampling over the posterior draws (Vehtari, Gelman &
         Gabry 2017): draw :math:`s` has the weight :math:`p(d_i \mid \rho_s)^{-w_i}`
@@ -325,6 +325,7 @@ class _IndividualMixin:
         chunk : int, optional
             Objects processed per block, which bounds memory.
         """
+        # DECISIONS #52
         least = diag.PSIS_MIN_WEIGHTS
         if n_draws is not None and n_draws < least:
             raise ValueError(f"n_draws must be at least {least} for leave-one-out; got {n_draws}.")
@@ -503,7 +504,7 @@ class _IndividualMixin:
         ``n_k = sum_i w_i 1[z_i = k]`` for *these* objects. With ``full=True`` the
         objects the selection missed are added, drawn for each draw as
         :math:`\\mathrm{NegBin}(W, S\\cdot\\rho)` of them in bins
-        :math:`\\propto \\rho\\circ(1 - S)`: the counts of the full sample (DECISIONS #53).
+        :math:`\\propto \\rho\\circ(1 - S)`: the counts of the full sample.
         Returns ``(n_draws, K)`` weighted counts.
 
         Parameters
@@ -515,6 +516,7 @@ class _IndividualMixin:
         full : bool, optional
             Add the objects the selection missed.
         """
+        # DECISIONS #53
         model = self._require_model()
         gen = as_generator(rng)
         S = self._missed_selection(n_draws) if full else None
@@ -546,17 +548,18 @@ class _IndividualMixin:
             raise ValueError("Full-sample counts need detection probabilities, not exposures.")
         S = self._joint_selection(n_draws)
         S = model.total_exposure if S is None else S
-        if S is None:
+        if S is None:  # DECISIONS #46
             raise ValueError(
                 "Full-sample counts need an absolute selection; this one is relative, so "
-                "the number of missed objects is not identified (DECISIONS #46)."
+                "the number of missed objects is not identified."
             )
         return S
 
     def _selected_of(self, W: np.ndarray) -> np.ndarray:
         """The selected population :math:`\\phi = S\\circ w / (S\\cdot w)` per bin, for rows of
         component weights ``W`` (all draws, or the estimate), with each draw's own S
-        when the selection is inferred (DECISIONS #49)."""
+        when the selection is inferred."""
+        # DECISIONS #49
         S = self._joint_selection(None)  # all draws, as W
         if S is None and self.selection is not None:
             S = self.selection.values
@@ -569,7 +572,8 @@ class _IndividualMixin:
     def data_support(self) -> np.ndarray:
         """Objects' worth of likelihood in each bin, :math:`\\sum_i w_i \\ell_{ik}` with each
         object's likelihood normalised over the bins: below about one, a bin's fraction
-        is set by the prior (DECISIONS #41)."""
+        is set by the prior."""
+        # DECISIONS #41
         if "data_support" not in self._cache:
             model = self._require_model()
             L = model._L  # with a selection on the truth applied, as the fit sees them
@@ -590,8 +594,8 @@ class _IndividualMixin:
         density in those
         coordinates, so a Dirichlet(:math:`\alpha`) counts as :math:`\alpha` objects
         per bin. The traces depend on those coordinates, so compare ratios across fits
-        of one prior family, not across families. Small values mean the data dominate
-        (DECISIONS #41); NaN when the data show no curvature (e.g. an empty bin at a
+        of one prior family, not across families. Small values mean the data dominate;
+        NaN when the data show no curvature (e.g. an empty bin at a
         boundary optimum). Costs :math:`4d` gradient evaluations for ``d`` prior
         coordinates, half of them of the full log density.
 
@@ -600,6 +604,7 @@ class _IndividualMixin:
         h : float, optional
             Finite-difference step of the Hessians.
         """
+        # DECISIONS #41
         from .samplers._curvature import fd_hessian_diag
 
         model = self._require_model()
@@ -634,8 +639,7 @@ class _IndividualMixin:
         Labels are drawn as in :meth:`sample_assignments`. Within the drawn bin
         the population is flat in the measure coordinate ``u`` (its density in
         ``z`` carries :math:`T'(z)`), so a true value follows the object's own
-        likelihood times that density, from each input's within-bin information
-        (DECISIONS #50):
+        likelihood times that density, from each input's within-bin information:
 
         * :meth:`Likelihoods.from_gaussian` with independent errors (``sigma``):
           exactly (truncated Gaussians) on linear axes, else by inverse-CDF
@@ -679,6 +683,7 @@ class _IndividualMixin:
         n_sweeps : int, optional
             Gibbs sweeps over the axes for correlated Gaussian errors.
         """
+        # DECISIONS #50
         model = self._require_model()
         bins = model.bins  # the components' cells with a basis
         if bins.is_categorical:
@@ -767,7 +772,8 @@ class _IndividualMixin:
         """For new objects ``lk``: rows and column weights per draw as in
         :meth:`_object_draws`, each draw's :math:`S\\cdot\\rho` (``None`` without a
         selection) and the rows' log-scales. New binned objects with the response
-        inferred in this fit take its draws (DECISIONS #81)."""
+        inferred in this fit take its draws."""
+        # DECISIONS #81
         model = self._require_model()
         Rd = self._response_rows(n_draws)
         if Rd is not None and lk.meta.get("response") is model.response:
@@ -1000,7 +1006,8 @@ def _value_drawer(model, loglike, n_sub: int, n_sweeps: int) -> tuple[Callable, 
     """``draw(objects, labels, lo, hi, gen, height) -> (z, keep)``: values in the boxes
     ``[lo, hi]`` (in ``u``, ``(n, ndim)``) from the input's own likelihood times the
     population, flat in ``u`` times the hat's ``height(labels, d, u)`` per axis (``None``
-    when flat); and whether the input has within-bin information (DECISIONS #50)."""
+    when flat); and whether the input has within-bin information."""
+    # DECISIONS #50
     meta = model.likelihoods.meta
     measures = model.bins.measures
     flat = partial(_draw_subpoints, measures, n_sub, None)
@@ -1291,8 +1298,9 @@ class PopulationResult(_IndividualMixin):
             else Bins.categories(d.shape[-1])
         )
         self.x = read_only(x, None)
+        # DECISIONS #15
         #: log posterior density of each draw in the unconstrained coordinates
-        #: (with the Jacobian; DECISIONS #15), for samplers that compute it
+        #: (with the Jacobian), for samplers that compute it
         self.log_density_unconstrained = read_only(log_density_unconstrained, None)
         self.method = method
         self.approximate = approximate
@@ -1392,9 +1400,10 @@ class PopulationResult(_IndividualMixin):
         mode of :math:`\\rho` on the simplex for conjugate priors whose density is bounded
         there (e.g. Dirichlet concentrations of at least one), and the mode in the
         unconstrained coordinates otherwise, and always with a jointly inferred selection
-        or response (DECISIONS #15, #35). Computed on first use
-        and kept; per-object outputs at it carry a ``_best`` suffix (DECISIONS #51).
+        or response. Computed on first use
+        and kept; per-object outputs at it carry a ``_best`` suffix.
         After :func:`load`, it needs the fit's prior: attach a model, not bare likelihoods."""
+        # DECISIONS #15, #35, #51
         if "best" not in self._cache:
             from .samplers import MAP
 
@@ -1478,8 +1487,8 @@ class PopulationResult(_IndividualMixin):
         given its :math:`\rho`: the exact posterior of the total under the prior
         :math:`p(\Lambda) \propto 1/\Lambda`, with :math:`W` the number of objects
         and :math:`S` the detection probabilities or exposures (one without a
-        selection). ``None`` when the selection is only relative (DECISIONS #9,
-        #46, #78) or the result was loaded without its total. For rate models,
+        selection). ``None`` when the selection is only relative
+        or the result was loaded without its total. For rate models,
         the sum of the rates.
 
         The Gamma variates come from a stream seeded by the fraction draws
@@ -1487,6 +1496,7 @@ class PopulationResult(_IndividualMixin):
         external draws, and loaded results after :meth:`attach`), independent
         across different draws, and leave the caller's generator untouched.
         """
+        # DECISIONS #9, #46, #78
         if self._total is None and self.model is not None:
             S = self._inferred_selection()  # per draw, when inferred with the population
             total = self.model.draw_total(self._params, _draws_rng(self._params), S)
@@ -1519,7 +1529,8 @@ class PopulationResult(_IndividualMixin):
     def selected(self) -> np.ndarray:
         """Draws ``(n_draws, K)`` of the selected population
         :math:`\\phi = S\\circ\\rho / (S\\cdot\\rho)`, the bins of the observed objects;
-        :math:`\\rho` itself without a selection (DECISIONS #49)."""
+        :math:`\\rho` itself without a selection."""
+        # DECISIONS #49
         if "selected" not in self._cache:
             self._cache["selected"] = frozen(self._selected_of(self._weight_draws()))
         return self._cache["selected"]
@@ -1950,7 +1961,7 @@ class PopulationResult(_IndividualMixin):
         **engine_kwargs: Any,
     ) -> Summary:
         r"""Check the flat-within-bin assumption: refit the same data on a B-spline basis
-        over these bins and compare the bin masses (DECISIONS #6, #20).
+        over these bins and compare the bin masses.
 
         ``build(bins_or_basis)`` returns the likelihoods of the fit's data on what it is
         given, e.g. ``lambda b: Likelihoods.from_gaussian(mean, sigma, b)``; likelihoods
@@ -1973,7 +1984,7 @@ class PopulationResult(_IndividualMixin):
         :math:`1/\sqrt{W}`): from a pilot fit, the size above which these bins bias
         the result (``inf`` elsewhere). Warns when :math:`|z|` exceeds ``threshold`` in
         any bin: two models of the same data differ by up to about one s.d. even when
-        the population is flat within bins (DECISIONS #86), so the default is 2.
+        the population is flat within bins, so the default is 2.
 
         Parameters
         ----------
@@ -1998,6 +2009,7 @@ class PopulationResult(_IndividualMixin):
         **engine_kwargs
             Options for the reference fit's engine.
         """
+        # DECISIONS #6, #20, #86
         from .basis import Basis
         from .inference import METHODS, infer
 
@@ -2265,7 +2277,7 @@ class PointEstimate(_IndividualMixin):
         Estimates found by L-BFGS in unconstrained coordinates have no KKT gap (NaN); for
         them the check is ``converged`` (see ``tol`` of :class:`~binference.samplers.MAP`).
 
-        The default is ten times the round-off floor at which MAP stops (DECISIONS #12).
+        The default is ten times the round-off floor at which MAP stops.
         Returns the messages (empty if the estimate looks fine).
 
         Parameters
@@ -2275,6 +2287,7 @@ class PointEstimate(_IndividualMixin):
         strict : bool, optional
             Raise :class:`~binference.DiagnosticsError` instead of warning.
         """
+        # DECISIONS #12
         msgs = []
         if not self.converged:
             msgs.append("the optimiser did not converge")

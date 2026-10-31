@@ -52,7 +52,8 @@ def _centred(model: PopulationModel, gamma: np.ndarray) -> PopulationModel:
 
 def _recentre(prior, x: np.ndarray, gamma: np.ndarray) -> np.ndarray:
     """``prior.recentre`` on the prior's block of ``x``; an inferred selection's
-    logit S after it is unchanged (DECISIONS #80)."""
+    logit S after it is unchanged."""
+    # DECISIONS #80
     d = prior.dim
     return np.concatenate([prior.recentre(x[:d], gamma), x[d:]])
 
@@ -212,8 +213,9 @@ _WORKER_MODEL: PopulationModel | None = None  # the base model, sent once per wo
 
 
 def _worker_model(model: PopulationModel) -> PopulationModel:
-    """The model without the data kept for value draws (DECISIONS #84), which workers
+    """The model without the data kept for value draws, which workers
     never use: kept samples need not be copied to each of them."""
+    # DECISIONS #84
     lk = model.likelihoods
     if "within" not in lk.meta:
         return model

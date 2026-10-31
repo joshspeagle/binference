@@ -49,7 +49,7 @@ export function polya(levels, c, u, power = 2) {
   return rho;
 }
 
-function Phi(x) { // the standard normal CDF, through erfc (W. J. Cody's rational fit, error < 1.2e-7)
+function Phi(x) { // the standard normal CDF, through erfc (Numerical Recipes' erfcc, fractional error < 1.2e-7)
   const z = Math.abs(x) / Math.SQRT2, t = 1 / (1 + 0.5 * z);
   const erfc = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 +
     t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 +

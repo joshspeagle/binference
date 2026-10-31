@@ -25,13 +25,14 @@ with expected counts :math:`\hat n_k = \rho_k \sum_i w_i L_{ik}/(L_i\cdot\rho)`.
 A selection on the truth measured by injections is inferred with the population: the
 unconstrained coordinates gain :math:`y = \mathrm{logit}\,S` after the prior's, the
 likelihood uses that :math:`S`, and :math:`\partial\log p(D\mid\rho)/\partial y_k =
-(1 - S_k)\,\partial\log p(D\mid\rho)/\partial\eta_k` (DECISIONS #80). A response
+(1 - S_k)\,\partial\log p(D\mid\rho)/\partial\eta_k`. A response
 tallied from events (binned measurements) is inferred the same way: the coordinates
 gain the isometric log-ratios of each column of :math:`R` with its lost share, under
 their Dirichlet posterior given the tallies, and the likelihood is
 :math:`\sum_j c_j\log(R_{j\cdot}\cdot\rho) - W\log(\epsilon\cdot\rho)` with
-:math:`\epsilon` the column sums (DECISIONS #28, #81).
+:math:`\epsilon` the column sums.
 """
+# DECISIONS #80, #28, #81
 
 from __future__ import annotations
 
@@ -123,10 +124,8 @@ class PopulationModel:
                     "rates pass selection.fixed() or a fixed exposure."
                 )
         if sel is not None and sel.scale == "relative" and self.prior.kind == "rates":
-            raise ValueError(
-                "Rates need an absolute selection (exposures); this one is relative "
-                "(DECISIONS #46)."
-            )
+            # DECISIONS #46
+            raise ValueError("Rates need an absolute selection (exposures); this one is relative.")
         resp = likelihoods.meta.get("response")
         #: a response tallied from events, inferred with the population (or ``None``)
         self.response = resp if resp is not None and resp.uncertain else None
@@ -182,7 +181,8 @@ class PopulationModel:
         r""":math:`S` of the Poisson law of the number of objects, :math:`W \sim
         \mathrm{Poisson}(\Lambda\,S\cdot\rho)`: detection probabilities or exposures
         (ones without a selection); ``None`` for a relative selection, which
-        leaves the total unidentified (DECISIONS #46)."""
+        leaves the total unidentified."""
+        # DECISIONS #46
         sel = self.selection_spec
         return None if sel is not None and sel.scale == "relative" else self._S
 
@@ -194,7 +194,8 @@ class PopulationModel:
     @property
     def joint(self) -> bool:
         """Whether a selection from injections or a tallied response is inferred with the
-        population, as extra unconstrained coordinates (DECISIONS #80, #81)."""
+        population, as extra unconstrained coordinates."""
+        # DECISIONS #80, #81
         return self.selection_uncertain or self.response is not None
 
     @property
@@ -368,7 +369,8 @@ class PopulationModel:
     def _rows(self, value: np.ndarray, S: np.ndarray | None = None):
         """The likelihood rows and the column weights for ``value``: the model's rows
         (selection on the truth applied) and ``value``, or, given a value ``S`` of an
-        inferred selection, the bare rows and :math:`\\rho\\circ S` (DECISIONS #79, #80)."""
+        inferred selection, the bare rows and :math:`\\rho\\circ S`."""
+        # DECISIONS #79, #80
         if S is None:
             return self._L, value
         return self.likelihoods.values, value * S
@@ -401,7 +403,7 @@ class PopulationModel:
 
         This is the density of ``x`` (the prior's isometric log-ratios, whitened
         fields or log-rates), so it includes the Jacobian of the map from ``x``
-        to the fractions or rates (DECISIONS #15); its mode differs from that of
+        to the fractions or rates; its mode differs from that of
         :meth:`log_posterior`. With an inferred selection ``x`` ends with
         :math:`\\mathrm{logit}\\,S`, and with an inferred response with the log-ratios of
         its columns; their densities given the injections or tallies are included.
@@ -412,6 +414,7 @@ class PopulationModel:
         x : ndarray (dim,)
             Unconstrained point.
         """
+        # DECISIONS #15
         x = np.asarray(x, dtype=float)
         d = self.prior.dim
         eta, cache = self.prior.forward(x[:d])
@@ -498,8 +501,9 @@ class PopulationModel:
 
         Adds :math:`W\rho_k(1 - S_k)/(S\cdot\rho)`, with :math:`S` rescaled to a
         maximum of one, which leaves the posterior unchanged; used by EM, VB and
-        the interior start (DECISIONS #57).
+        the interior start.
         """
+        # DECISIONS #57
         if self.selection is None or self.kind == "rates":  # Poisson thinning imputes nothing
             return nhat
         S = self._detect
@@ -634,7 +638,7 @@ class PopulationModel:
         """Prior log-density of fractions (on the simplex) or rates, where defined.
 
         A density in the fractions (or rates) themselves, without the Jacobian of
-        any reparametrisation (DECISIONS #15). On the boundary it is -inf where
+        any reparametrisation. On the boundary it is -inf where
         the density is zero, +inf where it is unbounded and NaN where it is
         undefined (a Polya tree); NaN for priors without a closed-form density
         (logistic priors).
@@ -644,6 +648,7 @@ class PopulationModel:
         value : ndarray (K,)
             Fractions or rates.
         """
+        # DECISIONS #15
         if not self.prior.has_density:
             return np.nan
         with np.errstate(invalid="ignore"):
@@ -655,13 +660,14 @@ class PopulationModel:
         A density in the fractions or rates themselves, without the Jacobian of
         the unconstrained coordinates, so its mode is the MAP estimate on the
         simplex (``MAP(space="simplex")``); compare
-        :meth:`log_density_unconstrained` (DECISIONS #15).
+        :meth:`log_density_unconstrained`.
 
         Parameters
         ----------
         value : ndarray (K,)
             Fractions or rates.
         """
+        # DECISIONS #15
         return self.log_likelihood(value) + self.log_prior(value)
 
     def expected_counts(self, value: np.ndarray) -> np.ndarray:
@@ -725,7 +731,7 @@ class PopulationModel:
         total weight; for rates it is the larger of
         :math:`\max_k S_k^{-1}\,\partial\log p/\partial\lambda_k` and
         :math:`|\lambda\cdot\nabla_\lambda\log p|/(S\cdot\lambda)`, so it does not
-        depend on the exposure's units (DECISIONS #56, #71). Self-consistency of the
+        depend on the exposure's units. Self-consistency of the
         EM fixed point is necessary but not sufficient for optimality; this
         certificate checks the rest. With a tree prior the conditions are checked on each
         node's branch probabilities, where they keep their precision as a group of bins
@@ -739,6 +745,7 @@ class PopulationModel:
             Add the gradient of the prior's log density, for priors with a closed-form
             density (none for the logistic priors).
         """
+        # DECISIONS #56, #71
         v = np.asarray(value, dtype=float)
         s = kern.matvec(self._L, v)
         if not kern.possible(s):

@@ -125,11 +125,15 @@ $$
 \frac{\max\big(0,\ \max_k\partial_k-\hat\rho\cdot\partial\big)}{\max(W,1)},
 $$
 
-for every estimate from EM or mix-SQP (`PointEstimate.kkt_gap`). With a flat prior and
-no selection, $\partial_k=Wg_k$ and $\hat\rho\cdot\partial=W$, so the gap is
+for every estimate from EM or mix-SQP (`PointEstimate.kkt_gap`). With a flat Dirichlet
+prior and no selection, $\partial_k=Wg_k$ and $\hat\rho\cdot\partial=W$, so the gap is
 $\max_kg_k-1$. It is infinite where an object has zero
-likelihood. A fixed point of EM is necessary for optimality but not sufficient; the gap
-checks the rest.
+likelihood. With a tree prior the same conditions are checked on each node's branch
+probabilities, and each node's largest violation is divided by the counts it holds, the
+data's and the prior's. In the fractions, the tree's terms of order $1/\rho_k$ cancel only
+to round-off once a group of bins empties; in the branch probabilities a branch of exponent
+zero adds exactly zero. A fixed point of EM is necessary for optimality but not sufficient;
+the gap checks the rest.
 
 For rates the conditions are $\partial\log p/\partial\lambda_k\le0$, with equality
 where $\hat\lambda_k>0$. The gap is the larger of

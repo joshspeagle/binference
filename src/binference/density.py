@@ -1,9 +1,10 @@
 """Fixed densities over the bin coordinate: interim priors, base measures, simulation truth.
 
 A :class:`Density` is one fixed probability density :math:`\\pi(z)` with a single
-meaning wherever it appears (DECISIONS #26). It is resolved against bins with
+meaning wherever it appears. It is resolved against bins with
 :meth:`Density.masses`, which returns the normalised mass :math:`\\Pi_k` of each bin.
 """
+# DECISIONS #26
 
 from __future__ import annotations
 

@@ -2,7 +2,7 @@ r"""Selection functions (detection probabilities or exposures per bin).
 
 Selection enters the likelihood in one of three ways, and choosing the wrong one
 biases the population (Mandel, Farr & Gair 2019). binference therefore requires
-the mode to be stated explicitly (DECISIONS #7, #8):
+the mode to be stated explicitly:
 
 ``mode="on_measurement"``
     Objects are selected on their *measured data* (e.g. a flux or
@@ -28,8 +28,9 @@ the mode to be stated explicitly (DECISIONS #7, #8):
 Values are detection probabilities in (0, 1] by default; ``scale="exposure"``
 allows any positive absolute values (rates), and ``scale="relative"`` declares
 values known only up to a constant, which is enough for fractions but not for
-totals or rates (DECISIONS #46).
+totals or rates.
 """
+# DECISIONS #7, #8, #46
 
 from __future__ import annotations
 
@@ -102,10 +103,12 @@ class Selection(SetOnce):
         For a selection measured by injections (:meth:`from_injections`), a named
         tuple ``(injected, recovered, prior, smooth)``: counts per bin, the Beta prior
         and the step scale of the smooth model (or ``None``). The selection is
-        then uncertain, and inferred jointly with the population (DECISIONS #30,
-        #80); ``values`` are its posterior means given the injections alone
+        then uncertain, and inferred jointly with the population;
+        ``values`` are its posterior means given the injections alone
         (independent Betas) or the mode of :math:`\\mathrm{logit}\\,S` (smooth).
     """
+
+    # DECISIONS #30, #80
 
     __slots__ = ("basis", "injections", "row", "scale", "values")
 
@@ -150,8 +153,8 @@ class Selection(SetOnce):
         A selection on the truth is uncertain: NUTS, MAP (``space="unconstrained"``),
         Laplace and, for independent Betas and a conjugate prior, Gibbs infer it
         jointly with the population, where the catalogue informs the ratios
-        between the :math:`S_k` (their level comes from the injections; DECISIONS
-        #10, #30, #79, #80); :meth:`fixed` gives a fixed selection at
+        between the :math:`S_k` (their level comes from the injections);
+        :meth:`fixed` gives a fixed selection at
         :attr:`values`, ignoring the uncertainty. A selection on the measurement
         cannot be inferred (the likelihoods' cut already fixes it), and neither can a
         selection with a rates prior; pass :meth:`fixed` for both.
@@ -172,6 +175,7 @@ class Selection(SetOnce):
             Step scale :math:`\\tau` of the random walk, in logit per bin (1-D bins
             only); ``None`` (default) keeps the :math:`S_k` independent.
         """
+        # DECISIONS #10, #30, #79, #80
         _check_mode(mode)
         if isinstance(bins, Basis):
             raise ValueError(
@@ -263,7 +267,7 @@ class Selection(SetOnce):
         ``function(z)`` returns the detection probability (or exposure) at
         points ``z`` (shape ``(M,)`` in 1-D, ``(M, ndim)`` on grids, labels for
         categories). Each bin takes its average in the measure coordinate, the
-        within-bin shape of the population (DECISIONS #10, #47), by adaptive
+        within-bin shape of the population, by adaptive
         quadrature to ``tol`` relative to the largest bin average. A single jump inside a
         bin is found wherever it lies (a window narrower than the spacing of the points can
         still fall between them: put bin edges at its ends), and each refinement halves the
@@ -272,7 +276,7 @@ class Selection(SetOnce):
         for the default ``tol``, which the default ``max_depth`` allows; for a smaller
         ``tol`` raise ``max_depth``, or put a bin edge at the jump. With a
         :class:`~binference.Basis` for ``bins``, the averages are taken on its
-        quadrature cells and weighted by each component (DECISIONS #47, #76).
+        quadrature cells and weighted by each component.
 
         Parameters
         ----------
@@ -290,6 +294,7 @@ class Selection(SetOnce):
         max_depth : int, optional
             Most refinements of the adaptive quadrature; each halves a cell.
         """
+        # DECISIONS #10, #47, #76
         _check_mode(mode)
         _check_values(np.ones(2), scale, "selection")  # the scale, before any quadrature
         quad = {"tol": tol, "max_depth": max_depth}
@@ -309,7 +314,7 @@ class Selection(SetOnce):
         tol: float = 1e-6,
         max_depth: int = 20,
     ) -> Selection:
-        """Selection on the truth and on the measurement at once (DECISIONS #8).
+        """Selection on the truth and on the measurement at once.
 
         Parameters
         ----------
@@ -331,6 +336,7 @@ class Selection(SetOnce):
         max_depth : int, optional
             Most refinements of the adaptive quadrature for callable parts.
         """
+        # DECISIONS #8
         _check_values(np.ones(2), scale, "selection")  # the scale, before any quadrature
         quad = {"tol": tol, "max_depth": max_depth}
         if isinstance(bins, Basis):  # on the quadrature cells, then per component
@@ -511,11 +517,11 @@ def _check_values(values: Any, scale: str, name: str) -> np.ndarray:
             f"{name} values must be finite and strictly positive; bin(s) {bad[:5].tolist()} "
             "are not (bins that can never be observed are not identifiable; remove them)."
         )
-    if scale == "probability" and np.any(v > 1.0 + 1e-12):
+    if scale == "probability" and np.any(v > 1.0 + 1e-12):  # DECISIONS #46
         raise ValueError(
             f"{name} values are detection probabilities and must not exceed one; for "
             "absolute exposures pass Selection(S, mode, scale='exposure'), for values known "
-            "only up to a constant Selection(S, mode, scale='relative') (DECISIONS #46)."
+            "only up to a constant Selection(S, mode, scale='relative')."
         )
     return v
 

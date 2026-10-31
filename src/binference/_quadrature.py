@@ -1,4 +1,5 @@
-"""Adaptive bin averages, in the measure coordinate or in ``z`` (DECISIONS #23)."""
+"""Adaptive bin averages, in the measure coordinate or in ``z``."""
+# DECISIONS #23
 
 from __future__ import annotations
 

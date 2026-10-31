@@ -2,11 +2,12 @@
 
 Carried over from the v0.1 summary (spec §13 open questions):
 
-- [ ] Distribution name `pastry-inference` (import `pastry`)? (D5)
+- [x] Distribution name `pastry-inference` (import `pastry`)? (D5) → DECISIONS #45: `binference` (PyPI, import and docs name), on PyPI since 0.1.0 (DECISIONS #104).
 - [ ] Default prior Dirichlet(α = 1) or the reference prior α = 1/K? (D3)
 - [ ] Roadmap priority: flows / continuous densities, JAX backend, hierarchical models? (spec §12)
-- [ ] Python ≥ 3.11 floor? (D6) Is the `threadpoolctl` dependency acceptable? (D1, D14)
-- [ ] When to make the repository public (JOSS needs ~6 months of public history)?
+- [x] Python ≥ 3.11 floor? (D6) → DECISIONS #41, #61: Python ≥ 3.13.
+- [ ] Is the `threadpoolctl` dependency acceptable? (D1, D14)
+- [x] When to make the repository public (JOSS needs ~6 months of public history)? → DECISIONS #44: no JOSS, so no public-history clock; the repository is public and 0.1.0 is on PyPI (DECISIONS #104).
 
 Known weaknesses worth discussing when we reach them:
 
@@ -38,7 +39,7 @@ New items:
 - [ ] **Explore alternate coordinates, sampling strategies and tricks for complex priors** (Josh, 2026-10-23): tree-matched balances, tail-aware metrics, auto-routing, others; to be evaluated with the benchmark matrix. (3.1 / 4)
 - [x] **Measure on Bins** → DECISIONS #21 (proposal accepted): measure = monotone transform u = T(z); flat within bins means flat in u; every component reads geometry from u (bin shape, widths, base measures, GP stationarity, RW spacing; density outputs per z or per u). Named "linear"/"log", callable transforms or densities; per-axis on grids. Set explicitly (`Bins(edges, measure=...)`), defaults from constructors (`Bins.log` → log), warning when hand-built edges look geometric. Josh to confirm the setting rules and whether densities are needed in addition to transforms. (2.2)
 - [ ] **Samples constructor: what the samples are, and smoothing** (Josh, 2026-10-24). Today `from_samples` means posterior samples under `interim_prior` (`"flat"` ⇒ samples ∝ likelihood). Proposal: explicit `kind` like the other constructors; option to fit a per-object density (KDE in the measure coordinate u, boundary-aware, or a mixture) and evaluate it through the same quadrature path as functions, dividing by the interim density pointwise; histogram stays as an option. Josh leans to the density route for accuracy. Decide name, default, bandwidth rule, MC-noise propagation. (2.3 / Phase 7)
-- [ ] **`from_function` vs `from_distributions`**: same operation (bin-average a per-object function), different packaging (one vectorised callable returning (N, M) vs a list of objects with cdf/logpdf/pdf), different defaults (n_sub 3 vs 5; interim array read as density vs mass). Proposal: one constructor taking either form, with #23/#24. Name to choose. (2.3)
+- [x] **`from_function` vs `from_distributions`** → DECISIONS #32, #64 (merged as `from_density`): same operation (bin-average a per-object function), different packaging (one vectorised callable returning (N, M) vs a list of objects with cdf/logpdf/pdf), different defaults (n_sub 3 vs 5; interim array read as density vs mass). Proposal: one constructor taking either form, with #23/#24. Name to choose. (2.3)
 - [x] **Response matrices / binned data** → DECISIONS #27, #68 (C5). Josh asked what `from_response` is (unfolding: counts per reco bin + P(reco j | true k)). Explain better in docs; consider a general name (binned measurements), true-bin geometry instead of categories by default, response uncertainty from finite simulation (Beta/Dirichlet draws, as #10). (2.3)
 - [x] **Classifier inputs: what is going on** → DECISIONS #29, #68 (C5). (Josh: discuss before helpers). Assumptions: label shift (p(x|c) same in training and target), calibration, the effective training prior. Three routes: calibrated posteriors ÷ π_train (today); confusion matrix of hard labels = `from_response`; per-class score densities from labelled validation data (needs only label shift). Validation-set uncertainty. (2.3)
 - [ ] **Selection draws: averaging vs parameters** (2.3b §7): log-mean-exp over response draws undercovers (0.22–0.61 vs 0.68) when the response has many entries; Gibbs with R as parameters is calibrated. The same applies to #10's default for selection draws. Revisit: selection as parameters (conjugate Beta / NUTS), draw-averaging only with an effective-draw diagnostic. (2.1 §3 / Phase 7) **Update (C11b-2b, DECISIONS #80):** a selection from injections is now a parameter in Gibbs, NUTS, Laplace and unconstrained MAP; averaging over draws is not implemented (it undercovers and costs M likelihood passes per evaluation). Default chosen: no averaging option. Josh: agree, or add it as an opt-in with the effective-draw diagnostic?

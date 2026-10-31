@@ -52,9 +52,9 @@ class Bins(SetOnce):
     sizes (see :doc:`/how-it-works/model`).
 
     Each grid axis carries a :class:`~binference.measure.Measure`, the
-    coordinate ``u = T(z)`` in which the population is flat within a bin
-    (DECISIONS #21): linear by default, logarithmic for :meth:`log`. A boolean
-    ``mask`` over the grid removes cells from the support (DECISIONS #19); the
+    coordinate ``u = T(z)`` in which the population is flat within a bin:
+    linear by default, logarithmic for :meth:`log`. A boolean
+    ``mask`` over the grid removes cells from the support; the
     remaining *active* cells are numbered ``0 .. K - 1`` in C order.
 
     Parameters
@@ -80,6 +80,8 @@ class Bins(SetOnce):
     >>> grid.K, grid.shape
     (6, (2, 3))
     """
+
+    # DECISIONS #21, #19
 
     __slots__ = (
         "_active",

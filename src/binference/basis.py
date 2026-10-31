@@ -3,7 +3,7 @@ r"""Mixture bases: the model's components and how they map to the reporting bins
 The population is a mixture :math:`\sum_k \beta_k \psi_k(z)` of fixed
 non-negative components of unit mass, so every per-object likelihood stays
 linear in the weights, :math:`L_{ik} = \int p(d_i \mid z)\,\psi_k(z)\,du`, and
-the engines and priors are unchanged (DECISIONS #4, #5, #76). Results are
+the engines and priors are unchanged. Results are
 reported in the bins: the fraction in bin :math:`j` is
 :math:`\rho_j = \sum_k A_{jk} \beta_k` with :math:`A_{jk} = \int_{B_j} \psi_k\,du`.
 
@@ -16,6 +16,7 @@ the range edges, so the components form a partition of unity and the density
 has no steps at bin edges. Grids use tensor products; order 1 needs an
 unmasked grid, and on masked grids flat components cover the active cells.
 """
+# DECISIONS #4, #5, #76
 
 from __future__ import annotations
 

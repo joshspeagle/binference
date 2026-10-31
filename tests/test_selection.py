@@ -22,7 +22,7 @@ def test_probabilities_above_one_need_a_declared_scale():
     with pytest.raises(ValueError, match="scale='exposure'"):
         Selection([0.5, 2.0], "on_truth")
     assert Selection([0.5, 2.0], "on_truth", scale="exposure").scale == "exposure"
-    with pytest.raises(ValueError, match="DECISIONS #46"):
+    with pytest.raises(ValueError, match="scale='relative'"):
         binference.simulate.mock_1d(100, Bins.linear(0, 3, 2), selection=[2.0, 1.0], rng=0)
 
 

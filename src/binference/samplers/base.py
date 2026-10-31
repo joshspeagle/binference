@@ -39,8 +39,8 @@ class Engine:
         Show a progress bar.
     """
 
+    # DECISIONS #30, #80, #81
     #: whether the engine infers a selection from injections or a tallied response jointly
-    #: (DECISIONS #30, #80, #81)
     joint: bool = False
     #: whether its draws are Markov chains, described by R-hat and ESS
     markov: bool = False

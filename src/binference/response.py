@@ -1,4 +1,4 @@
-r"""Responses of binned measurements to the true value (DECISIONS #27).
+r"""Responses of binned measurements to the true value.
 
 A binned measurement records, for each object, the bin :math:`j` of a measured
 quantity (a reconstructed energy, a classifier score, a predicted label). Its
@@ -12,8 +12,9 @@ measured in bin :math:`j` has likelihood row :math:`R_{j\cdot}`
 
 A response tallied from events is uncertain: each column, with its lost share
 :math:`1 - \epsilon_k`, has a Dirichlet posterior given the tallies, and the engines
-infer it jointly with the population (DECISIONS #28, #81).
+infer it jointly with the population.
 """
+# DECISIONS #27, #28, #81
 
 from __future__ import annotations
 
@@ -186,9 +187,9 @@ class Response(SetOnce):
             Concentration :math:`\\beta` of the Dirichlet prior on each cell of a column (the
             ``J`` measured bins and the lost share). Column :math:`k` has the posterior
             :math:`\\mathrm{Dir}(\\beta + \\text{counts}_{\\cdot k},\\ \\beta + \\text{lost}_k)`.
-            The default 1 is uniform; below 1, cells with no events give NUTS long tails
-            (DECISIONS #81).
+            The default 1 is uniform; below 1, cells with no events give NUTS long tails.
         """
+        # DECISIONS #81
         prior = float(check_positive(prior, "prior"))
         g = np.asarray(generated, dtype=float).ravel()
         if g.shape != (truth_bins.K,) or not np.all(np.isfinite(g)):
@@ -322,7 +323,7 @@ class Response(SetOnce):
 
         Under label shift (the score distribution of each class is the same in
         the validation and the target set) the likelihood of a score given the
-        class is valid for any score, calibrated or not (DECISIONS #29, route C).
+        class is valid for any score, calibrated or not.
 
         Parameters
         ----------
@@ -344,6 +345,7 @@ class Response(SetOnce):
             Concentration of the Dirichlet prior on each cell of a tallied column, as
             for :meth:`from_counts`.
         """
+        # DECISIONS #29, route C
         y = np.asarray(labels).ravel()
         s = np.asarray(scores)
         if s.ndim != 1 or s.size != y.size:
@@ -401,7 +403,8 @@ class Response(SetOnce):
     def _dirichlet(self) -> np.ndarray:
         """Dirichlet parameters of the columns given the tallies: ``(J + 1, K)`` with the
         lost share last, or ``(J, K)`` when the tallies record no lost event, so that every
-        event is observed by construction (DECISIONS #81)."""
+        event is observed by construction."""
+        # DECISIONS #81
         counts = self.counts
         lost = np.maximum(self.generated - counts.sum(axis=0), 0.0)
         if np.all(lost <= 1e-9 * self.generated):
@@ -465,11 +468,11 @@ class Response(SetOnce):
         counts from those the draw predicts, :math:`d = n - N q`, under the
         multinomial covariance of the counts plus, for a tallied response, that
         of its estimated columns; the p-value is the mean of
-        :math:`P(\chi^2_{J-1} \ge D)` over draws (DECISIONS #68). A small value
+        :math:`P(\chi^2_{J-1} \ge D)` over draws. A small value
         means the response does not describe the counts; for a classifier, that
         label shift is violated. With ``response_draws`` ``(n_draws, J, K)``, drawn
         with the fractions when the response is inferred jointly, each draw uses its
-        own response and the tallies' covariance is left out (DECISIONS #81).
+        own response and the tallies' covariance is left out.
 
         Parameters
         ----------
@@ -480,6 +483,7 @@ class Response(SetOnce):
         response_draws : array_like (n_draws, J, K), optional
             Draws of an inferred response, one per draw of the fractions.
         """
+        # DECISIONS #68, #81
         n = np.asarray(counts, dtype=float).ravel()
         draws = np.atleast_2d(np.asarray(rho_draws, dtype=float))
         tallied = self.generated is not None and response_draws is None  # their covariance
