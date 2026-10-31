@@ -8,8 +8,7 @@ engines:
 * an unconstrained parametrisation ``x`` (``forward``) mapping to softmax logits
   (fractions) or log-rates (rates), with the prior log-density in ``x``-space
   (including Jacobians) and its gradient by the chain rule;
-* prior draws, and (where defined) the density on the simplex and a
-  unit-cube ``prior_transform`` for nested samplers;
+* prior draws, and (where defined) the density on the simplex;
 * for conjugate priors, posterior draws / modes given latent counts and
   mean-field variational updates.
 """
@@ -21,7 +20,6 @@ import inspect
 from typing import Any
 
 import numpy as np
-from scipy import special
 
 from ..bins import Bins
 
@@ -41,19 +39,6 @@ def _log_gamma_variates(a: Any, rng: np.random.Generator, shape: tuple) -> np.nd
     if a.size == 0 or np.min(a) >= 1.0:
         return np.log(rng.standard_gamma(a))
     return np.log(rng.standard_gamma(a + 1.0)) + np.log(rng.random(shape)) / a
-
-
-def _stick_break(a: np.ndarray, u: np.ndarray) -> np.ndarray:
-    """Dirichlet(a) from uniforms ``u`` (last axis of length ``len(a) - 1``) by stick-breaking."""
-    tail = np.cumsum(a[::-1])[::-1]  # tail[k] = sum_{j >= k} a_j
-    out = np.empty((*u.shape[:-1], a.size))
-    remaining = np.ones(u.shape[:-1])
-    for k in range(a.size - 1):
-        v = special.betaincinv(a[k], tail[k + 1], u[..., k])
-        out[..., k] = remaining * v
-        remaining = remaining * (1.0 - v)
-    out[..., -1] = remaining
-    return out
 
 
 class PopulationPrior:
@@ -118,7 +103,6 @@ class BoundPrior:
     kind: str = "fractions"
     conjugate: bool = False
     has_density: bool = False
-    has_prior_transform: bool = False
     #: whether it has partial non-centring weights (``with_centering``; the logistic family)
     has_centering: bool = False
     #: counts its mode adds to the data's, ``alpha - 1`` (Dirichlet) or ``a - 1``
@@ -211,18 +195,6 @@ class BoundPrior:
             Fractions or rates.
         """
         raise NotImplementedError(f"{type(self.prior).__name__} has no closed-form density.")
-
-    def prior_transform(self, u: np.ndarray) -> np.ndarray:
-        """Map the unit hypercube ``[0, 1]^dim`` to prior draws (nested sampling).
-
-        ``dim`` is ``K - 1`` for fractions and ``K`` for rates.
-
-        Parameters
-        ----------
-        u : ndarray (..., dim)
-            Points in the unit hypercube.
-        """
-        raise NotImplementedError(f"{type(self.prior).__name__} has no prior transform.")
 
     # -- conjugate updates ----------------------------------------------------
     def posterior_sample(

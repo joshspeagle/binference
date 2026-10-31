@@ -29,7 +29,6 @@ from .base import (
     PopulationPrior,
     _log_gamma_variates,
     _per_item,
-    _stick_break,
 )
 
 __all__ = ["Dirichlet", "DirichletTree", "GeneralizedDirichlet", "PolyaTree"]
@@ -46,7 +45,6 @@ class _SimplexBound(BoundPrior):
     """Shared ILR machinery for simplex priors."""
 
     has_density = True
-    has_prior_transform = True
     conjugate = True
 
     def __init__(self, prior: PopulationPrior, bins: Bins) -> None:
@@ -207,9 +205,6 @@ class _BoundDirichlet(_SimplexBound):
         v = np.asarray(value, dtype=float)
         pos = v > 0
         return np.where(pos, (self.alpha - 1.0) / np.where(pos, v, 1.0), 0.0)
-
-    def prior_transform(self, u):
-        return _stick_break(self.alpha, np.asarray(u, dtype=float))
 
     def posterior_sample(self, counts, rng, exposure=None):
         return _dirichlet_draw(self.alpha + counts, rng)
@@ -378,15 +373,6 @@ class _BoundTree(_SimplexBound):
         ok = rc > 0
         g = g + t.nonroot_mem[ok].T @ (t.node_coef[ok] / rc[ok])
         return np.where(pos, g, 0.0)
-
-    def prior_transform(self, u):
-        t = self.tree
-        u = np.asarray(u, dtype=float)
-        theta = np.empty((*u.shape[:-1], t.slot_alpha.size))
-        for c in range(t.C):  # one stick-breaking per internal node, of m - 1 uniforms
-            lo, hi = t.ptr[c], t.ptr[c + 1]
-            theta[..., lo:hi] = _stick_break(t.slot_alpha[lo:hi], u[..., lo - c : hi - c - 1])
-        return t.compose(theta)
 
     def posterior_sample(self, counts, rng, exposure=None):
         t = self.tree
