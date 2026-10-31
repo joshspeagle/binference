@@ -35,6 +35,12 @@ releases may break the API).
 - `Likelihoods.from_density` evaluates frozen SciPy distributions of one family in one
   call, for their exact bin masses and for their densities; the densities' check for one
   family never matched, so each distribution was evaluated separately (DECISIONS #113).
+- `plot(stack=...)` takes the stack as `Likelihoods.stack` returns it, and on a fit with a
+  `Basis` shares its component weights among the bins, so `result.plot(stack=lk.stack())`
+  works on every fit; it failed with more components than bins and, with as many, drew
+  the component weights as bin fractions. A stack mapped to the bins first, as
+  `Likelihoods.stack`'s docstring advised, is now refused when the numbers of components
+  and bins differ and mapped twice when they agree (DECISIONS #114).
 
 ### Removed
 

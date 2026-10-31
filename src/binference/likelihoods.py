@@ -723,14 +723,15 @@ class Likelihoods:
 
         Posteriors are formed under ``interim``: by default the interim
         prior the likelihoods were built with (so the stack reproduces the
-        input posteriors), else :meth:`Density.flat`. Stacking is exactly one
+        input posteriors), else a population flat in the measure coordinate
+        (:meth:`Density.flat`). Stacking is exactly one
         EM step from the interim prior, not the maximum-likelihood population;
         it is biased toward the interim prior and broadened by the measurement
         noise, and is provided for comparison only. Its distance from the
         optimum is ``PopulationModel(lk).kkt_gap(lk.stack())``. With a
-        :class:`~binference.Basis` it is over the components (map it with
-        ``lk.basis.to_bins``), under a flat interim prior unless ``interim``
-        is given.
+        :class:`~binference.Basis` it is over the components (``lk.basis.to_bins``
+        maps it to the bins, as ``plot(stack=...)`` does), under a flat interim
+        prior unless ``interim`` is given.
 
         Parameters
         ----------

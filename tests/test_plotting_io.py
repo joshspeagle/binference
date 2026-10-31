@@ -76,6 +76,23 @@ def test_plot_individual_shows_the_own_likelihood_per_bin_on_a_basis():
     plt.close("all")
 
 
+@pytest.mark.parametrize("shape", [{"order": 1}, {"resolution": 2}])
+def test_a_stack_over_a_basis_is_drawn_per_bin(shape):
+    # Likelihoods.stack weighs the components: as many as the bins for hats, twice as many
+    bins = Bins.linear(0, 3, 6)
+    mock = binference.simulate.mock_1d(50, bins, rng=0)
+    basis = binference.Basis(bins, **shape)
+    d, s = mock.measurements["mean"], mock.measurements["sigma"]
+    lk = binference.Likelihoods.from_gaussian(d, s, basis)
+    est = binference.PointEstimate(binference.PopulationModel(lk), np.full(basis.C, 1 / basis.C))
+    stack = lk.stack()
+    drawn = est.plot(which="fractions", stack=stack).get_lines()[-1].get_ydata()[:-1]
+    np.testing.assert_allclose(drawn, basis.to_bins(stack), rtol=1e-12)
+    with pytest.raises(ValueError, match=rf"stack must have shape \({basis.C},\)"):
+        est.plot(stack=stack[:-1])
+    plt.close("all")
+
+
 def test_the_sbc_plot_always_shows_the_joint_log_likelihood():
     names = ["a", "b", "c", "loglike"]
     ranks = np.random.default_rng(1).integers(0, 20, (30, 4))

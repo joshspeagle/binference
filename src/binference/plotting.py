@@ -146,9 +146,10 @@ def plot_population(
         Central credible levels shown as nested bands.
     truth : array_like (K,), optional
         True fractions to overlay.
-    stack : array_like (K,), optional
-        A naive stacked estimate to overlay (see :meth:`Likelihoods.stack
-        <binference.Likelihoods.stack>`).
+    stack : array_like, optional
+        A naive stacked estimate to overlay, as :meth:`Likelihoods.stack
+        <binference.Likelihoods.stack>` returns it: one weight per bin, or per component
+        of a :class:`~binference.Basis` fit, which the plot shares among the bins.
     color : matplotlib colour, optional
         Colour of the posterior, or for categories a list of colours, one per bar;
         ``None`` takes the style's first colour.
@@ -188,8 +189,18 @@ def plot_population(
         return _plot_2d(result, X, plt, ax, color)
     if truth is not None:
         truth = _overlay(result, truth, which, total)
-    if stack is not None:  # a selected population already: not reweighted again
-        stack = _overlay(result, stack, "fractions" if which == "selected" else which, total)
+    if stack is not None:
+        n = bins.K if result.basis is None else result.basis.C
+        stack = np.asarray(stack, dtype=float)
+        if stack.shape != (n,):
+            raise ValueError(
+                f"stack must have shape ({n},), as Likelihoods.stack returns for this fit; "
+                f"got {stack.shape}."
+            )
+        # a selected population already: not reweighted again
+        stack = _overlay(
+            result, result._to_bins(stack), "fractions" if which == "selected" else which, total
+        )
     med = np.median(X, axis=0)
     if ax is None:
         _, ax = plt.subplots()
