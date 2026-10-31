@@ -354,7 +354,7 @@ class Likelihoods:
         The support. Defaults to ``Bins.categories(K)``. With a
         :class:`~binference.Basis` the values are per reporting bin (the
         likelihood taken as flat within each) and are projected onto its
-        components (DECISIONS #76).
+        components.
     representation : {"density", "mass"}
         Values per unit volume (``"density"``) or integrated over each bin
         (``"mass"``). ``"density"`` (default): each value is the likelihood evaluated in (or
@@ -367,7 +367,7 @@ class Likelihoods:
     fractional_weights : bool
         Allow non-integer weights. They define a weighted pseudo-likelihood,
         not the likelihood of any data set, so posteriors from it are not
-        proper posteriors; a warning says so (DECISIONS #1).
+        proper posteriors; a warning says so.
     selection : array_like (K,), callable or Selection, optional
         Detection probability (or exposure) per bin, used by models unless
         overridden; see :doc:`/guides/selection`.
@@ -391,6 +391,8 @@ class Likelihoods:
     >>> lk.N, lk.K
     (2, 4)
     """
+
+    # DECISIONS #76, #1
 
     def __init__(
         self,
@@ -824,8 +826,7 @@ class Likelihoods:
             Non-negative values (rows need not be normalised).
         bins : Bins or Basis
             The bins the values are tabulated on.
-            With a :class:`~binference.Basis`, likelihoods of its components
-            (DECISIONS #76).
+            With a :class:`~binference.Basis`, likelihoods of its components.
         kind : {"likelihood"}, optional
             The values are likelihoods. Exactly one of ``kind`` and ``interim``.
         interim : Density, "flat", callable, distribution or array_like (K,), optional
@@ -853,6 +854,7 @@ class Likelihoods:
         fractional_weights : bool, optional
             Accept non-integer weights, which give a pseudo-likelihood.
         """
+        # DECISIONS #76
         posterior = _check_kind(kind, interim)
         if representation is None:
             representation = "mass" if posterior else "density"
@@ -900,7 +902,7 @@ class Likelihoods:
         keep_samples: bool = True,
         warn_outside: bool = True,
     ) -> Likelihoods:
-        r"""Build likelihoods from per-object posterior samples (DECISIONS #31).
+        r"""Build likelihoods from per-object posterior samples.
 
         One Monte Carlo estimator, :math:`\hat L_{ik} \propto \frac1S \sum_s
         w_s\,\mathbb 1[z_s \in B_k]\,T'(z_s) / \pi(z_s)`, averaged over each bin
@@ -927,8 +929,7 @@ class Likelihoods:
             ``(S_i, ndim)`` arrays.
         bins : Bins or Basis
             Target bins (grids only).
-            With a :class:`~binference.Basis`, likelihoods of its components
-            (DECISIONS #76).
+            With a :class:`~binference.Basis`, likelihoods of its components.
         interim : Density, "flat", callable, distribution or array_like (K,)
             Prior under which the samples were drawn, read by
             :meth:`Density.coerce`. There is deliberately no default: samples
@@ -939,7 +940,7 @@ class Likelihoods:
             Importance weights for the samples (same layout as ``samples``).
         sparse : bool, optional
             Store the result sparsely. Defaults to sparse when fewer than 10%
-            of entries are non-zero (``_kernels.SPARSE_FILL``; DECISIONS #77).
+            of entries are non-zero (``_kernels.SPARSE_FILL``).
         min_samples : int
             Warn if more than 10% of the objects have fewer effective samples
             inside the bins than this (audit I-23).
@@ -950,7 +951,7 @@ class Likelihoods:
         keep_samples : bool
             Keep the samples inside the bins and their weights, so that
             :meth:`PopulationResult.sample_values` resamples them within the drawn
-            bin (DECISIONS #50); ``False`` saves that copy of the samples.
+            bin; ``False`` saves that copy of the samples.
         warn_outside : bool
             Warn when many objects have most of their samples outside the bins
             (see :meth:`from_gaussian`).
@@ -967,6 +968,7 @@ class Likelihoods:
         fractional_weights : bool, optional
             Accept non-integer weights, which give a pseudo-likelihood.
         """
+        # DECISIONS #31, #76, #77, #50
         if bins.is_categorical:
             raise ValueError("from_samples needs ordered (grid) bins.")
         if not floor >= 0:
@@ -1063,13 +1065,14 @@ class Likelihoods:
         estimate of :math:`L_i\cdot\rho` and the effective number of samples
         under ``rho``. Summed over objects, :math:`\sum_i V_i` is about the bias
         it puts in the total log-likelihood (Jensen); values above about one
-        call for more samples (DECISIONS #31).
+        call for more samples.
 
         Parameters
         ----------
         rho : array_like (K,)
             Population fractions.
         """
+        # DECISIONS #31
         if "sample_sum" not in self.meta:
             raise ValueError("sample_variance needs likelihoods built by from_samples.")
         a = np.asarray(rho, dtype=float).ravel()
@@ -1119,7 +1122,7 @@ class Likelihoods:
         N-D grids, measurement errors are independent per axis (``mean`` and
         ``sigma`` of shape ``(N, ndim)``) unless ``cov`` gives each object's full
         covariance; correlated Gaussians are averaged over each bin by adaptive
-        cubature in log space, to ``tol``, in any number of dimensions (DECISIONS #25).
+        cubature in log space, to ``tol``, in any number of dimensions.
         Each object's fraction of mass outside the active bins is recorded in
         ``meta["outside_fraction"]``; ``warn_outside`` warns when more than 10% of
         the objects have more than 90% of their mass outside.
@@ -1132,8 +1135,7 @@ class Likelihoods:
             Measurement uncertainties (strictly positive).
         bins : Bins or Basis
             Grid bins.
-            With a :class:`~binference.Basis`, likelihoods of its components
-            (DECISIONS #76).
+            With a :class:`~binference.Basis`, likelihoods of its components.
         cov : array_like, shape (ndim, ndim) or (N, ndim, ndim), optional
             Full covariance matrices (symmetric positive definite), in place of
             ``sigma``.
@@ -1157,6 +1159,7 @@ class Likelihoods:
         fractional_weights : bool, optional
             Accept non-integer weights, which give a pseudo-likelihood.
         """
+        # DECISIONS #25, #76
         basis = bins if isinstance(bins, Basis) else None
         if basis is not None:  # evaluated on its quadrature cells, returned per component
             bins = basis.components
@@ -1443,10 +1446,10 @@ class Likelihoods:
         sums of :math:`R`) becomes the selection function in ``"on_measurement"`` mode,
         because the rows already include it. For a response tallied from events,
         which is inferred with the population, the rows and the efficiency are its
-        posterior means, so a measured bin without tallied events still has a row
-        (DECISIONS #81). This covers unfolding (a detector
+        posterior means, so a measured bin without tallied events still has a row.
+        This covers unfolding (a detector
         response) and classifier outputs binned by score
-        (:meth:`Response.from_labelled`, DECISIONS #29).
+        (:meth:`Response.from_labelled`).
 
         Parameters
         ----------
@@ -1462,6 +1465,7 @@ class Likelihoods:
             Accept non-integer (for example weighted) counts, which give a
             pseudo-likelihood.
         """
+        # DECISIONS #81, #29
         if not isinstance(response, Response):
             raise TypeError(
                 f"response must be a binference.Response; got {type(response).__name__}."

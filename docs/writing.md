@@ -34,8 +34,8 @@ Astronomy leads the examples. Every input type and every field still has its own
   page comes from code that CI runs, or from a benchmark run outside CI. The page names
   that run's script, options and date.
 - Do not cite design records ("DECISIONS #n") in user pages or docstrings. The reason
-  for a design belongs in its issue or pull request. Older docstrings still cite them;
-  remove the citation when you rewrite the docstring.
+  for a design belongs in its issue or pull request. Docstrings do not cite them; a
+  citation belongs in a comment beside the code.
 
 ## Concept pages
 

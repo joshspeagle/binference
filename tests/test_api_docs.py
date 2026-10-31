@@ -1,5 +1,6 @@
 """The API reference pages list every public name exactly once."""
 
+import ast
 import importlib
 import pkgutil
 import re
@@ -62,3 +63,22 @@ def test_every_public_name_appears_exactly_once_in_the_api_pages():
     )
     assert documented.keys() <= public.keys(), "an API page lists a name outside any __all__"
     assert all(n == 1 for n in documented.values()), "an API page lists a name twice"
+
+
+def test_public_docstrings_cite_no_design_record():
+    # the site leaves out notes/review/DECISIONS.md, so a citation there would dangle
+    package = Path(binference.__file__).parent
+    citing = []
+    for path in sorted(package.rglob("*.py")):
+        parts = path.relative_to(package).with_suffix("").parts
+        if any(p.startswith("_") and p != "__init__" for p in parts):
+            continue
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            name = getattr(node, "name", "<module>")
+            if (
+                isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+                and (name == "__init__" or not name.startswith("_"))
+                and "DECISIONS" in (ast.get_docstring(node) or "")
+            ):
+                citing.append(f"{path.relative_to(package.parent)}:{node.body[0].lineno} {name}")
+    assert not citing, citing
