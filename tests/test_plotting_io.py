@@ -82,6 +82,8 @@ def test_the_sbc_plot_always_shows_the_joint_log_likelihood():
     sbc = binference.validation.SBCResult(ranks, 19, names)
     shown = [a for a in sbc.plot(max_panels=2).axes if a.get_visible()]
     assert [a.get_title() for a in shown] == ["a", "loglike"]
+    with pytest.raises(ValueError, match="max_panels"):
+        sbc.plot(max_panels=0)
     np.testing.assert_array_equal(shown[-1].containers[0].datavalues, sbc.histogram()[-1])
     plt.close("all")
 
@@ -128,8 +130,10 @@ def test_a_list_of_colours_is_for_the_bars_of_categories_only(res1d):
     )
     with pytest.raises(ValueError, match="a list of 3 of them"):
         cats.plot(color=["red", "green"])
-    ax = cats.plot(color=["red", "green", "blue"])
-    assert same_color([bar.get_facecolor()[:3] for bar in ax.patches], ["red", "green", "blue"])
+    rgb = ["red", "lime", "blue"]
+    for colors in (rgb, np.eye(3)):  # names, or rows as from a colormap
+        ax = cats.plot(color=colors)
+        assert same_color([bar.get_facecolor()[:3] for bar in ax.patches], rgb)
     plt.close("all")
 
 

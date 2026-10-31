@@ -46,7 +46,7 @@ def _style_color(name: str, value: Any, slot: int, n: int | None = None):
         value = f"C{slot}"
     if is_color_like(value):
         return to_rgba(value)
-    listed = isinstance(value, list | tuple) and all(map(is_color_like, value))
+    listed = isinstance(value, list | tuple | np.ndarray) and all(map(is_color_like, value))
     if n and listed and len(value) == n:
         return [to_rgba(c) for c in value]
     many = f", a list of {n} of them (one per category)," if n else ""
@@ -96,12 +96,14 @@ def _overlay(result: Any, values: Any, which: str, total: float) -> np.ndarray:
     v = np.asarray(values, dtype=float)
     v = v / v.sum()
     if which == "selected":
-        if result.basis is not None:
+        if result.basis is None or result.basis.is_identity:
+            return result._selected_of(v[None, :]).mean(axis=0)
+        if result.selection is not None or result._inferred_selection() is not None:
             raise ValueError(
-                "truth cannot be shown on which='selected' of a fit with a Basis, whose "
-                "selection weighs components, not bins. Compare it on which='fractions'."
+                "truth cannot be shown on which='selected' of a fit with a Basis and a "
+                "selection, which weighs components, not bins. Compare it on which='fractions'."
             )
-        return result._selected_of(v[None, :]).mean(axis=0)
+        return v  # without a selection the selected population is the population
     if which == "fractions":
         return v
     v = v * total
@@ -126,7 +128,8 @@ def plot_population(
 
     Overlays (``truth``, ``stack``) contribute only their shape: for rates (and rate
     models) they are scaled to the posterior mean total. For the selected population
-    the truth is reweighted by the fit's selection (bins without a basis); the stack is
+    the truth is reweighted by the fit's selection, which a basis other than the bins
+    must not have (it weighs components); the stack is
     not, as it averages the observed objects and so estimates the selected population
     already. 2-D grids show the median and the relative uncertainty as images and take
     no overlays.
@@ -434,7 +437,9 @@ def plot_individual(
     """Compare object ``i``'s own likelihood (flat-prior posterior) with its shrunk posterior.
 
     With a :class:`~binference.Basis` both are posteriors over its components, shared
-    among the bins as in :meth:`~binference.PopulationResult.assignment_probabilities`.
+    among the bins as in :meth:`~binference.PopulationResult.assignment_probabilities`;
+    the own curve takes a population flat in z over the components, which is flat over
+    the bins exactly for flat components or hats on evenly spaced bins.
 
     Parameters
     ----------
@@ -530,6 +535,8 @@ def plot_sbc(
     plt = _plt()
     color = _style_color("color", color, 0)
     ink = plt.rcParams["text.color"]
+    if max_panels < 1:
+        raise ValueError(f"max_panels must be at least 1; got {max_panels}.")
     H = sbc_result.histogram(n_bins)
     names = sbc_result.names
     q = min(len(names), max_panels)
