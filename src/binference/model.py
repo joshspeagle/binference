@@ -699,16 +699,6 @@ class PopulationModel:
         """
         return self.prior.sample(int(n), as_generator(rng))
 
-    def prior_transform(self, u: np.ndarray) -> np.ndarray:
-        """Unit-hypercube transform to prior draws (for nested samplers).
-
-        Parameters
-        ----------
-        u : ndarray (..., dim)
-            Points in the unit hypercube.
-        """
-        return self.prior.prior_transform(np.asarray(u, dtype=float))
-
     # -------------------------------------------------------- diagnostics
     def kkt_gap(self, value: np.ndarray, include_prior: bool = True) -> float:
         r"""Violation of the first-order optimality conditions at ``value``.

@@ -72,17 +72,6 @@ def test_ilr_density_and_gradient(prior, rng):
 
 
 @pytest.mark.parametrize("prior", SIMPLEX_PRIORS, ids=repr)
-def test_prior_transform_matches_sampling(prior, rng):
-    b = prior.bind(B3)
-    u = rng.random((40000, 2))
-    d1 = b.prior_transform(u)
-    d2 = b.sample(40000, rng)
-    np.testing.assert_allclose(d1.sum(1), 1.0)
-    np.testing.assert_allclose(d1.mean(0), d2.mean(0), atol=8e-3)
-    np.testing.assert_allclose(d1.std(0), d2.std(0), atol=8e-3)
-
-
-@pytest.mark.parametrize("prior", SIMPLEX_PRIORS, ids=repr)
 def test_conjugate_posterior_and_map(prior, rng):
     b = prior.bind(B3)
     counts = np.array([7.0, 2.0, 11.0])

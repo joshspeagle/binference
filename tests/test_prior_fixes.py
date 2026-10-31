@@ -2,7 +2,6 @@
 
 import numpy as np
 import pytest
-from scipy import stats
 
 import binference
 from binference import Bins
@@ -106,13 +105,6 @@ def test_every_argument_that_changes_a_prior_shows_in_its_repr():
     for a, b in pairs:
         assert repr(a) != repr(b)
     assert P.Dirichlet.from_base_measure().alpha is None
-
-
-def test_gamma_rates_have_a_prior_transform():
-    b = P.GammaRates(shape=[0.5, 2.0], rate=[1.0, 3.0]).bind(Bins.categories(2))
-    u = np.array([[0.1, 0.9], [0.5, 0.5]])
-    expected = stats.gamma.ppf(u, a=[0.5, 2.0], scale=1 / np.array([1.0, 3.0]))
-    np.testing.assert_allclose(b.prior_transform(u), expected, rtol=1e-10)
 
 
 def test_a_custom_prior_has_a_repr_without_matching_attributes():

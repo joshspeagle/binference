@@ -5,6 +5,14 @@ All notable changes to binference are recorded here. The format follows
 [Semantic Versioning](https://semver.org/) (with the usual 0.x caveat that minor
 releases may break the API).
 
+## [Unreleased]
+
+### Removed
+
+- `PopulationModel.prior_transform`, `BoundPrior.prior_transform` (on the Dirichlet, tree
+  and `GammaRates` priors) and `BoundPrior.has_prior_transform`: the unit-cube map for
+  nested samplers, which nothing in binference used (DECISIONS #107).
+
 ## [0.1.0] - 2026-10-29
 
 First release.

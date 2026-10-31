@@ -70,7 +70,6 @@ class _BoundGammaRates(BoundPrior):
     kind = "rates"
     conjugate = True
     has_density = True
-    has_prior_transform = True
 
     def __init__(self, prior: PopulationPrior, bins: Bins, a: np.ndarray, b: np.ndarray) -> None:
         super().__init__(prior, bins)
@@ -104,9 +103,6 @@ class _BoundGammaRates(BoundPrior):
         v = np.asarray(value, dtype=float)
         pos = v > 0
         return np.where(pos, (self.a - 1.0) / np.where(pos, v, 1.0) - self.b, 0.0)
-
-    def prior_transform(self, u):
-        return special.gammaincinv(self.a, np.asarray(u, dtype=float)) / self.b
 
     def _exposure(self, exposure):
         return np.ones(self.K) if exposure is None else exposure
