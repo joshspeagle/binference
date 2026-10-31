@@ -478,3 +478,4 @@ Append-only. One entry per working session (or per step within a long session).
 - #152 (PR #154): `prior_transform` removed, with `has_prior_transform` and `_stick_break` (DECISIONS #107); breaking, so the next release is 0.2.0.
 - #153: tree priors get `describe(bins, counts=None)`, a text drawing with α, mean share and mean mass on each branch; `DirichletTree` takes named groups and `alpha` by group or bin name; `_TreeStructure.ptr` becomes `node_start` (DECISIONS #108).
 - #159: `ci-ok` gates on `changes` and `slow` too, scikit-learn joins the `test` extra so its test runs, and the sdist is clean (DECISIONS #110).
+- #160: engine inputs are checked when the engine is made (MAP's `init` positive, as Gibbs's), the rates start is fitted on L over S, and `Engine.name` and `approximate` are removed (DECISIONS #112).
