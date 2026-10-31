@@ -50,8 +50,8 @@ shape of their tree.
   $\alpha_k$ and `b` equal to $\sum_{j>k}\alpha_j$ it is $\mathrm{Dir}(\alpha)$. Other
   parameters give variances and correlations, including positive ones, that a Dirichlet
   cannot express.
-- **`DirichletTree(tree, alpha)`** takes any tree, written as nested lists of bin
-  indices, with one concentration per branch.
+- **`DirichletTree(tree, alpha)`** takes any tree, written as nested lists of bins or as
+  named groups, with one concentration per branch.
 - **`PolyaTree`** {cite:p}`lavine1992` is a balanced binary tree over ordered
   one-dimensional bins, split in halves by index. A split at depth $h$ (the root has
   $h=1$) gives a child the concentration

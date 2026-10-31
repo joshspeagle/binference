@@ -14,7 +14,7 @@ from scipy import special
 from . import _kernels as kern
 from . import diagnostics as diag
 from ._utils import RNGLike, as_generator, check_nonnegative, chunk_slices, is_integer_array, warn
-from .bins import Bins
+from .bins import Bins, _bin_labels
 from .measure import Measure
 from .warnings import ConvergenceWarning, DiagnosticsError, InputWarning
 
@@ -114,17 +114,6 @@ class Summary:
         return "\n".join(lines)
 
     _repr_html_ = None
-
-
-def _bin_labels(bins: Bins) -> np.ndarray:
-    if bins.is_categorical:
-        return np.array([str(lab) for lab in bins.labels], dtype=object)
-    if bins.ndim == 1:
-        e = bins.edges[0]
-        j = bins.cell_index[0]
-        return np.array([f"[{e[k]:.4g}, {e[k + 1]:.4g})" for k in j], dtype=object)
-    idx = np.stack(bins.cell_index, axis=1)
-    return np.array([str(tuple(int(i) for i in row)) for row in idx], dtype=object)
 
 
 def _hdi(x: np.ndarray, level: float) -> tuple[float, float]:

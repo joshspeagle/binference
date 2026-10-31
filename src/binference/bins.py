@@ -643,3 +643,15 @@ class Bins:
         if coarse._lookup is not None:
             coarse_flat = coarse._lookup[coarse_flat]
         return coarse, coarse_flat
+
+
+def _bin_labels(bins: Bins) -> np.ndarray:
+    """Each bin's name in tables: its label, its interval (1-D) or its grid cell."""
+    if bins.is_categorical:
+        return np.array([str(lab) for lab in bins.labels], dtype=object)
+    if bins.ndim == 1:
+        e = bins.edges[0]
+        j = bins.cell_index[0]
+        return np.array([f"[{e[k]:.4g}, {e[k + 1]:.4g})" for k in j], dtype=object)
+    idx = np.stack(bins.cell_index, axis=1)
+    return np.array([str(tuple(int(i) for i in row)) for row in idx], dtype=object)
