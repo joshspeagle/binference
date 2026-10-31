@@ -1,6 +1,6 @@
 # Walkthrough plan
 
-**Current position:** the walkthrough continues in the teardown artifact (DECISIONS #106, issue #150), now at overview depth over the whole map; the walkthrough and deep dive follow Josh's requests in the order of the phases below. The landing (Phases A–C), the docs phase (#99) and the 0.1.0 release are complete.
+**Current position:** the walkthrough continues in the teardown artifact (DECISIONS #106, issue #150), now at overview depth over the whole map; the walkthrough and deep dive follow Josh's requests in the order of the phases below. The landing (Phases A–C), the docs phase (#99) and the 0.1.0 release are complete. Still open: #124 (notation symbols in docstrings and pages), #129 (SBC for `LogisticGP`) and step 1.3's architecture decisions, deferred until the relevant code has been read.
 
 ## How each step works
 
