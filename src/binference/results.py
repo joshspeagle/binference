@@ -13,12 +13,26 @@ from scipy import special
 
 from . import _kernels as kern
 from . import diagnostics as diag
-from ._utils import RNGLike, as_generator, check_nonnegative, chunk_slices, is_integer_array, warn
+from ._utils import (
+    RNGLike,
+    as_generator,
+    check_nonnegative,
+    chunk_slices,
+    frozen,
+    is_integer_array,
+    read_only,
+    warn,
+)
 from .bins import Bins, _bin_labels
 from .measure import Measure
 from .warnings import ConvergenceWarning, DiagnosticsError, InputWarning
 
 if TYPE_CHECKING:  # pragma: no cover
+    import pandas as pd
+    import xarray as xr
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
+
     from .basis import Basis
     from .likelihoods import Likelihoods
     from .model import PopulationModel
@@ -34,7 +48,8 @@ RHAT_MAX = 1.01
 #: Smallest bulk and tail ESS per chain that :meth:`PopulationResult.check` accepts by
 #: default.
 ESS_MIN_PER_CHAIN = 100.0
-#: Chains shorter than this many draws get no R-hat or ESS.
+#: Chains shorter than this many draws get no R-hat or ESS, and
+#: :meth:`PopulationResult.check` flags them as too short to diagnose.
 MIXING_MIN_DRAWS = 8
 #: :meth:`PopulationResult.check` warns when a NUTS chain's E-BFMI is below this.
 EBFMI_MIN = 0.3
@@ -77,9 +92,11 @@ class Summary:
             raise AttributeError(key) from None
 
     def to_dict(self) -> dict[str, np.ndarray]:
+        """The columns as a new dictionary, by name."""
         return dict(self.columns)
 
-    def to_pandas(self):
+    def to_pandas(self) -> pd.DataFrame:
+        """The table as a :class:`pandas.DataFrame` (needs pandas)."""
         import pandas as pd
 
         return pd.DataFrame(self.columns)
@@ -106,8 +123,6 @@ class Summary:
         shown = rows if len(rows) <= max_rows else [*rows[:20], ["..."] * len(names), *rows[-19:]]
         lines.extend("  ".join(c.rjust(w) for c, w in zip(r, widths, strict=True)) for r in shown)
         return "\n".join(lines)
-
-    _repr_html_ = None
 
 
 def _hdi(x: np.ndarray, level: float) -> tuple[float, float]:
@@ -158,7 +173,24 @@ class _IndividualMixin:
         """Values ``(..., C)`` as fractions: rates normalised, fractions as they are."""
         return values / values.sum(axis=-1, keepdims=True) if self.kind == "rates" else values
 
-    def plot_individual(self, i: int, **kwargs: Any):
+    def _which(self, which: str) -> np.ndarray:
+        """Draws ``(n, K)`` of the fractions, rates, densities or selected population (see
+        :func:`_which_name`); a point estimate is one draw."""
+        which = _which_name(which)
+        if which == "density":  # the fractions, or a rate model's rates, per unit volume
+            return self._which(self.kind) / self.bins.volumes
+        if which == "fractions":
+            return self._rho_draws()
+        X = self.selected if which == "selected" else self.rates
+        if X is None:
+            raise ValueError(
+                "This result has no rates: its selection is only relative, so the total is "
+                "not identified (DECISIONS #46), or it has no model (attach the likelihoods "
+                "to a loaded result)."
+            )
+        return np.atleast_2d(X)
+
+    def plot_individual(self, i: int, **kwargs: Any) -> Axes:
         """Object ``i``'s own likelihood against its hierarchical posterior (see
         :func:`binference.plotting.plot_individual`).
 
@@ -287,15 +319,18 @@ class _IndividualMixin:
         chunk : int, optional
             Objects processed per block, which bounds memory.
         """
-        if n_draws is not None and n_draws < 5:
-            raise ValueError(f"n_draws must be at least 5 for leave-one-out; got {n_draws}.")
+        least = diag.PSIS_MIN_WEIGHTS
+        if n_draws is not None and n_draws < least:
+            raise ValueError(f"n_draws must be at least {least} for leave-one-out; got {n_draws}.")
         if self.method == "bootstrap":
             raise ValueError("Leave-one-out reweights posterior draws; bootstrap draws are not.")
         model = self._require_model()
         L, R, S = self._object_draws(n_draws)
         m = R.shape[0]
-        if m < 5:
-            raise ValueError(f"Leave-one-out needs posterior draws (at least 5); this has {m}.")
+        if m < least:
+            raise ValueError(
+                f"Leave-one-out needs posterior draws (at least {least}); this has {m}."
+            )
         if self.kind == "rates":  # Poisson: the object's factor is Lambda (L_i . rho)
             log_norm = -np.log(_flat_draws(self._params, 1, n_draws).sum(axis=1))
         else:
@@ -534,7 +569,7 @@ class _IndividualMixin:
             L = model._L  # with a selection on the truth applied, as the fit sees them
             tot = kern.matvec(L, np.ones(L.shape[1]))
             w = np.divide(model._w, tot, out=np.zeros_like(tot), where=tot > 0)
-            self._cache["data_support"] = self._to_bins(kern.rmatvec(L, w))
+            self._cache["data_support"] = frozen(self._to_bins(kern.rmatvec(L, w)))
         return self._cache["data_support"]
 
     def prior_information_ratio(self, h: float = 1e-4) -> float:
@@ -677,7 +712,7 @@ class _IndividualMixin:
 
     def predict_proba(
         self, likelihoods: Likelihoods | Any, n_draws: int | None = N_DRAWS, chunk: int = 4096
-    ):
+    ) -> np.ndarray:
         """Posterior over bins for *new* objects under the inferred population.
 
         Parameters
@@ -694,7 +729,7 @@ class _IndividualMixin:
 
     def log_predictive(
         self, likelihoods: Likelihoods | Any, n_draws: int | None = N_DRAWS, chunk: int = 4096
-    ):
+    ) -> np.ndarray:
         r"""Log posterior-predictive density of new objects, :math:`\log E[L_i\cdot\rho]`.
 
         Includes the per-object log-scales of the likelihoods, so values can be
@@ -837,6 +872,12 @@ def _flat_draws(A: Any, n_tail: int, n_draws: int | None) -> np.ndarray:
     A = np.asarray(A)
     A = A.reshape(-1, *A.shape[A.ndim - n_tail :])
     return A[_draw_index(len(A), n_draws)]
+
+
+def _check_level(level: float, name: str = "level") -> None:
+    """Refuse a credible level ``name`` outside (0, 1)."""
+    if not 0 < level < 1:
+        raise ValueError(f"{name} must be in (0, 1); got {level}.")
 
 
 def _central(X: np.ndarray, level: float, axis: int = 0) -> np.ndarray:
@@ -1154,8 +1195,8 @@ class PopulationResult(_IndividualMixin):
     """Posterior draws of a population (fractions and, for rate models, rates).
 
     Every inference engine returns this object (``MAP`` returns a
-    :class:`PointEstimate`). Draws are stored per chain; flattened views are
-    available as :attr:`samples` (fractions) and :attr:`rates`.
+    :class:`PointEstimate`). Draws are stored per chain, as a read-only copy;
+    flattened views are available as :attr:`samples` (fractions) and :attr:`rates`.
 
     Attributes
     ----------
@@ -1194,7 +1235,7 @@ class PopulationResult(_IndividualMixin):
         total: np.ndarray | None = None,
         selection: Selection | None = None,
     ) -> None:
-        d = np.asarray(draws, dtype=float)
+        d = read_only(draws)  # copied unless read-only: the caller may change theirs later
         if d.ndim == 2:
             d = d[None]
         if d.ndim != 3:
@@ -1205,14 +1246,12 @@ class PopulationResult(_IndividualMixin):
         #: the :class:`~binference.Basis` of the model's components, or ``None``
         self.basis = basis
         self._params = d  # the model's columns: component weights with a basis
-        self._draws = self._to_bins(d)  # per bin (the same array without a basis)
+        self._draws = frozen(self._to_bins(d))  # per bin (the same array without a basis)
         self.kind = kind = kind or (model.kind if model is not None else "fractions")
         if kind == "rates":
             total = self._draws.sum(axis=-1)
         # for fractions, drawn on first use (see total)
-        self._total = (
-            None if total is None else np.asarray(total, dtype=float).reshape(d.shape[:2])
-        )
+        self._total = None if total is None else read_only(np.reshape(total, d.shape[:2]))
         self.bins = (
             bins
             if bins is not None
@@ -1229,6 +1268,9 @@ class PopulationResult(_IndividualMixin):
         self.method = method
         self.approximate = approximate
         self.info = dict(info or {})
+        for key in ("selection_draws", "response_draws"):  # draws as the population's
+            if key in self.info:
+                self.info[key] = read_only(self.info[key])
         self.labels = labels
         self.label_index = label_index
         self.prior_repr = prior_repr or (repr(model.prior_spec) if model is not None else None)
@@ -1379,6 +1421,7 @@ class PopulationResult(_IndividualMixin):
     # ------------------------------------------------------------ properties
     @property
     def n_chains(self) -> int:
+        """Number of chains."""
         return int(self._draws.shape[0])
 
     @property
@@ -1388,6 +1431,7 @@ class PopulationResult(_IndividualMixin):
 
     @property
     def K(self) -> int:
+        """Number of bins."""
         return int(self._draws.shape[-1])
 
     @property
@@ -1419,7 +1463,8 @@ class PopulationResult(_IndividualMixin):
         """
         if self._total is None and self.model is not None:
             S = self._inferred_selection()  # per draw, when inferred with the population
-            self._total = self.model.draw_total(self._params, _draws_rng(self._params), S)
+            total = self.model.draw_total(self._params, _draws_rng(self._params), S)
+            self._total = None if total is None else frozen(total)
         return None if self._total is None else self._total.ravel()
 
     @property
@@ -1444,30 +1489,13 @@ class PopulationResult(_IndividualMixin):
     def _weight_draws(self) -> np.ndarray:
         return self._fractions(_flat_draws(self._params, 1, None))
 
-    def _which(self, which: str) -> np.ndarray:
-        which = _which_name(which)
-        if which == "fractions":
-            return self.samples
-        if which == "rates":
-            rates = self.rates
-            if rates is None:
-                raise ValueError(
-                    "This result has no rates: its selection is only relative, so the total "
-                    "is not identified (DECISIONS #46), or it has no model (attach the "
-                    "likelihoods)."
-                )
-            return rates
-        if which == "selected":
-            return self.selected
-        return self.density()
-
     @property
     def selected(self) -> np.ndarray:
         """Draws ``(n_draws, K)`` of the selected population
         :math:`\\phi = S\\circ\\rho / (S\\cdot\\rho)`, the bins of the observed objects;
         :math:`\\rho` itself without a selection (DECISIONS #49)."""
         if "selected" not in self._cache:
-            self._cache["selected"] = self._selected_of(self._weight_draws())
+            self._cache["selected"] = frozen(self._selected_of(self._weight_draws()))
         return self._cache["selected"]
 
     def _center_x(self) -> np.ndarray:
@@ -1539,8 +1567,7 @@ class PopulationResult(_IndividualMixin):
         which : {"fractions", "rates", "density", "selected"}, optional
             Quantity used: fractions, rates, densities or the selected population.
         """
-        if not 0 < level < 1:
-            raise ValueError("level must be in (0, 1).")
+        _check_level(level)
         X = self._which(which)
         if kind == "central":
             lo, hi = _central(X, level)
@@ -1556,12 +1583,11 @@ class PopulationResult(_IndividualMixin):
         Fractions divided by bin volumes (rates divided by volumes for rate
         models): the quantity to plot as n(z).
         """
-        base = self.rates if self.kind == "rates" else self.samples
-        return base / self.bins.volumes
+        return self._which("density")
 
     def functional(
         self, func: Callable[[np.ndarray], Any], vectorized: bool = False, which: str = "fractions"
-    ):
+    ) -> np.ndarray:
         """Draws of a derived quantity ``func(rho)`` (e.g. the mean redshift), or of
         the rates or densities with ``which``.
 
@@ -1639,7 +1665,7 @@ class PopulationResult(_IndividualMixin):
         Sd = self._inferred_selection()  # a selection, or a response's efficiencies
         if Sd is not None:
             name = "response" if "response_draws" in self.info else "selection"
-            out.update({f"{k}_{name}": v for k, v in _mixing(Sd).items()})
+            out.update({f"{k}_{name}": v for k, v in _mixing(Sd, tail=True).items()})
         for key in (
             "n_divergent",
             "k_hat",
@@ -1674,7 +1700,8 @@ class PopulationResult(_IndividualMixin):
         self, rhat_max: float = RHAT_MAX, ess_min: float = ESS_MIN_PER_CHAIN
     ) -> list[str]:
         """R-hat above ``rhat_max`` and bulk or tail ESS below ``ess_min`` per chain, of
-        the population and of an inferred selection or response, for Markov chains."""
+        the population and of an inferred selection or response, for Markov chains; or
+        chains too short for either."""
         d, msgs = self.diagnostics, []
         # Markov chains (and external draws), whose draws are correlated; independent
         # draws have no chain for R-hat and ESS to describe
@@ -1683,6 +1710,12 @@ class PopulationResult(_IndividualMixin):
         engine = METHODS.get(self.method)
         if self.approximate or (engine is not None and not engine.markov):
             return msgs
+        n = self._draws.shape[1]
+        if n < MIXING_MIN_DRAWS:  # no R-hat or ESS (see _mixing): not a pass
+            return [
+                f"chains of {n} draws are too short to diagnose (R-hat and ESS need "
+                f"{MIXING_MIN_DRAWS})"
+            ]
         for suffix, what in (
             ("", ""),
             ("_selection", " of the selection"),
@@ -1711,7 +1744,7 @@ class PopulationResult(_IndividualMixin):
         predictive_p_min: float = 1e-3,
         predictive_draws: int = 200,
         support_min: float | None = None,
-    ):
+    ) -> list[str]:
         """Check diagnostics and warn (or raise with ``strict=True``) about problems.
 
         Sampler problems raise a :class:`~binference.ConvergenceWarning`; problems
@@ -1850,6 +1883,7 @@ class PopulationResult(_IndividualMixin):
         which : {"fractions", "rates", "density", "selected"}, optional
             Quantity used: fractions, rates, densities or the selected population.
         """
+        _check_level(level)
         which = _which_name(which)
         X = self._which(which)
         lo, hi = _central(X, level)
@@ -2009,7 +2043,7 @@ class PopulationResult(_IndividualMixin):
         )
 
     # ------------------------------------------------------------- plotting
-    def plot(self, **kwargs: Any):
+    def plot(self, **kwargs: Any) -> Axes | np.ndarray:
         """Plot the population posterior (see :func:`binference.plotting.plot_population`).
 
         Parameters
@@ -2021,7 +2055,7 @@ class PopulationResult(_IndividualMixin):
 
         return plot_population(self, **kwargs)
 
-    def plot_corner(self, idx: Sequence[int] | None = None, **kwargs: Any):
+    def plot_corner(self, idx: Sequence[int] | None = None, **kwargs: Any) -> Figure:
         """Corner plot of selected bins (see :func:`binference.plotting.plot_corner`).
 
         Parameters
@@ -2035,7 +2069,7 @@ class PopulationResult(_IndividualMixin):
 
         return plot_corner(self, idx=idx, **kwargs)
 
-    def plot_trace(self, idx: Sequence[int] | None = None, **kwargs: Any):
+    def plot_trace(self, idx: Sequence[int] | None = None, **kwargs: Any) -> Figure:
         """Trace plots of selected bins (see :func:`binference.plotting.plot_trace`).
 
         Parameters
@@ -2083,7 +2117,7 @@ class PopulationResult(_IndividualMixin):
 
         return result_to_dict(self)
 
-    def to_datatree(self):
+    def to_datatree(self) -> xr.DataTree:
         """Convert to an :class:`xarray.DataTree` (ArviZ >= 1.0 layout; needs xarray)."""
         from .io import to_datatree
 
@@ -2099,8 +2133,8 @@ class PointEstimate(_IndividualMixin):
     Attributes
     ----------
     value : (K,) array
-        Fractions (or rates for rate models) at the optimum; with a
-        :class:`~binference.Basis`, the component weights (:attr:`rho` and
+        Fractions (or rates for rate models) at the optimum, a read-only copy; with
+        a :class:`~binference.Basis`, the component weights (:attr:`rho` and
         :attr:`rates` are per bin).
     x : (dim,) array or None
         Unconstrained coordinates (when optimised there).
@@ -2123,7 +2157,7 @@ class PointEstimate(_IndividualMixin):
         info: dict[str, Any] | None = None,
     ) -> None:
         self.model = model
-        self.value = np.asarray(value, dtype=float)
+        self.value = read_only(value)
         self.method = method
         self.x = x
         self.log_posterior = float(log_posterior)
@@ -2170,17 +2204,6 @@ class PointEstimate(_IndividualMixin):
 
     def _rho_draws(self) -> np.ndarray:
         return self.rho[None, :]
-
-    def _which(self, which: str) -> np.ndarray:
-        """The estimate of ``which`` as one draw ``(1, K)``, as for posterior draws."""
-        which = _which_name(which)
-        if which == "density":
-            return self.density()[None, :]
-        if which == "rates" and self.rates is None:
-            raise ValueError("No rates in this result (a relative selection, or no model).")
-        if which == "selected":
-            return self.selected[None, :]
-        return (self.rho if which == "fractions" else self.rates)[None, :]
 
     @property
     def selection(self) -> Selection | None:
@@ -2233,11 +2256,13 @@ class PointEstimate(_IndividualMixin):
         return self._fractions(self.value)[None, :]
 
     def density(self) -> np.ndarray:
-        """Population density per unit bin volume at the optimum."""
-        base = self.rates if self.kind == "rates" else self.rho
-        return base / self.bins.volumes
+        """Population density per unit bin volume at the optimum (see
+        :meth:`PopulationResult.density`)."""
+        return self._which("density")[0]
 
-    def laplace(self, n_samples: int = 4000, rng: RNGLike = None, **kwargs: Any):
+    def laplace(
+        self, n_samples: int = 4000, rng: RNGLike = None, **kwargs: Any
+    ) -> PopulationResult:
         """Laplace approximation around the mode (see :class:`binference.samplers.Laplace`).
 
         Parameters
@@ -2260,7 +2285,14 @@ class PointEstimate(_IndividualMixin):
             f"converged={self.converged})"
         )
 
-    def plot(self, **kwargs: Any):
+    def plot(self, **kwargs: Any) -> Axes | np.ndarray:
+        """Plot the estimate (see :func:`binference.plotting.plot_population`).
+
+        Parameters
+        ----------
+        **kwargs
+            Passed to :func:`binference.plotting.plot_population`.
+        """
         from .plotting import plot_population
 
         return plot_population(self, **kwargs)

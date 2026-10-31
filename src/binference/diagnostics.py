@@ -6,7 +6,10 @@
   (Sokal 1997; Goodman & Weare 2010).
 * :func:`psis` implements Pareto-smoothed importance sampling (Vehtari et al.
   2024), returning smoothed log-weights and the shape diagnostic ``k_hat``.
-* :func:`kkt_gap` and :func:`missing_information` are model-specific checks.
+
+The optimality of a point estimate, :meth:`~binference.PopulationModel.kkt_gap`, and
+the missing information, :meth:`~binference.PopulationModel.missing_information`, are
+methods of the model.
 """
 
 from __future__ import annotations
@@ -23,9 +26,7 @@ __all__ = [
     "autocorr_time",
     "ess",
     "importance_ess",
-    "kkt_gap",
     "mcse",
-    "missing_information",
     "psis",
     "psis_threshold",
     "rhat",
@@ -36,7 +37,9 @@ TAIL_QUANTILES = (0.05, 0.95)
 #: Pareto k-hat at or above which importance sampling is unreliable, reached from about
 #: 2,000 weights; with n weights the limit is min(1 - 1/log10(n), K_HAT_MAX).
 K_HAT_MAX = 0.7
-#: Pareto smoothing needs at least this many importance weights.
+#: Fewest importance weights :func:`psis` takes. Smoothing fits a tail of more than four
+#: weights (see ``PSIS_TAIL``), which needs at least 21: with fewer, unequal weights get
+#: k_hat = inf and are not smoothed.
 PSIS_MIN_WEIGHTS = 5
 #: The generalised Pareto is fitted to the ceil(min(a n, b sqrt(n))) largest of n
 #: weights, for (a, b) these.
@@ -65,7 +68,8 @@ def _autocov(x: np.ndarray) -> np.ndarray:
 
 
 def autocorr_function(x: Any) -> np.ndarray:
-    """Normalised autocorrelation function of a 1-D chain (or average over chains).
+    """Normalised autocorrelation function of a 1-D chain (or average over chains); NaN
+    when a chain is constant, which has no autocorrelation.
 
     Parameters
     ----------
@@ -76,12 +80,14 @@ def autocorr_function(x: Any) -> np.ndarray:
     acov = _autocov(x)
     with np.errstate(invalid="ignore", divide="ignore"):
         acf = acov / acov[..., :1]
-    acf = np.where(np.isfinite(acf), acf, 0.0)
+    # a constant chain, tested on the draws: centred, it is zero only up to round-off
+    acf[np.all(x == x[:, :1], axis=1)] = np.nan
     return acf.mean(axis=0)
 
 
 def autocorr_time(x: Any, c: float = 5.0) -> float:
-    """Integrated autocorrelation time with Sokal's adaptive window.
+    """Integrated autocorrelation time with Sokal's adaptive window; NaN when a chain is
+    constant (as :func:`ess`).
 
     Parameters
     ----------
@@ -92,6 +98,8 @@ def autocorr_time(x: Any, c: float = 5.0) -> float:
         running estimate of the time.
     """
     f = autocorr_function(x)
+    if np.isnan(f[0]):  # a constant chain
+        return float("nan")
     taus = 2.0 * np.cumsum(f) - 1.0
     window = np.arange(len(taus)) < c * taus
     m = int(np.argmin(window)) if np.any(~window) else len(taus) - 1
@@ -293,7 +301,8 @@ def psis(log_weights: Any) -> tuple[np.ndarray, float]:
     Parameters
     ----------
     log_weights : array_like (n,)
-        Unnormalised log importance ratios.
+        Unnormalised log importance ratios, at least ``PSIS_MIN_WEIGHTS`` of them;
+        ``-inf`` and NaN get zero weight, and ``+inf`` is refused.
 
     Returns
     -------
@@ -302,22 +311,30 @@ def psis(log_weights: Any) -> tuple[np.ndarray, float]:
     k_hat : float
         Estimated Pareto shape: the estimate is reliable below
         :func:`psis_threshold` of the number of weights (0.7 from about 2,000);
-        ``-inf`` for equal weights, which have no tail.
+        ``-inf`` for equal weights, which have no tail; ``inf`` when the tail cannot
+        be fitted (four or fewer weights above its cut, as always below 21 weights),
+        and then the weights are not smoothed.
     """
     lw = np.array(log_weights, dtype=float).ravel()
     if lw.size < PSIS_MIN_WEIGHTS:
         raise ValueError(f"Need at least {PSIS_MIN_WEIGHTS} importance weights.")
+    if np.isposinf(lw).any():
+        raise ValueError(
+            "log_weights must not be +inf: an infinite ratio means the proposal misses mass "
+            "of the target, which importance sampling cannot correct."
+        )
     lw, k = _psis_rows(lw[None])  # lw is a copy
     return lw[0], float(k[0])
 
 
 def _psis_rows(log_weights: np.ndarray, block: int = 2**22) -> tuple[np.ndarray, np.ndarray]:
     """:func:`psis` of each row of the float array ``log_weights`` ``(r, n)``, ``n >= 5``,
-    in place: the smoothed log-weights (that array) and ``k_hat`` ``(r,)``. Rows whose
-    tails are equally long are fitted together, about ``block`` values at a time."""
+    none ``+inf``, in place: the smoothed log-weights (that array) and ``k_hat`` ``(r,)``.
+    Rows whose tails are equally long are fitted together, about ``block`` values at a
+    time."""
     lw = log_weights
     r, n = lw.shape
-    lw[~np.isfinite(lw)] = -np.inf
+    lw[np.isnan(lw)] = -np.inf
     lw -= lw.max(axis=1, keepdims=True)
     k = np.full(r, np.inf)  # no tail of more than 4 weights to fit
     equal = np.all(lw > -1e-10, axis=1)  # equal weights (to round-off): exact, no tail
@@ -348,43 +365,6 @@ def _psis_rows(log_weights: np.ndarray, block: int = 2**22) -> tuple[np.ndarray,
     lse = mx[:, 0] + np.log(np.exp(lw - mx).sum(axis=1))
     lw -= np.where(equal, np.log(n), lse)[:, None]
     return lw, k
-
-
-# ----------------------------------------------------------------------------
-# model-specific diagnostics
-# ----------------------------------------------------------------------------
-def kkt_gap(model: Any, value: Any, include_prior: bool = True) -> float:
-    """First-order optimality violation of a point estimate.
-
-    See :meth:`binference.PopulationModel.kkt_gap`.
-
-    Parameters
-    ----------
-    model : PopulationModel
-        The model.
-    value : array_like (K,)
-        Fractions or rates.
-    include_prior : bool, optional
-        Include the prior's pseudo-counts in the optimality conditions.
-    """
-    return model.kkt_gap(np.asarray(value, dtype=float), include_prior=include_prior)
-
-
-def missing_information(model: Any, value: Any, **kwargs: Any) -> float:
-    """Largest fraction of missing information.
-
-    See :meth:`binference.PopulationModel.missing_information`.
-
-    Parameters
-    ----------
-    model : PopulationModel
-        The model.
-    value : array_like (K,)
-        Fractions or rates.
-    **kwargs
-        Passed to :meth:`binference.PopulationModel.missing_information`.
-    """
-    return model.missing_information(np.asarray(value, dtype=float), **kwargs)
 
 
 def importance_ess(weights: Any) -> float:

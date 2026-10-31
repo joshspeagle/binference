@@ -112,6 +112,47 @@ def test_realized_counts_narrower_than_population_for_precise_data():
     assert np.all((res.samples * lk.W).std(0) > 3.0)  # population fractions still uncertain
 
 
+def test_realized_counts_add_fractional_weights():
+    # objects with non-integer weights take the branch that draws labels and adds their
+    # weights, which no other test reaches
+    rng = np.random.default_rng(5)
+    labels = rng.integers(0, 5, size=40)
+    w = rng.choice([0.5, 1.5, 2.25], size=40)
+    with pytest.warns(binference.InputWarning, match="pseudo-likelihood"):
+        lk = Likelihoods(
+            np.eye(5)[labels] + 1e-9, Bins.linear(0, 1, 5), weights=w, fractional_weights=True
+        )
+    res = PopulationResult.from_samples(PopulationModel(lk), np.full((20, 5), 0.2))
+    # near one-hot likelihoods: every draw is the weighted histogram of the true bins
+    counts = res.realized_counts(n_draws=None, rng=1)
+    expect = np.bincount(labels, weights=w, minlength=5)
+    np.testing.assert_allclose(counts, np.broadcast_to(expect, (20, 5)))
+
+
+def test_a_result_keeps_a_read_only_copy_of_its_draws(small_1d):
+    # the draws were the caller's array, writeable through samples, chains and
+    # component_draws: a change on either side changed the result under its cached summaries
+    model = PopulationModel(small_1d.likelihoods)
+    draws = np.random.default_rng(0).dirichlet(np.ones(12), size=(2, 30))
+    res = PopulationResult(model, draws, method="test")
+    mean = res.mean
+    draws[:] = 1.0 / 12
+    np.testing.assert_array_equal(res.mean, mean)
+    for arr in (res.samples, res.chains, res.component_draws, res.total, res.selected):
+        with pytest.raises(ValueError, match="read-only"):
+            arr[0] = 0.0
+    # a rate model's draws are wrapped as they are given
+    rates = PopulationModel(small_1d.likelihoods, binference.priors.GammaRates(1.0, 1e-3))
+    lam = np.random.default_rng(1).gamma(50.0, size=(30, 12))
+    ext = PopulationResult.from_samples(rates, lam)
+    lam[:] = 0.0
+    assert np.all(ext.rates > 0)
+    value = np.full(12, 1.0 / 12)
+    est = binference.PointEstimate(model, value)
+    value[0] = 1.0
+    assert est.value[0] == 1.0 / 12 and not est.value.flags.writeable
+
+
 def test_predict_and_log_predictive(fitted, small_1d):
     new = small_1d.likelihoods.subset(np.arange(20))
     p = fitted.predict_proba(new, n_draws=50)
@@ -122,10 +163,8 @@ def test_predict_and_log_predictive(fitted, small_1d):
     # objects are scored a chunk at a time, with the same values
     np.testing.assert_allclose(fitted.log_predictive(new, n_draws=50, chunk=7), lp, rtol=1e-12)
     # a deliberately wrong population scores worse on held-out data
-    wrong = PopulationResult(
-        fitted.model, np.tile(np.r_[np.ones(6), np.full(6, 1e-3)], (50, 1)), method="test"
-    )
-    wrong._draws /= wrong._draws.sum(-1, keepdims=True)
+    draws = np.tile(np.r_[np.ones(6), np.full(6, 1e-3)], (50, 1))
+    wrong = PopulationResult(fitted.model, draws / draws.sum(-1, keepdims=True), method="test")
     assert lp.sum() > wrong.log_predictive(new).sum()
 
 

@@ -15,7 +15,14 @@ from scipy import special, stats
 
 from . import _kernels as kern
 from ._quadrature import bin_log_average
-from ._utils import check_nonnegative, check_positive_weights, frozen, is_integer_array, warn
+from ._utils import (
+    check_nonnegative,
+    check_positive_weights,
+    frozen,
+    is_integer_array,
+    read_only,
+    warn,
+)
 from .basis import Basis
 from .bins import Bins
 from .density import (
@@ -128,13 +135,6 @@ def _group_rows(keys: list) -> tuple[np.ndarray, np.ndarray]:
         if g == len(first):
             first.append(i)
     return np.array(first, dtype=np.intp), group
-
-
-def _read_only(a: Any) -> np.ndarray:
-    # a float array that cannot be changed in place: reused only when it is already
-    # read-only and owns its data (a read-only view could still change through its base)
-    a = np.asarray(a, dtype=float)
-    return a if not a.flags.writeable and a.base is None else frozen(a.copy())
 
 
 def _common(weights, selection, selection_mode, drop_empty, fractional_weights) -> dict[str, Any]:
@@ -452,9 +452,9 @@ class Likelihoods:
         if norm.shape[0] == 0:
             raise ValueError("Likelihoods need at least one object.")
         self._values = frozen(norm)
-        self._log_scale = _read_only(log_scale)
+        self._log_scale = read_only(log_scale)
         self._bins = bins
-        self._weights = _read_only(weights)
+        self._weights = read_only(weights)
         if selection is not None and not isinstance(selection, Selection):
             raise TypeError("internal error: selection must be a Selection object")
         self._selection = selection

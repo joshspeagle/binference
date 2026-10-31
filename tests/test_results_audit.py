@@ -135,6 +135,33 @@ def test_check_flags_energy_tail_mixing_one_chain_and_unconverged_fits():
         _external(stuck, m).check()
 
 
+def test_check_flags_chains_too_short_to_diagnose():
+    # chains below MIXING_MIN_DRAWS get no R-hat or ESS, and check() passed them silently
+    model = binference.PopulationModel(Likelihoods(np.ones((5, 4)), Bins.linear(0, 1, 4)))
+    short = np.random.default_rng(0).dirichlet(np.ones(4), size=(4, 7))
+    with pytest.warns(binference.ConvergenceWarning, match="chains of 7 draws are too short"):
+        assert len(_external(short, model).check()) == 1
+    assert PopulationResult(model, short, method="bootstrap").check() == []  # independent
+
+
+def test_check_reads_the_tail_ess_of_an_inferred_selection_and_keeps_its_own_draws():
+    # the selection's tail ESS was never computed, so its check could not fire
+    bins = Bins.linear(0, 1, 4)
+    z = np.repeat(bins.centers, 20)
+    sel = Selection.from_injections(z, np.arange(z.size) % 2 == 0, bins, "on_truth")
+    model = binference.PopulationModel(Likelihoods(np.ones((5, 4)), bins), selection=sel)
+    rng = np.random.default_rng(0)
+    rho = rng.dirichlet(np.ones(4) * 50, size=(4, 400))
+    S = np.repeat(rng.uniform(0.3, 0.7, size=(4, 40, 4)), 10, axis=1)  # stuck
+    res = _external(rho, model, selection_draws=S)
+    with pytest.warns(binference.ConvergenceWarning, match="tail ESS of the selection"):
+        res.check()
+    # the selection's draws are copied with the population's
+    before = res.assignment_probabilities(n_draws=None)
+    S[:] = 0.5
+    np.testing.assert_array_equal(res.assignment_probabilities(n_draws=None), before)
+
+
 def test_a_strict_check_raises_a_diagnostics_error():
     _, res = _fit_with_selection()
     stuck = np.repeat(np.random.default_rng(0).dirichlet(np.ones(4) * 50, (4, 40)), 10, axis=1)
@@ -155,6 +182,15 @@ def test_summary_mixing_columns_describe_the_quantity_summarised():
     assert res.summary(which="rates")["ess_bulk"].max() < 150
     with pytest.raises(ValueError, match="which"):
         res.summary(which="bogus")
+
+
+def test_summary_and_interval_refuse_a_level_outside_zero_and_one():
+    # summary passed level to np.quantile: 1.5 raised numpy's error, 0 gave one column
+    res = PopulationResult(None, np.random.default_rng(0).dirichlet(np.ones(3), 40), method="x")
+    for level in (0.0, 1.0, 1.5):
+        for method in (res.summary, res.interval):
+            with pytest.raises(ValueError, match="level must be in"):
+                method(level=level)
 
 
 def test_psis_rounds_the_tail_length_up():

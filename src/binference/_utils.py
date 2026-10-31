@@ -38,6 +38,14 @@ def frozen(a: Any) -> Any:
     return a
 
 
+def read_only(a: Any) -> np.ndarray:
+    """``a`` as a float array that cannot be changed in place: reused only when it is
+    already read-only and owns its data (a read-only view could still change through
+    its base), else a read-only copy."""
+    a = np.asarray(a, dtype=float)
+    return a if not a.flags.writeable and a.base is None else frozen(a.copy())
+
+
 def as_generator(rng: RNGLike = None) -> np.random.Generator:
     """Return a :class:`numpy.random.Generator` following SPEC 7.
 
