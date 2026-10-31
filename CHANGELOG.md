@@ -15,6 +15,8 @@ releases may break the API).
 - `DirichletTree` takes named groups (nested dicts, with bin labels on categorical bins),
   and `alpha` as a dict from group names, and bins as the tree writes them, to the
   concentration of the branch into each (DECISIONS #108).
+- `BoundPrior.long_log_tails()`: whether a bin without data has a long tail in the
+  unconstrained coordinates NUTS samples (DECISIONS #109).
 
 ### Changed
 
@@ -29,6 +31,13 @@ releases may break the API).
 
 ### Fixed
 
+- The NUTS tree-depth hint of `check()` names long log tails only for priors that have
+  them where NUTS samples, such as a tree with a branch concentration below one; it no
+  longer blames trees whose concentrations are all at least one, such as
+  `GeneralizedDirichlet(1, 1)` or the default `PolyaTree()` on 4 bins, and suggests
+  `method="gibbs"` only when Gibbs can fit the model (DECISIONS #109).
+- A tree prior with a branch whose exponent on the simplex is exactly zero no longer
+  counts as unbounded through rounding, so MAP keeps it on the simplex (DECISIONS #109).
 - The sdist no longer includes walkthrough notes, and its tests skip the checks that
   need `docs/` or `benchmarks/`, which it does not ship (DECISIONS #110).
 

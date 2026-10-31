@@ -178,6 +178,12 @@ def test_dirichlet_tree_validation():
         P.DirichletTree([[0, 1], 2], alpha=[[1.0, 1.0]]).bind(B3)
 
 
+def test_a_tree_branch_whose_exponent_is_exactly_zero_keeps_the_density_bounded():
+    # the branch into bins 2-4 has alpha 3 over 3 bins; a sum of coefficients gives -7e-16
+    bound = P.GeneralizedDirichlet([5, 2, 1], [3, 2.9, 1.2]).bind(Bins.linear(0, 1, 4))
+    assert not bound.unbounded_density()
+
+
 def test_polya_tree_mean_is_base_and_concentrates(rng):
     b = Bins([0.0, 1.0, 2.0, 4.0, 8.0, 9.0])
     p1 = P.PolyaTree(c=1.0).bind(b)
