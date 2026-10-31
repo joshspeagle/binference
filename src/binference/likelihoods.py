@@ -76,9 +76,10 @@ def _interim_masses(
     tol: float = 1e-3,
     max_depth: int = 12,
     n_sub: int | None = None,
+    bounded: bool = False,
 ) -> np.ndarray:
     """Normalised interim-prior mass per bin."""
-    return Density.coerce(interim, representation).masses(
+    return Density.coerce(interim, representation, bounded=bounded).masses(
         bins, tol=tol, max_depth=max_depth, n_sub=n_sub
     )
 
@@ -313,7 +314,8 @@ def _accepts_basis(within_bins: bool, exact: Callable[[dict], bool] | None = Non
                 bound.arguments["bins"] = basis.grid if within_bins else basis.bins
             interim = bound.arguments.get("interim")
             if within_bins and interim is not None:
-                dens = Density.coerce(interim, bound.arguments.pop("interim_representation", None))
+                rep = bound.arguments.pop("interim_representation", None)
+                dens = Density.coerce(interim, rep, bounded=bound.arguments.get("bounded", False))
                 if dens._values is not None:  # per reporting bin: flat in u within each
                     g, k = basis.grid, basis.grid_to_bins
                     share = g.u_volumes / basis.bins.u_volumes[k]
@@ -723,20 +725,21 @@ class Likelihoods:
 
         Posteriors are formed under ``interim``: by default the interim
         prior the likelihoods were built with (so the stack reproduces the
-        input posteriors), else :meth:`Density.flat`. Stacking is exactly one
+        input posteriors), else a population flat in the measure coordinate
+        (:meth:`Density.flat`). Stacking is exactly one
         EM step from the interim prior, not the maximum-likelihood population;
         it is biased toward the interim prior and broadened by the measurement
         noise, and is provided for comparison only. Its distance from the
         optimum is ``PopulationModel(lk).kkt_gap(lk.stack())``. With a
-        :class:`~binference.Basis` it is over the components (map it with
-        ``lk.basis.to_bins``), under a flat interim prior unless ``interim``
-        is given.
+        :class:`~binference.Basis` it is over the components (``lk.basis.to_bins``
+        maps it to the bins, as ``plot(stack=...)`` does), under a flat interim
+        prior unless ``interim`` is given.
 
         Parameters
         ----------
         interim : Density, "flat", callable, distribution or array_like (K,), optional
-            Prior the stacked posteriors are formed under; ``None`` uses the input's
-            interim prior.
+            Prior the stacked posteriors are formed under, an array one value per
+            column (per component on a basis); ``None`` uses the input's interim prior.
         interim_representation : {"mass", "density"}, optional
             Whether an array ``interim`` holds masses or densities.
         """
@@ -1263,6 +1266,7 @@ class Likelihoods:
         tol: float = 1e-3,
         max_depth: int = 12,
         n_sub: int | None = None,
+        bounded: bool = False,
         weights: Any = None,
         selection: Any = None,
         selection_mode: str | None = None,
@@ -1291,7 +1295,8 @@ class Likelihoods:
         average, splitting cells at most ``max_depth`` times; ``n_sub`` instead
         fixes ``n_sub`` Gauss-Legendre points per bin and axis. A jump in the outer
         4.7% of a cell, or a peak narrower than the spacing of the points, can fall
-        between them and be missed without a warning: put bin edges at the jumps.
+        between them and be missed without a warning: pass ``bounded=True`` for a
+        bounded density, such as a box, or put bin edges at the jumps.
         Distributions with a ``cdf`` on 1-D bins give exact bin masses, for posteriors
         and for likelihoods on bins linear in z, and the fraction of each one's mass
         outside the active bins is recorded in ``meta["outside_fraction"]`` (see
@@ -1319,6 +1324,13 @@ class Likelihoods:
             Most refinements of the adaptive quadrature.
         n_sub : int, optional
             Fixed Gauss-Legendre points per bin and axis in place of adaptive quadrature.
+        bounded : bool, optional
+            The densities, and an ``interim`` given as a function, are bounded: each cell
+            is also checked against Lobatto's 5-point rule read just inside its edges,
+            which sees a jump the Gauss points miss, as for a selection function. A cell
+            then reads 13/8 the points in 1-D, a jump takes about log2(1 / tol)
+            refinements, and an integrable singularity on an edge would refine to
+            ``max_depth``. Ignored with ``n_sub``.
         weights : array_like (N,), optional
             Integer multiplicity of each object; ``None`` gives every object weight one.
         selection : array_like (K,), callable or Selection, optional
@@ -1346,6 +1358,7 @@ class Likelihoods:
             "tol": tol,
             "max_depth": max_depth,
             "n_sub": n_sub,
+            "jumps": bounded,
         }
         log_inside = None
         if callable(density):
@@ -1379,7 +1392,9 @@ class Likelihoods:
                 )
         if posterior:  # the interim prior gets the same quadrature as the values
             interim = Density.from_masses(
-                _interim_masses(interim, bins, interim_representation, tol, max_depth, n_sub)
+                _interim_masses(
+                    interim, bins, interim_representation, tol, max_depth, n_sub, bounded
+                )
             )
         lk = cls.from_table(
             log_avg,

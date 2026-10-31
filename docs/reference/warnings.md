@@ -69,6 +69,14 @@ result may be biased.
   **Fix.** Raise `max_depth` or `tol`, or put a bin edge at the jump; `from_density`
   also takes `n_sub=` for fixed quadrature points.
 
+`Bin averages read zero in <n> bin(s) where the function is non-zero only in a feature too narrow to resolve at tol=<tol>; ...`
+: **When.** None of the quadrature's main points reads the function anywhere, the
+  checks near cell edges read something, and the cells there have been split to below
+  `tol` of their bin.
+  **Cause.** The function is non-zero only in a feature thinner than the quadrature
+  resolves at `tol`, such as a thin box on a bin edge.
+  **Fix.** Lower `tol`, or put bin edges at the feature.
+
 `<n> injections fall outside the bins and are ignored.`
 : **When.** `Selection.from_injections` gets injections outside the bins.
   **Fix.** Widen the bins, or drop those injections first.
