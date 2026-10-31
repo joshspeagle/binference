@@ -153,6 +153,8 @@ def test_auto_works_on_basis_likelihoods(short_nuts):
 def test_infer_refuses_an_n_samples_that_is_not_a_positive_integer(n_samples):
     with pytest.raises(ValueError, match="n_samples must be a positive integer"):
         binference.infer(_lk(0.3), method="gibbs", n_samples=n_samples, n_warmup=1)
+    with pytest.raises(ValueError, match="n_samples must be a positive integer"):
+        inf.Auto(binference.PopulationModel(_lk(0.3))).run(n_samples)
 
 
 def test_auto_options_are_checked_by_name():

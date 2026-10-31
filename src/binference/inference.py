@@ -179,6 +179,8 @@ class Auto(Engine):
             Draws per chain; ``None`` lets auto set the run length. Laplace returns as
             many in total as NUTS's default four chains would (4000 by default).
         """
+        if n_samples is not None:
+            n_samples = check_positive_integers(n_samples, "n_samples")[0]
         plan, rejected = self._plan(n_samples)  # and why earlier engines were not kept
         for i, (key, why, n_gibbs) in enumerate(plan):
             last = i == len(plan) - 1
