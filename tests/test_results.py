@@ -142,7 +142,7 @@ def test_a_result_keeps_read_only_copies_of_its_draws_and_diagnostics(small_1d):
     info["hyperparameters"]["tau"][0] = 99.0
     np.testing.assert_array_equal(res.mean, mean)
     assert res.info["hyperparameters"]["tau"][0] == 1.0
-    res.diagnostics  # cached before pickling: a cache that cannot be pickled fails here
+    assert "rhat" in res.diagnostics  # cached first: a cache that cannot be pickled fails
     for r in (res, pickle.loads(pickle.dumps(res))):  # unpickled, still read-only
         for arr in (r.samples, r.total, r.summary().rhat, r.info["hyperparameters"]["tau"]):
             with pytest.raises(ValueError, match="read-only"):
