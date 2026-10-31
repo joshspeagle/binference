@@ -66,7 +66,7 @@ path = "src/binference/_version.py"
 packages = ["src/binference"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/binference", "tests", "README.md", "LICENSE", "CHANGELOG.md", "CITATION.cff"]
+include = ["/src/binference", "/tests", "/README.md", "/LICENSE", "/CHANGELOG.md", "/CITATION.cff"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"

@@ -7,9 +7,12 @@ import types
 from collections import Counter
 from pathlib import Path
 
+import pytest
+
 import binference
 
-API_PAGES = Path(__file__).parents[1] / "docs" / "reference" / "api"
+DOCS = Path(__file__).parents[1] / "docs"
+API_PAGES = DOCS / "reference" / "api"
 BLOCK = re.compile(r"^```\{eval-rst\}\n(.*?)^```", re.S | re.M)
 CURRENT = re.compile(r"^\.\. currentmodule:: (\S+)", re.M)
 ENTRIES = re.compile(r"^\.\. autosummary::\n((?:   .*\n|\n)*)", re.M)
@@ -50,6 +53,8 @@ def public_names():
 
 
 def test_every_public_name_appears_exactly_once_in_the_api_pages():
+    if not DOCS.exists():
+        pytest.skip("docs/ is not next to the tests (sdist)")
     documented = Counter(id(pkgutil.resolve_name(n)) for n in documented_names())
     public = public_names()
     assert not public.keys() - documented.keys(), sorted(
