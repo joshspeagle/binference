@@ -67,8 +67,8 @@ print(binference.infer(lk, polya, method="map").rho[:3].round(4))
 - **`DirichletTree`**: use it when groups of bins belong together, such as subclasses
   of a class. Pass the groups as nested lists of bin indices, or as dicts of named
   groups; on categorical bins a bin can be named by its label. A dict `alpha` sets the
-  concentration of the branch into each group or bin it names, and the other branches
-  keep 1.
+  concentration of the branch into each group, or bin as the tree writes it, that it
+  names; the other branches keep 1.
 - **`PolyaTree`**: use it on 1-D ordered bins for a conjugate prior with structure at
   several scales.
 

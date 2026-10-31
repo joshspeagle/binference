@@ -13,8 +13,8 @@ releases may break the API).
   text: each branch's concentration, mean share and mean mass, or the posterior given
   counts (DECISIONS #108).
 - `DirichletTree` takes named groups (nested dicts, with bin labels on categorical bins),
-  and `alpha` as a dict from group or bin names to the concentration of the branch into
-  each (DECISIONS #108).
+  and `alpha` as a dict from group names, and bins as the tree writes them, to the
+  concentration of the branch into each (DECISIONS #108).
 
 ### Removed
 
