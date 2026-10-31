@@ -1,5 +1,8 @@
 """method="auto", the default of infer: one test per rule (DECISIONS #88)."""
 
+import ast
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -227,3 +230,14 @@ def test_auto_keeps_the_map_it_computed_as_the_best_fit():
     assert res.info["auto_method"] == "gibbs" and "best" in res._cache
     model = binference.PopulationModel(lk)
     np.testing.assert_allclose(res.best.value, binference.infer(model, method="map").value)
+
+
+def test_tests_outside_this_file_name_the_engine_they_run():
+    # left to auto, a reference fit can run the engine it is compared with (DECISIONS #118)
+    for path in Path(__file__).parent.glob("test_*.py"):
+        if path.name != "test_auto.py":
+            for node in ast.walk(ast.parse(path.read_text())):
+                f = getattr(node, "func", None)
+                if getattr(f, "attr", getattr(f, "id", None)) == "infer":
+                    named = any(k.arg in ("method", None) for k in node.keywords)
+                    assert named, f"{path.name}:{node.lineno} leaves the engine to auto"

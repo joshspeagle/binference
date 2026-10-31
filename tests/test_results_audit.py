@@ -327,7 +327,13 @@ def test_the_datatree_uses_arviz_names_numeric_centres_and_hyperparameters():
     bins = Bins.linear(0, 1, 6)
     lk = binference.simulate.mock_1d(100, bins, noise=0.1, rng=0).likelihoods
     res = binference.infer(
-        lk, binference.priors.LogisticRandomWalk(), n_samples=20, n_warmup=30, rng=0, check=False
+        lk,
+        binference.priors.LogisticRandomWalk(),
+        method="nuts",
+        n_samples=20,
+        n_warmup=30,
+        rng=0,
+        check=False,
     )
     tree = res.to_datatree()
     post, stats = tree["posterior"], tree["sample_stats"]

@@ -19,7 +19,8 @@ import pytest
 
 from binference import priors as P
 
-from .test_slow import _assert_uniform_ranks, _fit, _geweke_z_scores, _sbc
+from .conftest import assert_uniform_ranks
+from .test_slow import _fit, _geweke_z_scores, _sbc
 
 pytestmark = pytest.mark.slow
 
@@ -76,7 +77,7 @@ def test_sbc_ranks_are_uniform(case):
     # unfiltered, sbc's ESS warning is an error: every fit has min_ess >= n_draws
     res = _sbc(prior, _fit(method, prior=prior, **kw), n_simulations, n_draws, 2026, **sim)
     # at least 10 expected ranks per histogram bin
-    _assert_uniform_ranks(res, n_bins=10 if n_simulations >= 150 else 5)
+    assert_uniform_ranks(res, n_bins=10 if n_simulations >= 150 else 5)
 
 
 @pytest.mark.parametrize("prior", [P.LogisticGP(), P.LogisticNormal()], ids=["gp", "normal"])
@@ -90,7 +91,7 @@ def test_sbc_ranks_are_uniform_for_the_default_logistic_hyperpriors(prior):
     # against the density NUTS samples, and the fits short: 25 simulations took 193 s for
     # each prior on one thread of a shared 4-core machine
     fit = _fit("nuts", prior=prior, n_chains=1, n_warmup=500, n_samples=200)
-    _assert_uniform_ranks(_sbc(prior, fit, 25, 19, 2026, n_objects=10), n_bins=5)
+    assert_uniform_ranks(_sbc(prior, fit, 25, 19, 2026, n_objects=10), n_bins=5)
 
 
 @pytest.mark.parametrize(
