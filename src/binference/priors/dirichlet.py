@@ -359,6 +359,23 @@ class _BoundTree(_SimplexBound):
         # branch, so there its exponent is its alpha
         return bool(np.any(self.tree.slot_alpha < 1.0))
 
+    def _kkt_violation(self, value, grad, include_prior=True):
+        # In the branch probabilities theta, where the log-density is sum_j e_j log theta_j:
+        # at each node with mass, (n_j + e_j) / theta_j for the counts n below branch j,
+        # against lambda = sum (n_j + e_j) over its branches with mass (EM's M-step sets
+        # theta_j to (n_j + e_j) / lambda). A branch of exponent zero adds exactly zero
+        # here; in rho its terms of order 1/rho cancel only to round-off, which once a group
+        # of bins empties (rho near 1e-22) is a gap of order 1e5.
+        if not include_prior:
+            return super()._kkt_violation(value, grad, False)
+        t = self.tree
+        vt = np.maximum(value, _TINY)  # as in the MAP objective
+        mass, n, live = (t.slot_mem @ np.column_stack([vt, vt * grad, value])).T
+        x = n + t.slot_exponent
+        lam = t.node_totals(np.where(live > 0, x, 0.0))
+        r = x * t.node_totals(mass) / mass - lam
+        return float(np.max(r, where=t.node_totals(live) > 0, initial=-np.inf))
+
     def log_density(self, value):
         t = self.tree
         r = np.asarray(value, dtype=float)

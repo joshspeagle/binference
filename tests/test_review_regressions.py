@@ -224,13 +224,22 @@ def test_polya_tree_map_avoids_boundary_zeros():
     est = MAP(m).run()
     assert est.info["space"] == "unconstrained"
     assert np.all(est.rho > 0)
-    # EM stops with the empty bins near 1e-18, where the tree's KKT gap has lost its
-    # precision (its terms of order 1e19 cancel), so it may also warn that it stalled
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
+    with pytest.warns(InputWarning, match="unbounded"):
         MAP(m, space="simplex").run()
-    assert any(w.category is InputWarning and "unbounded" in str(w.message) for w in caught)
-    assert {w.category for w in caught} <= {InputWarning, binference.ConvergenceWarning}
+
+
+@pytest.mark.parametrize("K", [8, 32])
+def test_map_of_a_bounded_polya_tree_converges_when_half_its_bins_are_empty(K):
+    # c = K/2 gives the root's branches exponent zero; as the empty half goes to zero the
+    # KKT gap in rho cancels terms of order 1/rho (a gap of 1e5 at K = 8), so it is
+    # checked in branch coordinates
+    bins = Bins.linear(0, 1, K)
+    rho = np.r_[np.full(K // 2, 2 / K), np.zeros(K // 2)]
+    mock = binference.simulate.mock_1d(300, bins, density=rho, noise=0.02, rng=8)
+    m = PopulationModel(mock.likelihoods, P.PolyaTree(c=K / 2))
+    est = MAP(m).run()  # a ConvergenceWarning fails the test
+    assert est.info["space"] == "simplex" and est.converged
+    assert m.kkt_gap(est.rho) < 1e-12
 
 
 def test_gp_binds_on_log_and_large_grids():

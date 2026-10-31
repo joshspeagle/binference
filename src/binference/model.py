@@ -727,7 +727,9 @@ class PopulationModel:
         :math:`|\lambda\cdot\nabla_\lambda\log p|/(S\cdot\lambda)`, so it does not
         depend on the exposure's units (DECISIONS #56, #71). Self-consistency of the
         EM fixed point is necessary but not sufficient for optimality; this
-        certificate checks the rest.
+        certificate checks the rest. With a tree prior the conditions are checked on each
+        node's branch probabilities, where they keep their precision as a group of bins
+        empties.
 
         Parameters
         ----------
@@ -742,24 +744,21 @@ class PopulationModel:
         if not kern.possible(s):
             return np.inf  # an object is impossible here (audit M-3)
         G = kern.rmatvec(self._L, self._w / s)
-        pos = v > 0
-        if self.kind == "rates":
-            G = G - self._S
-        elif self.selection is not None:
-            G = G - self.W * self.selection / float(self.selection @ v)
+        if self.kind == "fractions":
+            if self.selection is not None:
+                G = G - self.W * self.selection / float(self.selection @ v)
+            return max(0.0, self.prior._kkt_violation(v, G, include_prior)) / max(self.W, 1.0)
+        G = G - self._S
         if include_prior and self.prior.has_density:
             # at a zero, the gradient at _TINY (as in the MAP objective): -b for rates of
-            # shape one, hugely negative where the density is unbounded there (no violation),
-            # hugely positive where it vanishes (DECISIONS #71)
+            # shape one (DECISIONS #71)
             G = G + self.prior.grad_log_density(np.maximum(v, _TINY))
-        mu = float(v[pos] @ G[pos])
-        if self.kind == "rates":
-            # G <= 0 everywhere and lambda . G = 0 (the total), relative to the exposure so
-            # free of its units (audit M-4); one-sided like the fractions' test, so a rate
-            # EM drives towards zero is not a violation (audit M-6)
-            total_gap = abs(mu) / float(self._S @ v)
-            return max(float(np.max(G / self._S)), total_gap)
-        return max(0.0, float(np.max(G - mu))) / max(self.W, 1.0)
+        pos = v > 0
+        # G <= 0 everywhere and lambda . G = 0 (the total), relative to the exposure so
+        # free of its units (audit M-4); one-sided like the fractions' test, so a rate
+        # EM drives towards zero is not a violation (audit M-6)
+        total_gap = abs(float(v[pos] @ G[pos])) / float(self._S @ v)
+        return max(float(np.max(G / self._S)), total_gap)
 
     def missing_information(
         self,
