@@ -477,3 +477,4 @@ Append-only. One entry per working session (or per step within a long session).
 - The walkthrough's measurements in chat were first run against a stale checkout (`/home/user/pastry`, at PR #110) on the import path; rerun on `main`, every figure agreed. Scripts now set `PYTHONPATH` to the checkout they describe.
 - #152 (PR #154): `prior_transform` removed, with `has_prior_transform` and `_stick_break` (DECISIONS #107); breaking, so the next release is 0.2.0.
 - #153: tree priors get `describe(bins, counts=None)`, a text drawing with α, mean share and mean mass on each branch; `DirichletTree` takes named groups and `alpha` by group or bin name; `_TreeStructure.ptr` becomes `node_start` (DECISIONS #108).
+- #158 merged (#153). #155: the NUTS tree-depth hint now reads the tails in the coordinates NUTS samples, through `BoundPrior.long_log_tails()` (DECISIONS #109).

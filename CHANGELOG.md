@@ -15,6 +15,14 @@ releases may break the API).
 - `DirichletTree` takes named groups (nested dicts, with bin labels on categorical bins),
   and `alpha` as a dict from group names, and bins as the tree writes them, to the
   concentration of the branch into each (DECISIONS #108).
+- `BoundPrior.long_log_tails()`: whether a bin without data has a long tail in the
+  unconstrained coordinates NUTS samples (DECISIONS #109).
+
+### Fixed
+
+- The NUTS tree-depth hint of `check()` names long log tails only for priors that have
+  them where NUTS samples; it no longer blames the default `PolyaTree()` or
+  `GeneralizedDirichlet(1, 1)` (DECISIONS #109).
 
 ### Removed
 
