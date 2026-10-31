@@ -22,6 +22,23 @@ releases may break the API).
   and `GammaRates` priors) and `BoundPrior.has_prior_transform`: the unit-cube map for
   nested samplers, which nothing in binference used (DECISIONS #107).
 
+### Fixed
+
+- `plot_individual` on a fit with a `Basis` drew the object's likelihood over the
+  components as if they were bins, or failed when there were more components than bins;
+  it is now shared among the bins as the hierarchical posterior is (DECISIONS #111).
+- The stack overlay of `plot(which="selected")` is no longer reweighted by the selection:
+  an average over the observed objects, it already estimates the selected population
+  (DECISIONS #111).
+- `plot_sbc` always shows the joint log-likelihood; with 12 or more other quantities it
+  was left out.
+- A list of colours is accepted for the bars of categories only; the other plots failed
+  with a matplotlib error and now raise one naming the argument, and `plot_sbc`, which
+  coloured its rank bars from a list, refuses it too (DECISIONS #111).
+- A truth overlay on `which="selected"` of a fit with a `Basis` is refused with a
+  `ValueError`; it failed with a broadcasting error or, with as many components as bins,
+  drew a wrong overlay (DECISIONS #111).
+
 ## [0.1.0] - 2026-10-29
 
 First release.
