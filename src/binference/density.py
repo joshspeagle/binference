@@ -187,7 +187,7 @@ class Density:
         bins : Bins
             The bins.
         tol : float, optional
-            Relative tolerance of the adaptive quadrature over each bin.
+            Tolerance of the adaptive quadrature, relative to the largest bin mass.
         max_depth : int, optional
             Most refinements of the adaptive quadrature.
         n_sub : int, optional
@@ -330,6 +330,8 @@ def _dist_log_masses(dist: Any, edges: np.ndarray) -> np.ndarray:
             lc = np.log(np.asarray(dist.cdf(edges), dtype=float))
         if hasattr(dist, "logsf"):
             ls = np.asarray(dist.logsf(edges), dtype=float)
+        elif hasattr(dist, "sf"):  # the upper tail, where the CDF rounds to one
+            ls = np.log(np.asarray(dist.sf(edges), dtype=float))
         else:
             ls = np.log1p(-np.exp(lc))
     out = log_interval_masses(lc, ls)

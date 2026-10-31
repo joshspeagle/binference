@@ -22,7 +22,7 @@ from typing import Any
 import numpy as np
 from scipy import stats
 
-from ._utils import as_generator, check_nonnegative, check_positive, frozen, warn
+from ._utils import SetOnce, as_generator, check_nonnegative, check_positive, frozen, warn
 from .bins import Bins
 from .priors.dirichlet import _dirichlet_draw
 from .selection import Selection
@@ -35,7 +35,7 @@ __all__ = ["Response"]
 MIGRATION_ATOL = 1e-3
 
 
-class Response:
+class Response(SetOnce):
     """The probability of each measured bin, and of being observed, given the true bin.
 
     A response tallied from events (:meth:`from_counts` and the constructors
@@ -141,12 +141,6 @@ class Response:
         self.generated = None if generated is None else frozen(np.array(generated, dtype=float))
         self.origin = str(origin)
         self.prior = None if prior is None else float(prior)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name in Response.__slots__ and not hasattr(self, name):
-            object.__setattr__(self, name, value)
-        else:
-            raise AttributeError("Response objects are immutable.")
 
     def __reduce__(self) -> tuple:
         return _rebuild, (

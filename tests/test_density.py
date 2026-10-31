@@ -1,5 +1,7 @@
 """Tests for Density (DECISIONS #26), interim priors (#24) and explicit stacking (#11)."""
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 from scipy import stats
@@ -27,6 +29,14 @@ def test_a_distribution_cdf_and_its_pdf_give_the_same_masses():
     exact = Density.from_distribution(d).masses(bins)
     quad = Density.from_function(d.pdf).masses(bins, n_sub=8)
     np.testing.assert_allclose(quad, exact, rtol=1e-6)
+
+
+def test_a_distribution_with_a_cdf_and_an_sf_keeps_its_upper_tail():
+    # nine standard deviations up the CDF rounds to one; the survival function does not
+    norm = SimpleNamespace(cdf=stats.norm.cdf, sf=stats.norm.sf, pdf=stats.norm.pdf)
+    bins = Bins.linear(9, 12, 3)
+    exact = Density.from_distribution(stats.norm()).masses(bins)  # logcdf and logsf
+    np.testing.assert_allclose(Density.from_distribution(norm).masses(bins), exact, rtol=1e-12)
 
 
 def test_a_callable_on_categories_receives_the_labels():

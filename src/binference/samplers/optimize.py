@@ -484,9 +484,8 @@ def _objective(m: PopulationModel, v: np.ndarray) -> tuple[float, np.ndarray]:
     # log posterior on the simplex (or orthant), up to the likelihoods' log-scales, and the
     # evidences L @ v it uses (m.log_likelihood(v, absolute=False) + the prior); components
     # clipped to zero are active constraints: the prior is evaluated at a tiny positive
-    # value so the objective stays finite (and constant) for them
+    # value so the objective stays finite (and constant) for them; -inf, through ll, where
+    # an object is impossible
     s = kern.matvec(m._L, v)
     ll = kern.loglike_of_evidences(m._w, s)
-    if not np.isfinite(ll):
-        return -np.inf, s
     return ll + m._selection_term(v) + m.log_prior(np.maximum(v, _TINY)), s

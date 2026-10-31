@@ -10,16 +10,6 @@ from typing import Any
 
 import numpy as np
 
-__all__ = [
-    "as_generator",
-    "check_nonnegative",
-    "check_positive",
-    "check_positive_weights",
-    "chunk_slices",
-    "progress",
-    "spawn",
-]
-
 RNGLike = int | np.random.Generator | np.random.SeedSequence | None
 
 #: frames under this directory are skipped, so warnings point at the caller's line
@@ -36,6 +26,45 @@ def frozen(a: Any) -> Any:
     for arr in (a.data, a.indices, a.indptr) if hasattr(a, "indptr") else (a,):
         arr.setflags(write=False)
     return a
+
+
+def read_only(a: Any, dtype: Any = float) -> np.ndarray | None:
+    """``a`` as an array (of ``dtype``; ``None`` keeps its own) that cannot be changed in
+    place: reused only when it is already read-only and owns its data (a read-only view
+    could still change through its base), else a read-only copy; ``None`` stays ``None``."""
+    if a is None:
+        return None
+    a = np.asarray(a, dtype=dtype)
+    return a if not a.flags.writeable and a.base is None else frozen(a.copy())
+
+
+class SetOnce:
+    """Base of the immutable classes: each slot is set once, when the object is made."""
+
+    __slots__ = ()
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        slots = (s for c in type(self).__mro__ for s in getattr(c, "__slots__", ()))
+        if name in slots and not hasattr(self, name):
+            object.__setattr__(self, name, value)
+        else:
+            raise AttributeError(f"{type(self).__name__} objects are immutable.")
+
+    def __delattr__(self, name: str) -> None:
+        raise AttributeError(f"{type(self).__name__} objects are immutable.")
+
+
+def check_positive_integers(value: Any, name: str, n: int = 1) -> tuple[int, ...]:
+    """``value``, one for all ``n`` axes or one per axis, as ``n`` positive integers (an
+    integral float is accepted)."""
+    try:
+        v = np.broadcast_to(np.asarray(value), (n,))
+        if all(float(x).is_integer() and x >= 1 for x in v):
+            return tuple(int(x) for x in v)
+    except (TypeError, ValueError):
+        pass
+    per_axis = f", or one per axis ({n})" if n > 1 else ""
+    raise ValueError(f"{name} must be a positive integer{per_axis}; got {value!r}.")
 
 
 def as_generator(rng: RNGLike = None) -> np.random.Generator:

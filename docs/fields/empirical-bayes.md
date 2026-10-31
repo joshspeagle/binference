@@ -42,7 +42,7 @@ of about 1.4 million stars.
 | prior $g$, mixture proportions $w$ | population fractions $\rho$ |
 | grid of support points | narrow {class}`~binference.Bins` with `Likelihoods.from_gaussian` or `from_density`; or `Bins.categories` with `Likelihoods.from_table(L, bins, kind="likelihood")` |
 | NPMLE | `infer(lk, method="map")` with the default flat Dirichlet |
-| self-consistency check | the {term}`KKT gap`, `binference.diagnostics.kkt_gap` |
+| self-consistency check | the {term}`KKT gap`, `PointEstimate.kkt_gap` |
 | ashr's Dirichlet-penalised mixture | the MAP with a `Dirichlet` prior |
 | Efron's penalised log-spline $g$ | `LogisticRandomWalk`, `LogisticGP` |
 | empirical-Bayes posterior | `result.assignment_probabilities()` |

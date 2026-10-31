@@ -14,12 +14,12 @@ from typing import Any
 import numpy as np
 from scipy.integrate import cumulative_trapezoid
 
-from ._utils import frozen
+from ._utils import SetOnce, frozen
 
 __all__ = ["Measure"]
 
 
-class Measure:
+class Measure(SetOnce):
     """A strictly increasing map ``u = T(z)`` of one bin axis.
 
     Build one with :meth:`linear`, :meth:`log`, :meth:`transform` (a function
@@ -172,7 +172,8 @@ class Measure:
         """``log dT/dz``: the log of the within-bin population density in ``z``, up to a constant.
 
         Exact for linear, log and tabulated measures; a central difference for
-        :meth:`transform`.
+        :meth:`transform`, NaN where it leaves the map's domain, as at an edge of it
+        (where the slope is often infinite).
 
         Parameters
         ----------
