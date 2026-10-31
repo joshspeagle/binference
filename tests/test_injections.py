@@ -14,6 +14,8 @@ from binference.samplers import MAP, NUTS, Gibbs, Laplace, MeanFieldVB
 from binference.selection import S_FLOOR, _logit_density
 from binference.validation import SBCResult
 
+from .conftest import assert_uniform_ranks
+
 
 def _injections(S, bins, n_per_bin, rng):
     z = np.repeat(bins.centers, n_per_bin) + rng.uniform(
@@ -170,8 +172,7 @@ def test_joint_inference_of_population_and_selection_is_calibrated():
         R, Sd = res.samples[idx], res.info["selection_draws"].reshape(-1, 4)[idx]
         ranks.append(np.concatenate([(R < rho).sum(0), (Sd < S).sum(0)]))
     names = [f"rho[{k}]" for k in range(4)] + [f"S[{k}]" for k in range(4)]
-    p = SBCResult(np.array(ranks), n_draws, names).pvalues(n_bins=10)
-    assert np.all(p > 1e-3 / p.size), dict(zip(names, p, strict=True))
+    assert_uniform_ranks(SBCResult(np.array(ranks), n_draws, names))
 
 
 def test_per_object_methods_use_each_draws_selection():
@@ -235,8 +236,7 @@ def test_joint_inference_with_a_logistic_prior_and_nuts_is_calibrated():
         R, Sd = res.samples[idx], res.info["selection_draws"].reshape(-1, 4)[idx]
         ranks.append(np.concatenate([(R < rho).sum(0), (Sd < S).sum(0)]))
     names = [f"rho[{k}]" for k in range(4)] + [f"S[{k}]" for k in range(4)]
-    p = SBCResult(np.array(ranks), n_draws, names).pvalues(n_bins=7)
-    assert np.all(p > 1e-3 / p.size), dict(zip(names, p, strict=True))
+    assert_uniform_ranks(SBCResult(np.array(ranks), n_draws, names), n_bins=7)
 
 
 def test_a_smooth_selection_is_the_mode_of_its_injection_posterior():

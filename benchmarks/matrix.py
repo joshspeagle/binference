@@ -4,7 +4,7 @@ Each scenario is a mock catalogue that varies one factor around a baseline (1-D,
 N = 1000, Gaussian likelihoods one bin wide, a bimodal population drawn uniformly within
 bins, no selection). For every scenario and prior, a long NUTS run is the reference, and
 every engine is timed and compared with it. The results set the rules of
-``method="auto"`` and are summarised in the engines guide.
+``method="auto"`` and are summarised in ``docs/how-it-works/auto.md``.
 
 Run from the repository root::
 

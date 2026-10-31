@@ -417,7 +417,7 @@ All engines take a `PopulationModel`, accept `rng` (SPEC 7: an int seed, `numpy.
 3. Importance-corrected Laplace, kept when its $\hat k$ check passes and its importance ESS is at least `target_ess`; also kept, flagged approximate, above `nnz_limit` ($2\times10^7$) stored likelihood entries, or when it is the only candidate left.
 4. NUTS.
 
-Engine options passed to `infer` rule out the candidates that do not take them. The choice and its reason are in `result.info["auto_method"]` and `result.info["auto_reason"]`. The thresholds come from the benchmark matrix, `benchmarks/matrix.py` (DECISIONS #42), whose results are in `docs/guides/engines.md`.
+Engine options passed to `infer` rule out the candidates that do not take them. The choice and its reason are in `result.info["auto_method"]` and `result.info["auto_reason"]`. The thresholds come from the benchmark matrix, `benchmarks/matrix.py` (DECISIONS #42), whose results are in `docs/how-it-works/auto.md`.
 
 The documentation ranks the engines a user can choose by when to use them:
 - NUTS: exact for every prior; mixes well with broad likelihoods.

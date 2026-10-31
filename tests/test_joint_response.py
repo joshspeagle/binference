@@ -11,6 +11,8 @@ from binference.results import _draws_rng
 from binference.samplers import MAP, Gibbs, MeanFieldVB
 from binference.validation import SBCResult
 
+from .conftest import assert_uniform_ranks
+
 
 def _unfolding(n_sim=2000, n_obs=400, seed=1):
     rng = np.random.default_rng(seed)
@@ -168,8 +170,7 @@ def test_joint_inference_of_population_and_response_is_calibrated():
             np.concatenate([(res.samples[idx] < rho).sum(0), (eff < R.sum(axis=0)).sum(0)])
         )
     names = [f"rho[{k}]" for k in range(K)] + [f"eff[{k}]" for k in range(K)]
-    p = SBCResult(np.array(ranks), n_draws, names).pvalues(n_bins=10)
-    assert np.all(p > 1e-3 / p.size), dict(zip(names, p, strict=True))
+    assert_uniform_ranks(SBCResult(np.array(ranks), n_draws, names))
 
 
 def test_objects_in_a_measured_bin_without_tallied_events_are_kept():

@@ -19,7 +19,7 @@ from binference import Bins, Likelihoods, PopulationModel
 from binference import _kernels as kern
 from binference import priors as P
 
-from .conftest import sd_mcse
+from .conftest import assert_draws_agree, assert_uniform_ranks, sbc_pvalues
 
 pytestmark = pytest.mark.slow
 
@@ -42,17 +42,6 @@ def _sbc(prior, fit, n_simulations, n_draws, rng, *, n_objects=40, noise=0.2, **
     )
 
 
-def _pvalues(res, n_bins=10):
-    # the chi-square is the more sensitive to width errors, the ECDF test to bias
-    return {"chisquare": res.pvalues(n_bins), "ecdf": res.pvalues(method="ecdf")}
-
-
-def _assert_uniform_ranks(res, alpha=1e-3, n_bins=10):
-    # both tests, each at the Bonferroni-corrected level of SBCResult.passed (DECISIONS #87)
-    for method, p in _pvalues(res, n_bins).items():
-        assert np.all(p > alpha / p.size), (method, dict(zip(res.names, p, strict=True)))
-
-
 @pytest.mark.parametrize(
     "prior",
     [P.Dirichlet(1.0), P.LogisticRandomWalk(order=1, scale=0.8)],
@@ -64,7 +53,7 @@ def _assert_uniform_ranks(res, alpha=1e-3, n_bins=10):
 )
 def test_sbc_nuts(prior):
     fit = _fit("nuts", prior=prior, n_chains=2, n_warmup=300, n_samples=300)
-    _assert_uniform_ranks(_sbc(prior, fit, n_simulations=200, n_draws=99, rng=2026))
+    assert_uniform_ranks(_sbc(prior, fit, n_simulations=200, n_draws=99, rng=2026))
 
 
 # Gibbs at K = 4, N = 40 takes 0.14 s per fit with the Dirichlet prior, which affords 1000
@@ -86,7 +75,7 @@ GIBBS_DIRICHLET = {"n_chains": 4, "n_warmup": 100, "n_samples": 600}
 )
 def test_sbc_gibbs(prior, kw, n_simulations):
     # unfiltered, sbc's ESS warning is an error: every fit has min_ess >= GIBBS_DRAWS
-    _assert_uniform_ranks(
+    assert_uniform_ranks(
         _sbc(prior, _fit("gibbs", prior=prior, **kw), n_simulations, GIBBS_DRAWS, 2026)
     )
 
@@ -106,7 +95,7 @@ def test_sbc_gibbs_rejects_posteriors_about_18_percent_too_narrow():
         return fit(lk.with_weights(np.repeat([1, 2], lk.N // 2)), rng)
 
     res = _sbc(prior, fit_doubled, 300, GIBBS_DRAWS, rng=2027)
-    for method, p in _pvalues(res).items():
+    for method, p in sbc_pvalues(res).items():
         assert np.any(p <= 1e-3 / p.size), (method, dict(zip(res.names, p, strict=True)))
 
 
@@ -214,12 +203,9 @@ def test_geweke_has_power_against_a_broken_kernel():
 def test_gibbs_and_nuts_agree_on_larger_problem():
     mock = binference.simulate.mock_1d(5000, Bins.linear(0, 3, 15), noise=(0.05, 0.2), rng=11)
     g = binference.infer(mock.likelihoods, method="gibbs", rng=1, n_samples=4000, check=False)
-    n = binference.infer(mock.likelihoods, rng=2, n_samples=1000, check=False)
-    mcse = binference.diagnostics.mcse
-    for k in range(15):
-        a, b = g.chains[:, :, k], n.chains[:, :, k]
-        assert abs(a.mean() - b.mean()) < 5 * np.hypot(mcse(a), mcse(b)), k
-        assert abs(a.std() - b.std()) < 5 * np.hypot(sd_mcse(a), sd_mcse(b)), k
+    n = binference.infer(mock.likelihoods, method="nuts", rng=2, n_samples=1000, check=False)
+    assert n.method == "nuts"
+    assert_draws_agree(g.chains, n.chains)
 
 
 # The recovery tests draw true values uniformly within bins (density given as bin
@@ -305,7 +291,8 @@ def test_binning_bias_with_coarse_bins_is_real():
 
 def test_vb_underestimates_widths_vs_nuts():
     mock = binference.simulate.mock_1d(3000, Bins.linear(0, 3, 15), noise=(0.2, 0.4), rng=3)
-    n = binference.infer(mock.likelihoods, rng=1, n_samples=600, check=False)
+    n = binference.infer(mock.likelihoods, method="nuts", rng=1, n_samples=600, check=False)
+    assert n.method == "nuts"
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", binference.ApproximationWarning)
         v = binference.infer(mock.likelihoods, method="vb", rng=1)

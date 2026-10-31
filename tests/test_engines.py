@@ -13,7 +13,7 @@ from binference import priors as P
 from binference.samplers import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
 from binference.warnings import ApproximationWarning, InputWarning
 
-from .conftest import assert_matches_reference, sd_mcse
+from .conftest import assert_draws_agree, assert_matches_reference, sd_mcse
 
 GAP = 1e3 * 1e-8  # MAP's guarantee: tol = 1e-8, or 1e3 * tol once round-off stops it
 
@@ -73,6 +73,7 @@ def test_nuts_onehot_is_conjugate(onehot, metric):
     res = binference.infer(
         lk,
         P.Dirichlet(alpha),
+        method="nuts",
         rng=2,
         n_chains=2,
         n_warmup=300,
@@ -80,6 +81,7 @@ def test_nuts_onehot_is_conjugate(onehot, metric):
         metric=metric,
         check=False,
     )
+    assert res.method == "nuts"
     mean, sd = dirichlet_moments(alpha + counts)
     assert_matches_reference(res, mean, sd)
 
@@ -204,13 +206,14 @@ def test_nuts_with_a_logistic_prior_matches_a_long_run():
     res = binference.infer(
         mock.likelihoods,
         P.LogisticRandomWalk(order=2),
+        method="nuts",
         rng=1,
         n_chains=2,
         n_warmup=200,
         n_samples=200,
         check=False,
     )
-    assert res.samples.shape == (400, 8)
+    assert res.method == "nuts" and res.samples.shape == (400, 8)
     assert "scale" in res.info["hyperparameters"]
     # Reference: the same call with rng=99, 4 chains x 10000 draws after 1000 warm-up
     # (ESS > 46000 per bin, R-hat < 1.0002), so its own MC error is negligible here;
@@ -250,8 +253,15 @@ def test_gibbs_selection_matches_exact(k3_selection_problem):
     )
     assert_matches_reference(res, exact.mean, exact.std)
     nuts = binference.infer(
-        mock.likelihoods, rng=5, n_chains=2, n_warmup=300, n_samples=1500, check=False
+        mock.likelihoods,
+        method="nuts",
+        rng=5,
+        n_chains=2,
+        n_warmup=300,
+        n_samples=1500,
+        check=False,
     )
+    assert nuts.method == "nuts"
     assert_matches_reference(nuts, exact.mean, exact.std)
 
 
@@ -282,11 +292,18 @@ def test_gibbs_rates_agree_with_nuts(k3_selection_problem):
         mock.likelihoods, prior, method="gibbs", rng=6, n_samples=3000, check=False
     )
     n = binference.infer(
-        mock.likelihoods, prior, rng=6, n_chains=2, n_warmup=300, n_samples=1500, check=False
+        mock.likelihoods,
+        prior,
+        method="nuts",
+        rng=6,
+        n_chains=2,
+        n_warmup=300,
+        n_samples=1500,
+        check=False,
     )
+    assert n.method == "nuts"
     assert g.rates is not None and n.rates is not None
-    np.testing.assert_allclose(g.rates.mean(0), n.rates.mean(0), rtol=0.06)
-    np.testing.assert_allclose(g.rates.std(0), n.rates.std(0), rtol=0.15)
+    assert_draws_agree(*(r.rates.reshape(r.n_chains, -1, 3) for r in (g, n)))
     np.testing.assert_allclose(g.samples.sum(1), 1.0)
 
 
@@ -297,9 +314,17 @@ def test_gibbs_tree_priors_agree_with_nuts(prior):
         mock.likelihoods, prior, method="gibbs", rng=7, n_samples=3000, check=False
     )
     n = binference.infer(
-        mock.likelihoods, prior, rng=7, n_chains=2, n_warmup=300, n_samples=1500, check=False
+        mock.likelihoods,
+        prior,
+        method="nuts",
+        rng=7,
+        n_chains=2,
+        n_warmup=300,
+        n_samples=1500,
+        check=False,
     )
-    assert_matches_reference(g, n.mean, n.std, z=6, sd_rtol=0.2)
+    assert n.method == "nuts"
+    assert_draws_agree(g.chains, n.chains)
 
 
 def test_gibbs_validation_and_labels(onehot):
@@ -327,7 +352,7 @@ def test_gibbs_integer_weights_compressed(rng):
     assert lk_comp.N == 3
     a = binference.infer(lk_full, method="gibbs", rng=1, n_samples=4000, check=False)
     b = binference.infer(lk_comp, method="gibbs", rng=1, n_samples=4000, check=False)
-    assert_matches_reference(b, a.mean, a.std, z=6, sd_rtol=0.2)
+    assert_draws_agree(b.chains, a.chains)
 
 
 def test_label_sampling_dense_sparse_agree(rng):

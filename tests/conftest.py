@@ -74,8 +74,9 @@ def sd_mcse(x) -> float:
     return diag.mcse((x - x.mean()) ** 2) / (2 * x.std())
 
 
-def assert_matches_reference(result, mean, sd, z: float = 5.0, sd_rtol: float = 0.15):
-    """Compare posterior means (within z * MCSE) and sds (relative tolerance)."""
+def assert_matches_reference(result, mean, sd, z: float = 5.0):
+    """Compare posterior means and sds with an exact reference within z Monte Carlo errors
+    (``mcse`` and :func:`sd_mcse`), plus 1e-3 of the reference sd."""
     C = result.chains
     for k in range(C.shape[-1]):
         x = C[:, :, k]
@@ -83,4 +84,27 @@ def assert_matches_reference(result, mean, sd, z: float = 5.0, sd_rtol: float = 
         if not np.isfinite(err):
             err = x.std() / np.sqrt(x.size)
         assert abs(x.mean() - mean[k]) <= z * err + 1e-3 * sd[k], (k, x.mean(), mean[k], err)
-        assert abs(x.std() - sd[k]) <= sd_rtol * sd[k], (k, x.std(), sd[k])
+        err = sd_mcse(x)
+        assert abs(x.std() - sd[k]) <= z * err + 1e-3 * sd[k], (k, x.std(), sd[k], err)
+
+
+def assert_draws_agree(a, b, z: float = 5.0):
+    """Compare the means and sds of two runs' draws ``a`` and ``b`` (chains, draws, K)
+    within z combined Monte Carlo errors."""
+    for k in range(a.shape[-1]):
+        x, y = a[..., k], b[..., k]
+        err = np.hypot(diag.mcse(x), diag.mcse(y))
+        assert abs(x.mean() - y.mean()) <= z * err, (k, x.mean(), y.mean(), err)
+        err = np.hypot(sd_mcse(x), sd_mcse(y))
+        assert abs(x.std() - y.std()) <= z * err, (k, x.std(), y.std(), err)
+
+
+def sbc_pvalues(res, n_bins=10):
+    # the chi-square is the more sensitive to width errors, the ECDF test to bias
+    return {"chisquare": res.pvalues(n_bins), "ecdf": res.pvalues(method="ecdf")}
+
+
+def assert_uniform_ranks(res, alpha=1e-3, n_bins=10):
+    # both tests, each at the Bonferroni-corrected level of SBCResult.passed (DECISIONS #87)
+    for method, p in sbc_pvalues(res, n_bins).items():
+        assert np.all(p > alpha / p.size), (method, dict(zip(res.names, p, strict=True)))
