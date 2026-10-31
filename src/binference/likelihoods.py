@@ -69,9 +69,10 @@ def _interim_masses(
     tol: float = 1e-3,
     max_depth: int = 12,
     n_sub: int | None = None,
+    bounded: bool = False,
 ) -> np.ndarray:
     """Normalised interim-prior mass per bin."""
-    return Density.coerce(interim, representation).masses(
+    return Density.coerce(interim, representation, bounded=bounded).masses(
         bins, tol=tol, max_depth=max_depth, n_sub=n_sub
     )
 
@@ -1323,11 +1324,12 @@ class Likelihoods:
         n_sub : int, optional
             Fixed Gauss-Legendre points per bin and axis in place of adaptive quadrature.
         bounded : bool, optional
-            The densities are bounded: each cell is also checked against Lobatto's
-            5-point rule read just inside its edges, which sees a jump the Gauss points
-            miss, as for a selection function. A cell then reads 13/8 the points in 1-D,
-            a jump takes about log2(1 / tol) refinements, and an integrable singularity
-            on an edge would refine to ``max_depth``. Ignored with ``n_sub``.
+            The densities, and an ``interim`` given as a function, are bounded: each cell
+            is also checked against Lobatto's 5-point rule read just inside its edges,
+            which sees a jump the Gauss points miss, as for a selection function. A cell
+            then reads 13/8 the points in 1-D, a jump takes about log2(1 / tol)
+            refinements, and an integrable singularity on an edge would refine to
+            ``max_depth``. Ignored with ``n_sub``.
         weights : array_like (N,), optional
             Integer multiplicity of each object; ``None`` gives every object weight one.
         selection : array_like (K,), callable or Selection, optional
@@ -1355,7 +1357,7 @@ class Likelihoods:
             "tol": tol,
             "max_depth": max_depth,
             "n_sub": n_sub,
-            "jumps": bool(bounded),
+            "jumps": bounded,
         }
         log_inside = None
         if callable(density):
@@ -1389,7 +1391,9 @@ class Likelihoods:
                 )
         if posterior:  # the interim prior gets the same quadrature as the values
             interim = Density.from_masses(
-                _interim_masses(interim, bins, interim_representation, tol, max_depth, n_sub)
+                _interim_masses(
+                    interim, bins, interim_representation, tol, max_depth, n_sub, bounded
+                )
             )
         lk = cls.from_table(
             log_avg,

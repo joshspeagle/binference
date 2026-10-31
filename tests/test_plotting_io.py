@@ -90,6 +90,8 @@ def test_a_stack_over_a_basis_is_drawn_per_bin(shape):
     np.testing.assert_allclose(drawn, basis.to_bins(stack), rtol=1e-12)
     with pytest.raises(ValueError, match=rf"stack must have shape \({basis.C},\)"):
         est.plot(stack=stack[:-1])
+    with pytest.raises(ValueError, match=r"truth must have shape \(6,\)"):
+        est.plot(truth=np.ones(5))
     plt.close("all")
 
 

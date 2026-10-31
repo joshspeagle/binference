@@ -20,9 +20,11 @@ releases may break the API).
 - `Selection.from_function` and `Selection.combined` take `max_depth`, the most
   refinements of their adaptive quadrature; the default, 20, allows the halvings a jump
   inside a bin needs (DECISIONS #113).
-- `Likelihoods.from_density` and `Density.from_function` take `bounded=`: the bin
-  averages of a bounded density, such as a box, are checked for jumps near bin edges as
-  a selection function's are, at 13/8 the points per cell in 1-D (DECISIONS #115).
+- `Likelihoods.from_density`, `Density.from_function` and `Density.coerce` take
+  `bounded=`: the bin averages of a bounded density, such as a box, and of
+  `from_density`'s interim prior given as a function, are checked for jumps near bin
+  edges as a selection function's are, at 13/8 the points per cell in 1-D
+  (DECISIONS #115).
 
 ### Changed
 
@@ -43,7 +45,8 @@ releases may break the API).
   works on every fit; it failed with more components than bins and, with as many, drew
   the component weights as bin fractions. A stack mapped to the bins first, as
   `Likelihoods.stack`'s docstring advised, is now refused when the numbers of components
-  and bins differ and mapped twice when they agree (DECISIONS #114).
+  and bins differ and mapped twice when they agree. A `truth` or `stack` of the wrong
+  length is refused by name (DECISIONS #114).
 
 ### Removed
 

@@ -109,7 +109,7 @@ class Density:
         """
         if not callable(func):
             raise TypeError("func must be callable.")
-        return cls(func=func, bounded=bool(bounded))
+        return cls(func=func, bounded=bounded)
 
     @classmethod
     def from_distribution(cls, dist: Any) -> Density:
@@ -129,7 +129,11 @@ class Density:
 
     @classmethod
     def coerce(
-        cls, value: Any, representation: Representation | None = None, name: str = "interim"
+        cls,
+        value: Any,
+        representation: Representation | None = None,
+        name: str = "interim",
+        bounded: bool = False,
     ) -> Density:
         """A :class:`Density` from a density, ``"flat"``, a callable, a distribution or an array.
 
@@ -146,6 +150,8 @@ class Density:
             Whether an array holds masses or densities.
         name : str, optional
             Name of the argument, used in error messages.
+        bounded : bool, optional
+            A callable ``value`` is bounded (see :meth:`from_function`).
         """
         if representation not in (None, "mass", "density"):
             raise ValueError(f"{name} representation must be 'mass' or 'density'.")
@@ -158,7 +164,7 @@ class Density:
         if _is_distribution(value):
             return cls.from_distribution(value)
         if callable(value):
-            return cls.from_function(value)
+            return cls.from_function(value, bounded=bounded)
         per_volume = {None: None, "mass": False, "density": True}[representation]
         return cls(values=_nonneg(value, name), per_volume=per_volume)
 

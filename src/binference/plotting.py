@@ -85,6 +85,14 @@ _YLABEL = {
 }
 
 
+def _sized(values: Any, n: int, name: str, what: str) -> np.ndarray:
+    # an overlay as an array of n values, refused by name otherwise
+    v = np.asarray(values, dtype=float)
+    if v.shape != (n,):
+        raise ValueError(f"{name} must have shape ({n},), {what}; got {v.shape}.")
+    return v
+
+
 def _overlay(result: Any, values: Any, which: str, total: float) -> np.ndarray:
     """Overlay values (fractions or rates) on the scale of the plotted posterior.
 
@@ -188,19 +196,12 @@ def plot_population(
             warn("2-D plots show no truth, stack or label; they are ignored.", InputWarning)
         return _plot_2d(result, X, plt, ax, color)
     if truth is not None:
-        truth = _overlay(result, truth, which, total)
+        truth = _overlay(result, _sized(truth, bins.K, "truth", "one per bin"), which, total)
     if stack is not None:
         n = bins.K if result.basis is None else result.basis.C
-        stack = np.asarray(stack, dtype=float)
-        if stack.shape != (n,):
-            raise ValueError(
-                f"stack must have shape ({n},), as Likelihoods.stack returns for this fit; "
-                f"got {stack.shape}."
-            )
+        stack = result._to_bins(_sized(stack, n, "stack", "as Likelihoods.stack returns"))
         # a selected population already: not reweighted again
-        stack = _overlay(
-            result, result._to_bins(stack), "fractions" if which == "selected" else which, total
-        )
+        stack = _overlay(result, stack, "fractions" if which == "selected" else which, total)
     med = np.median(X, axis=0)
     if ax is None:
         _, ax = plt.subplots()
