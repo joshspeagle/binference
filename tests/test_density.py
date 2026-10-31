@@ -109,11 +109,18 @@ def test_the_default_base_measure_is_flat_in_the_measure_coordinate():
 def test_densities_are_equal_when_built_alike_from_equal_values():
     a = np.linspace(1.0, 2.0, 10)
     func = lambda z: z  # noqa: E731
+    ramp = _Ramp()
     equal = [
         (Density.flat(), Density.flat()),
         (Density.from_masses(a), Density.from_masses(list(a))),
         (Density.from_distribution(stats.norm(0, 1)), Density.from_distribution(stats.norm(0, 1))),
         (Density.from_function(func), Density.from_function(func)),
+        # numbers as floats; a bound method as Python compares it (a new object per access)
+        (
+            Density.from_distribution(stats.norm(0, 1)),
+            Density.from_distribution(stats.norm(0.0, 1.0)),
+        ),
+        (Density.from_function(ramp.pdf), Density.from_function(ramp.pdf)),
     ]
     for d1, d2 in equal:
         assert d1 == d2 and hash(d1) == hash(d2)
@@ -128,6 +135,8 @@ def test_densities_are_equal_when_built_alike_from_equal_values():
             for h in ([1, 2], [2, 1])
         ),
         (Density.from_function(func), Density.from_function(lambda z: z)),
+        # a distribution outside SciPy's public families by identity, not by its repr
+        (Density.from_distribution(ramp), Density.from_distribution(_Ramp())),
         (Density.from_function(func), Density.from_function(func, bounded=True)),
     ]
     for d1, d2 in unequal:
@@ -138,6 +147,16 @@ def test_densities_are_equal_when_built_alike_from_equal_values():
         for b in (False, True)
     }
     assert len(keys) == 2
+
+
+class _Ramp:
+    """A distribution whose repr does not tell two apart."""
+
+    def pdf(self, z):
+        return np.asarray(z, float)
+
+    def __repr__(self):
+        return "_Ramp()"
 
 
 def _ramp(z):

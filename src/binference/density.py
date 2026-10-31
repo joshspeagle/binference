@@ -269,17 +269,24 @@ class Density:
         """
         if self._values is not None:
             return f"Density(values={self._digest}, per_volume={self._per_volume})"
-        if _public_family(self._dist) is not None:
+        if _public_family(self._dist) is not None:  # numbers as floats, keywords sorted
             d = self._dist
-            return f"Density.from_distribution({d.dist.name}{d.args!r}{d.kwds!r})"
+            args = tuple(np.asarray(a, float).tolist() for a in d.args)
+            kwds = {k: np.asarray(d.kwds[k], float).tolist() for k in sorted(d.kwds)}
+            return f"Density.from_distribution({d.dist.name}{args!r}{kwds!r})"
         if self._func is not None:
             bounded = ", bounded=True" if self._bounded else ""
             return f"Density.from_function({_qualified_name(self._func)}{bounded})"
         return repr(self)
 
     def _key(self) -> Any:
-        # a function by identity, as Python compares functions; the rest by fingerprint
-        return (id(self._func), self._bounded) if self._func is not None else self._fingerprint()
+        # a function, or a distribution outside the public SciPy families, as Python compares
+        # it (a frozen distribution by identity); the rest by fingerprint
+        if self._func is not None:
+            return self._func, self._bounded
+        if self._dist is not None and _public_family(self._dist) is None:
+            return self._dist
+        return self._fingerprint()
 
     def __eq__(self, other: object) -> bool:
         return self._key() == other._key() if isinstance(other, Density) else NotImplemented
