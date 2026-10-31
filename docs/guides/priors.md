@@ -65,9 +65,36 @@ print(binference.infer(lk, polya, method="map").rho[:3].round(4))
 ```
 
 - **`DirichletTree`**: use it when groups of bins belong together, such as subclasses
-  of a class. Pass the tree as nested lists of bin indices.
+  of a class. Pass the groups as nested lists of bin indices, or as dicts of named
+  groups; on categorical bins a bin can be named by its label. A dict `alpha` sets the
+  concentration of the branch into each group or bin it names, and the other branches
+  keep 1.
 - **`PolyaTree`**: use it on 1-D ordered bins for a conjugate prior with structure at
   several scales.
+
+`describe(bins)` draws the tree of any prior in this family: each branch with its
+concentration, the share of its parent it takes on average, and the mean fraction of the
+population below it. Pass `counts` to see the posterior given them.
+
+```python
+classes = binference.Bins.categories(["Sa", "Sb", "E0", "E3", "S0"])
+early = {"elliptical": ["E0", "E3"], "lenticular": ["S0"]}
+named = priors.DirichletTree({"spiral": ["Sa", "Sb"], "early": early}, alpha={"spiral": 3.0})
+print(named.describe(classes))
+```
+
+```text
+DirichletTree: prior, on 5 bins
+root: Sa, Sb, E0, E3, S0
+├── α=3  share 0.75  mass 0.750  spiral: Sa, Sb
+│   ├── α=1  share 0.50  mass 0.375  Sa
+│   └── α=1  share 0.50  mass 0.375  Sb
+└── α=1  share 0.25  mass 0.250  early: E0, E3, S0
+    ├── α=1  share 0.50  mass 0.125  elliptical: E0, E3
+    │   ├── α=1  share 0.50  mass 0.062  E0
+    │   └── α=1  share 0.50  mass 0.062  E3
+    └── α=1  share 0.50  mass 0.125  lenticular: S0
+```
 
 ## Smoothness: the logistic family
 
