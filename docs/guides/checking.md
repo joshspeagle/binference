@@ -43,7 +43,8 @@ print(problems)
   in half, so R-hat works for a single chain too.
 - **Bulk or tail {term}`ESS`** below its limit per chain: too few effective draws.
   This applies to any Markov chain, including draws wrapped with
-  `PopulationResult.from_samples`.
+  `PopulationResult.from_samples`. Chains too short for R-hat and ESS, or constant, are
+  flagged too.
 - **NUTS health**: {term}`divergent transitions <divergent transition>`, saturated
   {term}`tree depth`, and low {term}`E-BFMI`.
 - **Importance weights** whose {term}`Pareto k-hat` is too large, and an optimiser that

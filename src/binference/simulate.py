@@ -16,10 +16,10 @@ from typing import Any
 import numpy as np
 from scipy import special, stats
 
-from ._utils import RNGLike, as_generator
+from ._utils import RNGLike, as_generator, check_nonnegative
 from .bins import Bins
 from .density import Density
-from .likelihoods import Likelihoods
+from .likelihoods import Likelihoods, _interim_at_points, _log_interim
 from .priors import PopulationPrior
 from .response import Response
 from .selection import Selection, _bin_average
@@ -59,7 +59,6 @@ class Truth:
     values: np.ndarray | None
     counts: np.ndarray
     n_drawn: int
-    extra: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -217,10 +216,13 @@ def mock_1d(
     interim : str, callable or array_like, optional
         If given, also return per-object posteriors on the bins computed under
         this interim prior (``"gaussian"`` gives a broad Gaussian), as
-        ``mock.posteriors`` with masses ``mock.interim``.
+        ``mock.posteriors`` with masses ``mock.interim``. Masses and ``"flat"``
+        are flat in ``u`` within each bin, as :meth:`Likelihoods.from_samples`
+        reads them.
     n_samples : int
         If positive, also return ``n_samples`` posterior samples per object
-        (under the interim prior, flat if not given) as ``mock.samples``.
+        as ``mock.samples``, under the interim prior; without one, under
+        ``Density.flat()``, whose masses ``mock.interim`` then holds.
     selection : array_like (K,), optional
         Per-bin detection probability depending on the *true* bin (selection on
         the truth): objects are thinned accordingly.
@@ -255,23 +257,20 @@ def mock_1d(
         bins, density, n_objects, noise, selection, measured_range, outlier_fraction, gen
     )
     lk, obs, sigma = mock.likelihoods, mock.measurements["mean"], mock.measurements["sigma"]
-    log_pi = None
     if interim is not None:
         if isinstance(interim, str) and interim == "gaussian":
             lo, hi = bins.range[0]
             interim = stats.norm(0.4 * lo + 0.6 * hi, 0.3 * (hi - lo))
         interim = _as_density(interim, bins)
-        log_pi = interim._log_pointwise()
         Pi = interim.masses(bins, tol=1e-6)
         P = lk.toarray() * Pi[None, :]  # row scales are irrelevant after normalising
         mock.posteriors = P / P.sum(axis=1, keepdims=True)
         mock.interim = Pi
     if n_samples > 0:
-        mock.samples = _posterior_samples_1d(
-            obs, sigma, bins, log_pi, mock.interim, n_samples, gen
-        )
-        if mock.interim is None:
-            mock.interim = population(bins, "uniform")
+        if interim is None:
+            interim = Density.flat()
+            mock.interim = interim.masses(bins)
+        mock.samples = _posterior_samples_1d(obs, sigma, bins, interim, n_samples, gen)
     return mock
 
 
@@ -349,19 +348,14 @@ def _gaussian_mock(
     return Mock(bins, lk, truth, {"mean": obs, "sigma": sigma})
 
 
-def _posterior_samples_1d(obs, sigma, bins, log_pi, pi_masses, n_samples, gen):
-    grid = bins.refine(50)[0].edges[0]  # 50 steps per bin, so each step lies inside one bin
+def _posterior_samples_1d(obs, sigma, bins, interim, n_samples, gen):
+    grid = bins.refine(50)[0].edges[0]  # 50 steps per bin, equal in u: each in one bin
     mid = 0.5 * (grid[1:] + grid[:-1])
-    k = bins.index(mid)
+    # the prior mass of each step, the interim density in z read as from_samples reads it
+    # (a per-bin one flat in u) times the step's width; none in masked bins
     with np.errstate(divide="ignore"):
-        if log_pi is not None:
-            log_prior = np.asarray(log_pi(mid), dtype=float)
-        elif pi_masses is not None:
-            log_prior = np.log(pi_masses[k] / bins.volumes[k])
-        else:
-            log_prior = np.zeros_like(mid)
-    # the prior mass of each step (steps differ in width between bins); none in masked bins
-    log_prior = np.where(k >= 0, log_prior + np.log(np.diff(grid)), -np.inf)
+        log_prior = _log_interim(_interim_at_points(interim, bins), mid) + np.log(np.diff(grid))
+    log_prior = np.where(bins.index(mid) >= 0, log_prior, -np.inf)
     out = np.empty((obs.size, n_samples))
     for i in range(obs.size):
         logp = -0.5 * ((mid - obs[i]) / sigma[i]) ** 2 + log_prior
@@ -458,16 +452,12 @@ def mock_categorical(
         raise ValueError(f"temperature must be positive; got {temperature}.")
     if int(n_validation) < 1:
         raise ValueError(f"n_validation must be at least 1; got {n_validation}.")
-    gen = as_generator(rng)
     C = int(n_classes)
-    prev = (
-        (np.arange(1, C + 1, dtype=float) ** 2)
-        if prevalence is None
-        else np.asarray(prevalence, dtype=float)
+    prev = _class_fractions(
+        np.arange(1, C + 1) ** 2 if prevalence is None else prevalence, C, "prevalence"
     )
-    prev = prev / prev.sum()
-    pi = np.full(C, 1.0 / C) if train_prior is None else np.asarray(train_prior, dtype=float)
-    pi = pi / pi.sum()
+    pi = _class_fractions(np.ones(C) if train_prior is None else train_prior, C, "train_prior")
+    gen = as_generator(rng)
     means = separation * np.arange(C)
     labels = gen.choice(C, size=n_objects, p=prev)
     x = means[labels] + gen.standard_normal(n_objects)
@@ -489,6 +479,18 @@ def mock_categorical(
         val_x, np.asarray(bins.labels, dtype=object)[val_labels], classes=bins.labels
     )
     return Mock(bins, lk, truth, {"feature": x}, posteriors=post, interim=pi, response=response)
+
+
+def _class_fractions(value: Any, C: int, name: str) -> np.ndarray:
+    """``value`` normalised, after checking that it has ``C`` non-negative entries with a
+    positive sum."""
+    p = check_nonnegative(value, name)
+    if p.shape != (C,) or not p.sum() > 0:
+        raise ValueError(
+            f"{name} must have n_classes = {C} non-negative entries with a positive sum; "
+            f"got shape {p.shape} summing to {p.sum():g}."
+        )
+    return p / p.sum()
 
 
 def mock_unfolding(
