@@ -110,3 +110,25 @@ def test_a_truth_overlay_on_the_selected_population_is_reweighted_by_the_selecti
     _, res = _fit()
     rho = np.array([0.1, 0.2, 0.3, 0.4])
     np.testing.assert_allclose(_overlay(res, rho, "selected", 1.0), rho * S / (rho @ S))
+
+
+def test_a_stack_overlay_on_the_selected_population_is_not_reweighted_again():
+    # the stack averages the observed objects' posteriors: a selected population already
+    pytest.importorskip("matplotlib").use("Agg")
+    import matplotlib.pyplot as plt
+
+    lk, res = _fit()
+    stack = lk.stack()
+    _, stacked = res.plot(which="selected", stack=stack).get_lines()
+    np.testing.assert_allclose(stacked.get_ydata()[:-1], stack / stack.sum())
+    plt.close("all")
+
+
+def test_a_truth_overlay_on_the_selected_population_of_a_basis_is_refused():
+    pytest.importorskip("matplotlib").use("Agg")
+    lk = binference.simulate.mock_1d(100, Bins.linear(0, 1, 4), noise=0.1, rng=0).likelihoods
+    lk = lk.on_basis(binference.Basis(lk.bins, resolution=2))
+    model = binference.PopulationModel(lk, selection=Selection(S, "on_truth"))
+    est = binference.PointEstimate(model, np.full(8, 1 / 8))
+    with pytest.raises(ValueError, match="truth cannot be shown on which='selected'"):
+        est.plot(which="selected", truth=np.full(4, 0.25))

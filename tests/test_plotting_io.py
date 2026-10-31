@@ -63,6 +63,31 @@ def test_corner_trace_individual_sbc(res1d):
     plt.close("all")
 
 
+def test_plot_individual_shows_the_own_likelihood_per_bin_on_a_basis():
+    # flat components at resolution 2 sum back to the bins: the flat-prior posterior per bin
+    bins = Bins.linear(0, 3, 6)
+    mock = binference.simulate.mock_1d(50, bins, rng=0)
+    d, s = mock.measurements["mean"], mock.measurements["sigma"]
+    lk = binference.Likelihoods.from_gaussian(d, s, binference.Basis(bins, resolution=2))
+    est = binference.PointEstimate(binference.PopulationModel(lk), np.full(12, 1 / 12))
+    own = est.plot_individual(1).get_lines()[0].get_ydata()[:-1] * bins.volumes
+    plain = binference.Likelihoods.from_gaussian(d, s, bins).toarray()[1] * bins.volumes
+    np.testing.assert_allclose(own, plain / plain.sum(), rtol=1e-12)
+    plt.close("all")
+
+
+def test_the_sbc_plot_always_shows_the_joint_log_likelihood():
+    from binference.plotting import plot_sbc
+
+    names = [f"rho[{k}]" for k in range(15)] + ["loglike"]
+    ranks = np.random.default_rng(1).integers(0, 20, (30, 16))
+    sbc = binference.validation.SBCResult(ranks, 19, names)
+    shown = [a for a in plot_sbc(sbc).axes if a.get_visible()]
+    assert [a.get_title() for a in shown] == [*names[:11], "loglike"]
+    np.testing.assert_array_equal(shown[-1].containers[0].datavalues, sbc.histogram()[-1])
+    plt.close("all")
+
+
 def test_plots_take_population_and_sample_colours_from_the_style_cycle(res1d, small_1d):
     from matplotlib.colors import same_color
 
@@ -92,6 +117,17 @@ def test_sample_color_and_color_override_the_style(res1d, small_1d):
     assert same_color(ax.get_lines()[0].get_color(), "#abcdef")
     with pytest.raises(ValueError, match="sample_color"):
         res1d.plot(sample_color="not a colour")
+    plt.close("all")
+
+
+def test_a_list_of_colours_is_for_the_bars_of_categories_only(res1d):
+    from matplotlib.colors import same_color
+
+    with pytest.raises(ValueError, match="color must be a matplotlib colour or None"):
+        res1d.plot(color=["red", "blue"])
+    mc = binference.simulate.mock_categorical(100, 3, rng=1)
+    ax = binference.infer(mc.likelihoods, method="map").plot(color=["red", "green", "blue"])
+    assert same_color([bar.get_facecolor()[:3] for bar in ax.patches], ["red", "green", "blue"])
     plt.close("all")
 
 
