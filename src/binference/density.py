@@ -13,6 +13,7 @@ from collections.abc import Callable
 from typing import Any, Literal
 
 import numpy as np
+from scipy import stats
 
 from ._quadrature import _gauss, bin_log_average
 from ._utils import check_nonnegative, frozen
@@ -34,8 +35,9 @@ class Density:
 
     # exactly one of _flat ("measure" or "z"), _values (per-bin array, read as
     # masses, densities or, when _per_volume is None, either on equal-volume bins),
-    # _func (callable density, _bounded if it is) or _dist (distribution object) is set
-    __slots__ = ("_bounded", "_dist", "_flat", "_func", "_per_volume", "_values")
+    # _func (callable density, _bounded if it is) or _dist (distribution object) is set;
+    # _digest is the values' SHA-256
+    __slots__ = ("_bounded", "_digest", "_dist", "_flat", "_func", "_per_volume", "_values")
 
     def __init__(
         self, *, flat=None, values=None, per_volume=False, func=None, dist=None, bounded=False
@@ -47,6 +49,7 @@ class Density:
             )
         self._flat = flat
         self._values = values
+        self._digest = None if values is None else hashlib.sha256(values.tobytes()).hexdigest()
         self._per_volume = per_volume
         self._func = func
         self._bounded = bounded
@@ -258,33 +261,43 @@ class Density:
     def _fingerprint(self) -> str:
         """This density's key in a prior's fingerprint: its repr, with what that leaves out.
 
-        Values enter by a digest, a frozen SciPy distribution by its family and
-        parameters, and a function by its module and qualified name where that name finds
-        it (as pickle finds a function); these keys are the same in every process. Any
-        other function or distribution enters by its repr, which may hold its address.
+        Values enter by a digest, a frozen distribution of a public SciPy family by its
+        family and parameters, and a function by its module and qualified name where that
+        name finds it (as pickle finds a function); these keys are the same in every
+        process. Any other function or distribution, such as a frozen ``rv_histogram``,
+        enters by its repr, which may hold its address.
         """
         if self._values is not None:
-            digest = hashlib.sha256(self._values.tobytes()).hexdigest()
-            return f"Density(values={digest}, per_volume={self._per_volume})"
-        family = getattr(getattr(self._dist, "dist", None), "name", None)
-        if family is not None:  # a frozen SciPy distribution
-            return f"Density.from_distribution({family}{self._dist.args!r}{self._dist.kwds!r})"
+            return f"Density(values={self._digest}, per_volume={self._per_volume})"
+        if _public_family(self._dist) is not None:
+            d = self._dist
+            return f"Density.from_distribution({d.dist.name}{d.args!r}{d.kwds!r})"
         if self._func is not None:
             bounded = ", bounded=True" if self._bounded else ""
             return f"Density.from_function({_qualified_name(self._func)}{bounded})"
         return repr(self)
 
+    def _key(self) -> Any:
+        # a function by identity, as Python compares functions; the rest by fingerprint
+        return (id(self._func), self._bounded) if self._func is not None else self._fingerprint()
+
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Density):
-            return NotImplemented
-        if self._func is not None or other._func is not None:  # by identity, as Python does
-            return self._func is other._func and self._bounded == other._bounded
-        return self._fingerprint() == other._fingerprint()
+        return self._key() == other._key() if isinstance(other, Density) else NotImplemented
 
     def __hash__(self) -> int:
-        if self._func is not None:
-            return hash((id(self._func), self._bounded))
-        return hash(self._fingerprint())
+        return hash(self._key())
+
+
+def _public_family(dist: Any) -> Any:
+    """The generator of a frozen distribution of a public SciPy family, else ``None``.
+
+    Each frozen distribution holds its own copy of its generator; only a public family's
+    holds no data, so only there do the family and parameters say what it is (a frozen
+    ``rv_histogram``'s holds its histogram).
+    """
+    family = getattr(dist, "dist", None)
+    public = getattr(stats, getattr(family, "name", None) or "", None)
+    return family if family is not None and type(public) is type(family) else None
 
 
 def _qualified_name(func: Any) -> str:

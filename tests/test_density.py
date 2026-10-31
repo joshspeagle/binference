@@ -122,6 +122,11 @@ def test_densities_are_equal_when_built_alike_from_equal_values():
         (Density.from_masses(a), Density.from_masses(a[::-1])),
         (Density.from_masses(a), Density.from_densities(a)),
         (Density.from_distribution(stats.norm(0, 1)), Density.from_distribution(stats.norm(0, 2))),
+        # a frozen rv_histogram's family name and arguments leave out its histogram
+        tuple(
+            Density.from_distribution(stats.rv_histogram((h, [0, 1, 2]))())
+            for h in ([1, 2], [2, 1])
+        ),
         (Density.from_function(func), Density.from_function(lambda z: z)),
         (Density.from_function(func), Density.from_function(func, bounded=True)),
     ]

@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 import numpy as np
 import scipy.sparse as sp
-from scipy import special, stats
+from scipy import special
 
 from . import _kernels as kern
 from ._quadrature import bin_log_average
@@ -35,6 +35,7 @@ from .density import (
     _has_pdf,
     _is_distribution,
     _log_nonneg,
+    _public_family,
     log_interval_masses,
 )
 from .measure import Measure
@@ -152,21 +153,14 @@ def _common(weights, selection, selection_mode, drop_empty, fractional_weights) 
 def _one_family(dists: list[Any]) -> Any:
     """``dists``, frozen SciPy distributions of one family, as one frozen distribution whose
     parameters are columns over them; ``None`` when they are not of one family."""
-    family = getattr(dists[0], "dist", None)
+    family = _public_family(dists[0])
     keys = sorted(getattr(dists[0], "kwds", {}))
-    # each frozen distribution holds its own copy of a family's generator; only a public
-    # family's holds no data (a frozen rv_histogram's holds its histogram)
-    public = getattr(stats, getattr(family, "name", None) or "", None)
-    if (
-        family is None
-        or type(public) is not type(family)
-        or not all(
-            type(getattr(d, "dist", None)) is type(family)
-            and len(d.args) == len(dists[0].args)
-            and sorted(d.kwds) == keys
-            and all(np.ndim(x) == 0 for x in (*d.args, *d.kwds.values()))
-            for d in dists
-        )
+    if family is None or not all(
+        type(getattr(d, "dist", None)) is type(family)
+        and len(d.args) == len(dists[0].args)
+        and sorted(d.kwds) == keys
+        and all(np.ndim(x) == 0 for x in (*d.args, *d.kwds.values()))
+        for d in dists
     ):
         return None
     args = [np.array(a, dtype=float)[:, None] for a in zip(*(d.args for d in dists), strict=True)]
