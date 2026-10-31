@@ -135,12 +135,16 @@ def test_a_result_keeps_read_only_copies_of_its_draws_and_diagnostics(small_1d):
     # either side changed the result, and what check() reports, under its cached summaries
     model = PopulationModel(small_1d.likelihoods)
     draws = np.random.default_rng(0).dirichlet(np.ones(12), size=(2, 30))
-    res = PopulationResult(model, draws, method="test")
+    info = {"hyperparameters": {"tau": np.ones(3)}}
+    res = PopulationResult(model, draws, method="test", info=info)
     mean = res.mean
     draws[:] = 1.0 / 12
+    info["hyperparameters"]["tau"][0] = 99.0
     np.testing.assert_array_equal(res.mean, mean)
+    assert res.info["hyperparameters"]["tau"][0] == 1.0
+    res.diagnostics  # cached before pickling: a cache that cannot be pickled fails here
     for r in (res, pickle.loads(pickle.dumps(res))):  # unpickled, still read-only
-        for arr in (r.samples, r.total, r.summary().rhat):
+        for arr in (r.samples, r.total, r.summary().rhat, r.info["hyperparameters"]["tau"]):
             with pytest.raises(ValueError, match="read-only"):
                 arr[0] = 0.0
         with pytest.raises(TypeError):

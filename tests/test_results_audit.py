@@ -159,6 +159,9 @@ def test_check_reads_the_tail_ess_of_an_inferred_selection_and_keeps_its_own_dra
     res = _external(rho, model, selection_draws=S)
     with pytest.warns(binference.ConvergenceWarning, match="tail ESS of the selection"):
         res.check()
+    constant = _external(rho, model, selection_draws=np.full((4, 400, 4), 0.5))
+    with pytest.warns(binference.ConvergenceWarning, match="ESS of the selection are undefined"):
+        constant.check()
     # the selection's draws are copied with the population's
     before = res.assignment_probabilities(n_draws=None)
     S[:] = 0.5

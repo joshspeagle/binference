@@ -177,9 +177,7 @@ class _IndividualMixin:
     def __setstate__(self, state: dict[str, Any]) -> None:
         # pickling and deepcopy rebuild writable arrays: freeze them again, and drop caches
         self.__dict__.update(state, _cache={})
-        for v in (*vars(self).values(), *self.info.values()):
-            if isinstance(v, np.ndarray):
-                frozen(v)
+        _freeze(vars(self))
 
     def _which(self, which: str) -> np.ndarray:
         """Draws ``(n, K)`` of the fractions, rates, densities or selected population (see
@@ -882,16 +880,25 @@ def _flat_draws(A: Any, n_tail: int, n_draws: int | None) -> np.ndarray:
     return A[_draw_index(len(A), n_draws)]
 
 
-def _read_only_or_none(a: Any) -> np.ndarray | None:
-    """An array argument of a result as a read-only copy (its own dtype), or ``None``."""
-    return None if a is None else read_only(a, dtype=None)
-
-
 def _read_only_info(info: dict[str, Any] | None) -> dict[str, Any]:
-    """A result's ``info``, its arrays read-only copies."""
-    return {
-        k: read_only(v, None) if isinstance(v, np.ndarray) else v for k, v in (info or {}).items()
-    }
+    """A result's ``info``, its arrays (in nested dicts too, and the draws of a selection
+    or response however given) read-only copies."""
+    out = dict(info or {})
+    for k, v in out.items():
+        if isinstance(v, dict):
+            out[k] = _read_only_info(v)
+        elif isinstance(v, np.ndarray) or k in ("selection_draws", "response_draws"):
+            out[k] = read_only(v, None)
+    return out
+
+
+def _freeze(d: dict) -> None:
+    """Freeze, in place, the arrays among ``d``'s values and in its nested dicts."""
+    for v in d.values():
+        if isinstance(v, np.ndarray):
+            frozen(v)
+        elif isinstance(v, dict):
+            _freeze(v)
 
 
 def _check_level(level: float, name: str = "level") -> None:
@@ -1283,15 +1290,15 @@ class PopulationResult(_IndividualMixin):
             if model is not None
             else Bins.categories(d.shape[-1])
         )
-        self.x = _read_only_or_none(x)
+        self.x = read_only(x, None)
         #: log posterior density of each draw in the unconstrained coordinates
         #: (with the Jacobian; DECISIONS #15), for samplers that compute it
-        self.log_density_unconstrained = _read_only_or_none(log_density_unconstrained)
+        self.log_density_unconstrained = read_only(log_density_unconstrained, None)
         self.method = method
         self.approximate = approximate
         self.info = _read_only_info(info)
-        self.labels = _read_only_or_none(labels)
-        self.label_index = _read_only_or_none(label_index)
+        self.labels = read_only(labels, None)
+        self.label_index = read_only(label_index, None)
         self.prior_repr = prior_repr or (repr(model.prior_spec) if model is not None else None)
         #: a digest of the prior's arguments in full, which attach compares (the repr
         #: shortens arrays)
@@ -1456,7 +1463,7 @@ class PopulationResult(_IndividualMixin):
     @property
     def chains(self) -> np.ndarray:
         """Fraction draws per chain, shape ``(n_chains, n_per_chain, K)``."""
-        return self._fractions(self._draws)
+        return frozen(self._fractions(self._draws))
 
     @property
     def samples(self) -> np.ndarray:
@@ -1494,7 +1501,7 @@ class PopulationResult(_IndividualMixin):
         if self.kind == "rates":
             return _flat_draws(self._draws, 1, None)
         total = self.total
-        return None if total is None else total[:, None] * self.samples
+        return None if total is None else frozen(total[:, None] * self.samples)
 
     def _rho_draws(self) -> np.ndarray:
         return self.samples
@@ -1677,7 +1684,7 @@ class PopulationResult(_IndividualMixin):
     def diagnostics(self) -> Mapping[str, Any]:
         """Convergence diagnostics, read-only (computed lazily and cached)."""
         if "diagnostics" in self._cache:
-            return self._cache["diagnostics"]
+            return MappingProxyType(self._cache["diagnostics"])
         out: dict[str, Any] = {}
         # for rate models diagnose the rates, which also carry the total
         out.update(self._mixing_of(self.kind))
@@ -1699,8 +1706,8 @@ class PopulationResult(_IndividualMixin):
         ):
             if key in self.info:
                 out[key] = self.info[key]
-        self._cache["diagnostics"] = MappingProxyType(out)
-        return self._cache["diagnostics"]
+        self._cache["diagnostics"] = out
+        return MappingProxyType(out)
 
     def _missing_information(self) -> float | None:
         """Fraction of missing information at the posterior mean (cached in ``info``)."""
@@ -1731,17 +1738,22 @@ class PopulationResult(_IndividualMixin):
         engine = METHODS.get(self.method)
         if self.approximate or (engine is not None and not engine.markov):
             return msgs
-        if np.all(np.isnan(d.get("rhat", np.nan))):  # none (see _mixing), or all constant
-            return [
-                f"R-hat and ESS are undefined: chains shorter than {MIXING_MIN_DRAWS}, or constant"
-            ]
         for suffix, what in (
             ("", ""),
             ("_selection", " of the selection"),
             ("_response", " of the response's efficiencies"),
         ):
-            if "rhat" + suffix in d and np.nanmax(d["rhat" + suffix]) > rhat_max:
-                msgs.append(f"max R-hat{what} = {np.nanmax(d['rhat' + suffix]):.3f} > {rhat_max}")
+            rhat = d.get("rhat" + suffix)
+            if rhat is None and suffix:  # no such quantity, or chains too short for any
+                continue
+            if rhat is None or np.all(np.isnan(rhat)):  # too short (see _mixing), or constant
+                msgs.append(
+                    f"R-hat and ESS{what} are undefined: chains shorter than "
+                    f"{MIXING_MIN_DRAWS}, or constant"
+                )
+                continue
+            if np.nanmax(rhat) > rhat_max:
+                msgs.append(f"max R-hat{what} = {np.nanmax(rhat):.3f} > {rhat_max}")
             for kind in ("bulk", "tail"):
                 key = f"ess_{kind}{suffix}"
                 if key in d:
@@ -2178,7 +2190,7 @@ class PointEstimate(_IndividualMixin):
         self.model = model
         self.value = read_only(value)
         self.method = method
-        self.x = _read_only_or_none(x)
+        self.x = read_only(x, None)
         self.log_posterior = float(log_posterior)
         self.log_likelihood = float(log_likelihood)
         self.kkt_gap = float(kkt_gap)
