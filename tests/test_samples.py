@@ -171,3 +171,9 @@ def test_integer_sample_weights_of_ragged_samples_act_as_repeated_samples():
 
     np.testing.assert_allclose(shape(weighted), shape(repeated), rtol=1e-12)
     assert not np.allclose(shape(weighted), shape(unweighted), rtol=0.05)
+
+
+def test_samples_padded_with_nan_are_refused_with_a_pointer_to_ragged_lists():
+    padded = np.array([[0.2, 0.3, np.nan, np.nan], [0.1, 0.4, 0.6, 0.8]])
+    with pytest.raises(ValueError, match=r"samples must be finite.*list of arrays"):
+        Likelihoods.from_samples(padded, Bins.linear(0, 1, 2), "flat", min_samples=0)

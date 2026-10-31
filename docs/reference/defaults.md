@@ -73,13 +73,14 @@ explain behaviour, not as settings to change.
 | `MIN_EVIDENCE` | `1e-250` | `binference._kernels` | An object whose normalised evidence is below this is impossible. |
 | `SPARSE_FILL` | `0.1` | `binference._kernels` | Likelihoods are stored sparse below this share of non-zero entries. |
 | `MAX_ELEMENTS` | `4194304` | `binference._quadrature` | Most function values a quadrature evaluates in one call. |
+| `EDGE_INSET` | `1e-09` | `binference._quadrature` | How far inside a cell, as a fraction of its width, the check rule reads its ends: a jump closer to an edge goes unseen, and one exactly on an edge reads as the inside value. |
 | `DEFAULT_OVERSAMPLE` | `{1: 8, 2: 4}` | `binference.basis` | Quadrature cells per order-1 component and axis when `oversample` is `None`, by dimension (2 above two dimensions; order 0 takes 1). |
 | `OUTSIDE_THRESHOLD` | `0.9` | `binference.likelihoods` | An object with more than this share of its likelihood outside the bins is mostly outside. |
 | `OUTSIDE_SHARE` | `0.1` | `binference.likelihoods` | A warning is raised when more than this share of the objects are mostly outside the bins. |
 | `FEW_SAMPLES_SHARE` | `0.1` | `binference.likelihoods` | `from_samples` warns when more than this share of the objects have fewer than `min_samples` effective samples. |
 | `REPRESENTATION_SHARE` | `0.5` | `binference.likelihoods` | A warning is raised when more than this share of posterior rows sum to one only under the other `representation`. |
 | `REPRESENTATION_RTOL` | `0.01` | `binference.likelihoods` | Relative tolerance within which a posterior row counts as summing to one. |
-| `MIGRATION_ATOL` | `0.001` | `binference.response` | With `efficiency`, a warning is raised unless the matrix's columns sum to one within this. |
+| `MIGRATION_ATOL` | `0.001` | `binference.response` | With `efficiency`, columns that sum to one within this are divided by their sum (a migration matrix off by rounding); a warning is raised for the others. |
 
 ## Selection
 

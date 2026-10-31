@@ -481,3 +481,4 @@ Append-only. One entry per working session (or per step within a long session).
 - #159: `ci-ok` gates on `changes` and `slow` too, scikit-learn joins the `test` extra so its test runs, and the sdist is clean (DECISIONS #110).
 - #162: `plot_individual` and the truth overlay on a basis, the stack overlay on the selected population, colour lists and `plot_sbc`'s log-likelihood panel (DECISIONS #111).
 - #160: engine inputs are checked when the engine is made, EM moves zeros in its start, the rates start is fitted on L over S, and `Engine.name` and `approximate` are removed (DECISIONS #112).
+- #163: selection functions are checked for jumps near bin edges and refine to depth 20; frozen SciPy distributions of one family are evaluated in one call; errors name the input at fault; `at_mean` is `fixed`; `measured_fractions` is gone (DECISIONS #113).

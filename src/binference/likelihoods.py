@@ -5,13 +5,13 @@ from __future__ import annotations
 import functools
 import inspect
 import pickle
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from functools import partial
 from typing import Any, Literal
 
 import numpy as np
 import scipy.sparse as sp
-from scipy import special
+from scipy import special, stats
 
 from . import _kernels as kern
 from ._quadrature import bin_log_average
@@ -148,25 +148,37 @@ def _common(weights, selection, selection_mode, drop_empty, fractional_weights) 
     }
 
 
-def _rows_logpdf(dists: list[Any], ndim: int) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
-    """``f(z, r)``: log density of distribution ``r[p]`` at the points ``z[p]``."""
+def _one_family(dists: list[Any]) -> Any:
+    """``dists``, frozen SciPy distributions of one family, as one frozen distribution whose
+    parameters are columns over them; ``None`` when they are not of one family."""
     family = getattr(dists[0], "dist", None)
     keys = sorted(getattr(dists[0], "kwds", {}))
-    same = (
-        ndim == 1
-        and family is not None
-        and all(
-            getattr(d, "dist", None) is family
+    # each frozen distribution holds its own copy of a family's generator; only a public
+    # family's holds no data (a frozen rv_histogram's holds its histogram)
+    public = getattr(stats, getattr(family, "name", None) or "", None)
+    if (
+        family is None
+        or type(public) is not type(family)
+        or not all(
+            type(getattr(d, "dist", None)) is type(family)
             and len(d.args) == len(dists[0].args)
             and sorted(d.kwds) == keys
+            and all(np.ndim(x) == 0 for x in (*d.args, *d.kwds.values()))
             for d in dists
         )
-    )
-    if same:  # frozen scipy distributions of one family: one call
-        args = [np.array(a, dtype=float) for a in zip(*(d.args for d in dists), strict=True)]
-        kwds = {k: np.array([d.kwds[k] for d in dists], dtype=float) for k in keys}
-        return lambda z, r: family.logpdf(
-            z, *(a[r, None] for a in args), **{k: v[r, None] for k, v in kwds.items()}
+    ):
+        return None
+    args = [np.array(a, dtype=float)[:, None] for a in zip(*(d.args for d in dists), strict=True)]
+    kwds = {k: np.array([d.kwds[k] for d in dists], dtype=float)[:, None] for k in keys}
+    return family(*args, **kwds)
+
+
+def _rows_logpdf(dists: list[Any], ndim: int) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
+    """``f(z, r)``: log density of distribution ``r[p]`` at the points ``z[p]``."""
+    one = _one_family(dists) if ndim == 1 else None
+    if one is not None:  # one call for all
+        return lambda z, r: one.dist.logpdf(
+            z, *(a[r] for a in one.args), **{k: v[r] for k, v in one.kwds.items()}
         )
 
     def logpdf(z, r):
@@ -1011,11 +1023,7 @@ class Likelihoods:
         lk = cls(
             values,
             bins,
-            weights=weights,
-            selection=selection,
-            selection_mode=selection_mode,
-            drop_empty=drop_empty,
-            fractional_weights=fractional_weights,
+            **_common(weights, selection, selection_mode, drop_empty, fractional_weights),
         )
         lk.meta.update(source="samples", interim_prior_masses=Pi)
         _attach_per_object(
@@ -1281,10 +1289,13 @@ class Likelihoods:
         Other integrals use adaptive quadrature: each bin is refined until the
         estimated error is below ``tol`` relative to each row's largest bin
         average, splitting cells at most ``max_depth`` times; ``n_sub`` instead
-        fixes ``n_sub`` Gauss-Legendre points per bin and axis. The fraction of
-        each distribution's mass outside the active bins is recorded in
-        ``meta["outside_fraction"]`` on 1-D bins (see :meth:`from_gaussian` for
-        ``warn_outside``).
+        fixes ``n_sub`` Gauss-Legendre points per bin and axis. A jump in the outer
+        4.7% of a cell, or a peak narrower than the spacing of the points, can fall
+        between them and be missed without a warning: put bin edges at the jumps.
+        Distributions with a ``cdf`` on 1-D bins give exact bin masses, for posteriors
+        and for likelihoods on bins linear in z, and the fraction of each one's mass
+        outside the active bins is recorded in ``meta["outside_fraction"]`` (see
+        :meth:`from_gaussian` for ``warn_outside``).
 
         Parameters
         ----------
@@ -1321,7 +1332,8 @@ class Likelihoods:
         fractional_weights : bool, optional
             Accept non-integer weights, which give a pseudo-likelihood.
         warn_outside : bool, optional
-            Warn when many objects have most of their likelihood outside the bins.
+            Warn when many objects have most of their likelihood outside the bins
+            (distributions with a ``cdf`` on 1-D bins).
         """
         if bins.is_categorical:
             raise ValueError("from_density needs grid bins.")
@@ -1340,11 +1352,18 @@ class Likelihoods:
             logf = density if log else (lambda z: _log_nonneg(density(z)))
             log_avg = bin_log_average(logf, bins, **quad)
         else:
-            dists = list(density)
+            dists = list(density) if isinstance(density, Iterable) else []
             if not dists or not all(_is_distribution(d) for d in dists):
-                raise TypeError("density must be a function or a sequence of distributions.")
+                raise TypeError(
+                    "density must be a function or a sequence of distributions (a list of one "
+                    "for a single object)."
+                )
             if bins.ndim == 1 and all(_has_cdf(d) for d in dists):
-                log_mass = np.stack([_dist_log_masses(d, bins.edges[0]) for d in dists])
+                one = _one_family(dists)
+                if one is None:
+                    log_mass = np.stack([_dist_log_masses(d, bins.edges[0]) for d in dists])
+                else:  # one call for all
+                    log_mass = _dist_log_masses(one, bins.edges[0])
                 log_mass = log_mass[:, bins.cell_index[0]]
                 log_inside = special.logsumexp(log_mass, axis=1)
             if log_inside is not None and (posterior or bins.measures[0] == Measure.linear()):
@@ -1447,8 +1466,17 @@ class Likelihoods:
         keep = c > 0
         if not keep.any():
             raise ValueError("counts are all zero: there are no observed objects.")
+        rows = response._rows()
+        dead = np.flatnonzero(keep & (rows.sum(axis=1) <= 0))
+        if dead.size:
+            raise ValueError(
+                f"Measured bin(s) {dead[:5].tolist()} hold observed objects, but the response "
+                "gives them zero probability from every truth bin: remove those bins' counts, "
+                "or give the response a row there (a response tallied from events and left "
+                "uncertain, not .fixed(), has one)."
+            )
         lk = cls(
-            response._rows()[keep],
+            rows[keep],
             response.truth_bins,
             weights=c[keep],
             selection=response._selection(),
@@ -1524,7 +1552,7 @@ def _keep_within(lk: Likelihoods, n: int, kind: str, *data: Any) -> None:
 
 
 def _interim_at_points(density: Density, bins: Bins) -> tuple:
-    """What :func:`log_interim` reads: the density, and its log in ``u`` per bin of the
+    """What :func:`_log_interim` reads: the density, and its log in ``u`` per bin of the
     1-D ``bins`` when it is known only per bin (flat in ``u`` within each)."""
     if density._log_pointwise() is not None:
         return density, None, bins
@@ -1532,7 +1560,7 @@ def _interim_at_points(density: Density, bins: Bins) -> tuple:
         return density, np.log(density.masses(bins) / bins.u_volumes), bins
 
 
-def log_interim(interim: tuple | None, z: np.ndarray) -> Any:
+def _log_interim(interim: tuple | None, z: np.ndarray) -> Any:
     """The log interim density in ``z`` at the points ``z`` (any shape), up to a constant
     per bin; 0 without one (likelihoods)."""
     if interim is None:
@@ -1680,5 +1708,10 @@ def _bin_samples(samples: Any, bins: Bins, sample_weights: Any):
             if [len(s) for s in sws] != sizes.tolist():
                 raise ValueError("sample_weights must match the layout of samples.")
             sw = np.concatenate(sws)
+    if not np.all(np.isfinite(flat)):
+        raise ValueError(
+            "samples must be finite; give objects with different numbers of samples as a list "
+            "of arrays rather than padding with NaN."
+        )
     check_nonnegative(sw, "sample_weights")
     return flat, obj_ids, bins.index(flat), sw, n_obj

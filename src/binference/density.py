@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 import numpy as np
 
-from ._quadrature import bin_log_average
+from ._quadrature import _gauss, bin_log_average
 from ._utils import check_nonnegative, frozen
 from .bins import Bins
 
@@ -265,7 +265,8 @@ def _has_cdf(dist: Any) -> bool:
 
 
 def _dist_log_masses(dist: Any, edges: np.ndarray) -> np.ndarray:
-    """Log mass between consecutive edges of a distribution with a CDF."""
+    """Log mass between consecutive edges of a distribution with a CDF; for a frozen
+    distribution whose parameters are columns, one row per distribution."""
     with np.errstate(divide="ignore"):
         if hasattr(dist, "logcdf"):
             lc = np.asarray(dist.logcdf(edges), dtype=float)
@@ -278,14 +279,20 @@ def _dist_log_masses(dist: Any, edges: np.ndarray) -> np.ndarray:
     out = log_interval_masses(lc, ls)
     # near the median a small interval's CDF difference cancels; the density is then
     # nearly constant across it, so a 5-point quadrature of the pdf keeps full precision
-    near = (out < np.log(1e-3)) & (np.abs(np.exp(lc[:-1]) - 0.5) < 0.25)
+    near = (out < np.log(1e-3)) & (np.abs(np.exp(lc[..., :-1]) - 0.5) < 0.25)
     if near.any() and _has_pdf(dist):
-        x, w = np.polynomial.legendre.leggauss(5)
-        lo, hi = edges[:-1][near], edges[1:][near]
-        pts = lo[:, None] + (hi - lo)[:, None] * (0.5 * (x + 1.0))
-        dens = np.exp(_dist_logpdf(dist, pts.ravel()).reshape(pts.shape))
+        *row, k = np.nonzero(near)  # only the near intervals: one wide object has many
+        t, w = _gauss(5)
+        width = np.diff(edges)[k]
+        pts = edges[:-1][k, None] + width[:, None] * t
+        if row:  # a batch: the near rows' parameters, a row of points each
+            args = (np.asarray(a)[row[0]] for a in dist.args)
+            dist = dist.dist(*args, **{n: np.asarray(v)[row[0]] for n, v in dist.kwds.items()})
+            logpdf = _dist_logpdf(dist, pts)
+        else:
+            logpdf = _dist_logpdf(dist, pts.ravel()).reshape(pts.shape)
         with np.errstate(divide="ignore"):
-            out[near] = np.log((dens @ (0.5 * w)) * (hi - lo))
+            out[near] = np.log((np.exp(logpdf) @ w) * width)
     return out
 
 

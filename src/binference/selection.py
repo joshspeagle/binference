@@ -157,10 +157,10 @@ class Selection:
         Laplace and, for independent Betas and a conjugate prior, Gibbs infer it
         jointly with the population, where the catalogue informs the ratios
         between the :math:`S_k` (their level comes from the injections; DECISIONS
-        #10, #30, #79, #80); :meth:`at_mean` gives a fixed selection at
+        #10, #30, #79, #80); :meth:`fixed` gives a fixed selection at
         :attr:`values`, ignoring the uncertainty. A selection on the measurement
         cannot be inferred (the likelihoods' cut already fixes it), and neither can a
-        selection with a rates prior; pass :meth:`at_mean` for both.
+        selection with a rates prior; pass :meth:`fixed` for both.
 
         Parameters
         ----------
@@ -241,8 +241,9 @@ class Selection:
         s, f = _beta_posterior(self.injections)
         return _draw_beta(s, f, as_generator(rng), size=(int(n), self.K))
 
-    def at_mean(self) -> Selection:
-        """This selection fixed at its :attr:`values`, ignoring their uncertainty."""
+    def fixed(self) -> Selection:
+        """This selection taken as known at its :attr:`values`, a plug-in that ignores their
+        uncertainty."""
         return _rebuild(*self._parts()[:4])
 
     @property
@@ -261,6 +262,7 @@ class Selection:
         *,
         scale: str = "probability",
         tol: float = 1e-6,
+        max_depth: int = 20,
     ) -> Selection:
         """A selection given as a function of the true value, averaged over each bin.
 
@@ -268,7 +270,13 @@ class Selection:
         points ``z`` (shape ``(M,)`` in 1-D, ``(M, ndim)`` on grids, labels for
         categories). Each bin takes its average in the measure coordinate, the
         within-bin shape of the population (DECISIONS #10, #47), by adaptive
-        quadrature to ``tol`` relative to the largest bin average. With a
+        quadrature to ``tol`` relative to the largest bin average. A single jump inside a
+        bin is found wherever it lies (a window narrower than the spacing of the points can
+        still fall between them: put bin edges at its ends), and each refinement halves the
+        cell that holds it,
+        so reaching ``tol`` takes about :math:`\\log_2(1/\\mathrm{tol})` refinements, 20
+        for the default ``tol``, which the default ``max_depth`` allows; for a smaller
+        ``tol`` raise ``max_depth``, or put a bin edge at the jump. With a
         :class:`~binference.Basis` for ``bins``, the averages are taken on its
         quadrature cells and weighted by each component (DECISIONS #47, #76).
 
@@ -285,13 +293,16 @@ class Selection:
             values, as for :class:`Selection`.
         tol : float, optional
             Quadrature tolerance relative to the largest bin average.
+        max_depth : int, optional
+            Most refinements of the adaptive quadrature; each halves a cell.
         """
         _check_mode(mode)
         _check_values(np.ones(2), scale, "selection")  # the scale, before any quadrature
+        quad = {"tol": tol, "max_depth": max_depth}
         if isinstance(bins, Basis):
-            sel = cls.from_function(function, bins.grid, mode, scale=scale, tol=tol)
+            sel = cls.from_function(function, bins.grid, mode, scale=scale, **quad)
             return _on_basis(sel, bins, bins.grid_masses)
-        return cls(_bin_average(function, bins, tol=tol)[0], mode, scale=scale)
+        return cls(_bin_average(function, bins, **quad)[0], mode, scale=scale)
 
     @classmethod
     def combined(
@@ -302,6 +313,7 @@ class Selection:
         *,
         scale: str = "probability",
         tol: float = 1e-6,
+        max_depth: int = 20,
     ) -> Selection:
         """Selection on the truth and on the measurement at once (DECISIONS #8).
 
@@ -320,20 +332,24 @@ class Selection:
         scale : {"probability", "exposure", "relative"}, optional
             Whether the values of both parts are detection probabilities, exposures
             or relative values, as for :class:`Selection`.
-        tol : float
+        tol : float, optional
             Quadrature tolerance for callable parts (see :meth:`from_function`).
+        max_depth : int, optional
+            Most refinements of the adaptive quadrature for callable parts.
         """
+        _check_values(np.ones(2), scale, "selection")  # the scale, before any quadrature
+        quad = {"tol": tol, "max_depth": max_depth}
         if isinstance(bins, Basis):  # on the quadrature cells, then per component
             parts = [
                 p if callable(p) else _per_bin(p, bins.K)[bins.grid_to_bins]
                 for p in (on_truth, on_measurement)
             ]
-            sel = cls.combined(*parts, bins.grid, scale=scale, tol=tol)
+            sel = cls.combined(*parts, bins.grid, scale=scale, **quad)
             return _on_basis(sel, bins, bins.grid_masses)
         if callable(on_truth) and callable(on_measurement):
             if bins is None:
                 raise ValueError("Selection.combined needs bins when a part is a callable.")
-            C, CT = _bin_average(on_truth, bins, on_measurement, tol=tol)
+            C, CT = _bin_average(on_truth, bins, on_measurement, **quad)
             C = _check_values(C, scale, "on_truth")
             return _combined(C, CT / C, scale)
         parts = []
@@ -341,7 +357,7 @@ class Selection:
             if callable(part):
                 if bins is None:
                     raise ValueError("Selection.combined needs bins when a part is a callable.")
-                part = _bin_average(part, bins, tol=tol)[0]  # the other is constant in bins
+                part = _bin_average(part, bins, **quad)[0]  # the other is constant in bins
             parts.append(part)
         return _combined(*parts, scale)
 
@@ -455,7 +471,7 @@ def _on_basis(sel: Selection, basis: Basis, M: Any) -> Selection:
     if sel.injections is not None:
         raise ValueError(
             "A selection from injections cannot be moved onto a Basis: its Beta posteriors "
-            "are per bin. Use plain bins, or sel.at_mean() for a fixed selection."
+            "are per bin. Use plain bins, or sel.fixed() for a fixed selection."
         )
     row = None if sel.row is None else "values" if sel.row is sel.values else M.T @ sel.row
     return _rebuild(M.T @ sel.values, row, sel.scale, basis)
@@ -495,10 +511,11 @@ def _check_values(values: Any, scale: str, name: str) -> np.ndarray:
     v = np.array(values, dtype=float).ravel()
     if v.size < 2:
         raise ValueError(f"{name} needs one value per bin.")
-    if not np.all(np.isfinite(v)) or np.any(v <= 0):
+    bad = np.flatnonzero(~(np.isfinite(v) & (v > 0)))
+    if bad.size:
         raise ValueError(
-            f"{name} values must be finite and strictly positive (bins that can never be "
-            "observed are not identifiable; remove them from the bins)."
+            f"{name} values must be finite and strictly positive; bin(s) {bad[:5].tolist()} "
+            "are not (bins that can never be observed are not identifiable; remove them)."
         )
     if scale == "probability" and np.any(v > 1.0 + 1e-12):
         raise ValueError(
@@ -510,7 +527,7 @@ def _check_values(values: Any, scale: str, name: str) -> np.ndarray:
 
 
 def _check_mode(mode: str) -> None:
-    if mode not in ("on_truth", "on_measurement"):
+    if mode not in SELECTION_MODES[:2]:  # the third, "combined", is Selection.combined's
         raise ValueError(
             "selection mode must be 'on_measurement' or 'on_truth' (or use "
             f"Selection.combined); got {mode!r}. {_HELP}"
@@ -523,6 +540,7 @@ def _bin_average(
     factor: Callable | None = None,
     log_weight: Callable | None = None,
     tol: float = 1e-6,
+    max_depth: int = 12,
 ) -> np.ndarray:
     """Weighted bin averages of a non-negative ``function`` (and of ``function * factor``).
 
@@ -549,14 +567,15 @@ def _bin_average(
             rows = [r + lw for r in rows] + [lw]
         return np.stack(rows)
 
-    if log_weight is None:
-        return np.exp(bin_log_average(logf, bins, tol=tol))
-    out = bin_log_average(logf, bins, coordinate="z", tol=tol)
+    quad = {"tol": tol, "max_depth": max_depth}
+    if log_weight is None:  # bounded, so the check for jumps converges (bin_log_average)
+        return np.exp(bin_log_average(logf, bins, jumps=True, **quad))
+    out = bin_log_average(logf, bins, coordinate="z", **quad)
     with np.errstate(invalid="ignore"):
         avg = np.exp(out[:-1] - out[-1])  # divide by the bin's weight
     empty = ~np.isfinite(out[-1])
     if empty.any():  # no population in the bin: fall back to the unweighted average
-        avg[:, empty] = _bin_average(function, bins, factor, tol=tol)[:, empty]
+        avg[:, empty] = _bin_average(function, bins, factor, **quad)[:, empty]
     return avg
 
 

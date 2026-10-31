@@ -178,7 +178,7 @@ def test_objects_in_a_measured_bin_without_tallied_events_are_kept():
     resp = Response.from_counts([[5, 0], [3, 6], [0, 0]], [10, 10], truth, measured)
     lk = Likelihoods.from_binned(resp, counts=[4, 5, 2])
     assert lk.N == 3 and np.all(lk.toarray()[2] > 0)
-    with pytest.raises(ValueError, match="zero likelihood"):
+    with pytest.raises(ValueError, match=r"Measured bin\(s\) \[2\].*uncertain"):
         Likelihoods.from_binned(resp.fixed(), counts=[4, 5, 2])
 
 

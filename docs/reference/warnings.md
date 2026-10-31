@@ -66,7 +66,8 @@ result may be biased.
 `Bin averages did not reach tol=<tol> in <n> bin(s) after <max_depth> refinements; ...`
 : **When.** The adaptive quadrature of a density or selection function stops early.
   **Cause.** The function is sharp or discontinuous within a bin.
-  **Fix.** Raise `max_depth` or `tol`, or pass `n_sub=` for fixed quadrature points.
+  **Fix.** Raise `max_depth` or `tol`, or put a bin edge at the jump; `from_density`
+  also takes `n_sub=` for fixed quadrature points.
 
 `<n> injections fall outside the bins and are ignored.`
 : **When.** `Selection.from_injections` gets injections outside the bins.
@@ -289,7 +290,7 @@ and says what was expected. These are the errors met most often:
 
 `<Engine> cannot infer a selection from injections or a tallied response; ...`
 : That engine cannot infer a selection or response jointly. Use one of the engines the
-  message names, or pass `selection.at_mean()` or `response.fixed()` to fix it.
+  message names, or pass `selection.fixed()` or `response.fixed()` to fix it.
 
 `Unknown method <name>; choose from [...]`, `n_samples does not apply to method=<name>.`
 : `infer` got an unknown engine name, or a draw count for a point estimate.

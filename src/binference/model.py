@@ -113,13 +113,13 @@ class PopulationModel:
                     "Only a selection on the truth is inferred from injections: on the "
                     "measurement the likelihoods' cut already fixes S, and with S free the "
                     "catalogue would add only missed objects, driving S to zero. Pass "
-                    "selection.at_mean() as a fixed selection, or mode='on_truth' for a "
+                    "selection.fixed() as a fixed selection, or mode='on_truth' for a "
                     "completeness."
                 )
             if self.prior.kind == "rates":
                 raise ValueError(
                     "A selection from injections is inferred jointly for fractions only; for "
-                    "rates pass selection.at_mean() or a fixed exposure."
+                    "rates pass selection.fixed() or a fixed exposure."
                 )
         if sel is not None and sel.scale == "relative" and self.prior.kind == "rates":
             raise ValueError(

@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 import binference
-from binference import Bins, Likelihoods, PopulationResult
+from binference import Bins, Likelihoods, PopulationResult, Selection
 from binference.samplers import Gibbs
 
 
@@ -41,6 +41,27 @@ def test_a_reloaded_fit_keeps_its_selection_and_total(tmp_path):
     other = lk.with_selection(np.full(4, 0.5), "on_truth")
     with pytest.raises(ValueError, match="another selection"):
         PopulationResult.load(str(tmp_path / "fit")).attach(other)
+
+
+@pytest.mark.parametrize("kind", ["combined", "injections", "smooth injections"])
+@pytest.mark.filterwarnings("ignore::binference.ApproximationWarning")  # Laplace's k-hat
+def test_a_reloaded_fit_keeps_a_combined_or_injection_selection(tmp_path, kind):
+    # the row of a combined selection and the injections are saved beside the values
+    bins = Bins.linear(0, 1, 4)
+    lk = binference.simulate.mock_1d(200, bins, noise=0.1, rng=0).likelihoods.with_selection(None)
+    rng = np.random.default_rng(1)
+    z = rng.uniform(0, 1, 400)
+    detected = rng.random(400) < 1 - 0.5 * z
+    if kind == "combined":
+        sel = Selection.combined([1.0, 0.8, 0.6, 0.4], [0.9, 0.9, 0.8, 0.7])
+    else:
+        smooth = 0.5 if kind == "smooth injections" else None
+        sel = Selection.from_injections(z, detected, bins, "on_truth", smooth=smooth)
+    method = "laplace" if kind == "smooth injections" else "gibbs"  # Gibbs: independent Betas
+    res = binference.infer(lk, selection=sel, method=method, n_samples=50, rng=0, check=False)
+    res.save(str(tmp_path / "fit"))
+    back = PopulationResult.load(str(tmp_path / "fit"))
+    assert back.selection == res.selection  # values, row and injections
 
 
 def test_attaching_other_likelihoods_redraws_the_total_and_missing_information():

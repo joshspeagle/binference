@@ -66,7 +66,7 @@ class Engine:
             for k, e in METHODS.items():
                 first.setdefault(e, k)
             *names, last = (repr(k) for e, k in first.items() if e.joint)
-            fixed = "selection.at_mean()" if model.selection_uncertain else "response.fixed()"
+            fixed = "selection.fixed()" if model.selection_uncertain else "response.fixed()"
             return (
                 f"{cls.__name__} cannot infer a selection from injections or a tallied "
                 f"response; use method={', '.join(names)} or {last}, or pass {fixed} for a "

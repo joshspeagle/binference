@@ -147,6 +147,19 @@ def test_selection_errors_name_the_selection_and_come_before_any_quadrature():
         Selection.combined(
             lambda z: np.where(z < 1, 0.0, 1.0), lambda z: 0.5 + 0 * z, Bins.linear(0, 3, 3)
         )
+    with pytest.raises(ValueError, match="scale must be one of"):
+        Selection.combined(never, never, Bins.linear(0, 1, 2), scale="bogus")
+
+
+def test_a_jump_near_a_bin_edge_is_refined_to_tol_or_warned():
+    # no Gauss-Legendre point lies within 4.7% of a cell's edge, where this cut is
+    bins = Bins.linear(0, 1, 4)
+    cut = lambda z: np.where(z < 0.26, 1.0, 0.2)  # noqa: E731
+    exact = [1.0, (0.01 + 0.24 * 0.2) / 0.25, 0.2, 0.2]
+    sel = Selection.from_function(cut, bins, "on_truth")  # about log2(1 / tol) refinements
+    np.testing.assert_allclose(sel.values, exact, atol=1e-5)
+    with pytest.warns(InputWarning, match="did not reach tol"):
+        Selection.from_function(cut, bins, "on_truth", max_depth=12)
 
 
 def test_a_response_with_rounded_efficiencies_still_binds():

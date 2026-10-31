@@ -17,11 +17,24 @@ releases may break the API).
   concentration of the branch into each (DECISIONS #108).
 - `BoundPrior.long_log_tails()`: whether a bin without data has a long tail in the
   unconstrained coordinates NUTS samples (DECISIONS #109).
+- `Selection.from_function` and `Selection.combined` take `max_depth`, the most
+  refinements of their adaptive quadrature; the default, 20, allows the halvings a jump
+  inside a bin needs (DECISIONS #113).
 
 ### Changed
 
 - The `test` extra installs scikit-learn 1.6 or later, so the test of
   `PopulationEstimator` with scikit-learn's model selection runs (DECISIONS #110).
+- `Selection.at_mean()` is renamed `Selection.fixed()`, the name the same operation has
+  on `Response` (DECISIONS #113).
+- A selection function's bin averages are also checked against Lobatto's 5-point rule
+  read just inside each cell's ends, so a jump near a cell's edge is refined to `tol`
+  instead of being missed without a warning (DECISIONS #113).
+- `Likelihoods.from_samples` refuses NaN and infinite samples, which counted as samples
+  outside the bins (DECISIONS #113).
+- `Likelihoods.from_density` evaluates frozen SciPy distributions of one family in one
+  call, for their exact bin masses and for their densities; the densities' check for one
+  family never matched, so each distribution was evaluated separately (DECISIONS #113).
 
 ### Removed
 
@@ -29,6 +42,8 @@ releases may break the API).
   and `GammaRates` priors) and `BoundPrior.has_prior_transform`: the unit-cube map for
   nested samplers, which nothing in binference used (DECISIONS #107).
 - `Engine.name` and `Engine.approximate`, which nothing read (DECISIONS #112).
+- `Response.measured_fractions`, which only a test used and which ignored the posterior
+  means of a tallied response (DECISIONS #113).
 
 ### Fixed
 
@@ -68,6 +83,17 @@ releases may break the API).
   importance proposals rather than failing in Pareto smoothing (DECISIONS #112); the
   engines that can infer a selection are each named once in the refusal of those that
   cannot.
+- `Response(matrix, efficiency=...)` divides a migration column that sums to one within
+  `MIGRATION_ATOL` by its sum, so the efficiency given is exact (DECISIONS #113).
+- Boolean category labels reload as booleans; they came back as 0 and 1.
+- Errors name the input at fault: a single distribution passed to `from_density`;
+  objects in a measured bin whose response row is zero (the error suggested
+  `drop_empty`); a truth bin whose response column sums to zero (the error spoke of
+  selection values), and any selection value that is zero or not finite;
+  `Response.from_counts` with more counts than generated events;
+  `Response.from_simulation` with `open_ended` and categorical measured bins (an
+  `AttributeError`); labelled scores that are not finite. `Selection.combined` checks
+  `scale` before evaluating its functions.
 
 ## [0.1.0] - 2026-10-29
 

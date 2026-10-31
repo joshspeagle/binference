@@ -170,6 +170,14 @@ def test_save_load_categories_and_rates(tmp_path):
     np.testing.assert_allclose(back.rates, r.rates)
 
 
+def test_boolean_category_labels_reload_as_booleans():
+    from binference.io import _bins_from_parts, _bins_to_parts
+
+    bins = Bins.categories([False, True])  # as Response.from_labelled builds for boolean labels
+    labels = _bins_from_parts(*_bins_to_parts(bins)).labels
+    assert labels == (False, True) and all(type(lab) is bool for lab in labels)
+
+
 def test_to_datatree(res1d):
     pytest.importorskip("xarray")
     dt = res1d.to_datatree()

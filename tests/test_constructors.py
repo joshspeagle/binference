@@ -21,6 +21,70 @@ def test_adaptive_averages_of_narrow_gaussians_match_the_exact_ones():
     np.testing.assert_allclose(adaptive.toarray(), exact, atol=1e-5)
 
 
+def test_frozen_distributions_of_one_family_are_evaluated_together(monkeypatch):
+    calls = {"logcdf": 0, "logpdf": 0}
+    family = type(stats.norm)
+
+    def counting(name):
+        method = getattr(family, name)
+
+        def counted(self, *args, **kwargs):
+            calls[name] += 1
+            return method(self, *args, **kwargs)
+
+        return counted
+
+    for name in calls:
+        monkeypatch.setattr(family, name, counting(name))
+
+    def n_calls(dists, bins):
+        calls.update(logcdf=0, logpdf=0)
+        Likelihoods.from_density(dists, bins, kind="likelihood")
+        return calls.copy()
+
+    dists = [stats.norm(m, 0.1) for m in (0.2, 0.5, 0.7)]
+    # exact masses on linear bins; quadrature in the measure coordinate on log bins
+    for bins in (Bins.linear(0, 1, 4), Bins.log(0.1, 1.0, 4)):
+        assert n_calls(dists, bins) == n_calls(dists * 2, bins)
+
+
+def test_a_batch_of_one_family_gives_each_distribution_its_own_masses():
+    # the wide one's intervals sit near its median with tiny masses: their pdf correction
+    bins = Bins.linear(0, 1, 50)
+    dists = [stats.norm(0.5, 0.1), stats.norm(0.2, 1000.0), stats.norm(0.8, 0.3)]
+    kw = {"kind": "likelihood", "warn_outside": False}
+    one = [Likelihoods.from_density([d], bins, **kw).toarray()[0] for d in dists]
+    np.testing.assert_allclose(
+        Likelihoods.from_density(dists, bins, **kw).toarray(), one, rtol=1e-12
+    )
+
+
+def test_distributions_with_array_parameters_are_taken_one_at_a_time():
+    bins = Bins.linear(0, 1, 10)
+    scalar = [stats.norm(0.3 + 0.01 * i, 0.1) for i in range(5)]
+    arrays = [stats.norm(np.array([0.3 + 0.01 * i]), 0.1) for i in range(5)]
+    for b in (bins, Bins.log(0.1, 1.0, 10)):  # exact masses and the quadrature
+        lk = [
+            Likelihoods.from_density(d, b, kind="likelihood").toarray() for d in (scalar, arrays)
+        ]
+        np.testing.assert_allclose(lk[1], lk[0], rtol=1e-12)
+
+
+def test_frozen_histograms_are_not_taken_for_one_family():
+    # a frozen rv_histogram's generator holds its histogram, so one call would use the first
+    data = ([0.1, 0.2, 0.2, 0.3], [0.6, 0.7, 0.7, 0.9])
+    hists = [stats.rv_histogram(np.histogram(x, 3)).freeze() for x in data]
+    bins = Bins.linear(0, 1, 4)
+    lk = Likelihoods.from_density(hists, bins, kind="likelihood")
+    one = [Likelihoods.from_density([h], bins, kind="likelihood").toarray()[0] for h in hists]
+    np.testing.assert_allclose(lk.toarray(), one)
+
+
+def test_a_single_distribution_is_refused_with_a_hint():
+    with pytest.raises(TypeError, match="a list of one"):
+        Likelihoods.from_density(stats.norm(0.5, 0.1), Bins.linear(0, 1, 4), kind="likelihood")
+
+
 def test_bins_that_do_not_converge_warn():
     bins = Bins.linear(0, 1, 4)
     logf = lambda z: stats.norm.logpdf(z[None, :], 0.3, 0.001)  # noqa: E731

@@ -129,7 +129,7 @@ def exact_posterior(
     if model.joint:
         raise ValueError(
             "exact_posterior integrates the population only; a selection from injections or "
-            "a tallied response would be fixed. Pass selection.at_mean() or response.fixed() "
+            "a tallied response would be fixed. Pass selection.fixed() or response.fixed() "
             "to compare with that."
         )
     s, ws = np.polynomial.legendre.leggauss(int(n_grid))
