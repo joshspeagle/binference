@@ -1291,9 +1291,9 @@ class Likelihoods:
         average, splitting cells at most ``max_depth`` times; ``n_sub`` instead
         fixes ``n_sub`` Gauss-Legendre points per bin and axis. A jump in the outer
         4.7% of a cell, or a peak narrower than the spacing of the points, can fall
-        between them and be missed without a warning: give a box-shaped likelihood as
-        a distribution with a ``cdf``, or put bin edges at its jumps. For
-        distributions with a ``cdf`` on 1-D bins, the fraction of each one's mass
+        between them and be missed without a warning: put bin edges at the jumps.
+        Distributions with a ``cdf`` on 1-D bins give exact bin masses, for posteriors
+        and for likelihoods on bins linear in z, and the fraction of each one's mass
         outside the active bins is recorded in ``meta["outside_fraction"]`` (see
         :meth:`from_gaussian` for ``warn_outside``).
 

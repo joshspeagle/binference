@@ -128,12 +128,11 @@ def test_save_load_categories_and_rates(tmp_path):
     np.testing.assert_allclose(back.rates, r.rates)
 
 
-def test_boolean_category_labels_reload_as_booleans(tmp_path):
+def test_boolean_category_labels_reload_as_booleans():
+    from binference.io import _bins_from_parts, _bins_to_parts
+
     bins = Bins.categories([False, True])  # as Response.from_labelled builds for boolean labels
-    lk = binference.Likelihoods(np.array([[1.0, 0.2], [0.3, 1.0], [1.0, 0.5]]), bins)
-    r = binference.infer(lk, method="gibbs", rng=0, n_samples=20, check=False)
-    r.save(tmp_path / "bool.npz")
-    labels = PopulationResult.load(tmp_path / "bool.npz").bins.labels
+    labels = _bins_from_parts(*_bins_to_parts(bins)).labels
     assert labels == (False, True) and all(type(lab) is bool for lab in labels)
 
 

@@ -152,6 +152,11 @@ def test_simulation_weights_are_tallied_as_effective_events():
     assert np.all(a.generated < np.bincount(truth.index(z), minlength=3))
 
 
+def test_labelled_objects_need_finite_scores():
+    with pytest.raises(ValueError, match="scores must be finite"):
+        Response.from_labelled([0.1, np.nan, 0.3, 0.8, 0.5, 0.2], [0, 1, 0, 1, 1, 0])
+
+
 def test_an_efficiency_must_be_probabilities():
     with pytest.raises(ValueError, match="efficiency"):
         Response(np.eye(2), Bins.categories(2), efficiency=[0.5, np.nan])
@@ -177,5 +182,5 @@ def test_open_ended_needs_one_dimensional_measured_bins_whatever_the_constructor
 
 def test_a_truth_bin_the_response_never_observes_is_named():
     resp = Response(np.array([[0.5, 0, 0.3], [0.5, 0, 0.3]]), Bins.categories(3))
-    with pytest.raises(ValueError, match=r"truth bin\(s\) \[1\] sum to zero"):
+    with pytest.raises(ValueError, match=r"bin\(s\) \[1\] are not"):
         Likelihoods.from_binned(resp, counts=[3, 4])

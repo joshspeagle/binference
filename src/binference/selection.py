@@ -510,10 +510,11 @@ def _check_values(values: Any, scale: str, name: str) -> np.ndarray:
     v = np.array(values, dtype=float).ravel()
     if v.size < 2:
         raise ValueError(f"{name} needs one value per bin.")
-    if not np.all(np.isfinite(v)) or np.any(v <= 0):
+    bad = np.flatnonzero(~(np.isfinite(v) & (v > 0)))
+    if bad.size:
         raise ValueError(
-            f"{name} values must be finite and strictly positive (bins that can never be "
-            "observed are not identifiable; remove them from the bins)."
+            f"{name} values must be finite and strictly positive; bin(s) {bad[:5].tolist()} "
+            "are not (bins that can never be observed are not identifiable; remove them)."
         )
     if scale == "probability" and np.any(v > 1.0 + 1e-12):
         raise ValueError(

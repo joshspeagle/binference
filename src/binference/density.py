@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 import numpy as np
 
-from ._quadrature import bin_log_average
+from ._quadrature import _gauss, bin_log_average
 from ._utils import check_nonnegative, frozen
 from .bins import Bins
 
@@ -281,12 +281,12 @@ def _dist_log_masses(dist: Any, edges: np.ndarray) -> np.ndarray:
     # nearly constant across it, so a 5-point quadrature of the pdf keeps full precision
     near = (out < np.log(1e-3)) & (np.abs(np.exp(lc[..., :-1]) - 0.5) < 0.25)
     if near.any() and _has_pdf(dist):
-        x, w = np.polynomial.legendre.leggauss(5)
+        t, w = _gauss(5)
         lo, hi = edges[:-1], edges[1:]
-        pts = lo[:, None] + (hi - lo)[:, None] * (0.5 * (x + 1.0))
+        pts = lo[:, None] + (hi - lo)[:, None] * t
         dens = np.exp(_dist_logpdf(dist, pts.ravel()).reshape(*out.shape, 5))
         with np.errstate(divide="ignore"):
-            out = np.where(near, np.log((dens @ (0.5 * w)) * (hi - lo)), out)
+            out = np.where(near, np.log((dens @ w) * (hi - lo)), out)
     return out
 
 

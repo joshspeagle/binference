@@ -352,6 +352,8 @@ class Response:
         s = np.asarray(scores)
         if s.ndim != 1 or s.size != y.size:
             raise ValueError("scores must be one value per labelled object, like labels.")
+        if s.dtype.kind == "f" and not np.all(np.isfinite(s)):  # a NaN would read as missed
+            raise ValueError("scores must be finite: every labelled object was observed.")
         truth = Bins.categories(np.unique(y).tolist() if classes is None else classes)
         open_ended = measured_bins is None and s.dtype.kind == "f"
         if open_ended:
@@ -423,13 +425,6 @@ class Response:
     def _selection(self):
         """The on-measurement selection of :meth:`_rows`: its efficiency, unless it is one."""
         eff = self._rows().sum(axis=0)
-        never = np.flatnonzero(eff <= 0)
-        if never.size:
-            raise ValueError(
-                f"The response's columns for truth bin(s) {never[:5].tolist()} sum to zero: "
-                "objects there are never observed, so their fraction cannot be inferred. Remove "
-                "those truth bins."
-            )
         # column sums may exceed one by rounding (Response allows 1e-6)
         return None if np.allclose(eff, 1.0) else Selection(np.minimum(eff, 1.0), "on_measurement")
 

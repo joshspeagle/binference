@@ -43,11 +43,7 @@ def _bins_to_parts(bins: Bins) -> tuple[dict[str, Any], dict[str, np.ndarray]]:
 
 def _bins_from_parts(meta: dict[str, Any], arrays: Any) -> Bins:
     if meta["bins"] == "categories":
-        labels = meta["labels"]
-        # booleans are ints too, and [False, True] == [0, 1]
-        if all(type(lab) is int for lab in labels) and labels == list(range(len(labels))):
-            return Bins.categories(len(labels))
-        return Bins.categories(labels)
+        return Bins.categories(meta["labels"])
     nd = int(meta["ndim"])
     measures = []
     for d, name in enumerate(meta.get("measures", ["linear"] * nd)):
