@@ -92,7 +92,8 @@ class Auto(Engine):
         Options for the chosen engine. Auto makes each engine it may run when it is
         made, so that each checks them at once. ``init`` takes positive fractions or
         rates of shape (K,), as for Gibbs; auto converts them to NUTS's unconstrained
-        coordinates.
+        coordinates (:meth:`PopulationModel.from_value`), which for a logistic prior is a
+        fit shrunk towards the prior, so NUTS starts near ``init`` rather than at it.
     """
 
     joint = True
@@ -121,16 +122,15 @@ class Auto(Engine):
         self.engine_kwargs = engine_kwargs
         self._rng_arg = rng
         self._map: tuple[Any, float] | None = None  # the MAP and its missing information
-        # every engine auto may run, made now so that each checks its options (#174); the
-        # first run uses them, and a later run makes its own
-        self._engines = {
-            key: self._make(key)
+        self._may_run = tuple(
+            key
             for key, engine in _CANDIDATES
             if engine.unsupported(model) is None and set(engine_kwargs) <= set(_options(engine))
-        }
-        self._may_run = tuple(self._engines)
+        )
         if not self._may_run:
             raise self._none_takes_the_options()
+        for key in self._may_run:  # made once now so that each checks its options (#174)
+            self._make(key)
 
     def _make(self, key: str) -> Engine:
         """The engine ``key`` with auto's options, ``init`` in its coordinates."""
@@ -191,7 +191,7 @@ class Auto(Engine):
                         f"Gibbs would mix too slowly (missing information {f:.3f} > "
                         f"gibbs_max_missing={self.gibbs_max_missing:g})"
                     )
-        out += [(key, "", None) for key in ("laplace", "nuts") if key in self._may_run]
+        out += [(key, "", None) for key in self._may_run if key != "gibbs"]
         if not out:  # only Gibbs takes the options, and its missing information ruled it out
             raise self._none_takes_the_options()
         return out, left_out
@@ -210,7 +210,7 @@ class Auto(Engine):
         plan, rejected = self._plan(n_samples)  # and why earlier engines were not kept
         for i, (key, why, n_gibbs) in enumerate(plan):
             last = i == len(plan) - 1
-            engine = self._engines.pop(key, None) or self._make(key)
+            engine = self._make(key)
             if key == "laplace":
                 per_chain = _default_draws(NUTS) if n_samples is None else n_samples
                 n = _options(NUTS)["n_chains"].default * per_chain
