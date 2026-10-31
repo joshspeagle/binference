@@ -8,7 +8,7 @@ engines:
 * an unconstrained parametrisation ``x`` (``forward``) mapping to softmax logits
   (fractions) or log-rates (rates), with the prior log-density in ``x``-space
   (including Jacobians) and its gradient by the chain rule;
-* prior draws, and (where defined) the density on the simplex;
+* prior draws, and (where defined) a closed-form density;
 * for conjugate priors, posterior draws / modes given latent counts and
   mean-field variational updates.
 """

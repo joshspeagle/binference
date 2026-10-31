@@ -18,8 +18,9 @@ releases may break the API).
 
 ### Removed
 
-- `PopulationModel.prior_transform` and the priors' `prior_transform`, a unit-cube map
-  for nested samplers that nothing in binference used (DECISIONS #107).
+- `PopulationModel.prior_transform`, `BoundPrior.prior_transform` (on the Dirichlet, tree
+  and `GammaRates` priors) and `BoundPrior.has_prior_transform`: the unit-cube map for
+  nested samplers, which nothing in binference used (DECISIONS #107).
 
 ## [0.1.0] - 2026-10-29
 
