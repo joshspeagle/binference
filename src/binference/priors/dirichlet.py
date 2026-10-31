@@ -358,11 +358,17 @@ class _BoundTree(_SimplexBound):
         return np.maximum(self.tree.compose(theta), _TINY)
 
     def unbounded_density(self):
-        # log-density coefficients of the branch probabilities: negative ones (e.g.
-        # Polya trees, whose concentrations grow with depth) make it unbounded
+        # a branch's exponent on the simplex is its alpha less the bins below it; a
+        # negative one (e.g. Polya trees, whose concentrations grow with depth) makes the
+        # density unbounded. Read from alpha, not summed from the log-density's
+        # coefficients, whose rounding can put an exponent of zero below it.
         t = self.tree
-        coef = t.slot_mem @ t.leaf_coef + t.slot_nodes @ t.node_coef
-        return bool(np.any(coef < 0.0))
+        return bool(np.any(t.slot_alpha < t.slot_mem.sum(axis=1)))
+
+    def long_log_tails(self):
+        # the Jacobian of the unconstrained coordinates adds one per bin below a
+        # branch, so there its exponent is its alpha
+        return bool(np.any(self.tree.slot_alpha < 1.0))
 
     def log_density(self, value):
         t = self.tree

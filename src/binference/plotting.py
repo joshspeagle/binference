@@ -33,9 +33,9 @@ __all__ = [
 SAMPLE_COLOR = "#EC5F3E"
 
 
-def _style_color(name: str, value: Any, slot: int):
-    """``value`` as RGBA (a list of them for per-bar colours), or colour ``slot`` of the
-    style's cycle when None.
+def _style_color(name: str, value: Any, slot: int, n: int | None = None):
+    """``value`` as RGBA, or colour ``slot`` of the style's cycle when None; for the ``n``
+    bars of categories also a list of ``n`` of them, one per bar.
 
     Resolved now, not left as "C0": a figure drawn after leaving a style context would
     otherwise colour its lines from another cycle than its bars and bands.
@@ -46,11 +46,11 @@ def _style_color(name: str, value: Any, slot: int):
         value = f"C{slot}"
     if is_color_like(value):
         return to_rgba(value)
-    if isinstance(value, list | tuple) and value and all(is_color_like(c) for c in value):
+    listed = isinstance(value, list | tuple | np.ndarray) and all(map(is_color_like, value))
+    if n and listed and len(value) == n:
         return [to_rgba(c) for c in value]
-    raise ValueError(
-        f"{name} must be a matplotlib colour, a list of them, or None, got {value!r}."
-    )
+    many = f", a list of {n} of them (one per category)," if n else ""
+    raise ValueError(f"{name} must be a matplotlib colour{many} or None, got {value!r}.")
 
 
 def _ramp(ax, color):
@@ -90,13 +90,20 @@ def _overlay(result: Any, values: Any, which: str, total: float) -> np.ndarray:
 
     Overlays are normalised and multiplied by ``total``, the posterior mean total
     when rates are plotted or the model is a rate model (1 otherwise), so only
-    their shape is compared; the selected population of an overlay is taken under
-    the fit's selection.
+    their shape is compared; the selected population of an overlay (the truth) is
+    taken under the fit's selection.
     """
     v = np.asarray(values, dtype=float)
     v = v / v.sum()
     if which == "selected":
-        return result._selected_of(v[None, :]).mean(axis=0)
+        if result.basis is None or result.basis.is_identity:
+            return result._selected_of(v[None, :]).mean(axis=0)
+        if result.selection is not None or result._inferred_selection() is not None:
+            raise ValueError(
+                "truth cannot be shown on which='selected' of a fit with a Basis and a "
+                "selection, which weighs components, not bins. Compare it on which='fractions'."
+            )
+        return v  # without a selection the selected population is the population
     if which == "fractions":
         return v
     v = v * total
@@ -120,9 +127,11 @@ def plot_population(
     """Plot a population posterior: bands for 1-D bins, images for 2-D grids, bars for categories.
 
     Overlays (``truth``, ``stack``) contribute only their shape: for rates (and rate
-    models) they are scaled to the posterior mean total; for the selected population
-    they are reweighted by the fit's selection (bins without a basis). 2-D grids show
-    the median and the relative uncertainty as images (an array of two axes) and take
+    models) they are scaled to the posterior mean total. For the selected population
+    the truth is reweighted by the fit's selection, which a basis other than the bins
+    must not have (it weighs components); the stack is
+    not, as it averages the observed objects and so estimates the selected population
+    already. 2-D grids show the median and the relative uncertainty as images and take
     no overlays.
 
     Parameters
@@ -141,7 +150,8 @@ def plot_population(
         A naive stacked estimate to overlay (see :meth:`Likelihoods.stack
         <binference.Likelihoods.stack>`).
     color : matplotlib colour, optional
-        Colour of the posterior; ``None`` takes the style's first colour.
+        Colour of the posterior, or for categories a list of colours, one per bar;
+        ``None`` takes the style's first colour.
     sample_color : matplotlib colour, optional
         Colour of the ``stack`` overlay; ``None`` takes the style's second colour.
     label : str, optional
@@ -150,14 +160,18 @@ def plot_population(
         Opacity of each credible band.
     step : bool
         Draw 1-D bins as steps (True) or as lines through the bin centres.
+
+    Returns
+    -------
+    matplotlib Axes, or an array of Axes for 2-D grids
     """
     from .results import _central, _which_name
 
     plt = _plt()
-    color = _style_color("color", color, 0)
+    bins = result.bins
+    color = _style_color("color", color, 0, n=bins.K if bins.is_categorical else None)
     sample_color = _style_color("sample_color", sample_color, 1)
     ink = plt.rcParams["text.color"]
-    bins = result.bins
     which = _which_name(which)
     if bins.ndim > 2 and not bins.is_categorical:
         raise ValueError(
@@ -165,7 +179,6 @@ def plot_population(
             "result.density() or result.summary() (audit O-9)."
         )
     X = result._which(which)
-    med = np.median(X, axis=0)
     # overlays of rates (and of densities of rate models) are scaled to the mean total
     scaled = which == "rates" or result.kind == "rates"
     total = float(np.mean(result.total)) if scaled else 1.0
@@ -173,6 +186,11 @@ def plot_population(
         if truth is not None or stack is not None or label is not None:
             warn("2-D plots show no truth, stack or label; they are ignored.", InputWarning)
         return _plot_2d(result, X, plt, ax, color)
+    if truth is not None:
+        truth = _overlay(result, truth, which, total)
+    if stack is not None:  # a selected population already: not reweighted again
+        stack = _overlay(result, stack, "fractions" if which == "selected" else which, total)
+    med = np.median(X, axis=0)
     if ax is None:
         _, ax = plt.subplots()
     ylabel = _YLABEL[which]
@@ -183,16 +201,9 @@ def plot_population(
         if X.shape[0] > 1:
             ax.errorbar(x, med, yerr=[med - lo, hi - med], fmt="none", ecolor=ink, capsize=3)
         if truth is not None:
-            ax.plot(x, _overlay(result, truth, which, total), "D", color=ink, ms=6, label="truth")
+            ax.plot(x, truth, "D", color=ink, ms=6, label="truth")
         if stack is not None:
-            ax.plot(
-                x,
-                _overlay(result, stack, which, total),
-                "s",
-                color=sample_color,
-                ms=6,
-                label="stacked",
-            )
+            ax.plot(x, stack, "s", color=sample_color, ms=6, label="stacked")
         ax.set_xticks(x, [str(lab) for lab in bins.labels], rotation=45, ha="right")
     else:
         edges = bins.edges[0]
@@ -223,22 +234,9 @@ def plot_population(
             ax.step(edges, _step_y(bins, med), where="post", color=color, lw=1.5, label=lab)
         else:
             ax.plot(centers, med, color=color, lw=1.5, label=lab)
-        if truth is not None:
-            t = _overlay(result, truth, which, total)
-            ax.step(
-                edges, _step_y(bins, t), where="post", color=ink, lw=1.5, ls="--", label="truth"
-            )
-        if stack is not None:
-            s = _overlay(result, stack, which, total)
-            ax.step(
-                edges,
-                _step_y(bins, s),
-                where="post",
-                color=sample_color,
-                lw=1.5,
-                ls=":",
-                label="stacked",
-            )
+        for y, c, ls, name in ((truth, ink, "--", "truth"), (stack, sample_color, ":", "stacked")):
+            if y is not None:
+                ax.step(edges, _step_y(bins, y), where="post", color=c, lw=1.5, ls=ls, label=name)
         ax.set_xlim(edges[0], edges[-1])
         ax.set_xlabel("bin coordinate")
         handles, labels = ax.get_legend_handles_labels()
@@ -359,6 +357,10 @@ def plot_corner(
         Figure to draw on; ``None`` makes a new one.
     which : {"fractions", "rates", "density", "selected"}, optional
         Quantity shown: fractions, rates, densities or the selected population.
+
+    Returns
+    -------
+    matplotlib Figure
     """
     plt = _plt()
     color = _style_color("color", color, 0)
@@ -406,6 +408,10 @@ def plot_trace(
         Figure to draw on; ``None`` makes a new one.
     which : {"fractions", "rates", "density", "selected"}, optional
         Quantity shown: fractions, rates, densities or the selected population.
+
+    Returns
+    -------
+    matplotlib Figure
     """
     X, idx, name = _chosen_bins(result, which, idx, max_bins)
     C = X.reshape(result.n_chains, -1, result.K)
@@ -430,6 +436,11 @@ def plot_individual(
 ):
     """Compare object ``i``'s own likelihood (flat-prior posterior) with its shrunk posterior.
 
+    With a :class:`~binference.Basis` both are posteriors over its components, shared
+    among the bins as in :meth:`~binference.PopulationResult.assignment_probabilities`;
+    the own curve takes a population flat in z over the components, which is flat over
+    the bins exactly for flat components or hats on evenly spaced bins.
+
     Parameters
     ----------
     result : PopulationResult or PointEstimate
@@ -443,14 +454,19 @@ def plot_individual(
         Colour of the shrunk posterior; ``None`` takes the style's first colour.
     sample_color : matplotlib colour, optional
         Colour of the object's own likelihood; ``None`` takes the style's second colour.
+
+    Returns
+    -------
+    matplotlib Axes
     """
     plt = _plt()
     color = _style_color("color", color, 0)
     sample_color = _style_color("sample_color", sample_color, 1)
-    model = result._require_model()
+    from .density import Density
+
+    lk = result._require_model().likelihoods  # its columns: the bins or the components
+    own = result._to_bins(lk[i].stack(Density.flat("z")))  # a population flat in z
     bins = result.bins
-    own = model.likelihoods.subset([i]).toarray()[0] * bins.volumes
-    own = own / own.sum()
     shrunk = result.assignment_probabilities(idx=[i], n_draws=n_draws)[0]
     if ax is None:
         _, ax = plt.subplots()
@@ -503,20 +519,30 @@ def plot_sbc(
         Histogram bins; ``None`` uses the default of :meth:`SBCResult.histogram
         <binference.validation.SBCResult.histogram>`.
     max_panels : int, optional
-        Most quantities shown.
+        Most quantities shown, in order; the joint log-likelihood (``"loglike"``) is
+        always among them.
     fig : matplotlib Figure, optional
         Figure to draw on; ``None`` makes a new one.
     color : matplotlib colour, optional
         Colour of the histograms; ``None`` takes the style's first colour.
+
+    Returns
+    -------
+    matplotlib Figure
     """
     from scipy import stats
 
     plt = _plt()
     color = _style_color("color", color, 0)
     ink = plt.rcParams["text.color"]
+    if max_panels < 1:
+        raise ValueError(f"max_panels must be at least 1; got {max_panels}.")
     H = sbc_result.histogram(n_bins)
     names = sbc_result.names
     q = min(len(names), max_panels)
+    show = list(range(q))
+    if names[-1] == "loglike":  # sbc ranks it last
+        show[-1] = len(names) - 1
     ncol = min(4, q)
     nrow = int(np.ceil(q / ncol))
     fig, axes = _subplots(plt, fig, nrow, ncol, 1.2)
@@ -525,14 +551,12 @@ def plot_sbc(
     # per bin: bins can hold different numbers of the possible ranks (audit G-1)
     p = sbc_result.expected(n_bins) / n_sims
     lo, hi = stats.binom.interval(0.99, n_sims, p)
-    for j in range(nrow * ncol):
-        a = axes.flat[j]
-        if j >= q:
-            a.set_visible(False)
-            continue
+    for a in axes.flat[q:]:
+        a.set_visible(False)
+    for a, k in zip(axes.flat[:q], show, strict=True):
         a.stairs(hi, np.arange(nb + 1) - 0.5, baseline=lo, fill=True, color=ink, alpha=0.15, lw=0)
-        a.bar(np.arange(nb), H[j], width=1.0, color=color, alpha=0.8)
-        a.set_title(names[j])
+        a.bar(np.arange(nb), H[k], width=1.0, color=color, alpha=0.8)
+        a.set_title(names[k])
         a.set_yticks([])
     _tight(fig)
     return fig
