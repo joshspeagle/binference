@@ -517,7 +517,7 @@ def _check_values(values: Any, scale: str, name: str) -> np.ndarray:
             f"{name} values must be finite and strictly positive; bin(s) {bad[:5].tolist()} "
             "are not (bins that can never be observed are not identifiable; remove them)."
         )
-    if scale == "probability" and np.any(v > 1.0 + 1e-12):
+    if scale == "probability" and np.any(v > 1.0 + 1e-12):  # DECISIONS #46
         raise ValueError(
             f"{name} values are detection probabilities and must not exceed one; for "
             "absolute exposures pass Selection(S, mode, scale='exposure'), for values known "

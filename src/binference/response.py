@@ -403,7 +403,8 @@ class Response(SetOnce):
     def _dirichlet(self) -> np.ndarray:
         """Dirichlet parameters of the columns given the tallies: ``(J + 1, K)`` with the
         lost share last, or ``(J, K)`` when the tallies record no lost event, so that every
-        event is observed by construction (DECISIONS #81)."""
+        event is observed by construction."""
+        # DECISIONS #81
         counts = self.counts
         lost = np.maximum(self.generated - counts.sum(axis=0), 0.0)
         if np.all(lost <= 1e-9 * self.generated):

@@ -124,6 +124,7 @@ class PopulationModel:
                     "rates pass selection.fixed() or a fixed exposure."
                 )
         if sel is not None and sel.scale == "relative" and self.prior.kind == "rates":
+            # DECISIONS #46
             raise ValueError("Rates need an absolute selection (exposures); this one is relative.")
         resp = likelihoods.meta.get("response")
         #: a response tallied from events, inferred with the population (or ``None``)
@@ -368,7 +369,8 @@ class PopulationModel:
     def _rows(self, value: np.ndarray, S: np.ndarray | None = None):
         """The likelihood rows and the column weights for ``value``: the model's rows
         (selection on the truth applied) and ``value``, or, given a value ``S`` of an
-        inferred selection, the bare rows and :math:`\\rho\\circ S` (DECISIONS #79, #80)."""
+        inferred selection, the bare rows and :math:`\\rho\\circ S`."""
+        # DECISIONS #79, #80
         if S is None:
             return self._L, value
         return self.likelihoods.values, value * S
@@ -499,8 +501,9 @@ class PopulationModel:
 
         Adds :math:`W\rho_k(1 - S_k)/(S\cdot\rho)`, with :math:`S` rescaled to a
         maximum of one, which leaves the posterior unchanged; used by EM, VB and
-        the interior start (DECISIONS #57).
+        the interior start.
         """
+        # DECISIONS #57
         if self.selection is None or self.kind == "rates":  # Poisson thinning imputes nothing
             return nhat
         S = self._detect

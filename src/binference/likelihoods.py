@@ -1543,10 +1543,12 @@ def _slice_per_object(meta: dict[str, Any], rows: Any) -> dict[str, Any]:
 
 
 class _WithinBin:
-    """Within-bin data for :meth:`PopulationResult.sample_values` (DECISIONS #50). They
+    """Within-bin data for :meth:`PopulationResult.sample_values`. They
     pickle when they can; a function that cannot (a lambda density) pickles as empty, with
     a warning, so that a model can still be sent elsewhere, and its value draws fall back
     to flat."""
+
+    # DECISIONS #50
 
     __slots__ = ("data",)
 
@@ -1569,7 +1571,8 @@ class _WithinBin:
 
 def _keep_within(lk: Likelihoods, n: int, kind: str, *data: Any) -> None:
     """Keep the within-bin information of ``n`` input rows, indexed by the input row
-    (``meta["value_row"]`` maps the surviving rows to it; DECISIONS #50)."""
+    (``meta["value_row"]`` maps the surviving rows to it)."""
+    # DECISIONS #50
     lk.meta["within"] = _WithinBin((kind, *data))
     _attach_per_object(lk, value_row=np.arange(n))
 

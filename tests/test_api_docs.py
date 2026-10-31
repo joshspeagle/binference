@@ -1,9 +1,10 @@
-"""The API reference pages list every public name exactly once."""
+"""The API reference pages list every public name exactly once, and no page or docstring
+cites a design record."""
 
-import ast
 import importlib
 import pkgutil
 import re
+import tokenize
 import types
 from collections import Counter
 from pathlib import Path
@@ -65,20 +66,23 @@ def test_every_public_name_appears_exactly_once_in_the_api_pages():
     assert all(n == 1 for n in documented.values()), "an API page lists a name twice"
 
 
-def test_public_docstrings_cite_no_design_record():
-    # the site leaves out notes/review/DECISIONS.md, so a citation there would dangle
-    package = Path(binference.__file__).parent
+def test_no_page_docstring_or_message_cites_a_design_record():
+    # the site leaves out notes/review/DECISIONS.md, so a citation there would dangle: every
+    # string in the package (docstrings, messages), every comment autodoc renders (#:),
+    # the changelog and the pages outside docs/design (whose plans may cite)
+    cite = re.compile(r"DECISIONS #\d")
+    root = Path(binference.__file__).parents[2]
     citing = []
-    for path in sorted(package.rglob("*.py")):
-        parts = path.relative_to(package).with_suffix("").parts
-        if any(p.startswith("_") and p != "__init__" for p in parts):
-            continue
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            name = getattr(node, "name", "<module>")
-            if (
-                isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
-                and (name == "__init__" or not name.startswith("_"))
-                and "DECISIONS" in (ast.get_docstring(node) or "")
-            ):
-                citing.append(f"{path.relative_to(package.parent)}:{node.body[0].lineno} {name}")
+    for path in sorted(Path(binference.__file__).parent.rglob("*.py")):
+        with path.open("rb") as f:
+            for tok in tokenize.tokenize(f.readline):
+                rendered = tok.type == tokenize.STRING or tok.string.startswith("#:")
+                if rendered and cite.search(tok.string):
+                    citing.append(f"{path.relative_to(root)}:{tok.start[0]}")
+    pages = [root / "CHANGELOG.md", *(root / "docs").rglob("*.md")]
+    citing += [
+        str(page.relative_to(root))
+        for page in pages
+        if page.exists() and "design" not in page.parts and cite.search(page.read_text())
+    ]
     assert not citing, citing

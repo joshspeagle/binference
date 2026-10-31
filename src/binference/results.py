@@ -188,7 +188,7 @@ class _IndividualMixin:
         if which == "fractions":
             return self._rho_draws()
         X = self.selected if which == "selected" else self.rates
-        if X is None:
+        if X is None:  # DECISIONS #46
             raise ValueError(
                 "This result has no rates: its selection is only relative, so the total is "
                 "not identified, or it has no model (attach the likelihoods "
@@ -235,12 +235,13 @@ class _IndividualMixin:
     def _object_draws(self, n_draws: int | None):
         """The likelihoods and per-draw column weights for per-object methods.
 
-        With a selection inferred jointly (DECISIONS #79) these are the bare
+        With a selection inferred jointly these are the bare
         likelihoods and :math:`\\rho\\circ S` with each draw's own :math:`S`, which is
-        also returned; with a response inferred jointly (DECISIONS #81), each draw's
+        also returned; with a response inferred jointly, each draw's
         rows ``(n_draws, N, K)`` and :math:`\\rho`; otherwise the model's likelihoods
         (selection on the truth applied) and :math:`\\rho`, and ``None``.
         """
+        # DECISIONS #79, #81
         model = self._require_model()
         R = self._select_draws(n_draws, components=True)
         Rd = self._response_rows(n_draws)
@@ -547,7 +548,7 @@ class _IndividualMixin:
             raise ValueError("Full-sample counts need detection probabilities, not exposures.")
         S = self._joint_selection(n_draws)
         S = model.total_exposure if S is None else S
-        if S is None:
+        if S is None:  # DECISIONS #46
             raise ValueError(
                 "Full-sample counts need an absolute selection; this one is relative, so "
                 "the number of missed objects is not identified."
@@ -557,7 +558,8 @@ class _IndividualMixin:
     def _selected_of(self, W: np.ndarray) -> np.ndarray:
         """The selected population :math:`\\phi = S\\circ w / (S\\cdot w)` per bin, for rows of
         component weights ``W`` (all draws, or the estimate), with each draw's own S
-        when the selection is inferred (DECISIONS #49)."""
+        when the selection is inferred."""
+        # DECISIONS #49
         S = self._joint_selection(None)  # all draws, as W
         if S is None and self.selection is not None:
             S = self.selection.values
@@ -770,7 +772,8 @@ class _IndividualMixin:
         """For new objects ``lk``: rows and column weights per draw as in
         :meth:`_object_draws`, each draw's :math:`S\\cdot\\rho` (``None`` without a
         selection) and the rows' log-scales. New binned objects with the response
-        inferred in this fit take its draws (DECISIONS #81)."""
+        inferred in this fit take its draws."""
+        # DECISIONS #81
         model = self._require_model()
         Rd = self._response_rows(n_draws)
         if Rd is not None and lk.meta.get("response") is model.response:
@@ -1003,7 +1006,8 @@ def _value_drawer(model, loglike, n_sub: int, n_sweeps: int) -> tuple[Callable, 
     """``draw(objects, labels, lo, hi, gen, height) -> (z, keep)``: values in the boxes
     ``[lo, hi]`` (in ``u``, ``(n, ndim)``) from the input's own likelihood times the
     population, flat in ``u`` times the hat's ``height(labels, d, u)`` per axis (``None``
-    when flat); and whether the input has within-bin information (DECISIONS #50)."""
+    when flat); and whether the input has within-bin information."""
+    # DECISIONS #50
     meta = model.likelihoods.meta
     measures = model.bins.measures
     flat = partial(_draw_subpoints, measures, n_sub, None)

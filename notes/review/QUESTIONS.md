@@ -2,12 +2,12 @@
 
 Carried over from the v0.1 summary (spec §13 open questions):
 
-- [x] Distribution name `pastry-inference` (import `pastry`)? (D5) → DECISIONS #45: `binference` (PyPI, import and docs name), on PyPI since 0.1.0 (#104).
+- [x] Distribution name `pastry-inference` (import `pastry`)? (D5) → DECISIONS #45: `binference` (PyPI, import and docs name), on PyPI since 0.1.0 (DECISIONS #104).
 - [ ] Default prior Dirichlet(α = 1) or the reference prior α = 1/K? (D3)
 - [ ] Roadmap priority: flows / continuous densities, JAX backend, hierarchical models? (spec §12)
 - [x] Python ≥ 3.11 floor? (D6) → DECISIONS #41, #61: Python ≥ 3.13.
 - [ ] Is the `threadpoolctl` dependency acceptable? (D1, D14)
-- [x] When to make the repository public (JOSS needs ~6 months of public history)? → DECISIONS #44: no JOSS, so no public-history clock; the repository is public and 0.1.0 is on PyPI (#104).
+- [x] When to make the repository public (JOSS needs ~6 months of public history)? → DECISIONS #44: no JOSS, so no public-history clock; the repository is public and 0.1.0 is on PyPI (DECISIONS #104).
 
 Known weaknesses worth discussing when we reach them:
 
