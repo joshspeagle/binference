@@ -83,6 +83,8 @@ def test_no_page_docstring_or_message_cites_a_design_record():
     citing += [
         str(page.relative_to(root))
         for page in pages
-        if page.exists() and "design" not in page.parts and cite.search(page.read_text())
+        if page.exists()
+        and "design" not in page.parts
+        and cite.search(page.read_text(encoding="utf-8"))
     ]
     assert not citing, citing
