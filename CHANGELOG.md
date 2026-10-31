@@ -30,10 +30,10 @@ releases may break the API).
 
 ### Fixed
 
-- `MAP` checks `init`'s shape and sign when the engine is made; a wrong shape failed
-  inside NumPy. EM raises zeros in its start to 1e-12, so a zero, from `init` or from
-  mix-SQP's hand-off to EM, no longer leaves a wrong mode with only a convergence
-  warning (DECISIONS #112).
+- `MAP` checks `init`'s shape and sign, and that it is not all zero, when the engine is
+  made; a wrong shape failed inside NumPy. EM raises zeros in its start to 1e-12 of the
+  largest value, so a zero, from `init` or from mix-SQP's hand-off to EM, no longer
+  leaves a wrong mode with only a convergence warning (DECISIONS #112).
 - `NUTS` checks `model` and the shape and finiteness of `init` when it is made.
 - The start for rates with a selection is near the mode for broad likelihoods too
   (DECISIONS #112).
