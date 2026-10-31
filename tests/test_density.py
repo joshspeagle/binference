@@ -113,9 +113,16 @@ def test_densities_are_equal_when_built_alike_from_equal_values():
         (Density.from_masses(a), Density.from_densities(a)),
         (Density.from_distribution(stats.norm(0, 1)), Density.from_distribution(stats.norm(0, 2))),
         (Density.from_function(func), Density.from_function(lambda z: z)),
+        (Density.from_function(func), Density.from_function(func, bounded=True)),
     ]
     for d1, d2 in unequal:
         assert d1 != d2
+    # a prior keys a bounded density apart from the same function unbounded
+    keys = {
+        priors.PolyaTree(base=Density.from_function(_ramp, bounded=b))._fingerprint()
+        for b in (False, True)
+    }
+    assert len(keys) == 2
 
 
 def _ramp(z):

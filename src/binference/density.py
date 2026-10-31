@@ -270,18 +270,21 @@ class Density:
         if family is not None:  # a frozen SciPy distribution
             return f"Density.from_distribution({family}{self._dist.args!r}{self._dist.kwds!r})"
         if self._func is not None:
-            return f"Density.from_function({_qualified_name(self._func)})"
+            bounded = ", bounded=True" if self._bounded else ""
+            return f"Density.from_function({_qualified_name(self._func)}{bounded})"
         return repr(self)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Density):
             return NotImplemented
-        if self._func is not None or other._func is not None:
-            return self._func is other._func  # functions by identity, as Python compares them
+        if self._func is not None or other._func is not None:  # by identity, as Python does
+            return self._func is other._func and self._bounded == other._bounded
         return self._fingerprint() == other._fingerprint()
 
     def __hash__(self) -> int:
-        return hash(id(self._func) if self._func is not None else self._fingerprint())
+        if self._func is not None:
+            return hash((id(self._func), self._bounded))
+        return hash(self._fingerprint())
 
 
 def _qualified_name(func: Any) -> str:
