@@ -71,19 +71,17 @@ def test_plot_individual_shows_the_own_likelihood_per_bin_on_a_basis():
     lk = binference.Likelihoods.from_gaussian(d, s, binference.Basis(bins, resolution=2))
     est = binference.PointEstimate(binference.PopulationModel(lk), np.full(12, 1 / 12))
     own = est.plot_individual(1).get_lines()[0].get_ydata()[:-1] * bins.volumes
-    plain = binference.Likelihoods.from_gaussian(d, s, bins).toarray()[1] * bins.volumes
+    plain = mock.likelihoods.toarray()[1] * bins.volumes
     np.testing.assert_allclose(own, plain / plain.sum(), rtol=1e-12)
     plt.close("all")
 
 
 def test_the_sbc_plot_always_shows_the_joint_log_likelihood():
-    from binference.plotting import plot_sbc
-
-    names = [f"rho[{k}]" for k in range(15)] + ["loglike"]
-    ranks = np.random.default_rng(1).integers(0, 20, (30, 16))
+    names = ["a", "b", "c", "loglike"]
+    ranks = np.random.default_rng(1).integers(0, 20, (30, 4))
     sbc = binference.validation.SBCResult(ranks, 19, names)
-    shown = [a for a in plot_sbc(sbc).axes if a.get_visible()]
-    assert [a.get_title() for a in shown] == [*names[:11], "loglike"]
+    shown = [a for a in sbc.plot(max_panels=2).axes if a.get_visible()]
+    assert [a.get_title() for a in shown] == ["a", "loglike"]
     np.testing.assert_array_equal(shown[-1].containers[0].datavalues, sbc.histogram()[-1])
     plt.close("all")
 
@@ -125,8 +123,12 @@ def test_a_list_of_colours_is_for_the_bars_of_categories_only(res1d):
 
     with pytest.raises(ValueError, match="color must be a matplotlib colour or None"):
         res1d.plot(color=["red", "blue"])
-    mc = binference.simulate.mock_categorical(100, 3, rng=1)
-    ax = binference.infer(mc.likelihoods, method="map").plot(color=["red", "green", "blue"])
+    cats = PopulationResult(
+        None, np.full((5, 3), 1 / 3), method="external", bins=Bins.categories(3)
+    )
+    with pytest.raises(ValueError, match="a list of 3 of them"):
+        cats.plot(color=["red", "green"])
+    ax = cats.plot(color=["red", "green", "blue"])
     assert same_color([bar.get_facecolor()[:3] for bar in ax.patches], ["red", "green", "blue"])
     plt.close("all")
 
