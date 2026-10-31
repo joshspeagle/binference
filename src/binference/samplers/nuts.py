@@ -322,7 +322,6 @@ class NUTS(Engine):
     ``info["inv_metric"]`` is in those sampling coordinates.
     """
 
-    name = "nuts"
     joint = True
     markov = True
 
@@ -342,6 +341,7 @@ class NUTS(Engine):
         rng: RNGLike = None,
         progress: bool = False,
     ) -> None:
+        super().__init__(model, rng=rng, progress=progress)
         logistic = model.prior.has_centering
         # results are in the non-centred form, so only engines ever hold a centred prior
         if logistic and np.any(model.prior.lam != 1.0):
@@ -349,7 +349,6 @@ class NUTS(Engine):
                 "model: the logistic prior must be in its non-centred form (prior.lam all 1), "
                 "as the model is built; NUTS chooses the centring itself."
             )
-        super().__init__(model, rng=rng, progress=progress)
         if n_chains < 1:
             raise ValueError("n_chains must be at least 1.")
         if max_depth < 1:
@@ -368,6 +367,13 @@ class NUTS(Engine):
         if not 0 < target_accept < 1:
             raise ValueError("target_accept must be in (0, 1).")
         self.n_chains = int(n_chains)
+        if init is not None:
+            init = np.asarray(init, dtype=float)
+            d = model.dim
+            if init.shape not in ((d,), (self.n_chains, d)) or not np.all(np.isfinite(init)):
+                raise ValueError(
+                    f"init must be finite, of shape ({d},) or ({self.n_chains}, {d})."
+                )
         self.n_warmup = int(n_warmup)
         self.target_accept = float(target_accept)
         self.max_depth = int(max_depth)
@@ -392,12 +398,10 @@ class NUTS(Engine):
         d = self.model.dim
         child = spawn(self.rng, 1)[0]
         if self.init is not None:
-            x0 = np.asarray(self.init, dtype=float)
+            x0 = self.init
             if x0.shape == (d,):
                 x0 = np.tile(x0, (self.n_chains, 1))
                 x0 = x0 + self.jitter * child.standard_normal(x0.shape)
-            if x0.shape != (self.n_chains, d):
-                raise ValueError(f"init must have shape ({d},) or ({self.n_chains}, {d}).")
             if not all(np.isfinite(self.model.log_density_unconstrained(x)) for x in x0):
                 raise ValueError("init has a starting point with zero posterior density.")
             return x0

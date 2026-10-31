@@ -84,9 +84,17 @@ def test_a_looser_tolerance_stops_every_algorithm_sooner(kwargs):
 def test_mixsqp_starts_from_its_init():
     m = PopulationModel(_mock().likelihoods)
     mode = MAP(m).run()
-    again = MAP(m, init=mode.value).run()
+    again = MAP(m, init=np.maximum(mode.value, 1e-12)).run()  # the mode has a zero
     assert again.n_iter <= 2 < mode.n_iter
     np.testing.assert_allclose(again.value, mode.value, atol=1e-8)
+
+
+def test_map_refuses_an_init_of_the_wrong_shape_or_not_positive():
+    m = PopulationModel(_mock(n=200, K=4).likelihoods)
+    # EM multiplies rho_k by its update, so it never moves a zero
+    for init in (np.full(7, 0.1), [0.5, 0.5, 0.0, 0.0], [0.5, 0.6, -0.2, 0.1]):
+        with pytest.raises(ValueError, match="init"):
+            MAP(m, algorithm="em", init=init)
 
 
 def test_a_failed_quadratic_subproblem_hands_mixsqp_over_to_em(monkeypatch):

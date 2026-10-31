@@ -86,7 +86,6 @@ class Auto(Engine):
         Options for the chosen engine.
     """
 
-    name = "auto"
     joint = True
 
     def __init__(

@@ -14,7 +14,7 @@ from ..model import PopulationModel
 from ..priors.base import _TINY
 from ..results import PointEstimate
 from ..warnings import ConvergenceWarning, InputWarning
-from .base import Engine, em_update, interior_start
+from .base import Engine, check_init, em_update, interior_start
 
 __all__ = ["MAP"]
 
@@ -180,13 +180,12 @@ class MAP(Engine):
         and L-BFGS in the unconstrained space. ``"mixsqp"`` and ``"em"`` solve on
         the simplex, as ``space="simplex"`` does (not for joint models).
     init : array_like (K,), optional
-        Starting fractions (or rates). By default mix-SQP starts after 10
+        Positive starting fractions (or rates). By default mix-SQP starts after 10
         regularised EM steps from uniform, the other algorithms after up to 50.
     rng, progress
         Accepted for a common signature; unused.
     """
 
-    name = "map"
     joint = True  # in the unconstrained space
 
     def __init__(
@@ -212,7 +211,7 @@ class MAP(Engine):
         self.tol = float(tol)
         self.max_iter = int(max_iter)
         self.accelerate = bool(accelerate)
-        self.init = None if init is None else np.asarray(init, dtype=float)
+        self.init = check_init(init, model)  # positive: EM cannot move a zero
         # an explicit algorithm or space="simplex" solves on the simplex, if it can
         self._on_simplex = algorithm != "auto" or space == "simplex"
         if self._on_simplex:

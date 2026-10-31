@@ -138,6 +138,13 @@ def test_the_rates_start_is_the_observed_composition_over_the_exposure():
     start = interior_start(m)
     mle = MAP(m).run().value
     np.testing.assert_allclose(start.sum(), mle.sum(), rtol=0.1)
+    # for broad likelihoods the composition must be fitted on the columns of L over S: for
+    # seeds 0-19 of this mock the start's log posterior is 0.2-2.2 below the mode's (26-47
+    # when fitted on L)
+    lk = binference.simulate.mock_1d(1000, Bins.linear(0, 3, 6), noise=0.8, rng=3).likelihoods
+    for mode in ("on_truth", "on_measurement"):
+        m = PopulationModel(lk, P.GammaRates(1.0, 1e-9), selection=Selection(S, mode))
+        assert m.log_posterior(MAP(m).run().value) - m.log_posterior(interior_start(m)) < 8.0
 
 
 def test_a_gp_prior_works_on_two_bins():

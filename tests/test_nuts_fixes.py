@@ -40,7 +40,7 @@ def test_nuts_arguments_are_checked():
         with pytest.raises(ValueError):
             NUTS(m, **kwargs)
     with pytest.raises(ValueError, match="init"):
-        NUTS(m, init=np.full(m.dim, np.nan)).run(1)
+        NUTS(m, init=np.full(m.dim, np.nan))
 
 
 def test_an_error_in_a_worker_is_raised_not_hidden_by_a_serial_rerun():
@@ -77,6 +77,13 @@ def test_an_uncorrected_laplace_returns_every_draw_asked_for():
     with pytest.warns(binference.ApproximationWarning):
         res = Laplace(_dirichlet_model(), importance=False, n_proposals=100, rng=0).run(400)
     assert res.n_draws == 400
+
+
+def test_laplace_refuses_too_few_importance_proposals_before_finding_the_mode():
+    eng = Laplace(_dirichlet_model(), rng=0)
+    with pytest.raises(ValueError, match="n_samples"):
+        eng.run(2)  # 2 * n_samples = 4 proposals; Pareto smoothing needs 5
+    assert eng._eigen is None
 
 
 def test_the_laplace_k_hat_threshold_tightens_for_few_proposals():

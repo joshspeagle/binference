@@ -7,7 +7,7 @@ import pytest
 import scipy.sparse as sp
 
 import binference
-from binference import Bins, PopulationModel
+from binference import Bins, Likelihoods, PopulationModel
 from binference import _kernels as kern
 from binference.samplers import MAP, Bootstrap, Gibbs
 
@@ -43,6 +43,13 @@ def test_gibbs_inputs_are_checked_when_the_engine_is_made():
         Gibbs(m, store_labels=[0, 5000])
     with pytest.raises(ValueError, match="init"):
         Gibbs(m, init=[0.5, 0.5, 0.0, 0.0])
+    with pytest.raises(ValueError, match="n_warmup"):
+        Gibbs(m, n_warmup=-1)
+    # rows with multiplicities draw counts, not labels: no object's labels can be stored
+    compressed = PopulationModel(Likelihoods(np.eye(2)[[0, 0, 1]], Bins.categories(2)).compress())
+    for store_labels in (True, [0]):
+        with pytest.raises(ValueError, match="store_labels needs unit object weights"):
+            Gibbs(compressed, store_labels=store_labels)
 
 
 def test_gibbs_chains_from_one_init_start_apart():

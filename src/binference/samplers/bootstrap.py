@@ -48,9 +48,6 @@ class Bootstrap(Engine):
         Show a progress bar.
     """
 
-    name = "bootstrap"
-    approximate = True
-
     def __init__(
         self,
         model: PopulationModel,

@@ -78,7 +78,6 @@ class Laplace(Engine):
     replacement for NUTS.
     """
 
-    name = "laplace"
     joint = True
 
     def __init__(
@@ -94,8 +93,10 @@ class Laplace(Engine):
         progress: bool = False,
     ) -> None:
         super().__init__(model, rng=rng, progress=progress)
-        if n_proposals is not None and n_proposals < 5:
-            raise ValueError("n_proposals must be at least 5 (for Pareto smoothing).")
+        if n_proposals is not None and n_proposals < diag.PSIS_MIN_WEIGHTS:
+            raise ValueError(
+                f"n_proposals must be at least {diag.PSIS_MIN_WEIGHTS} (for Pareto smoothing)."
+            )
         self.importance = bool(importance)
         self.n_proposals = n_proposals
         if df is not None and df <= 0:
@@ -150,12 +151,17 @@ class Laplace(Engine):
         n_samples : int, optional
             Draws returned in total.
         """
+        # without importance resampling the proposals are the draws (audit N-4)
+        M = (self.n_proposals or PROPOSAL_FACTOR * n_samples) if self.importance else n_samples
+        if self.importance and M < diag.PSIS_MIN_WEIGHTS:  # n_proposals is checked when made
+            raise ValueError(
+                f"Importance resampling needs at least {diag.PSIS_MIN_WEIGHTS} proposals "
+                f"(n_proposals, by default {PROPOSAL_FACTOR} * n_samples); got {M}."
+            )
         m = self.model
         x0, _, lam, U, cov = self._mode_and_eigen()
         d = x0.size
         sd_mat = (U / np.sqrt(lam)) * self.inflate
-        # without importance resampling the proposals are the draws (audit N-4)
-        M = (self.n_proposals or PROPOSAL_FACTOR * n_samples) if self.importance else n_samples
         Z = self.rng.standard_normal((M, d))
         if self.importance and self.df is not None:
             Z = Z / np.sqrt(self.rng.chisquare(self.df, size=M) / self.df)[:, None]
