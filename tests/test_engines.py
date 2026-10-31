@@ -520,19 +520,13 @@ def test_laplace_with_importance(k3_problem):
 
 def test_a_widened_gaussian_laplace_proposal_recovers_the_exact_posterior(onehot):
     # one-hot likelihoods: the posterior is Dirichlet(1 + counts), close to Gaussian in
-    # log-ratio coordinates; in k3_problem the middle bin's long tail fails k-hat for every
-    # Gaussian proposal, widened or not
+    # log-ratio coordinates
     lk, counts = onehot
     m = PopulationModel(lk)
-    mean, sd = dirichlet_moments(1.0 + counts)
     res = Laplace(m, df=None, inflate=1.5, rng=0).run(4000)
     assert not res.approximate  # k-hat passed
-    # Monte Carlo errors from n effective draws: sd / sqrt(n) for a mean, and a relative
-    # 1 / sqrt(2 n) for an sd; here n is the importance ESS (a wrong sign of log q
-    # narrows the draws by about a quarter)
-    n = res.info["ess_importance"]
-    assert np.all(np.abs(res.mean - mean) <= 5 * sd / np.sqrt(n))
-    np.testing.assert_allclose(res.std, sd, rtol=5 / np.sqrt(2 * n))
+    # a wrong sign of log q narrows the draws by about a quarter
+    assert_matches_reference(res, *dirichlet_moments(1.0 + counts))
     # without importance the draws are the proposals, which inflate widens
     with pytest.warns(ApproximationWarning):
         raw = Laplace(m, inflate=1.5, importance=False, rng=0).run(8000)

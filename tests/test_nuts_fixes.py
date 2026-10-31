@@ -9,7 +9,7 @@ import binference
 from binference import Bins, PopulationModel
 from binference import priors as P
 from binference.samplers import NUTS, Laplace
-from binference.samplers._nuts_core import Metric, _leaf, adaptation_windows
+from binference.samplers._nuts_core import _MAX_ENERGY_ERROR, Metric, _leaf, adaptation_windows
 from binference.samplers.nuts import _Chain
 
 
@@ -109,53 +109,59 @@ def test_the_psis_threshold_needs_five_weights():
     assert binference.diagnostics.psis_threshold(10_000) == 0.7
 
 
+def _standard_gaussian(x):
+    return -0.5 * float(x @ x), -x
+
+
 def test_a_step_that_overflows_the_energy_is_a_silent_divergence():
     # a momentum of 1e200 overflows p @ M^-1 p; the tree marks the leaf divergent, and the
     # overflow warning is not raised (it failed the joint-selection SBC as an error)
-
-    def fn(x):
-        return -0.5 * float(x @ x), -x
-
     x, p = np.zeros(2), np.full(2, 1e200)
-    t = _leaf(x, p, -x, 1, 1e-300, 0.0, Metric(np.ones(2)), fn, 1000.0)
+    m = Metric(np.ones(2))
+    t = _leaf(x, p, -x, 1, 1e-300, 0.0, m, _standard_gaussian, _MAX_ENERGY_ERROR)
     assert t.diverging
 
 
 def test_adaptation_windows_match_stan_except_one_window_for_151_to_199_iterations():
     assert adaptation_windows(1000) == [(75, 100), (100, 150), (150, 250), (250, 450), (450, 950)]
     assert adaptation_windows(175) == [(75, 125)]  # Stan: (75, 100) and (100, 125)
+    # at the edges of that range, which pin the comparisons of the buffers and the window
+    assert adaptation_windows(150) == [(75, 100)]
+    assert adaptation_windows(200) == [(75, 100), (100, 150)]
 
 
 def test_step_size_adaptation_reaches_the_target_acceptance_on_a_standard_gaussian():
-    def fn(x):
-        return -0.5 * float(x @ x), -x
-
     acc = []
     for rng in np.random.default_rng(0).spawn(4):
-        chain = _Chain(rng.standard_normal(10), fn, rng, 1000, 0.8, dense=False)
+        chain = _Chain(rng.standard_normal(10), _standard_gaussian, rng, 1000, 0.8, dense=False)
         for _ in range(1000):
             chain.step(10, adapt=True)
         acc.append([chain.step(10, adapt=False)[0] for _ in range(1000)])
-    acc = np.array(acc)
     # Stan's averaged step size accepts more often than the target (0.87-0.90 with seeds
-    # 0-19), so the bound is one-sided, at four Monte Carlo errors of the mean accept statistic
-    assert acc.mean() >= 0.8 - 4 * binference.diagnostics.mcse(acc)
+    # 0-19), so the bound is one-sided, at four Monte Carlo errors of the mean accept
+    # statistic of each chain: pooled, the error grows when broken adaptation splits them
+    mcse = binference.diagnostics.mcse
+    assert all(np.mean(a) >= 0.8 - 4 * mcse(np.asarray(a)) for a in acc)
 
 
-def test_above_the_dense_limit_the_hyperparameter_curvature_is_taken_at_one_chain(monkeypatch):
+def test_above_the_dense_limit_the_warm_up_curvature_is_taken_at_one_chain(monkeypatch):
     from binference.samplers import nuts
 
-    seen = []
-    real = nuts._conditional_log_scale_sd
-    monkeypatch.setattr(
-        nuts,
-        "_conditional_log_scale_sd",
-        lambda m, prior, pts: seen.append(len(pts)) or real(m, prior, pts),
-    )
+    calls = []
+    for name in ("fd_hessian_diag", "fd_hessian"):
+        real = getattr(nuts, name)
+        monkeypatch.setattr(
+            nuts, name, lambda *a, _f=real, _n=name, **k: calls.append(_n) or _f(*a, **k)
+        )
     model = _gp_model(n=200, K=6)
+    counts = []
     for limit in (nuts._DENSE_MAX_DIM, 0):  # 6 bins, then as if above the limit
         monkeypatch.setattr(nuts, "_DENSE_MAX_DIM", limit)
+        calls.clear()
         eng = NUTS(model, n_chains=3, n_warmup=0, rng=0)
         eng._setup()
         eng._adapt_geometry()
-    assert seen == [3, 1]
+        counts.append((calls.count("fd_hessian_diag"), calls.count("fd_hessian")))
+    # the field's diagonal, then the hyperparameters' and the whole model's Hessians, at
+    # every chain's position and then at one
+    assert counts == [(3, 6), (1, 2)]
