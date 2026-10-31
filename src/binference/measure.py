@@ -14,12 +14,12 @@ from typing import Any
 import numpy as np
 from scipy.integrate import cumulative_trapezoid
 
-from ._utils import frozen
+from ._utils import SetOnce, frozen
 
 __all__ = ["Measure"]
 
 
-class Measure:
+class Measure(SetOnce):
     """A strictly increasing map ``u = T(z)`` of one bin axis.
 
     Build one with :meth:`linear`, :meth:`log`, :meth:`transform` (a function
@@ -224,12 +224,6 @@ class Measure:
 
     def __hash__(self) -> int:
         return self._hash
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name in Measure.__slots__ and not hasattr(self, name):
-            object.__setattr__(self, name, value)
-        else:
-            raise AttributeError("Measure objects are immutable.")
 
     def __reduce__(self):
         kind = self._key[0]

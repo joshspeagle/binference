@@ -24,8 +24,8 @@ from typing import Any
 import numpy as np
 import scipy.sparse as sp
 
-from ._utils import frozen
-from .bins import Bins, _positive_integers
+from ._utils import check_positive_integers, frozen
+from .bins import Bins
 
 __all__ = ["Basis"]
 
@@ -89,18 +89,13 @@ class Basis:
                 "Linear components need an unmasked grid: next to a masked cell the hats "
                 "would not sum to one, biasing the bins there. Use order=0 on masked grids."
             )
-        res = _positive_integers(resolution, "resolution", bins.ndim)
         if oversample is None:
             oversample = 1 if order == 0 else DEFAULT_OVERSAMPLE.get(bins.ndim, 2)
-        oversample = _positive_integers(oversample, "oversample")[0]
         self.bins = bins
         self.order = int(order)
-        self.oversample = int(oversample)
-        self.components, _ = bins.refine(res)
-        self.resolution = tuple(
-            (len(c) - 1) // (len(b) - 1)
-            for c, b in zip(self.components.edges, bins.edges, strict=True)
-        )
+        self.oversample = check_positive_integers(oversample, "oversample")[0]
+        self.resolution = check_positive_integers(resolution, "resolution", bins.ndim)
+        self.components, _ = bins.refine(self.resolution)
         fine = tuple(r * self.oversample for r in self.resolution)
         self.grid, grid_to_bins = bins.refine(fine)
         self.grid_to_bins = frozen(grid_to_bins)

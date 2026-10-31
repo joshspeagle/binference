@@ -64,8 +64,10 @@ def test_measures_compare_by_name_or_table():
 
 
 def test_measures_are_immutable_so_the_shared_built_ins_cannot_be_renamed():
-    with pytest.raises(AttributeError, match="immutable"):
-        Measure.log().name = "renamed"
+    m = Measure.log()
+    for change in (lambda: setattr(m, "name", "renamed"), lambda: delattr(m, "name")):
+        with pytest.raises(AttributeError, match="immutable"):
+            change()
     assert Measure.log().name == "log"
 
 

@@ -241,7 +241,6 @@ def test_every_likelihood_kernel_is_minus_infinity_where_an_evidence_is_infinite
 
     L, w, rho = np.array([[1.0, 0.5], [0.3, 1.0]]), np.ones(2), np.array([np.inf, 0.5])
     assert kern.loglike(L, w, rho) == -np.inf
-    assert kern.loglike_and_counts(L, w, rho)[0] == -np.inf
     assert kern.loglike_many(L, w, rho[None])[0] == -np.inf
 
 

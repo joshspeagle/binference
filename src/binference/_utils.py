@@ -28,6 +28,34 @@ def frozen(a: Any) -> Any:
     return a
 
 
+class SetOnce:
+    """Base of the immutable classes: each slot is set once, when the object is made."""
+
+    __slots__ = ()
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in type(self).__slots__ and not hasattr(self, name):
+            object.__setattr__(self, name, value)
+        else:
+            raise AttributeError(f"{type(self).__name__} objects are immutable.")
+
+    def __delattr__(self, name: str) -> None:
+        raise AttributeError(f"{type(self).__name__} objects are immutable.")
+
+
+def check_positive_integers(value: Any, name: str, n: int = 1) -> tuple[int, ...]:
+    """``value``, one for all ``n`` axes or one per axis, as ``n`` positive integers (an
+    integral float is accepted)."""
+    try:
+        v = np.broadcast_to(np.asarray(value), (n,))
+        if all(float(x).is_integer() and x >= 1 for x in v):
+            return tuple(int(x) for x in v)
+    except (TypeError, ValueError):
+        pass
+    per_axis = f", or one per axis ({n})" if n > 1 else ""
+    raise ValueError(f"{name} must be a positive integer{per_axis}; got {value!r}.")
+
+
 def as_generator(rng: RNGLike = None) -> np.random.Generator:
     """Return a :class:`numpy.random.Generator` following SPEC 7.
 
