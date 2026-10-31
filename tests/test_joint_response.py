@@ -11,7 +11,7 @@ from binference.results import _draws_rng
 from binference.samplers import MAP, Gibbs, MeanFieldVB
 from binference.validation import SBCResult
 
-from .conftest import assert_uniform_ranks
+from .conftest import assert_draws_agree, assert_uniform_ranks
 
 
 def _unfolding(n_sim=2000, n_obs=400, seed=1):
@@ -132,18 +132,9 @@ def test_nuts_agrees_with_joint_gibbs_on_population_and_response():
     lk, _ = _unfolding()
     m = binference.PopulationModel(lk)
     fits = [binference.samplers.NUTS(m, rng=1).run(1500), Gibbs(m, rng=1).run(5000)]
-    stats = []
-    for r in fits:
-        eff = r.info["response_draws"].sum(axis=-2).reshape(-1, 4)
-        draws = np.concatenate([r.samples, eff], axis=1)
-        d = r.diagnostics
-        ess = np.concatenate([d["ess_bulk"], d["ess_bulk_response"]])
-        stats.append((draws.mean(0), draws.std(0), ess))
-    (m1, s1, e1), (m2, s2, e2) = stats
-    # Monte Carlo errors: of a mean sd / sqrt(ESS), of an sd about sd / sqrt(2 ESS)
-    np.testing.assert_array_less(np.abs(m1 - m2), 4 * np.hypot(s1 / np.sqrt(e1), s2 / np.sqrt(e2)))
-    se_sd = np.hypot(s1 / np.sqrt(2 * e1), s2 / np.sqrt(2 * e2))
-    np.testing.assert_array_less(np.abs(s1 - s2), 4 * se_sd)
+    # the fractions and each truth bin's efficiency, the response summed over measured bins
+    draws = [np.concatenate([r.chains, r.info["response_draws"].sum(-2)], -1) for r in fits]
+    assert_draws_agree(*draws, z=4)
 
 
 @pytest.mark.slow

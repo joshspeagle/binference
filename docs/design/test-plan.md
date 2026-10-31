@@ -10,16 +10,17 @@ The plan was written before the code. It was brought up to date with the suite o
 
 ## 1. Principles
 
-- **Deterministic.** Every random test uses a fixed seed passed through `rng`. Tests that rely on statistical tolerances use a seed that passes, plus tolerances wide enough that the false-failure probability is small for any seed. `BINFERENCE_TEST_SEEDS=0,1,2 pytest` loops over seeds in the tests that take the `seed` or `rng` fixture (`tests/conftest.py`), in the same spirit as dynesty. Most engine-against-exact tests fix their own seeds, so the sweep does not reach them; their tolerances were checked by hand over 12 seeds (audit T-12). The comparisons that use `assert_matches_reference` or `assert_draws_agree` were checked again over engine seeds 0–11 (issue #177): the largest $|z|$ was 3.3 for a mean and 2.8 for an s.d., against $z = 5$.
+- **Deterministic.** Every random test uses a fixed seed passed through `rng`. Tests that rely on statistical tolerances use a seed that passes, plus tolerances wide enough that the false-failure probability is small for any seed. `BINFERENCE_TEST_SEEDS=0,1,2 pytest` loops over seeds in the tests that take the `seed` or `rng` fixture (`tests/conftest.py`), in the same spirit as dynesty. Most engine-against-exact tests fix their own seeds, so the sweep does not reach them; their tolerances were checked by hand over 12 seeds (audit T-12). The comparisons that use `assert_matches_reference` or `assert_draws_agree` were checked again over engine seeds 0–11 (DECISIONS #118).
 - **Tolerances scale with Monte Carlo error.** Compare against references with
 
   $$|\hat\theta - \theta_\text{ref}| \le z\cdot \mathrm{MCSE}(\hat\theta) + \epsilon_\text{abs}, \qquad z = 4 \text{ to } 5.$$
 
-  Standard deviations use the same form, with the MCSE of an s.d. from `sd_mcse` (the MCSE of the squared deviations, from their effective sample size, by the delta method). In `tests/conftest.py`, `assert_matches_reference` compares with an exact reference, with $\epsilon_\text{abs}$ = 10⁻³ of its s.d., and `assert_draws_agree` compares two runs within $z$ combined MCSEs.
+  Standard deviations use the same form, with the MCSE of an s.d. from `sd_mcse`. `assert_matches_reference` (against an exact reference) and `assert_draws_agree` (two runs) in `tests/conftest.py` apply both.
 - **Two tiers.**
   - Default `pytest` runs fast tests: unit, exactness on small problems, and API tests (`pyproject.toml` adds `-m "not slow"`).
   - `pytest -m slow` runs the statistical validation: SBC, coverage, larger cross-engine comparisons, the Geweke tests and the benchmark-matrix references (§2.11). CI runs it weekly, by hand, or on a pull request labelled `slow`.
   - The {doc}`contributing guide <../contributing>` gives the run time of each tier.
+- **Engines are named.** Outside `tests/test_auto.py`, every `infer` call passes `method=`, so a reference fit cannot run the engine it is compared with; a test in `test_auto.py` checks this (DECISIONS #118).
 - **Warnings are errors.** `pyproject.toml` sets `filterwarnings = ["error", ...]`, so every warning fails a test unless the test expects it with `pytest.warns` or filters it.
 - **References.** Module docstrings cite the spec sections, requirement IDs (`R-…`), decisions (`DECISIONS #n` in `notes/review/DECISIONS.md`) and audit findings their tests cover. Test names are sentences of behaviour.
 
@@ -304,7 +305,7 @@ More result tests are in `tests/test_results_audit.py`, `tests/test_results_outp
 ### 2.12 Docs, examples and packaging
 
 - `docs/tutorials/*.md` (MyST notebooks) are executed in the docs CI job (`myst-nb`, `nb_execution_mode="cache"`, fail on error). Each tutorial should run in under 2 minutes. Numbers that the prose quotes or compares are checked by hidden `assert` cells (tagged `remove-cell`).
-- The code of `README.md`, `docs/index.md`, `docs/start/install.md` and the guides runs in CI with `docs/_scripts/run_snippets.py`. It runs only fenced `python` blocks, so it skips the tutorials, whose `{code-cell}` cells the docs build executes.
+- The code of `README.md`, `docs/index.md`, `docs/start/install.md` and the guides runs in CI with `docs/_scripts/run_snippets.py`. It runs only fenced `python` blocks.
 - `python -m build` produces sdist and wheel; `twine check` passes, and the wheel is installed in a clean virtualenv and imported (CI job `dist`).
 - Every parameter of the public API is documented: `docs/conf.py` turns on numpydoc's PR01 check, and the `-W` docs build fails on its warnings (DECISIONS #99).
 
