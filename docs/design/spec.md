@@ -285,7 +285,7 @@ Methods:
 A prior is a `PopulationPrior` that holds its arguments; `bind(bins)` returns the internal bound prior the engines use. Bound priors share one interface:
 - `sample(n, rng)`, and `log_density(value)` and `grad_log_density(value)` on the simplex (or the positive orthant) where the density has a closed form (`has_density`); `unbounded_density()` says whether it is unbounded at the boundary.
 - An unconstrained parametrisation, used by gradient-based engines: `forward(x)`, `log_prior_and_grad(...)`, and `init_from_value(value)`, an exact inverse for the Dirichlet family and rates and a ridge-shrunk starting point for the logistic priors.
-- `prior_transform(u)` where available (`has_prior_transform`).
+- `prior_transform(u)` where available (`has_prior_transform`); removed by DECISIONS #107.
 - For conjugate priors: `posterior_sample(counts, rng)` (Gibbs), `map_from_counts(counts)` (EM) and the `vb_*` updates (VB).
 - Flags `conjugate` and `kind` (`"fractions"` or `"rates"`).
 
@@ -524,7 +524,7 @@ Also available: a corner plot over chosen bins or functionals, trace plots, and 
 1. **One call:** `res = binference.infer(likelihoods, prior=None, *, bins=None, selection=None, selection_mode=None, method="auto", n_samples=None, rng=None, progress=False, check=True, **engine_kwargs)`. `n_samples=None` takes each engine's default (draws per chain for NUTS, Gibbs and `"auto"`).
 2. **scikit-learn style:** `binference.PopulationEstimator(prior=None, *, method="auto", ...)`. `fit(X)` returns self, where `X` is a `Likelihoods` object or an array. It also provides `predict_proba(X)`, `score(X)` (mean log predictive density, for CV over binnings and priors), `sample(n)`, `get_params`/`set_params` and `result_`.
 3. **Model + engine objects:** `model = binference.PopulationModel(lk, prior, selection=...)`; `eng = binference.samplers.NUTS(model, n_chains=4, rng=..., ...)`; `res = eng.run(n_samples)`. Also `for draws in eng.sample(n): ...` (generator) and `eng.run(more)` to extend.
-4. **Raw densities:** `model.log_density_unconstrained_and_grad`, `model.prior_transform`, `model.to_rho`.
+4. **Raw densities:** `model.log_density_unconstrained_and_grad`, `model.prior_transform` (removed by DECISIONS #107), `model.to_rho`.
 
 ### 8.2 Conventions
 
