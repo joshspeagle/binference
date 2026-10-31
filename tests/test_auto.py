@@ -157,15 +157,29 @@ def test_infer_refuses_an_n_samples_that_is_not_a_positive_integer(n_samples):
         inf.Auto(binference.PopulationModel(_lk(0.3))).run(n_samples)
 
 
-def test_auto_options_are_checked_by_name():
+def test_auto_and_engine_options_are_checked_by_name_when_auto_is_made():
     model = binference.PopulationModel(_lk(0.3))
     for kw, name in (
         ({"target_ess": 0}, "target_ess"),
         ({"gibbs_max_missing": 1.0}, "gibbs_max_missing"),
         ({"nnz_limit": -1}, "nnz_limit"),
+        ({"df": 0}, "df"),  # an engine's option, checked by the engine auto makes (#174)
+        ({"init": [0.5, 0.5]}, "init"),
     ):
         with pytest.raises(ValueError, match=name):
             inf.Auto(model, **kw)
+
+
+def test_auto_gives_each_engine_init_in_its_own_coordinates(short_nuts):
+    lk = _lk(0.3)
+    v = np.arange(1.0, 11.0) / 55.0
+    # NUTS alone (target_accept) runs from fractions, which it refused before
+    res = binference.infer(lk, init=v, target_accept=0.8, rng=0, n_samples=5, check=False)
+    assert res.method == "nuts"
+    model = binference.PopulationModel(lk)
+    auto = inf.Auto(model, init=v)
+    np.testing.assert_array_equal(auto._make("gibbs").init, v)  # fractions, as Gibbs reads them
+    np.testing.assert_allclose(model.to_value(auto._make("nuts").init), v)  # unconstrained
 
 
 def test_laplace_draws_as_many_as_four_chains_would():

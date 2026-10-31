@@ -34,17 +34,16 @@ def _systematic_resample(w: np.ndarray, n: int, rng: np.random.Generator) -> np.
 
 
 class Laplace(Engine):
-    """Gaussian (Laplace) approximation in unconstrained coordinates.
+    r"""Gaussian (Laplace) approximation in unconstrained coordinates.
 
-    The posterior mode in unconstrained coordinates is found with L-BFGS, the
-    Hessian is computed from central differences of the exact gradient, and
-    draws from the Gaussian are mapped to the simplex (or rates). With
-    ``importance=True`` (default) the draws are corrected towards the exact
-    posterior by Pareto-smoothed importance resampling; the Pareto shape
-    ``k_hat`` (in ``info``) diagnoses whether the correction is reliable:
-    below ``min(1 - 1 / log10(S), 0.7)`` for ``S`` proposals (Vehtari et al.
-    2024), in ``info["k_hat_threshold"]``. Without a reliable correction the
-    result is flagged ``approximate=True``.
+    The posterior mode in unconstrained coordinates is found with L-BFGS, and the
+    Hessian :math:`H` there from central differences of the exact gradient;
+    ``info["cov"]`` holds :math:`(-H)^{-1}`. Proposals with scale matrix ``inflate**2``
+    times :math:`(-H)^{-1}` (see ``df``) are mapped to the simplex (or rates) and, with
+    ``importance=True``, resampled towards the exact posterior by Pareto-smoothed
+    importance weights. The result is flagged ``approximate=True`` when ``info["k_hat"]``
+    reaches ``info["k_hat_threshold"]`` (:func:`~binference.diagnostics.psis_threshold`),
+    and always without importance, whose draws are Gaussian.
 
     The approximation is excellent for well-populated bins with many objects
     and poorer for nearly empty bins, whose log-fractions have long tails.
@@ -62,7 +61,7 @@ class Laplace(Engine):
         (default 5); ``None`` uses the Gaussian itself. Heavier tails make the
         importance correction more robust.
     inflate : float
-        Scale applied to the proposal's standard deviations.
+        Factor on the scale of the proposals, or of the draws without ``importance``.
     step : float
         Relative step for the finite-difference Hessian.
     rng : int, numpy.random.Generator, or None

@@ -39,7 +39,8 @@ class Bootstrap(Engine):
         Resample objects (``"nonparametric"``) or reweight them with Dirichlet weights
         (``"bayesian"``).
     tol : float, optional
-        KKT tolerance of each replicate's MAP fit.
+        Tolerance of each replicate's MAP fit (see :class:`~binference.samplers.MAP`'s
+        ``tol``).
     max_iter : int, optional
         Most iterations of each replicate's MAP fit.
     rng : int, Generator or None

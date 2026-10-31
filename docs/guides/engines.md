@@ -55,7 +55,8 @@ options.
   `binference.infer(lk, target_ess=1000)`.
 - **Engine options rule out engines** that do not take them. `target_accept` or
   `n_jobs` leave only NUTS, and `n_warmup` leaves Gibbs or NUTS. Options that no
-  candidate takes raise an error.
+  candidate takes raise an error before any fit, as does a value that a candidate
+  refuses.
 - **An explicit `n_samples`** fixes the length of a Gibbs run, so check the result;
   `infer` does by default.
 
