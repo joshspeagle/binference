@@ -144,6 +144,29 @@ def test_auto_options_are_checked_by_name():
             inf.Auto(model, **kw)
 
 
+def test_a_bad_engine_option_raises_by_name_when_auto_is_made():
+    model = binference.PopulationModel(_lk(0.3))
+    for kw, name in (
+        ({"n_warmup": -1}, "n_warmup"),
+        ({"df": 0}, "df"),
+        ({"init": [0.5, 0.5]}, "init"),
+    ):
+        with pytest.raises(ValueError, match=name):
+            inf.Auto(model, **kw)
+
+
+def test_auto_gives_each_engine_init_in_its_own_coordinates(short_nuts):
+    lk = _lk(0.3)
+    v = np.arange(1.0, 11.0) / 55.0
+    # NUTS alone (target_accept) runs from fractions, which it refused before
+    res = binference.infer(lk, init=v, target_accept=0.8, rng=0, n_samples=5, check=False)
+    assert res.method == "nuts"
+    model = binference.PopulationModel(lk)
+    engines = inf.Auto(model, init=v)._engines
+    np.testing.assert_array_equal(engines["gibbs"].init, v)  # fractions, as Gibbs reads them
+    np.testing.assert_allclose(model.to_value(engines["nuts"].init), v)  # unconstrained
+
+
 def test_laplace_draws_as_many_as_four_chains_would():
     res = binference.infer(_lk(1.0, n=1000, K=20), P.PolyaTree(), rng=0, n_samples=300)
     assert res.method == "laplace" and res.n_draws == 1200

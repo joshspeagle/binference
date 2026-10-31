@@ -15,7 +15,7 @@ from .model import PopulationModel
 from .priors import PopulationPrior
 from .results import PointEstimate, PopulationResult
 from .samplers import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
-from .samplers.base import Engine
+from .samplers.base import Engine, check_init
 from .samplers.laplace import PROPOSAL_FACTOR
 from .warnings import ApproximationWarning, BinferenceWarning
 
@@ -46,6 +46,11 @@ PROBE_DRAWS = 500
 #: A Laplace trial stops when its first pass projects an importance ESS below this share of
 #: ``target_ess``.
 PROBE_ESS_SHARE = 0.5
+
+
+#: (key, class) of the engines auto may run, in the order it tries them; each is made
+#: from ``METHODS[key]``, and takes the options of the class
+_CANDIDATES = (("gibbs", Gibbs), ("laplace", Laplace), ("nuts", NUTS))
 
 
 def _options(engine: type) -> dict[str, inspect.Parameter]:
@@ -84,7 +89,10 @@ class Auto(Engine):
     rng, progress
         As for every engine.
     **engine_kwargs
-        Options for the chosen engine.
+        Options for the chosen engine. Auto makes each engine it may run when it is
+        made, so that each checks them at once. ``init`` takes positive fractions or
+        rates of shape (K,), as for Gibbs; auto converts them to NUTS's unconstrained
+        coordinates.
     """
 
     joint = True
@@ -108,9 +116,35 @@ class Auto(Engine):
         self.gibbs_max_missing = float(gibbs_max_missing)
         self.nnz_limit = float(check_positive(nnz_limit, "nnz_limit"))
         self.max_gibbs_draws = int(check_positive(max_gibbs_draws, "max_gibbs_draws"))
+        if engine_kwargs.get("init") is not None:
+            engine_kwargs["init"] = check_init(engine_kwargs["init"], model)
         self.engine_kwargs = engine_kwargs
         self._rng_arg = rng
         self._map: tuple[Any, float] | None = None  # the MAP and its missing information
+        # every engine auto may run, made now so that each checks its options (#174); the
+        # first run uses them, and a later run makes its own
+        self._engines = {
+            key: self._make(key)
+            for key, engine in _CANDIDATES
+            if engine.unsupported(model) is None and set(engine_kwargs) <= set(_options(engine))
+        }
+        self._may_run = tuple(self._engines)
+        if not self._may_run:
+            raise self._none_takes_the_options()
+
+    def _make(self, key: str) -> Engine:
+        """The engine ``key`` with auto's options, ``init`` in its coordinates."""
+        kw = self.engine_kwargs
+        if key == "nuts" and kw.get("init") is not None:
+            kw = {**kw, "init": self.model.from_value(kw["init"])}
+        return METHODS[key](self.model, rng=self._rng_arg, progress=self.progress, **kw)
+
+    def _none_takes_the_options(self) -> ValueError:
+        return ValueError(
+            f"None of the engines method='auto' can use for this model (Laplace, NUTS, "
+            f"and Gibbs where it applies) takes all of {sorted(self.engine_kwargs)}; pass "
+            "method= explicitly."
+        )
 
     def candidates(self, n_samples: int | None = None) -> list[tuple[str, str, int | None]]:
         """(engine, reason, Gibbs draws per chain) in the order they are tried.
@@ -122,7 +156,7 @@ class Auto(Engine):
         """
         m, kw = self.model, self.engine_kwargs
         out: list[tuple[str, str, int | None]] = []
-        if Gibbs.unsupported(m) is None and set(kw) <= set(_options(Gibbs)):
+        if "gibbs" in self._may_run:
             if m.joint:  # exact and fast (DECISIONS #80, #81)
                 out.append(("gibbs", "a joint model with a conjugate prior", None))
             else:
@@ -142,17 +176,9 @@ class Auto(Engine):
                     )
                     if n_samples is not None or n <= self.max_gibbs_draws:
                         out.append(("gibbs", f"conjugate prior, missing information {f:.2f}", n))
-        out += [
-            (key, "", None)
-            for key, engine in (("laplace", Laplace), ("nuts", NUTS))
-            if set(kw) <= set(_options(engine))
-        ]
-        if not out:
-            raise ValueError(
-                f"None of the engines method='auto' can use for this model (Laplace, NUTS, "
-                f"and Gibbs where it applies) takes all of {sorted(kw)}; pass method= "
-                "explicitly."
-            )
+        out += [(key, "", None) for key in ("laplace", "nuts") if key in self._may_run]
+        if not out:  # only Gibbs takes the options, and its missing information ruled it out
+            raise self._none_takes_the_options()
         return out
 
     def run(self, n_samples: int | None = None) -> PopulationResult:
@@ -168,9 +194,7 @@ class Auto(Engine):
         rejected: list[str] = []  # why earlier candidates were not kept
         for i, (key, why, n_gibbs) in enumerate(plan):
             last = i == len(plan) - 1
-            engine = METHODS[key](
-                self.model, rng=self._rng_arg, progress=self.progress, **self.engine_kwargs
-            )
+            engine = self._engines.pop(key, None) or self._make(key)
             if key == "laplace":
                 n = _options(NUTS)["n_chains"].default * (n_samples or _default_draws(NUTS))
                 result, why = (engine.run(n), "") if last else self._try(engine, n)

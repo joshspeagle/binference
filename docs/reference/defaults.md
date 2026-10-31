@@ -44,13 +44,14 @@ explain behaviour, not as settings to change.
 | `_INIT_BUFFER` | `75` | `binference.samplers._nuts_core` | Iterations of the first fast phase of Stan-style warm-up. |
 | `_BASE_WINDOW` | `25` | `binference.samplers._nuts_core` | Iterations of the first slow window of Stan-style warm-up; each next one is twice as long. |
 | `_TERM_BUFFER` | `50` | `binference.samplers._nuts_core` | Iterations of the last fast phase of Stan-style warm-up. |
+| `_MAX_ENERGY_ERROR` | `1000` | `binference.samplers._nuts_core` | A leapfrog step whose energy rose by more than this since the trajectory's start (or became non-finite) is a divergence. |
 | `INTERIOR_START_ITER` | `50` | `binference.samplers.base` | Most regularised EM steps of the start of Gibbs and of MAP's EM and L-BFGS paths when `init` is `None`. |
 | `PROPOSAL_FACTOR` | `2` | `binference.samplers.laplace` | Importance proposals per draw when `n_proposals` is `None` (at least `diagnostics.PSIS_MIN_WEIGHTS` in all, the fewest Pareto smoothing takes). |
 | `EIGEN_FLOOR` | `1e-08` | `binference.samplers.laplace` | Eigenvalues of a Hessian that is not positive definite are raised to this times the largest (at least one). |
 | `_TARGET_ACCEPT` | `0.8` | `binference.samplers.nuts` | `target_accept` when it is `None`, except for logistic priors. |
 | `_TARGET_ACCEPT_LOGISTIC` | `0.9` | `binference.samplers.nuts` | `target_accept` for logistic priors when it is `None`. |
 | `_DENSE_MAX_DIM` | `200` | `binference.samplers.nuts` | `metric="auto"` is dense for logistic priors up to this many dimensions, and up to this many the warm-up curvature is averaged over every chain's point, not taken at one. |
-| `_HESSIAN_MAX_DIM` | `500` | `binference.samplers.nuts` | Up to this many dimensions, warm-up starts the metric from the curvature at the mode. |
+| `_HESSIAN_MAX_DIM` | `500` | `binference.samplers.nuts` | Up to this many dimensions, warm-up starts the metric from the curvature at the chains' positions early in warm-up. |
 | `_CENTRING_MAX_SD` | `0.28` | `binference.samplers.nuts` | Logistic priors stay non-centred when the median spread of the modes' log-scales given the field exceeds this. |
 | `_GEOMETRY_ITER` | `25` | `binference.samplers.nuts` | Warm-up iteration of the partial centring of logistic priors, or the first slow window's start if that is earlier. |
 | `_DUAL_AVERAGING` | `(10, 0.05, 0.75)` | `binference.samplers.nuts` | `t0`, `gamma` and `kappa` of the dual-averaging step-size adaptation. |

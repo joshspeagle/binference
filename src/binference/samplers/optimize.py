@@ -8,13 +8,13 @@ import numpy as np
 from scipy import optimize
 
 from .. import _kernels as kern
-from .._utils import RNGLike, check_nonnegative, warn
+from .._utils import RNGLike, warn
 from ..likelihoods import _scale_columns
 from ..model import PopulationModel
 from ..priors.base import _TINY
 from ..results import PointEstimate
 from ..warnings import ConvergenceWarning, InputWarning
-from .base import Engine, em_update, interior_start
+from .base import Engine, check_init, em_update, interior_start
 
 __all__ = ["MAP"]
 
@@ -37,8 +37,8 @@ def _mixsqp(
     w: np.ndarray,
     a: np.ndarray,
     x0: np.ndarray,
-    tol: float = 1e-8,
-    max_iter: int = 500,
+    tol: float,
+    max_iter: int,
 ) -> tuple[np.ndarray, int, bool]:
     r"""mix-SQP (Kim, Carbonetto, Stephens & Anitescu 2020) for mixture proportions.
 
@@ -140,12 +140,12 @@ class MAP(Engine):
     of iterations where EM can need thousands (broad likelihoods). With
     selection it solves for the fractions of the observed population,
     :math:`\phi_k \propto S_k\rho_k`, in which the likelihood is concave,
-    and maps the mode back; rates :math:`\lambda = \Lambda\psi` reduce to
-    the same problem with :math:`S_k + b_k` in place of :math:`S_k` once the
-    total :math:`\Lambda` is profiled out. The
-    default ``Dirichlet(1)`` prior gives the maximum-likelihood estimate (the
-    NPMLE on the grid). Other priors, or ``space="unconstrained"``, maximise
-    the density in the unconstrained coordinates with L-BFGS.
+    and maps the mode back; rates :math:`\lambda_k = \Lambda\chi_k/(S_k + b_k)`,
+    with :math:`\chi` on the simplex, reduce to the same problem with
+    :math:`S_k + b_k` in place of :math:`S_k` once the total :math:`\Lambda` is
+    profiled out. The default ``Dirichlet(1)`` prior gives the maximum-likelihood
+    estimate (the NPMLE on the grid). Other priors, or ``space="unconstrained"``,
+    maximise the density in the unconstrained coordinates with L-BFGS.
 
     Parameters
     ----------
@@ -170,7 +170,8 @@ class MAP(Engine):
         run that can no longer improve the objective in floating point counts as
         converged when that measure is below ``1e3 * tol``.
     max_iter : int
-        Maximum number of (accelerated) EM iterations or L-BFGS iterations.
+        Maximum number of mix-SQP, (accelerated) EM or L-BFGS iterations; EM taking
+        over from a mix-SQP run that did not converge gets as many again.
     accelerate : bool
         Use SQUAREM acceleration (EM only).
     algorithm : {"auto", "mixsqp", "em"}
@@ -213,13 +214,7 @@ class MAP(Engine):
         self.tol = float(tol)
         self.max_iter = int(max_iter)
         self.accelerate = bool(accelerate)
-        if init is not None:
-            init = check_nonnegative(init, "init")
-            if init.shape != (model.K,):
-                raise ValueError(f"init must have shape ({model.K},); got {init.shape}.")
-            if not init.any():
-                raise ValueError("init must have a positive entry.")
-        self.init = init
+        self.init = check_init(init, model, positive=False)
         # an explicit algorithm or space="simplex" solves on the simplex, if it can
         self._on_simplex = algorithm != "auto" or space == "simplex"
         if self._on_simplex:
@@ -314,16 +309,17 @@ class MAP(Engine):
     def _run_mixsqp(self, m: PopulationModel) -> PointEstimate:
         rates = m.kind == "rates"
         a = m.prior.pseudocounts
-        # the likelihood is sum_k (L_ik / e_k) psi_k in psi proportional to e * value: the
-        # observed fractions (e = S) or, for rates lambda = Lambda psi / e, the composition
-        # with e = S + b, whose total Lambda = W + sum(a) profiles out (audit M-6)
+        # mix-SQP solves for e * value normalised, in which the likelihood is
+        # sum_k (L_ik / e_k) x_k: the selected population phi (e = S) or, for rates
+        # lambda_k = Lambda chi_k / e_k, the composition chi (e = S + b), whose total
+        # Lambda = W + sum(a) profiles out (audit M-6)
         e = m._S + m.prior.b if rates else m._detect
         L = m._L if e is None else _scale_columns(m._L, 1.0 / e)
         x0 = interior_start(m, n_iter=_MIXSQP_START_ITER) if self.init is None else self.init
         if e is not None:
             x0 = x0 * e
         x, n_iter, converged = _mixsqp(L, m._w, a, x0, tol=self.tol, max_iter=self.max_iter)
-        if e is not None:  # back from psi to the fractions or rates
+        if e is not None:  # back from phi or chi to the fractions or rates
             x = x / e
             if rates:
                 x *= m.W + a.sum()

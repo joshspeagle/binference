@@ -8,21 +8,21 @@ from typing import Any
 import numpy as np
 
 from .. import _kernels as kern
-from .._utils import RNGLike, check_nonnegative, check_positive, is_integer_array, progress, spawn
+from .._utils import RNGLike, check_nonnegative, is_integer_array, progress, spawn
 from ..model import PopulationModel
 from ..priors.dirichlet import _dirichlet_draw
 from ..results import PopulationResult
 from ..selection import _beta_posterior, _draw_beta
-from .base import Engine, interior_start
+from .base import MarkovEngine, check_init, interior_start
 
 __all__ = ["Gibbs"]
 
 
-class Gibbs(Engine):
+class Gibbs(MarkovEngine):
     r"""Data-augmentation Gibbs sampler (the "hierarchical" sampler).
 
     Alternates (i) drawing every object's bin label
-    :math:`z_i \sim \mathrm{Cat}(r_i(\rho))` and (ii) drawing the population from
+    :math:`k_i \sim \mathrm{Cat}(r_i(\rho))` and (ii) drawing the population from
     its conjugate conditional given the counts (Dirichlet family:
     :math:`\rho \mid n \sim \mathrm{Dir}(\alpha + n)`; rates:
     :math:`\lambda_k \mid n \sim \mathrm{Gamma}(a_k + n_k, b_k + S_k)`). With a
@@ -66,7 +66,6 @@ class Gibbs(Engine):
     """
 
     joint = True
-    markov = True
 
     def __init__(
         self,
@@ -102,21 +101,15 @@ class Gibbs(Engine):
         # with multiplicities m_i each row draws Mult(m_i, r_i) counts, and no labels
         if self.label_index is not None and not self._unit:
             raise ValueError("store_labels needs unit object weights (uncompressed likelihoods).")
-        if init is not None:
-            init = check_positive(init, "init")
-            if init.shape != (model.K,):
-                raise ValueError(f"init must have shape ({model.K},); got {init.shape}.")
         if n_chains < 1 or thin < 1:
             raise ValueError("n_chains and thin must be positive.")
         self.n_chains = int(n_chains)
         self.n_warmup = int(check_nonnegative(n_warmup, "n_warmup"))
         self.thin = int(thin)
         self.chunk = None if chunk is None else int(chunk)
-        self.init = init
+        self.init = check_init(init, model)
         self._state: list[np.ndarray] | None = None
         self._rngs: list[np.random.Generator] | None = None
-        self._warm = False
-        self._draws: list[np.ndarray] = []
         self._labels: list[np.ndarray] = []
         # a selection or response inferred with the population: its current value per chain
         self._extra: list[np.ndarray] | None = None
@@ -254,23 +247,9 @@ class Gibbs(Engine):
                 if store:
                     self._labels.append(labs[:, :n_done])
 
-    def run(self, n_samples: int = 1000) -> PopulationResult:
-        """Burn in (first call only), draw ``n_samples`` per chain, and return all draws so far.
-
-        Parameters
-        ----------
-        n_samples : int, optional
-            Draws per chain after burn-in.
-        """
-        for _ in self.sample(int(n_samples)):
-            pass
-        return self.result
-
     @property
     def result(self) -> PopulationResult:
-        if not self._draws:
-            raise RuntimeError("No draws yet; call run().")
-        D = np.concatenate(self._draws, axis=1)
+        D = self._all_draws()
         labels = np.concatenate(self._labels, axis=1) if self._labels else None
         info = {"thin": self.thin, "n_warmup": self.n_warmup}
         if self._extra_draws:  # inferred with the population (DECISIONS #79, #81)

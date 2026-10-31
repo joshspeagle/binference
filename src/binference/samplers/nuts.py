@@ -17,7 +17,7 @@ from ..results import PopulationResult
 from ..warnings import ConvergenceWarning
 from ._curvature import covariance_from_hessian, fd_hessian, fd_hessian_diag
 from ._nuts_core import Metric, adaptation_windows, find_reasonable_eps, nuts_step
-from .base import Engine
+from .base import MarkovEngine
 
 __all__ = ["NUTS"]
 
@@ -28,7 +28,8 @@ _TARGET_ACCEPT_LOGISTIC = 0.9
 #: ``metric="auto"`` is dense for logistic priors up to this many dimensions, and up to
 #: this many the warm-up curvature is averaged over every chain's point, not taken at one.
 _DENSE_MAX_DIM = 200
-#: Up to this many dimensions, warm-up starts the metric from the curvature at the mode.
+#: Up to this many dimensions, warm-up starts the metric from the curvature at the chains'
+#: positions early in warm-up.
 _HESSIAN_MAX_DIM = 500
 # Partial centring re-creates a funnel when the field itself pins the scale
 # hyperparameters down poorly (few modes per hyperparameter). In validation runs 0.28
@@ -246,7 +247,7 @@ def _chain_worker(payload):
     return chain, out
 
 
-class NUTS(Engine):
+class NUTS(MarkovEngine):
     """No-U-Turn Sampler on the exact posterior, for every prior.
 
     Samples the unconstrained coordinates of the model (isometric log-ratios
@@ -323,7 +324,6 @@ class NUTS(Engine):
     """
 
     joint = True
-    markov = True
 
     def __init__(
         self,
@@ -387,8 +387,6 @@ class NUTS(Engine):
         self._base_model = model
         self._lam = None  # partial-centring weights of the sampling coordinates, once chosen
         self._pool = None  # worker processes, kept for one sample() (audit N-13)
-        self._warm = False
-        self._x: list[np.ndarray] = []
         self._lp: list[np.ndarray] = []
         self._stats: dict[str, list[np.ndarray]] = {k: [] for k in _STAT_KEYS}
         self.warmup_divergences = 0
@@ -457,7 +455,7 @@ class NUTS(Engine):
             lam = np.clip(1.0 / np.maximum(-diag, 1.0), 0.0, 1.0)
             # one decision for all modes that share the hyperparameters: mixing centred
             # and non-centred modes under one length scale mixed worst in validation
-            sd_c = _conditional_log_scale_sd(base, prior0, pts)
+            sd_c = _conditional_log_scale_sd(base, prior0, pts[:n_pts])
             scaled = sd_c > 0.0
             if np.any(scaled) and np.median(sd_c[scaled]) > _CENTRING_MAX_SD:
                 lam[scaled] = 1.0
@@ -574,7 +572,7 @@ class NUTS(Engine):
 
     def _record(self, xs, lps, st, n_done: int) -> None:
         if n_done:
-            self._x.append(xs[:, :n_done])
+            self._draws.append(xs[:, :n_done])
             self._lp.append(lps[:, :n_done])
             for j, k in enumerate(_STAT_KEYS):
                 self._stats[k].append(st[:, j, :n_done])
@@ -634,24 +632,10 @@ class NUTS(Engine):
         finally:
             self._close_pool()
 
-    def run(self, n_samples: int = 1000) -> PopulationResult:
-        """Warm up (first call only), draw ``n_samples`` per chain, and return all draws so far.
-
-        Parameters
-        ----------
-        n_samples : int, optional
-            Draws per chain after warm-up.
-        """
-        for _ in self.sample(int(n_samples)):
-            pass
-        return self.result
-
     @property
     def result(self) -> PopulationResult:
         """A :class:`~binference.PopulationResult` with every draw recorded so far."""
-        if not self._x:
-            raise RuntimeError("No draws yet; call run().")
-        X = np.concatenate(self._x, axis=1)
+        X = self._all_draws()
         LP = np.concatenate(self._lp, axis=1)
         C, n, d = X.shape
         base = self._base_model

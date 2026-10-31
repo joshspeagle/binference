@@ -35,6 +35,11 @@ releases may break the API).
 - `Likelihoods.from_density` evaluates frozen SciPy distributions of one family in one
   call, for their exact bin masses and for their densities; the densities' check for one
   family never matched, so each distribution was evaluated separately (DECISIONS #113).
+- `method="auto"` builds every engine it may run when it is made, so a bad engine
+  option, or options that no engine takes, raise before any fit (#174, DECISIONS #120).
+- Above 200 dimensions, NUTS takes a logistic prior's hyperparameter curvature at one
+  chain, like the rest of its warm-up curvature (DECISIONS #120).
+- The defaults page lists NUTS's divergence threshold, `_MAX_ENERGY_ERROR`.
 
 ### Removed
 
@@ -94,6 +99,12 @@ releases may break the API).
   `Response.from_simulation` with `open_ended` and categorical measured bins (an
   `AttributeError`); labelled scores that are not finite. `Selection.combined` checks
   `scale` before evaluating its functions.
+- `init` given to `method="auto"` is fractions or rates and reaches NUTS in its
+  unconstrained coordinates; NUTS refused it, or for rate priors read rates as log-rates
+  (#174, DECISIONS #120).
+- Docs: the Laplace Student-t's (−H)⁻¹ is its scale matrix, not its covariance; also
+  `_HESSIAN_MAX_DIM`'s description, bootstrap's `tol`, MAP's `max_iter` (which covers
+  mix-SQP) and the engines' notation.
 
 ## [0.1.0] - 2026-10-29
 
