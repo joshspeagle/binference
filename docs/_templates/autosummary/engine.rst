@@ -1,5 +1,4 @@
-{# The default class template, documenting what an engine inherits from the bases
-   between it and Engine (MarkovEngine.run), as autodoc_default_options does not. #}
+{# Sphinx's default class template plus :inherited-members: Engine. #}
 {{ fullname | escape | underline}}
 
 .. currentmodule:: {{ module }}

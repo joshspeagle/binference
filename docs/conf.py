@@ -64,8 +64,7 @@ bibtex_reference_style = "author_year_round"
 
 # -- API reference ------------------------------------------------------------
 autosummary_generate = True
-# the engines' pages also document what they inherit from bases below Engine
-# (_templates/autosummary/engine.rst), which a default for inherited-members would override
+# a boolean inherited-members default would replace the engine template's option
 templates_path = ["_templates"]
 autodoc_default_options = {"members": True}
 autodoc_typehints = "none"

@@ -38,18 +38,12 @@ class Laplace(Engine):
 
     The posterior mode in unconstrained coordinates is found with L-BFGS, and the
     Hessian :math:`H` there from central differences of the exact gradient;
-    ``info["cov"]`` holds :math:`(-H)^{-1}`, the covariance of the Gaussian
-    approximation. With ``importance=True`` (default), proposals from a
-    multivariate Student-t with ``df`` degrees of freedom (a Gaussian for
-    ``df=None``) and scale matrix ``inflate**2`` times :math:`(-H)^{-1}` are mapped
-    to the simplex (or rates) and corrected towards the exact posterior by
-    Pareto-smoothed importance resampling. The Pareto shape ``k_hat`` (in
-    ``info``) diagnoses whether the correction is reliable: below
-    :math:`\min(1 - 1/\log_{10}n_{\rm draw}, 0.7)` for :math:`n_{\rm draw}`
-    proposals (Vehtari et al. 2024), in ``info["k_hat_threshold"]``. Without a
-    reliable correction, or with ``importance=False``, which returns draws from the
-    Gaussian with covariance ``inflate**2`` times :math:`(-H)^{-1}`, the result is
-    flagged ``approximate=True``.
+    ``info["cov"]`` holds :math:`(-H)^{-1}`. Proposals with scale matrix ``inflate**2``
+    times :math:`(-H)^{-1}` (see ``df``) are mapped to the simplex (or rates) and, with
+    ``importance=True``, resampled towards the exact posterior by Pareto-smoothed
+    importance weights. The result is flagged ``approximate=True`` when ``info["k_hat"]``
+    reaches ``info["k_hat_threshold"]`` (:func:`~binference.diagnostics.psis_threshold`),
+    and always without importance, whose draws are Gaussian.
 
     The approximation is excellent for well-populated bins with many objects
     and poorer for nearly empty bins, whose log-fractions have long tails.
