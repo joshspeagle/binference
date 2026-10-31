@@ -28,8 +28,8 @@ _TARGET_ACCEPT_LOGISTIC = 0.9
 #: ``metric="auto"`` is dense for logistic priors up to this many dimensions, and up to
 #: this many the warm-up curvature is averaged over every chain's point, not taken at one.
 _DENSE_MAX_DIM = 200
-#: Up to this many dimensions, warm-up starts the metric from the curvature at the chains'
-#: positions early in warm-up.
+#: Up to this many dimensions, warm-up starts a logistic prior's metric from the curvature
+#: early in warm-up, at the chains' positions (at one chain's above ``_DENSE_MAX_DIM``).
 _HESSIAN_MAX_DIM = 500
 # Partial centring re-creates a funnel when the field itself pins the scale
 # hyperparameters down poorly (few modes per hyperparameter). In validation runs 0.28
@@ -281,7 +281,8 @@ class NUTS(MarkovEngine):
         For logistic priors, switch each basis coefficient between the
         non-centred and centred forms according to how strongly the data
         constrain it (partial non-centring with weights ``1 / -H_jj`` from the
-        curvature at the chains' positions early in warm-up). If the field
+        curvature early in warm-up, at one chain's position above 200 dimensions and at
+        every chain's below). If the field
         pins the hyperparameters down poorly (few basis coefficients per
         hyperparameter, e.g. a handful of bins), the coefficients stay
         non-centred, which avoids funnels. This changes the sampling
@@ -313,8 +314,9 @@ class NUTS(MarkovEngine):
     adaptation) the engine reparametrises the prior (``reparametrize``) and,
     for at most 500 dimensions, initialises the metric from the
     finite-difference curvature of the log posterior at the chains'
-    positions. Each later adaptation window shrinks its estimate toward the
-    previous window's metric, starting from that curvature-based one.
+    positions (at one chain's above 200 dimensions). Each later adaptation
+    window shrinks its estimate toward the previous window's metric, starting
+    from that curvature-based one.
     Simplex and rate priors use Stan's windowed adaptation unchanged.
 
     Results (``x``, ``log_density_unconstrained``, ``model``) are in the

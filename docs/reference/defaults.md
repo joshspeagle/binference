@@ -51,7 +51,7 @@ explain behaviour, not as settings to change.
 | `_TARGET_ACCEPT` | `0.8` | `binference.samplers.nuts` | `target_accept` when it is `None`, except for logistic priors. |
 | `_TARGET_ACCEPT_LOGISTIC` | `0.9` | `binference.samplers.nuts` | `target_accept` for logistic priors when it is `None`. |
 | `_DENSE_MAX_DIM` | `200` | `binference.samplers.nuts` | `metric="auto"` is dense for logistic priors up to this many dimensions, and up to this many the warm-up curvature is averaged over every chain's point, not taken at one. |
-| `_HESSIAN_MAX_DIM` | `500` | `binference.samplers.nuts` | Up to this many dimensions, warm-up starts the metric from the curvature at the chains' positions early in warm-up. |
+| `_HESSIAN_MAX_DIM` | `500` | `binference.samplers.nuts` | Up to this many dimensions, warm-up starts a logistic prior's metric from the curvature early in warm-up, at the chains' positions (at one chain's above `_DENSE_MAX_DIM`). |
 | `_CENTRING_MAX_SD` | `0.28` | `binference.samplers.nuts` | Logistic priors stay non-centred when the median spread of the modes' log-scales given the field exceeds this. |
 | `_GEOMETRY_ITER` | `25` | `binference.samplers.nuts` | Warm-up iteration of the partial centring of logistic priors, or the first slow window's start if that is earlier. |
 | `_DUAL_AVERAGING` | `(10, 0.05, 0.75)` | `binference.samplers.nuts` | `t0`, `gamma` and `kappa` of the dual-averaging step-size adaptation. |
