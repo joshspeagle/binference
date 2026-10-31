@@ -56,6 +56,13 @@ releases may break the API).
 - `check()` flags Markov chains that give no R-hat or ESS, shorter than 8 draws
   (`MIXING_MIN_DRAWS`) or constant; they passed with no message (DECISIONS #117).
 - `PointEstimate` refuses rates with the same message as `PopulationResult`.
+- `Measure` objects are immutable, as `Bins` are; renaming the shared `Measure.log()`
+  broke the saving of bins. `Bins`, `Selection`, `Response` and `Measure` also refuse
+  `del` of an attribute, after which it could be set again (DECISIONS #116).
+- `PopulationModel.log_likelihood` refuses a value that is not finite and non-negative,
+  or is all zero; a negative fraction gave a finite log-likelihood (DECISIONS #116).
+- `sbc` ranks the log-likelihood of a model that infers its selection or response in one
+  pass over the draws: the same values, about 11 times faster (DECISIONS #116).
 
 ### Removed
 
@@ -69,6 +76,8 @@ releases may break the API).
   `PopulationModel.kkt_gap` and `PopulationModel.missing_information`, or
   `PointEstimate.kkt_gap` (DECISIONS #117).
 - `simulate.Truth.extra`, which nothing set or read.
+- `Bins.widths`, which nothing used; per-axis widths are `np.diff(bins.edges[d])`
+  (DECISIONS #116).
 
 ### Fixed
 
@@ -143,6 +152,22 @@ releases may break the API).
 - The ECDF p-value is documented as the Bonferroni bound below 1e-12, and Pareto
   smoothing as needing at least 21 weights; with fewer, k̂ = inf and the weights are not
   smoothed.
+- Unpickled `Bins`, and copies of grids with a non-linear measure, had writeable edges.
+- `Bins.linear`, `Bins.log` and `Bins.coarsen` refuse a count or factor that is not a
+  positive integer, naming it; they truncated it, and `coarsen(1.5)` returned the bins
+  unchanged. `Bins.categories(2.0)` raises a TypeError naming `labels`.
+- `PopulationModel.expected_counts` raises, naming the objects of zero likelihood, and
+  checks `value`; it returned zeros for them.
+- `missing_information(include_prior=True)` adds a `GammaRates` prior's pseudo-counts as
+  the MAP EM does: 0.49 instead of 0.89 for `GammaRates(200, 1)`, which corrects the
+  missing information reported when the rates EM does not converge. It is NaN where
+  shapes below one outweigh the data (DECISIONS #116).
+- A distribution with `cdf` and `sf` but no `logsf` keeps its upper tail.
+- `Likelihoods.from_samples` names the measure when a sample falls where a
+  `Measure.transform` has no finite slope, and `Measure.log_jacobian` no longer emits
+  NumPy warnings there.
+- The docs of `tol`, of `PopulationModel(bins=)` and of `kkt_gap(include_prior=)` say
+  what the code does.
 
 ## [0.1.0] - 2026-10-29
 

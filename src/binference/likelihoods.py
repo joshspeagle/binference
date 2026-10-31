@@ -985,7 +985,15 @@ class Likelihoods:
         else:
             zz = flat[inside].reshape(-1, bins.ndim)
             log_pi_u = np.asarray(log_pi(zz[:, 0] if bins.ndim == 1 else zz), dtype=float).ravel()
-            log_pi_u -= sum(m.log_jacobian(zz[:, d]) for d, m in enumerate(bins.measures))
+            for d, m in enumerate(bins.measures):
+                with np.errstate(divide="ignore", invalid="ignore"):  # NaN at an edge: below
+                    log_jac = m.log_jacobian(zz[:, d])
+                if not np.all(np.isfinite(log_jac)):
+                    raise ValueError(
+                        f"Samples fall where the slope of {m!r} is infinite, zero or undefined, "
+                        "as at an edge of its domain."
+                    )
+                log_pi_u -= log_jac
         if not np.all(np.isfinite(log_pi_u)):
             raise ValueError("Samples fall where the interim density is zero or undefined.")
         # rows are rescaled to counts below, so shift each object's log weights to max 0
@@ -1130,7 +1138,8 @@ class Likelihoods:
             Full covariance matrices (symmetric positive definite), in place of
             ``sigma``.
         tol : float, optional
-            Relative tolerance of the adaptive quadrature over each bin.
+            Tolerance of the adaptive quadrature, relative to each object's largest bin
+            average.
         max_depth : int, optional
             Most refinements of the adaptive quadrature.
         warn_outside : bool, optional
@@ -1291,12 +1300,12 @@ class Likelihoods:
         in log space so that far tails keep their precision.
 
         Other integrals use adaptive quadrature: each bin is refined until the
-        estimated error is below ``tol`` relative to each row's largest bin
-        average, splitting cells at most ``max_depth`` times; ``n_sub`` instead
-        fixes ``n_sub`` Gauss-Legendre points per bin and axis. A jump in the outer
-        4.7% of a cell, or a peak narrower than the spacing of the points, can fall
-        between them and be missed without a warning: pass ``bounded=True`` for a
-        bounded density, such as a box, or put bin edges at the jumps.
+        estimated error is below ``tol``, splitting cells at most ``max_depth`` times;
+        ``n_sub`` instead fixes ``n_sub`` Gauss-Legendre points per bin and axis. A
+        jump in the outer 4.7% of a cell, or a peak narrower than the spacing of the
+        points, can fall between them and be missed without a warning: pass
+        ``bounded=True`` for a bounded density, such as a box, or put bin edges at the
+        jumps.
         Distributions with a ``cdf`` on 1-D bins give exact bin masses, for posteriors
         and for likelihoods on bins linear in z, and the fraction of each one's mass
         outside the active bins is recorded in ``meta["outside_fraction"]`` (see
@@ -1319,7 +1328,8 @@ class Likelihoods:
         log : bool, optional
             The function returns logarithms.
         tol : float, optional
-            Relative tolerance of the adaptive quadrature over each bin.
+            Tolerance of the adaptive quadrature, relative to each object's largest bin
+            average (bin mass for posteriors).
         max_depth : int, optional
             Most refinements of the adaptive quadrature.
         n_sub : int, optional

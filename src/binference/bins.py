@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from ._utils import frozen, warn
+from ._utils import SetOnce, check_positive_integers, frozen, warn
 from .measure import Measure
 from .warnings import InputWarning
 
@@ -31,7 +31,7 @@ def _as_edges(e: Any, axis: int = 0) -> np.ndarray:
         raise ValueError(f"Edges along axis {axis} must be finite.")
     if not np.all(np.diff(arr) > 0):
         raise ValueError(f"Edges along axis {axis} must be strictly increasing.")
-    return frozen(arr)
+    return arr
 
 
 def _looks_geometric(e: np.ndarray) -> bool:
@@ -42,7 +42,7 @@ def _looks_geometric(e: np.ndarray) -> bool:
     return bool(np.allclose(r, r[0], rtol=1e-6) and not np.allclose(d, d[0], rtol=1e-6))
 
 
-class Bins:
+class Bins(SetOnce):
     """The bins (or categories) over which populations and likelihoods are defined.
 
     A ``Bins`` object describes the support of the population distribution: a
@@ -136,7 +136,7 @@ class Bins:
                 lookup = np.full(n, -1, dtype=np.int64)
                 lookup[active] = np.arange(active.size)
                 lookup = frozen(lookup)
-        self._edges = edges
+        self._edges = tuple(frozen(e) for e in edges)
         self._shape = shape
         self._labels = None
         self._measures = measures
@@ -180,9 +180,8 @@ class Bins:
         mask : array_like of bool, optional
             Which bins are part of the support (default: all).
         """
-        if n < 1:
-            raise ValueError("n must be at least 1.")
-        return cls(np.linspace(lo, hi, int(n) + 1), measure="linear", mask=mask)
+        n = check_positive_integers(n, "n")[0]
+        return cls(np.linspace(lo, hi, n + 1), measure="linear", mask=mask)
 
     @classmethod
     def log(cls, lo: float, hi: float, n: int, mask: Any = None) -> Bins:
@@ -199,9 +198,8 @@ class Bins:
         """
         if lo <= 0:
             raise ValueError("Logarithmic bins need lo > 0.")
-        if n < 1:
-            raise ValueError("n must be at least 1.")
-        return cls(np.geomspace(lo, hi, int(n) + 1), measure="log", mask=mask)
+        n = check_positive_integers(n, "n")[0]
+        return cls(np.geomspace(lo, hi, n + 1), measure="log", mask=mask)
 
     @classmethod
     def from_centers(cls, centers: Any, measure: MeasureLike = "linear") -> Bins:
@@ -272,12 +270,16 @@ class Bins:
             if labels < 2:
                 raise ValueError("Need at least two categories.")
             labs = tuple(range(int(labels)))
-        else:
+        elif np.iterable(labels) and not isinstance(labels, str):
             labs = tuple(labels)
             if len(labs) < 2:
                 raise ValueError("Need at least two categories.")
             if len(set(labs)) != len(labs):
                 raise ValueError("Category labels must be unique.")
+        else:
+            raise TypeError(
+                f"labels must be the number of categories or a sequence of them; got {labels!r}."
+            )
         obj = cls.__new__(cls)
         K = len(labs)
         obj._edges = obj._measures = obj._u_edges = obj._active = obj._lookup = None
@@ -375,11 +377,6 @@ class Bins:
         return np.prod(widths, axis=0)
 
     @property
-    def widths(self) -> tuple[np.ndarray, ...]:
-        """Per-axis bin widths in ``z`` over the whole grid (raises for categories)."""
-        return tuple(np.diff(e) for e in self.edges)
-
-    @property
     def labels(self) -> tuple[Any, ...] | None:
         """Category labels (``None`` for grids)."""
         return self._labels
@@ -432,18 +429,11 @@ class Bins:
         rng = ", ".join(f"({lo:g}, {hi:g})" for lo, hi in self.range)
         return f"Bins.grid(shape={self.shape}, range=[{rng}]{extra})"
 
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name in Bins.__slots__ and not hasattr(self, name):
-            object.__setattr__(self, name, value)
-        else:
-            raise AttributeError("Bins objects are immutable.")
-
     def __reduce__(self):
         if self.is_categorical:
             return (Bins.categories, (list(self._labels),))
-        edges = tuple(np.array(e) for e in self._edges)
         mask = self.mask if self.is_masked else None
-        return (Bins._from_grid, (edges, self._measures, mask))
+        return (Bins._from_grid, (self._edges, self._measures, mask))
 
     def index(self, values: Any) -> np.ndarray:
         """Bin index of each value (``-1`` outside the support or in a masked cell).
@@ -587,10 +577,7 @@ class Bins:
         """
         if self.is_categorical:
             raise ValueError("Categories have no geometry to refine.")
-        f = np.broadcast_to(np.asarray(factor), (self.ndim,))
-        if not all(float(x).is_integer() and x >= 1 for x in f):
-            raise ValueError(f"factor must be positive integers; got {factor!r}.")
-        f = f.astype(int)
+        f = check_positive_integers(factor, "factor", self.ndim)
         new_edges = []
         for d, (m, u) in enumerate(zip(self._measures, self._u_edges, strict=True)):
             t = np.arange(f[d]) / f[d]
@@ -623,11 +610,11 @@ class Bins:
             raise ValueError(
                 "Categories have no geometry to coarsen; merge them with result.rebin(groups)."
             )
-        f = np.broadcast_to(np.asarray(factor, dtype=int), (self.ndim,))
+        f = check_positive_integers(factor, "factor", self.ndim)
         new_edges = []
         for d, e in enumerate(self._edges):
             n = len(e) - 1
-            if f[d] < 1 or n % f[d] != 0:
+            if n % f[d] != 0:
                 raise ValueError(f"Axis {d} has {n} bins, not divisible by factor {f[d]}.")
             new_edges.append(e[:: f[d]])
         coarse_idx = tuple(i // f[d] for d, i in enumerate(self._cell_index))
