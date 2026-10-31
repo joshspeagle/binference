@@ -16,6 +16,11 @@ releases may break the API).
   and `alpha` as a dict from group names, and bins as the tree writes them, to the
   concentration of the branch into each (DECISIONS #108).
 
+### Changed
+
+- The `test` extra installs scikit-learn 1.6 or later, so the test of
+  `PopulationEstimator` with scikit-learn's model selection runs (DECISIONS #110).
+
 ### Removed
 
 - `PopulationModel.prior_transform`, `BoundPrior.prior_transform` (on the Dirichlet, tree

@@ -77,8 +77,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.13", "3.14"]
         include:
-          # one job measures coverage and installs scikit-learn, so the test that needs it runs
-          - { os: ubuntu-latest, python-version: "3.13", cov: "--cov=binference --cov-report=term-missing", sklearn: scikit-learn }
+          - { os: ubuntu-latest, python-version: "3.13", cov: "--cov=binference --cov-report=term-missing" }
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -86,7 +85,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: pyproject.toml
-      - run: pip install -e ".[test,xarray]" ${{ matrix.sklearn }}
+      - run: pip install -e ".[test,xarray]"
       - run: pytest ${{ matrix.cov }}
         env:
           OMP_NUM_THREADS: "2"
@@ -232,10 +231,9 @@ jobs:
           "$RUNNER_TEMP/clean/bin/python" -I -c "import binference; print(binference.__version__)"
 
   ci-ok:
-    # One check that sums up a run, for branch protection: it fails when a job failed or was
-    # cancelled, and passes when jobs were skipped because the change cannot affect them or
-    # the run does not ask for them (slow). It needs changes too: a failed changes job skips
-    # the jobs that need it instead of failing them.
+    # One check that sums up a run, for branch protection: it fails when a job it needs failed
+    # or was cancelled (a failed changes job skips the rest), and passes when jobs were skipped
+    # because the change cannot affect them or the run does not ask for them.
     if: always()
     needs: [changes, lint, test, minimum-dependencies, slow, docs, dist]
     runs-on: ubuntu-latest
