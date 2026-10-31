@@ -34,10 +34,12 @@ class Density:
 
     # exactly one of _flat ("measure" or "z"), _values (per-bin array, read as
     # masses, densities or, when _per_volume is None, either on equal-volume bins),
-    # _func (callable density) or _dist (distribution object) is set
-    __slots__ = ("_dist", "_flat", "_func", "_per_volume", "_values")
+    # _func (callable density, _bounded if it is) or _dist (distribution object) is set
+    __slots__ = ("_bounded", "_dist", "_flat", "_func", "_per_volume", "_values")
 
-    def __init__(self, *, flat=None, values=None, per_volume=False, func=None, dist=None):
+    def __init__(
+        self, *, flat=None, values=None, per_volume=False, func=None, dist=None, bounded=False
+    ):
         if sum(x is not None for x in (flat, values, func, dist)) != 1:
             raise TypeError(
                 "Build a Density with flat, from_masses, from_densities, from_function, "
@@ -47,6 +49,7 @@ class Density:
         self._values = values
         self._per_volume = per_volume
         self._func = func
+        self._bounded = bounded
         self._dist = dist
 
     # ------------------------------------------------------------ constructors
@@ -89,7 +92,9 @@ class Density:
         return cls(values=_nonneg(densities, "densities"), per_volume=True)
 
     @classmethod
-    def from_function(cls, func: Callable[[np.ndarray], np.ndarray]) -> Density:
+    def from_function(
+        cls, func: Callable[[np.ndarray], np.ndarray], *, bounded: bool = False
+    ) -> Density:
         """A callable density of ``z``, averaged over each bin by quadrature.
 
         On grids ``func`` receives points of shape ``(M,)`` (1-D) or
@@ -99,10 +104,14 @@ class Density:
         ----------
         func : callable
             Non-negative density of ``z``.
+        bounded : bool, optional
+            ``func`` is bounded, such as a box: each cell is also checked for jumps near
+            its edges, as a selection function's is (see :meth:`Likelihoods.from_density
+            <binference.Likelihoods.from_density>`).
         """
         if not callable(func):
             raise TypeError("func must be callable.")
-        return cls(func=func)
+        return cls(func=func, bounded=bounded)
 
     @classmethod
     def from_distribution(cls, dist: Any) -> Density:
@@ -122,7 +131,11 @@ class Density:
 
     @classmethod
     def coerce(
-        cls, value: Any, representation: Representation | None = None, name: str = "interim"
+        cls,
+        value: Any,
+        representation: Representation | None = None,
+        name: str = "interim",
+        bounded: bool = False,
     ) -> Density:
         """A :class:`Density` from a density, ``"flat"``, a callable, a distribution or an array.
 
@@ -139,6 +152,8 @@ class Density:
             Whether an array holds masses or densities.
         name : str, optional
             Name of the argument, used in error messages.
+        bounded : bool, optional
+            A callable ``value`` is bounded (see :meth:`from_function`).
         """
         if representation not in (None, "mass", "density"):
             raise ValueError(f"{name} representation must be 'mass' or 'density'.")
@@ -151,7 +166,7 @@ class Density:
         if _is_distribution(value):
             return cls.from_distribution(value)
         if callable(value):
-            return cls.from_function(value)
+            return cls.from_function(value, bounded=bounded)
         per_volume = {None: None, "mass": False, "density": True}[representation]
         return cls(values=_nonneg(value, name), per_volume=per_volume)
 
@@ -216,9 +231,8 @@ class Density:
             logf = lambda z: _log_nonneg(self._func(z))[None]  # noqa: E731
         if self._dist is not None and not _has_pdf(self._dist):
             raise TypeError(f"{self!r} needs a logpdf or pdf here (or a cdf on 1-D bins).")
-        log_avg = bin_log_average(
-            logf, bins, coordinate="z", tol=tol, max_depth=max_depth, n_sub=n_sub
-        )
+        quad = {"tol": tol, "max_depth": max_depth, "n_sub": n_sub, "jumps": self._bounded}
+        log_avg = bin_log_average(logf, bins, coordinate="z", **quad)
         return np.exp(log_avg[0]) * bins.volumes
 
     def _log_pointwise(self) -> Callable[[np.ndarray], np.ndarray] | None:
@@ -239,7 +253,7 @@ class Density:
             return f"Density.from_{kind}(<{self._values.size} values>)"
         if self._dist is not None:
             return f"Density.from_distribution({self._dist!r})"
-        return f"Density.from_function({self._func!r})"
+        return f"Density.from_function({self._func!r}{', bounded=True' if self._bounded else ''})"
 
     def _fingerprint(self) -> str:
         """This density's key in a prior's fingerprint: its repr, with what that leaves out.

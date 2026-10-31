@@ -68,3 +68,9 @@ print(lk_d.N)
 If some bins do not reach `tol`, binference raises an `InputWarning`
 ([warnings](../../reference/warnings.md#inputwarning)). If that happens, raise
 `max_depth` or `tol`, or pass `n_sub=` for a fixed number of points per bin and axis.
+
+The quadrature's points leave the outer 4.7% of each cell unread, so a jump there can
+be missed without a warning. For a bounded density with jumps, such as a box, pass
+`bounded=True`: each cell is also checked against points just inside its edges, at
+13/8 the points per cell in 1-D. A posterior's interim prior given as a function gets
+the same check.
