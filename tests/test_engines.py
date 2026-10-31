@@ -185,7 +185,7 @@ def test_nuts_validation():
     with pytest.raises(ValueError, match="zero posterior density"):  # its density when run
         NUTS(PopulationModel(np.eye(2)), init_x=[1e3]).run(1)
     with pytest.raises(ValueError, match="fractions or rates of shape"):
-        NUTS(m, init=np.zeros(5) + 0.2)  # a point in unconstrained coordinates is not fractions
+        NUTS(m, init=np.full(m.dim, 0.2))  # a point in unconstrained coordinates
     with pytest.raises(ValueError, match="not both"):
         NUTS(m, init=[0.5, 0.5], init_x=[0.0])
     with pytest.raises(RuntimeError):

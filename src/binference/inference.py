@@ -90,8 +90,7 @@ class Auto(Engine):
         As for every engine.
     **engine_kwargs
         Options for the chosen engine. Auto makes each engine it may run when it is
-        made, so that each checks them at once. ``init`` takes positive fractions or
-        rates of shape (K,), as every engine reads it.
+        made, so that each checks them at once.
     """
 
     joint = True

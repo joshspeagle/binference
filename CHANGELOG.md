@@ -77,14 +77,12 @@ releases may break the API).
 - `BoundPrior` documents the interface a new prior implements.
 - `method="auto"` builds every engine it may run when it is made, so a bad engine
   option, or options that no engine takes, raise before any fit (#174).
-- Breaking: `init` given to `method="auto"` is fractions or rates of shape (K,), as for
-  Gibbs and MAP. Before, a fraction refused NUTS's start, a rate was read as a log-rate,
-  and a point in NUTS's coordinates (when NUTS was the only candidate) was used as given;
-  such a point is now refused by its shape or, for rates, read as rates (#174).
-- Breaking: `NUTS(init=)` also takes fractions or rates of shape (K,), converted with
-  `PopulationModel.from_value` to one point that each chain jitters, so `init` means the
-  same for every engine. Starts in NUTS's unconstrained coordinates, shape (dim,) or
-  (n_chains, dim), are passed as `init_x` (#190).
+- Breaking: `init` is fractions or rates of shape (K,) for `method="auto"` and `NUTS`, as
+  for Gibbs and MAP; NUTS converts it with `PopulationModel.from_value` to one point that
+  each chain jitters. Starts in NUTS's unconstrained coordinates, shape (dim,) or
+  (n_chains, dim), are passed as `init_x`. Before, auto refused a fraction for NUTS's
+  start, read a rate as a log-rate, and passed a point in NUTS's coordinates on as given
+  (#174, #190).
 - Above 200 dimensions, NUTS takes a logistic prior's hyperparameter curvature at one
   chain, like the rest of its warm-up curvature.
 - The defaults page lists NUTS's divergence threshold, `_MAX_ENERGY_ERROR`.
@@ -137,7 +135,7 @@ releases may break the API).
   made; a wrong shape failed inside NumPy. EM raises zeros in its start to 1e-12 of the
   largest value, so a zero, from `init` or from mix-SQP's hand-off to EM, no longer
   leaves a wrong mode with only a convergence warning.
-- `NUTS` checks `model` and the shape and finiteness of `init` when it is made.
+- `NUTS` checks `model`, and the shape and finiteness of `init_x`, when it is made.
 - The start for rates with a selection is near the mode for broad likelihoods too.
 - Gibbs refuses a negative `n_warmup`; `Laplace.run` with fewer than 3 samples draws 5
   importance proposals rather than failing in Pareto smoothing; the
