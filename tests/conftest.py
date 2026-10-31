@@ -21,6 +21,8 @@ _SEEDS = [int(s) for s in os.environ.get("BINFERENCE_TEST_SEEDS", "0").split(","
 def matrix():
     """The benchmark-matrix script, ``benchmarks/matrix.py``, as a module."""
     path = Path(__file__).parents[1] / "benchmarks" / "matrix.py"
+    if not path.parent.exists():
+        pytest.skip("benchmarks/ is not next to the tests (sdist)")
     spec = importlib.util.spec_from_file_location("matrix", path)
     module = importlib.util.module_from_spec(spec)
     sys.modules["matrix"] = module  # dataclasses look their module up
