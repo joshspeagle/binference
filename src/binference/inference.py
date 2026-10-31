@@ -192,8 +192,11 @@ class Auto(Engine):
                         f"gibbs_max_missing={self.gibbs_max_missing:g})"
                     )
         out += [(key, "", None) for key in self._may_run if key != "gibbs"]
-        if not out:  # only Gibbs takes the options, and its missing information ruled it out
-            raise self._none_takes_the_options()
+        if not out:  # only Gibbs takes the options, and a rule left it out
+            raise ValueError(
+                f"Only Gibbs takes all of {sorted(kw)}, but {left_out[0]}; pass "
+                "method='gibbs' to run it anyway."
+            )
         return out, left_out
 
     def run(self, n_samples: int | None = None) -> PopulationResult:

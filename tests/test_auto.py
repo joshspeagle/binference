@@ -157,6 +157,12 @@ def test_infer_refuses_an_n_samples_that_is_not_a_positive_integer(n_samples):
         inf.Auto(binference.PopulationModel(_lk(0.3))).run(n_samples)
 
 
+def test_options_only_gibbs_takes_name_the_rule_that_left_gibbs_out():
+    # Gibbs alone takes thin, and its missing information (0.99) rules it out
+    with pytest.raises(ValueError, match=r"Only Gibbs takes all of \['thin'\], but Gibbs would"):
+        inf.Auto(binference.PopulationModel(_lk(3.0)), thin=2).run()
+
+
 def test_auto_and_engine_options_are_checked_by_name_when_auto_is_made():
     model = binference.PopulationModel(_lk(0.3))
     for kw, name in (
