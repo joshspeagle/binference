@@ -30,15 +30,17 @@ releases may break the API).
 
 ### Fixed
 
-- `MAP` checks `init` when the engine is made, and it must be positive, as for Gibbs. A
-  wrong shape failed inside NumPy, and a zero, which EM never moves, gave a wrong mode
-  with only a convergence warning (DECISIONS #112).
+- `MAP` checks `init`'s shape and sign when the engine is made; a wrong shape failed
+  inside NumPy. EM raises zeros in its start to 1e-12, so a zero, from `init` or from
+  mix-SQP's hand-off to EM, no longer leaves a wrong mode with only a convergence
+  warning (DECISIONS #112).
 - `NUTS` checks `model` and the shape and finiteness of `init` when it is made.
 - The start for rates with a selection is near the mode for broad likelihoods too
   (DECISIONS #112).
-- Gibbs refuses a negative `n_warmup`; Laplace refuses fewer than 5 importance proposals
-  before finding the mode, naming `n_samples`; the engines that can infer a selection
-  are each named once in the refusal of those that cannot.
+- Gibbs refuses a negative `n_warmup`; `Laplace.run` with fewer than 3 samples draws 5
+  importance proposals rather than failing in Pareto smoothing (DECISIONS #112); the
+  engines that can infer a selection are each named once in the refusal of those that
+  cannot.
 - The sdist no longer includes walkthrough notes, and its tests skip the checks that
   need `docs/` or `benchmarks/`, which it does not ship (DECISIONS #110).
 
