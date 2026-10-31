@@ -82,10 +82,8 @@ class Dirichlet(PopulationPrior):
 
     Parameters
     ----------
-    alpha : float, array_like (K,), or "reference"
-        Concentration parameters (strictly positive). ``"reference"`` uses
-        ``alpha = 1/K`` (Berger, Bernardo & Sun 2015), which avoids swamping
-        sparse problems with many bins.
+    alpha : float or array_like (K,)
+        Concentration parameters (strictly positive).
 
     Notes
     -----
@@ -94,14 +92,13 @@ class Dirichlet(PopulationPrior):
     base measure (flat in the measure coordinate by default) instead.
     """
 
-    def __init__(self, alpha: float | Sequence[float] | np.ndarray | str = 1.0) -> None:
-        if isinstance(alpha, str):
-            if alpha != "reference":
-                raise ValueError("alpha must be positive numbers or 'reference'.")
-        else:
-            check_positive(alpha, "Dirichlet alpha")
+    def __init__(self, alpha: float | Sequence[float] | np.ndarray = 1.0) -> None:
+        check_positive(alpha, "Dirichlet alpha")
         self.alpha = alpha
         self._base: tuple[float, Any] | None = None
+
+    def __repr__(self) -> str:
+        return "Dirichlet.reference()" if isinstance(self.alpha, str) else super().__repr__()
 
     def _params(self):
         if self._base is not None:
@@ -109,15 +106,15 @@ class Dirichlet(PopulationPrior):
         return {"alpha": self.alpha}
 
     @classmethod
-    def reference(cls, K: int | None = None) -> Dirichlet:
-        """Reference prior ``alpha = 1/K``.
+    def reference(cls) -> Dirichlet:
+        """Reference prior ``alpha = 1/K`` (Berger, Bernardo & Sun 2015).
 
-        Parameters
-        ----------
-        K : int, optional
-            Number of bins; ``None`` takes it from the bins when the prior is bound.
+        ``K`` is the number of bins the prior is bound to. Adding one pseudo-object in all
+        rather than ``K``, it avoids swamping sparse problems with many bins.
         """
-        return cls("reference") if K is None else cls(1.0 / K)
+        obj = cls()
+        obj.alpha = "reference"  # 1/K, set at binding
+        return obj
 
     @classmethod
     def from_counts(
@@ -139,10 +136,8 @@ class Dirichlet(PopulationPrior):
         base : float, optional
             Concentration added to every bin.
         """
-        c = np.asarray(counts, dtype=float)
-        if np.any(c < 0):
-            raise ValueError("counts must be non-negative.")
-        return cls(base + strength * c)
+        c = check_nonnegative(counts, "counts")
+        return cls(check_nonnegative(base, "base") + check_nonnegative(strength, "strength") * c)
 
     @classmethod
     def from_base_measure(cls, concentration: float = 1.0, base: Any = "flat") -> Dirichlet:
@@ -298,15 +293,13 @@ class _TreeStructure:
                 slot_mem[s] = node_mem[idx]
         self.node_mem = node_mem
         self.slot_mem = slot_mem
+        # each branch's exponent on the simplex: its alpha less the bins below it
+        self.slot_exponent = self.slot_alpha - slot_mem.sum(axis=1)
         A_node = np.add.reduceat(self.slot_alpha, self.node_start[:-1])
-        self.A_node = A_node
         self.leaf_coef = self.slot_alpha[leaf_slot] - 1.0  # (K,)
         nr = np.arange(1, C)
         self.node_coef = self.slot_alpha[parent_slot_of_node[nr]] - A_node[nr]  # (C-1,)
         self.nonroot_mem = node_mem[1:]
-        # slot_nodes[s, c'] = 1 if non-root internal node c' lies under (or is) slot s's child
-        sizes = self.nonroot_mem.sum(axis=1)
-        self.slot_nodes = ((slot_mem @ self.nonroot_mem.T) == sizes[None, :]).astype(float)
         self.const = float(
             np.sum(special.gammaln(A_node)) - np.sum(special.gammaln(self.slot_alpha))
         )
@@ -358,17 +351,37 @@ class _BoundTree(_SimplexBound):
         return np.maximum(self.tree.compose(theta), _TINY)
 
     def unbounded_density(self):
-        # a branch's exponent on the simplex is its alpha less the bins below it; a
-        # negative one (e.g. Polya trees, whose concentrations grow with depth) makes the
-        # density unbounded. Read from alpha, not summed from the log-density's
-        # coefficients, whose rounding can put an exponent of zero below it.
-        t = self.tree
-        return bool(np.any(t.slot_alpha < t.slot_mem.sum(axis=1)))
+        # a branch with less concentration than bins below it (e.g. near the root of a
+        # Polya tree with c below K/2) has a negative exponent, which makes the density
+        # unbounded. Read from alpha, not summed from the log-density's coefficients,
+        # whose rounding can put an exponent of zero below it.
+        return bool(np.any(self.tree.slot_exponent < 0.0))
 
     def long_log_tails(self):
         # the Jacobian of the unconstrained coordinates adds one per bin below a
         # branch, so there its exponent is its alpha
         return bool(np.any(self.tree.slot_alpha < 1.0))
+
+    def _kkt_violation(self, value, grad, W, include_prior=True):
+        # In the branch probabilities theta, where the log-density is sum_j e_j log theta_j:
+        # at each node with mass, (n_j + e_j) / theta_j for the counts n_j below branch j,
+        # against lambda = sum (n_j + e_j) over its branches with mass (EM's M-step sets
+        # theta_j to (n_j + e_j) / lambda), relative to the counts the node holds,
+        # sum |n_j| + |e_j|: in the units of the gap in rho where the data dominate,
+        # relative to the prior where it does. A branch of exponent zero adds exactly zero;
+        # in rho its terms of order 1/rho cancel only to round-off, a gap of order 1e5 once
+        # a group of bins empties (rho near 1e-22).
+        if not include_prior:
+            return super()._kkt_violation(value, grad, W, False)
+        t = self.tree
+        vt = np.maximum(value, _TINY)  # as in the MAP objective
+        mass, n, live = (t.slot_mem @ np.column_stack([vt, vt * grad, value])).T
+        x = n + t.slot_exponent
+        live = live > 0
+        lam = t.node_totals(np.where(live, x, 0.0))
+        held = t.node_totals(np.where(live, np.abs(n) + np.abs(t.slot_exponent), 0.0))
+        r = (x * t.node_totals(mass) / mass - lam) / np.maximum(held, _TINY)
+        return float(np.max(r, where=t.node_totals(live.astype(float)) > 0, initial=-np.inf))
 
     def log_density(self, value):
         t = self.tree
@@ -396,11 +409,10 @@ class _BoundTree(_SimplexBound):
 
     def map_from_counts(self, counts, exposure=None):
         # Mode of (prior density on the simplex) x prod rho^counts. The log-density is
-        # linear in log leaf and node masses, i.e. linear in the log branch
-        # probabilities, so each node's branches are proportional to their coefficients.
+        # linear in the log branch probabilities, so each node's branches are proportional
+        # to their exponents plus the counts below them.
         t = self.tree
-        x = t.slot_mem @ (np.asarray(counts, float) + t.leaf_coef) + t.slot_nodes @ t.node_coef
-        x = np.maximum(x, 0.0)
+        x = np.maximum(t.slot_counts(counts) + t.slot_exponent, 0.0)
         tot = t.node_totals(x)
         uniform = 1.0 / t.node_totals(np.ones_like(x))  # a node with no mass splits evenly
         return t.compose(np.where(tot > 0, x / np.where(tot > 0, tot, 1.0), uniform))
@@ -714,7 +726,7 @@ class GeneralizedDirichlet(_TreePrior):
         First Beta parameter of each stick.
     b : float or array_like (K-1,), optional
         Second Beta parameter of each stick. ``None`` gives the
-        Dirichlet-equivalent ``b_k = (K - 1 - k) * a`` for scalar ``a``.
+        Dirichlet-equivalent ``b_k = (K - k) * a`` for scalar ``a``.
     order : sequence of int, optional
         Permutation of the bins defining the stick-breaking order.
     """

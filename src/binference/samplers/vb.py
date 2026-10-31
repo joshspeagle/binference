@@ -16,9 +16,9 @@ __all__ = ["MeanFieldVB"]
 
 
 class MeanFieldVB(Engine):
-    r"""Mean-field variational Bayes: :math:`q(\rho)\prod_i q(z_i)`.
+    r"""Mean-field variational Bayes: :math:`q(\rho)\prod_i q(k_i)`.
 
-    Coordinate ascent alternates :math:`q(z_i) \propto L_{ik}\exp E_q[\log\rho_k]`
+    Coordinate ascent alternates :math:`q(k_i=k) \propto L_{ik}\exp E_q[\log\rho_k]`
     and the conjugate update of :math:`q(\rho)` (e.g. a Dirichlet). This is the
     algorithm of RAIL's ``VarInfStackSummarizer``. It is fast but **under-
     estimates posterior widths**, severely so when per-object PDFs are broad

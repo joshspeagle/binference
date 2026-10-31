@@ -39,9 +39,11 @@ def short_nuts(monkeypatch):
 
 
 def test_auto_is_the_default_and_records_its_choice():
-    res = binference.infer(_lk(0.3), rng=0)
+    res = binference.infer(_lk(0.3), rng=0, check=False)
     assert res.method == res.info["auto_method"] == "gibbs"
     assert "missing information" in res.info["auto_reason"]
+    # deciding whether to extend the run computed the diagnostics; the result keeps them
+    assert "diagnostics" in res._cache
 
 
 def test_gibbs_runs_long_enough_for_the_target_ess():
@@ -60,9 +62,20 @@ def test_broad_likelihoods_leave_gibbs_and_a_failed_laplace_check_goes_to_nuts(s
     assert _plan(lk) == ["laplace", "nuts"]  # f > 0.98: Gibbs would mix too slowly
     assert _plan(lk, gibbs_max_missing=0.99999, max_gibbs_draws=10**7)[0] == "gibbs"
     res = binference.infer(lk, P.Dirichlet(0.1), rng=0, n_samples=50, check=False)
-    assert (
-        res.method == "nuts" and res.info["auto_reason"] == "the Laplace importance check failed"
+    assert res.method == "nuts" and res.info["auto_reason"].endswith(
+        "; the Laplace importance check failed"
     )
+
+
+def test_the_reason_names_the_rule_that_left_gibbs_out(short_nuts):
+    # Gibbs takes n_warmup and n_chains (Laplace does not), but would mix too slowly
+    lk = _lk(3.0)
+    res = binference.infer(lk, rng=0, n_samples=50, n_warmup=50, n_chains=1, check=False)
+    assert res.method == "nuts" and res.info["auto_reason"].startswith(
+        "Gibbs would mix too slowly (missing information 0.99"
+    )
+    auto = inf.Auto(binference.PopulationModel(lk), gibbs_max_missing=0.9999, max_gibbs_draws=1500)
+    assert auto._plan(None)[1][0].startswith("Gibbs would need")
 
 
 def test_laplace_is_kept_when_its_importance_check_passes():
@@ -136,15 +149,43 @@ def test_auto_works_on_basis_likelihoods(short_nuts):
     assert res.info["auto_method"] in ("gibbs", "laplace", "nuts")
 
 
-def test_auto_options_are_checked_by_name():
+@pytest.mark.parametrize("n_samples", [0, -5, 2.5, "10"])
+def test_infer_refuses_an_n_samples_that_is_not_a_positive_integer(n_samples):
+    with pytest.raises(ValueError, match="n_samples must be a positive integer"):
+        binference.infer(_lk(0.3), method="gibbs", n_samples=n_samples, n_warmup=1)
+    with pytest.raises(ValueError, match="n_samples must be a positive integer"):
+        inf.Auto(binference.PopulationModel(_lk(0.3))).run(n_samples)
+
+
+def test_options_only_gibbs_takes_name_the_rule_that_left_gibbs_out():
+    # Gibbs alone takes thin, and its missing information (0.99) rules it out
+    with pytest.raises(ValueError, match=r"Only Gibbs takes all of \['thin'\], but Gibbs would"):
+        inf.Auto(binference.PopulationModel(_lk(3.0)), thin=2).run()
+
+
+def test_auto_and_engine_options_are_checked_by_name_when_auto_is_made():
     model = binference.PopulationModel(_lk(0.3))
     for kw, name in (
         ({"target_ess": 0}, "target_ess"),
         ({"gibbs_max_missing": 1.0}, "gibbs_max_missing"),
         ({"nnz_limit": -1}, "nnz_limit"),
+        ({"df": 0}, "df"),  # an engine's option, checked by the engine auto makes (#174)
+        ({"init": [0.5, 0.5]}, "init"),
     ):
         with pytest.raises(ValueError, match=name):
             inf.Auto(model, **kw)
+
+
+def test_auto_gives_each_engine_init_in_its_own_coordinates(short_nuts):
+    lk = _lk(0.3)
+    v = np.arange(1.0, 11.0) / 55.0
+    # NUTS alone (target_accept) runs from fractions, which it refused before
+    res = binference.infer(lk, init=v, target_accept=0.8, rng=0, n_samples=5, check=False)
+    assert res.method == "nuts"
+    model = binference.PopulationModel(lk)
+    auto = inf.Auto(model, init=v)
+    np.testing.assert_array_equal(auto._make("gibbs").init, v)  # fractions, as Gibbs reads them
+    np.testing.assert_allclose(model.to_value(auto._make("nuts").init), v)  # unconstrained
 
 
 def test_laplace_draws_as_many_as_four_chains_would():

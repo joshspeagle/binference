@@ -17,7 +17,7 @@ from ..results import PopulationResult
 from ..warnings import ConvergenceWarning
 from ._curvature import covariance_from_hessian, fd_hessian, fd_hessian_diag
 from ._nuts_core import Metric, adaptation_windows, find_reasonable_eps, nuts_step
-from .base import Engine
+from .base import MarkovEngine
 
 __all__ = ["NUTS"]
 
@@ -28,7 +28,8 @@ _TARGET_ACCEPT_LOGISTIC = 0.9
 #: ``metric="auto"`` is dense for logistic priors up to this many dimensions, and up to
 #: this many the warm-up curvature is averaged over every chain's point, not taken at one.
 _DENSE_MAX_DIM = 200
-#: Up to this many dimensions, warm-up starts the metric from the curvature at the mode.
+#: Up to this many dimensions, warm-up starts a logistic prior's metric from the curvature
+#: early in warm-up, at the chains' positions (at one chain's above ``_DENSE_MAX_DIM``).
 _HESSIAN_MAX_DIM = 500
 # Partial centring re-creates a funnel when the field itself pins the scale
 # hyperparameters down poorly (few modes per hyperparameter). In validation runs 0.28
@@ -44,16 +45,16 @@ _GEOMETRY_ITER = 25
 _DUAL_AVERAGING = (10.0, 0.05, 0.75)
 
 
-def _centred(model: PopulationModel, lam: np.ndarray) -> PopulationModel:
-    """The model with its logistic prior partially centred by weights ``lam``."""
-    return model._with_bound_prior(model.prior.with_centering(lam))
+def _centred(model: PopulationModel, gamma: np.ndarray) -> PopulationModel:
+    """The model with its logistic prior partially centred by weights ``gamma``."""
+    return model._with_bound_prior(model.prior.with_centering(gamma))
 
 
-def _recentre(prior, x: np.ndarray, lam: np.ndarray) -> np.ndarray:
+def _recentre(prior, x: np.ndarray, gamma: np.ndarray) -> np.ndarray:
     """``prior.recentre`` on the prior's block of ``x``; an inferred selection's
     logit S after it is unchanged (DECISIONS #80)."""
     d = prior.dim
-    return np.concatenate([prior.recentre(x[:d], lam), x[d:]])
+    return np.concatenate([prior.recentre(x[:d], gamma), x[d:]])
 
 
 def _conditional_log_scale_sd(model, prior, pts: list[np.ndarray]) -> np.ndarray:
@@ -235,9 +236,9 @@ def _chain_worker(payload):
     An error from the model comes back as a value, so the parent can tell it from a
     failure of the pool itself (audit N-7).
     """
-    chain, lam, n_iter, adapt, max_depth, record = payload
+    chain, gamma, n_iter, adapt, max_depth, record = payload
     try:
-        model = _WORKER_MODEL if lam is None else _centred(_WORKER_MODEL, lam)
+        model = _WORKER_MODEL if gamma is None else _centred(_WORKER_MODEL, gamma)
         chain.fn = model.log_density_unconstrained_and_grad
         out = _advance_chain(chain, n_iter, adapt, max_depth, record)
     except Exception as err:
@@ -246,7 +247,7 @@ def _chain_worker(payload):
     return chain, out
 
 
-class NUTS(Engine):
+class NUTS(MarkovEngine):
     """No-U-Turn Sampler on the exact posterior, for every prior.
 
     Samples the unconstrained coordinates of the model (isometric log-ratios
@@ -280,7 +281,8 @@ class NUTS(Engine):
         For logistic priors, switch each basis coefficient between the
         non-centred and centred forms according to how strongly the data
         constrain it (partial non-centring with weights ``1 / -H_jj`` from the
-        curvature at the chains' positions early in warm-up). If the field
+        curvature early in warm-up, at one chain's position above 200 dimensions and at
+        every chain's below). If the field
         pins the hyperparameters down poorly (few basis coefficients per
         hyperparameter, e.g. a handful of bins), the coefficients stay
         non-centred, which avoids funnels. This changes the sampling
@@ -312,8 +314,9 @@ class NUTS(Engine):
     adaptation) the engine reparametrises the prior (``reparametrize``) and,
     for at most 500 dimensions, initialises the metric from the
     finite-difference curvature of the log posterior at the chains'
-    positions. Each later adaptation window shrinks its estimate toward the
-    previous window's metric, starting from that curvature-based one.
+    positions (at one chain's above 200 dimensions). Each later adaptation
+    window shrinks its estimate toward the previous window's metric, starting
+    from that curvature-based one.
     Simplex and rate priors use Stan's windowed adaptation unchanged.
 
     Results (``x``, ``log_density_unconstrained``, ``model``) are in the
@@ -323,7 +326,6 @@ class NUTS(Engine):
     """
 
     joint = True
-    markov = True
 
     def __init__(
         self,
@@ -344,9 +346,9 @@ class NUTS(Engine):
         super().__init__(model, rng=rng, progress=progress)
         logistic = model.prior.has_centering
         # results are in the non-centred form, so only engines ever hold a centred prior
-        if logistic and np.any(model.prior.lam != 1.0):
+        if logistic and np.any(model.prior.gamma != 1.0):
             raise ValueError(
-                "model: the logistic prior must be in its non-centred form (prior.lam all 1), "
+                "model: the logistic prior must be in its non-centred form (prior.gamma all 1), "
                 "as the model is built; NUTS chooses the centring itself."
             )
         if n_chains < 1:
@@ -385,10 +387,8 @@ class NUTS(Engine):
         self.jitter = float(jitter)
         self._chains: list[_Chain] | None = None
         self._base_model = model
-        self._lam = None  # partial-centring weights of the sampling coordinates, once chosen
+        self._gamma = None  # partial-centring weights of the sampling coordinates, once chosen
         self._pool = None  # worker processes, kept for one sample() (audit N-13)
-        self._warm = False
-        self._x: list[np.ndarray] = []
         self._lp: list[np.ndarray] = []
         self._stats: dict[str, list[np.ndarray]] = {k: [] for k in _STAT_KEYS}
         self.warmup_divergences = 0
@@ -454,16 +454,16 @@ class NUTS(Engine):
             n_act = prior0.n_active
             # only the field's diagonal curvature is needed here (audit N-10)
             diag = np.mean([fd_hessian_diag(fn0, x, range(n_act)) for x in pts[:n_pts]], axis=0)
-            lam = np.clip(1.0 / np.maximum(-diag, 1.0), 0.0, 1.0)
+            gamma = np.clip(1.0 / np.maximum(-diag, 1.0), 0.0, 1.0)
             # one decision for all modes that share the hyperparameters: mixing centred
             # and non-centred modes under one length scale mixed worst in validation
-            sd_c = _conditional_log_scale_sd(base, prior0, pts)
+            sd_c = _conditional_log_scale_sd(base, prior0, pts[:n_pts])
             scaled = sd_c > 0.0
             if np.any(scaled) and np.median(sd_c[scaled]) > _CENTRING_MAX_SD:
-                lam[scaled] = 1.0
-            model = _centred(base, lam)
-            pts = [_recentre(prior0, x, lam) for x in pts]
-            self._lam = lam
+                gamma[scaled] = 1.0
+            model = _centred(base, gamma)
+            pts = [_recentre(prior0, x, gamma) for x in pts]
+            self._gamma = gamma
         self.model = model
         fn = model.log_density_unconstrained_and_grad
         inv_m = None
@@ -491,7 +491,7 @@ class NUTS(Engine):
         fn = self.model.log_density_unconstrained_and_grad
         for ch in chains:
             ch.fn = None  # the model goes to each worker once, not with every chain
-        payloads = [(ch, self._lam, n_iter, adapt, self.max_depth, record) for ch in chains]
+        payloads = [(ch, self._gamma, n_iter, adapt, self.max_depth, record) for ch in chains]
         try:
             if self._pool is None:
                 model = _worker_model(self._base_model)
@@ -553,11 +553,7 @@ class NUTS(Engine):
                 _, _, div, _, _ = ch.step(self.max_depth, adapt=adapt)
                 self.warmup_divergences += int(div)
 
-    def warmup(self) -> None:
-        """Run warm-up (adaptation) if it has not been run yet."""
-        self._setup()
-        if self._warm:
-            return
+    def _warm_up(self) -> None:
         assert self._chains is not None
         windows = self._chains[0].windows
         logistic = self._base_model.prior.has_centering
@@ -570,18 +566,17 @@ class NUTS(Engine):
             self._advance(self.n_warmup - switch, adapt=True, desc="NUTS warm-up")
         finally:
             self._close_pool()  # warm-up phases share one pool; sampling starts its own
-        self._warm = True
 
     def _record(self, xs, lps, st, n_done: int) -> None:
         if n_done:
-            self._x.append(xs[:, :n_done])
+            self._draws.append(xs[:, :n_done])
             self._lp.append(lps[:, :n_done])
             for j, k in enumerate(_STAT_KEYS):
                 self._stats[k].append(st[:, j, :n_done])
 
     def _report(self, X: np.ndarray, LP: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Draws and log densities from the sampling coordinates to the model's (audit N-1)."""
-        if self._lam is None:
+        if self._gamma is None:
             return X, LP
         d = self.model.prior.dim  # an inferred selection's logit S follows unchanged
         x, lp = self.model.prior.to_noncentred(X[..., :d].reshape(-1, d), LP.reshape(-1))
@@ -634,28 +629,14 @@ class NUTS(Engine):
         finally:
             self._close_pool()
 
-    def run(self, n_samples: int = 1000) -> PopulationResult:
-        """Warm up (first call only), draw ``n_samples`` per chain, and return all draws so far.
-
-        Parameters
-        ----------
-        n_samples : int, optional
-            Draws per chain after warm-up.
-        """
-        for _ in self.sample(int(n_samples)):
-            pass
-        return self.result
-
     @property
     def result(self) -> PopulationResult:
         """A :class:`~binference.PopulationResult` with every draw recorded so far."""
-        if not self._x:
-            raise RuntimeError("No draws yet; call run().")
-        X = np.concatenate(self._x, axis=1)
+        X = self._all_draws()
         LP = np.concatenate(self._lp, axis=1)
         C, n, d = X.shape
         base = self._base_model
-        info: dict[str, Any] = {} if self._lam is None else {"centring": self._lam}
+        info: dict[str, Any] = {} if self._gamma is None else {"centring": self._gamma}
         vals = base.transform(X.reshape(-1, d)).reshape(C, n, -1)
         stats = {k: np.concatenate(v, axis=1) for k, v in self._stats.items()}
         info.update(stats)
