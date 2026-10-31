@@ -64,7 +64,9 @@ bibtex_reference_style = "author_year_round"
 
 # -- API reference ------------------------------------------------------------
 autosummary_generate = True
-autodoc_default_options = {"members": True, "inherited-members": False}
+# a boolean inherited-members default would replace the engine template's option
+templates_path = ["_templates"]
+autodoc_default_options = {"members": True}
 autodoc_typehints = "none"
 numpydoc_show_class_members = False
 numpydoc_class_members_toctree = False

@@ -193,9 +193,10 @@ it by {term}`importance sampling`.
 2. Central differences of the exact gradient give the Hessian $H$ there. If $-H$ is not
    positive definite, its small eigenvalues are raised to a floor
    ([defaults](../reference/defaults.md#engines)) with a warning.
-3. A multivariate Student-$t$ proposal with covariance $(-H)^{-1}$ draws $n_{\rm draw}$
-   proposals, by default a fixed multiple of the draws asked for. Its heavy tails make
-   the correction more robust than a Gaussian proposal.
+3. A multivariate Student-$t$ distribution with scale matrix $(-H)^{-1}$ draws
+   $n_{\rm draw}$ proposals, by default a fixed multiple of the draws asked for. With
+   `df` degrees of freedom its covariance is `df / (df - 2)` times its scale matrix.
+   Its heavy tails make the correction more robust than a Gaussian proposal.
 4. Pareto-smoothed importance sampling {cite:p}`vehtari2024` weights the proposals by
    the exact density, and systematic resampling turns them into draws.
 

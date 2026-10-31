@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from .. import _kernels as kern
-from .._utils import RNGLike, as_generator
+from .._utils import RNGLike, as_generator, check_nonnegative, check_positive
 from ..model import PopulationModel
+
+if TYPE_CHECKING:
+    from ..results import PopulationResult
 
 __all__ = ["Engine"]
 
@@ -23,6 +26,8 @@ class Engine:
     Engines are configured at construction and executed with :meth:`run`,
     which returns a :class:`~binference.PopulationResult` (or a
     :class:`~binference.PointEstimate` for :class:`~binference.samplers.MAP`).
+    Construction checks the options and draws no random numbers, so ``method="auto"``
+    makes an engine to check its options and makes it again to run it.
 
     Parameters
     ----------
@@ -81,6 +86,43 @@ class Engine:
         return f"{type(self).__name__}({self.model!r})"
 
 
+class MarkovEngine(Engine):
+    """Base class of the engines whose draws are Markov chains, which every
+    :meth:`run` after the first continues."""
+
+    markov = True
+
+    def __init__(self, model: PopulationModel, *, rng: RNGLike = None, progress: bool = False):
+        super().__init__(model, rng=rng, progress=progress)
+        self._warm = False  # whether warm-up has run
+        self._draws: list[np.ndarray] = []  # (n_chains, n, ...) per sample() call
+
+    def warmup(self) -> None:
+        """Run warm-up (Gibbs's burn-in, NUTS's adaptation) if it has not been run yet."""
+        self._setup()
+        if not self._warm:
+            self._warm_up()
+            self._warm = True
+
+    def run(self, n_samples: int = 1000) -> PopulationResult:
+        """Warm up (first call only), draw ``n_samples`` per chain, and return all draws so far.
+
+        Parameters
+        ----------
+        n_samples : int, optional
+            Draws per chain after warm-up.
+        """
+        for _ in self.sample(int(n_samples)):
+            pass
+        return self.result
+
+    def _all_draws(self) -> np.ndarray:
+        """Every draw so far, ``(n_chains, n, ...)``."""
+        if not self._draws:
+            raise RuntimeError("No draws yet; call run().")
+        return np.concatenate(self._draws, axis=1)
+
+
 def em_update(
     model: PopulationModel, value: np.ndarray, s: np.ndarray | None = None
 ) -> np.ndarray | None:
@@ -96,6 +138,21 @@ def em_update(
     nhat = value * kern.rmatvec(model._L, model._w / s)
     counts = model._complete_counts(value, nhat)
     return model.prior.map_from_counts(counts, exposure=model._exposure)
+
+
+def check_init(init: Any, model: PopulationModel, *, positive: bool = True) -> np.ndarray | None:
+    """``init`` as fractions or rates of shape (K,), checked: positive, or with
+    ``positive=False`` non-negative and not all zero; ``None`` stays ``None``."""
+    if init is None:
+        return None
+    init = check_positive(init, "init") if positive else check_nonnegative(init, "init")
+    if init.shape != (model.K,):
+        raise ValueError(
+            f"init must be fractions or rates of shape ({model.K},); got {init.shape}."
+        )
+    if not positive and not init.any():
+        raise ValueError("init must have a positive entry.")
+    return init
 
 
 def interior_start(model: PopulationModel, n_iter: int = INTERIOR_START_ITER) -> np.ndarray:

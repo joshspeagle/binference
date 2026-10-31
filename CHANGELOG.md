@@ -76,6 +76,16 @@ releases may break the API).
   builds a slot-by-node matrix: a `PolyaTree` on 2048 bins binds in 0.06 s (was 0.64 s)
   (#166, DECISIONS #119).
 - `BoundPrior` documents the interface a new prior implements.
+- `method="auto"` builds every engine it may run when it is made, so a bad engine
+  option, or options that no engine takes, raise before any fit (#174, DECISIONS #120).
+- Breaking: `init` given to `method="auto"` is fractions or rates of shape (K,), as for
+  Gibbs and MAP, and reaches NUTS converted to its unconstrained coordinates. Before, a
+  fraction refused NUTS's start, a rate was read as a log-rate, and a point in NUTS's
+  coordinates (when NUTS was the only candidate) was used as given; such a point is now
+  refused by its shape or, for rates, read as rates (#174, DECISIONS #120).
+- Above 200 dimensions, NUTS takes a logistic prior's hyperparameter curvature at one
+  chain, like the rest of its warm-up curvature (DECISIONS #120).
+- The defaults page lists NUTS's divergence threshold, `_MAX_ENERGY_ERROR`.
 
 ### Removed
 
@@ -204,6 +214,9 @@ releases may break the API).
   errors.
 - The docs say which priors have unbounded densities, give `GeneralizedDirichlet`'s
   default `b_k = (K - k) a`, and the length scale below which `LogisticGP` warns.
+- Docs: the Laplace Student-t's (−H)⁻¹ is its scale matrix, not its covariance; also
+  `_HESSIAN_MAX_DIM`'s description, bootstrap's `tol`, MAP's `max_iter` (which covers
+  mix-SQP) and the engines' notation.
 
 ## [0.1.0] - 2026-10-29
 

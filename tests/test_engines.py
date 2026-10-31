@@ -234,6 +234,13 @@ def test_gibbs_matches_exact(k3_problem):
     assert_matches_reference(res, exact.mean, exact.std)
 
 
+def test_gibbs_keeps_the_last_draw_of_every_thinning_block_of_each_chain(k3_problem):
+    m = PopulationModel(k3_problem[0].likelihoods)
+    thinned = Gibbs(m, n_chains=2, n_warmup=20, thin=3, rng=4).run(10)
+    every = Gibbs(m, n_chains=2, n_warmup=20, rng=4).run(30)
+    np.testing.assert_array_equal(thinned.chains, every.chains[:, 2::3])
+
+
 def test_gibbs_onehot_is_conjugate(onehot):
     lk, counts = onehot
     res = binference.infer(lk, method="gibbs", rng=4, n_samples=3000, n_warmup=10, check=False)
@@ -509,6 +516,22 @@ def test_laplace_with_importance(k3_problem):
     res = binference.infer(mock.likelihoods, method="laplace", rng=4, n_samples=4000)
     assert "k_hat" in res.info
     assert_matches_reference(res, exact.mean, exact.std)
+
+
+def test_a_widened_gaussian_laplace_proposal_recovers_the_exact_posterior(onehot):
+    # one-hot likelihoods: the posterior is Dirichlet(1 + counts), close to Gaussian in
+    # log-ratio coordinates
+    lk, counts = onehot
+    m = PopulationModel(lk)
+    res = Laplace(m, df=None, inflate=1.5, rng=0).run(4000)
+    assert not res.approximate  # k-hat passed
+    # a wrong sign of log q narrows the draws by about a quarter
+    assert_matches_reference(res, *dirichlet_moments(1.0 + counts))
+    # without importance the draws are the proposals, which inflate widens
+    with pytest.warns(ApproximationWarning):
+        raw = Laplace(m, inflate=1.5, importance=False, rng=0).run(8000)
+    ratio = raw.x[0].std(axis=0) / (1.5 * np.sqrt(np.diag(raw.info["cov"])))
+    np.testing.assert_allclose(ratio, 1.0, atol=5 / np.sqrt(2 * 8000))
 
 
 def test_laplace_uncorrected_is_flagged(k3_problem):

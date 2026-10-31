@@ -131,6 +131,7 @@ control, generator-style sampling or resuming a run.
 .. autosummary::
    :toctree: generated
    :nosignatures:
+   :template: autosummary/engine.rst
 
    NUTS
    Gibbs
