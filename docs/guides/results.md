@@ -133,7 +133,7 @@ With an absolute selection,
 ```python
 ax = result.plot(truth=mock.truth.rho, stack=lk.stack())   # bands, median, overlays
 fig = result.plot_corner(idx=[4, 5, 6])                     # pairwise posteriors
-axes = result.plot_trace(idx=[5])                           # chains
+fig = result.plot_trace(idx=[5])                            # chains
 ```
 
 `result.plot` shows densities per unit volume for 1-D bins, images for 2-D grids and

@@ -171,14 +171,18 @@ def test_nuts_reparametrises_logistic_priors_without_touching_the_model():
 
 def test_nuts_validation():
     m = PopulationModel(np.ones((3, 2)))
+    with pytest.raises(TypeError):
+        NUTS("not a model")
     with pytest.raises(ValueError):
         NUTS(m, n_chains=0)
     with pytest.raises(ValueError):
         NUTS(m, metric="full")
     with pytest.raises(ValueError):
         NUTS(m, target_accept=1.5)
-    with pytest.raises(ValueError):
-        NUTS(m, init=np.zeros(5)).run(1)
+    with pytest.raises(ValueError, match="init"):
+        NUTS(m, init=np.zeros(5))  # its shape when the engine is made
+    with pytest.raises(ValueError, match="zero posterior density"):  # its density when run
+        NUTS(PopulationModel(np.eye(2)), init=[1e3]).run(1)
     with pytest.raises(RuntimeError):
         _ = NUTS(m).result
 

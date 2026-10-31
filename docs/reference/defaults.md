@@ -45,7 +45,7 @@ explain behaviour, not as settings to change.
 | `_BASE_WINDOW` | `25` | `binference.samplers._nuts_core` | Iterations of the first slow window of Stan-style warm-up; each next one is twice as long. |
 | `_TERM_BUFFER` | `50` | `binference.samplers._nuts_core` | Iterations of the last fast phase of Stan-style warm-up. |
 | `INTERIOR_START_ITER` | `50` | `binference.samplers.base` | Most regularised EM steps of the start of Gibbs and of MAP's EM and L-BFGS paths when `init` is `None`. |
-| `PROPOSAL_FACTOR` | `2` | `binference.samplers.laplace` | Importance proposals per draw when `n_proposals` is `None`. |
+| `PROPOSAL_FACTOR` | `2` | `binference.samplers.laplace` | Importance proposals per draw when `n_proposals` is `None` (at least `diagnostics.PSIS_MIN_WEIGHTS` in all, the fewest Pareto smoothing takes). |
 | `EIGEN_FLOOR` | `1e-08` | `binference.samplers.laplace` | Eigenvalues of a Hessian that is not positive definite are raised to this times the largest (at least one). |
 | `_TARGET_ACCEPT` | `0.8` | `binference.samplers.nuts` | `target_accept` when it is `None`, except for logistic priors. |
 | `_TARGET_ACCEPT_LOGISTIC` | `0.9` | `binference.samplers.nuts` | `target_accept` for logistic priors when it is `None`. |

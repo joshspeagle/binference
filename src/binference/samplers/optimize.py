@@ -8,7 +8,7 @@ import numpy as np
 from scipy import optimize
 
 from .. import _kernels as kern
-from .._utils import RNGLike, warn
+from .._utils import RNGLike, check_nonnegative, warn
 from ..likelihoods import _scale_columns
 from ..model import PopulationModel
 from ..priors.base import _TINY
@@ -180,13 +180,14 @@ class MAP(Engine):
         and L-BFGS in the unconstrained space. ``"mixsqp"`` and ``"em"`` solve on
         the simplex, as ``space="simplex"`` does (not for joint models).
     init : array_like (K,), optional
-        Starting fractions (or rates). By default mix-SQP starts after 10
+        Non-negative starting fractions (or rates), not all zero; EM and mix-SQP raise
+        zeros to a small positive value, so that they can move them. By default mix-SQP
+        starts after 10
         regularised EM steps from uniform, the other algorithms after up to 50.
     rng, progress
         Accepted for a common signature; unused.
     """
 
-    name = "map"
     joint = True  # in the unconstrained space
 
     def __init__(
@@ -212,7 +213,13 @@ class MAP(Engine):
         self.tol = float(tol)
         self.max_iter = int(max_iter)
         self.accelerate = bool(accelerate)
-        self.init = None if init is None else np.asarray(init, dtype=float)
+        if init is not None:
+            init = check_nonnegative(init, "init")
+            if init.shape != (model.K,):
+                raise ValueError(f"init must have shape ({model.K},); got {init.shape}.")
+            if not init.any():
+                raise ValueError("init must have a positive entry.")
+        self.init = init
         # an explicit algorithm or space="simplex" solves on the simplex, if it can
         self._on_simplex = algorithm != "auto" or space == "simplex"
         if self._on_simplex:
@@ -335,7 +342,9 @@ class MAP(Engine):
         fractions = m.kind == "fractions"
         if start is None:
             start = interior_start(m) if self.init is None else self.init
-        v = start.copy()
+        # EM multiplies each by its update, so a zero never moves: floored as the priors'
+        # init_from_value floor theirs
+        v = np.maximum(start, 1e-12 * start.max())
         if fractions:
             v = v / v.sum()
 
@@ -346,11 +355,6 @@ class MAP(Engine):
             return out / out.sum() if fractions else out
 
         f_old, s = _objective(m, v)
-        if not np.isfinite(f_old):
-            raise ValueError(
-                "init gives some object zero likelihood; pass an init that is positive "
-                "wherever an object has support."
-            )
         converged = False
         n_iter = 0
         for n_iter in range(1, self.max_iter + 1):

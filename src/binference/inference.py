@@ -21,7 +21,8 @@ from .warnings import ApproximationWarning, BinferenceWarning
 
 __all__ = ["METHODS", "Auto", "infer"]
 
-#: Registry of inference methods accepted by :func:`infer`.
+#: Registry of inference methods accepted by :func:`infer`; an engine's first key is its
+#: name, and a later key is an alias (``"em"``).
 METHODS = {
     "nuts": NUTS,
     "gibbs": Gibbs,
@@ -86,7 +87,6 @@ class Auto(Engine):
         Options for the chosen engine.
     """
 
-    name = "auto"
     joint = True
 
     def __init__(

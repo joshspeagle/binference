@@ -41,6 +41,7 @@ releases may break the API).
 - `PopulationModel.prior_transform`, `BoundPrior.prior_transform` (on the Dirichlet, tree
   and `GammaRates` priors) and `BoundPrior.has_prior_transform`: the unit-cube map for
   nested samplers, which nothing in binference used (DECISIONS #107).
+- `Engine.name` and `Engine.approximate`, which nothing read (DECISIONS #112).
 - `Response.measured_fractions`, which only a test used and which ignored the posterior
   means of a tallied response (DECISIONS #113).
 
@@ -55,6 +56,33 @@ releases may break the API).
   counts as unbounded through rounding, so MAP keeps it on the simplex (DECISIONS #109).
 - The sdist no longer includes walkthrough notes, and its tests skip the checks that
   need `docs/` or `benchmarks/`, which it does not ship (DECISIONS #110).
+- `plot_individual` on a fit with a `Basis` drew the object's likelihood over the
+  components as if they were bins, or failed when there were more components than bins;
+  it is now shared among the bins as the hierarchical posterior is (DECISIONS #111).
+- The stack overlay of `plot(which="selected")` is no longer reweighted by the selection:
+  an average over the observed objects, it already estimates the selected population
+  (DECISIONS #111).
+- `plot_sbc` always shows the joint log-likelihood; with 12 or more other quantities it
+  was left out. A `max_panels` below one is refused by name.
+- A list or array of colours is accepted for the bars of categories only, one per
+  category; the other plots failed with a matplotlib error and now raise one naming the
+  argument, and `plot_sbc`, which coloured its rank bars from a list, refuses it too
+  (DECISIONS #111).
+- A truth overlay on `which="selected"` of a fit with a `Basis` is drawn as given
+  without a selection and refused with one, unless the basis is the bins; it failed
+  with a broadcasting error or, with as many components as bins, drew a wrong overlay
+  (DECISIONS #111).
+- `MAP` checks `init`'s shape and sign, and that it is not all zero, when the engine is
+  made; a wrong shape failed inside NumPy. EM raises zeros in its start to 1e-12 of the
+  largest value, so a zero, from `init` or from mix-SQP's hand-off to EM, no longer
+  leaves a wrong mode with only a convergence warning (DECISIONS #112).
+- `NUTS` checks `model` and the shape and finiteness of `init` when it is made.
+- The start for rates with a selection is near the mode for broad likelihoods too
+  (DECISIONS #112).
+- Gibbs refuses a negative `n_warmup`; `Laplace.run` with fewer than 3 samples draws 5
+  importance proposals rather than failing in Pareto smoothing (DECISIONS #112); the
+  engines that can infer a selection are each named once in the refusal of those that
+  cannot.
 - `Response(matrix, efficiency=...)` divides a migration column that sums to one within
   `MIGRATION_ATOL` by its sum, so the efficiency given is exact (DECISIONS #113).
 - Boolean category labels reload as booleans; they came back as 0 and 1.

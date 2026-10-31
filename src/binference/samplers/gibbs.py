@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from .. import _kernels as kern
-from .._utils import RNGLike, check_positive, is_integer_array, progress, spawn
+from .._utils import RNGLike, check_nonnegative, check_positive, is_integer_array, progress, spawn
 from ..model import PopulationModel
 from ..priors.dirichlet import _dirichlet_draw
 from ..results import PopulationResult
@@ -48,8 +48,9 @@ class Gibbs(Engine):
         Keep every ``thin``-th draw.
     store_labels : bool or array_like of int
         Store joint draws of the objects' bins. ``True`` stores them for all
-        objects (unit weights only), an array for the given object indices
-        (sorted and deduplicated, as ``result.label_index`` records).
+        objects, an array for the given object indices (sorted and deduplicated,
+        as ``result.label_index`` records). Either needs unit object weights
+        (uncompressed likelihoods).
     init : array_like (K,), optional
         Positive fractions or rates around which the chains start. Each chain
         starts from its own draw of the population's conditional given the
@@ -64,7 +65,6 @@ class Gibbs(Engine):
         Show a progress bar.
     """
 
-    name = "gibbs"
     joint = True
     markov = True
 
@@ -85,15 +85,11 @@ class Gibbs(Engine):
         self._w_int = np.round(model.likelihoods.weights)
         self._unit = bool(np.all(self._w_int == 1))
         if store_labels is True:
-            if not self._unit:
-                raise ValueError("store_labels=True needs unit weights; pass object indices.")
             self.label_index = np.arange(model.N)
         elif store_labels is False or store_labels is None:
             self.label_index = None
         else:
             self.label_index = np.unique(np.atleast_1d(np.asarray(store_labels, dtype=int)))
-            if not self._unit:
-                raise ValueError("Storing labels needs unit object weights.")
             if self.label_index.size and not (
                 0 <= self.label_index[0] and self.label_index[-1] < model.N
             ):
@@ -103,6 +99,9 @@ class Gibbs(Engine):
                 "store_labels is not available with an inferred response (objects are counts "
                 "per measured bin); use result.sample_assignments()."
             )
+        # with multiplicities m_i each row draws Mult(m_i, r_i) counts, and no labels
+        if self.label_index is not None and not self._unit:
+            raise ValueError("store_labels needs unit object weights (uncompressed likelihoods).")
         if init is not None:
             init = check_positive(init, "init")
             if init.shape != (model.K,):
@@ -110,7 +109,7 @@ class Gibbs(Engine):
         if n_chains < 1 or thin < 1:
             raise ValueError("n_chains and thin must be positive.")
         self.n_chains = int(n_chains)
-        self.n_warmup = int(n_warmup)
+        self.n_warmup = int(check_nonnegative(n_warmup, "n_warmup"))
         self.thin = int(thin)
         self.chunk = None if chunk is None else int(chunk)
         self.init = init
