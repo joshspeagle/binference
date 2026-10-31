@@ -5,12 +5,11 @@ from __future__ import annotations
 import inspect
 import warnings
 from math import ceil
-from numbers import Real
 from typing import Any
 
 import numpy as np
 
-from ._utils import RNGLike, check_positive, warn
+from ._utils import RNGLike, check_positive, check_positive_integers, warn
 from .bins import Bins
 from .model import PopulationModel
 from .priors import PopulationPrior
@@ -123,11 +122,11 @@ class Auto(Engine):
         """
         return self._plan(n_samples)[0]
 
-    def _plan(self, n_samples: int | None) -> tuple[list[tuple[str, str, int | None]], str]:
-        # the candidates, and why the rules leave out Gibbs where it could run ("" if not)
+    def _plan(self, n_samples: int | None) -> tuple[list[tuple[str, str, int | None]], list[str]]:
+        # the candidates, and why the rules leave out Gibbs where it could run
         m, kw = self.model, self.engine_kwargs
         out: list[tuple[str, str, int | None]] = []
-        left_out = ""
+        left_out: list[str] = []
         if Gibbs.unsupported(m) is None and set(kw) <= set(_options(Gibbs)):
             if m.joint:  # exact and fast (DECISIONS #80, #81)
                 out.append(("gibbs", "a joint model with a conjugate prior", None))
@@ -149,12 +148,12 @@ class Auto(Engine):
                     if n_samples is not None or n <= self.max_gibbs_draws:
                         out.append(("gibbs", f"conjugate prior, missing information {f:.2f}", n))
                     else:
-                        left_out = (
+                        left_out.append(
                             f"Gibbs would need {n} draws per chain "
                             f"(> max_gibbs_draws={self.max_gibbs_draws})"
                         )
                 else:
-                    left_out = (
+                    left_out.append(
                         f"Gibbs would mix too slowly (missing information {f:.3f} > "
                         f"gibbs_max_missing={self.gibbs_max_missing:g})"
                     )
@@ -180,8 +179,7 @@ class Auto(Engine):
             Draws per chain; ``None`` lets auto set the run length. Laplace returns as
             many in total as NUTS's default four chains would (4000 by default).
         """
-        plan, left_out = self._plan(n_samples)
-        rejected = [left_out] if left_out else []  # why earlier engines were not kept
+        plan, rejected = self._plan(n_samples)  # and why earlier engines were not kept
         for i, (key, why, n_gibbs) in enumerate(plan):
             last = i == len(plan) - 1
             engine = METHODS[key](
@@ -360,10 +358,8 @@ def infer(
     >>> res.mean.shape
     (5,)
     """
-    if n_samples is not None and not (
-        isinstance(n_samples, Real) and n_samples >= 1 and float(n_samples).is_integer()
-    ):
-        raise ValueError(f"n_samples must be a positive integer; got {n_samples!r}.")
+    if n_samples is not None:
+        n_samples = check_positive_integers(n_samples, "n_samples")[0]
     if isinstance(likelihoods, PopulationModel):
         if any(v is not None for v in (prior, selection, selection_mode, bins)):
             raise ValueError("Pass prior/selection/bins when building the model, not to infer().")

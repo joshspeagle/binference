@@ -114,10 +114,9 @@ class BoundPrior:
 
     #: ``"fractions"`` (a distribution on the simplex) or ``"rates"``
     kind: str = "fractions"
-    #: whether :meth:`posterior_sample`, :meth:`map_from_counts` and the ``vb_`` methods
-    #: are implemented, for Gibbs, EM and mean-field VB
+    #: whether the methods Gibbs, EM and mean-field VB use are implemented
     conjugate: bool = False
-    #: whether :meth:`log_density` and :meth:`grad_log_density` are implemented
+    #: whether the methods MAP on the simplex and the KKT gap use are implemented
     has_density: bool = False
     #: whether it has partial non-centring weights (``with_centering``; the logistic family)
     has_centering: bool = False
@@ -253,8 +252,8 @@ class BoundPrior:
     def posterior_sample(
         self, counts: np.ndarray, rng: np.random.Generator, exposure: np.ndarray | None = None
     ) -> np.ndarray:
-        """A draw of the fractions or rates given the number of objects in each bin, shape
-        ``(K,)``: the conditional Gibbs draws from at every iteration.
+        """A draw of the fractions or rates given ``counts``, shape ``(K,)``: the
+        conditional Gibbs draws from at every iteration.
 
         Parameters
         ----------
@@ -270,9 +269,8 @@ class BoundPrior:
     def map_from_counts(
         self, counts: np.ndarray, exposure: np.ndarray | None = None
     ) -> np.ndarray:
-        """The mode of that conditional on the simplex (or of the rates), shape ``(K,)``.
-
-        EM's M-step, given the expected number of objects in each bin.
+        """The mode on the simplex (or of the rates) of the fractions given ``counts``,
+        shape ``(K,)``: EM's M-step.
 
         Parameters
         ----------
@@ -284,8 +282,8 @@ class BoundPrior:
         raise NotImplementedError(f"{type(self.prior).__name__} is not conjugate.")
 
     def vb_update(self, counts: np.ndarray, exposure: np.ndarray | None = None) -> Any:
-        """Mean-field VB's state given the expected number of objects in each bin: the
-        parameters of the variational posterior, read by the other ``vb_`` methods.
+        """Mean-field VB's state given ``counts``: the parameters of the variational
+        posterior, read by the other ``vb_`` methods.
 
         Parameters
         ----------

@@ -405,7 +405,7 @@ class _BoundTree(_SimplexBound):
         # linear in the log branch probabilities, so each node's branches are proportional
         # to their exponents plus the counts below them.
         t = self.tree
-        x = np.maximum(t.slot_mem @ np.asarray(counts, float) + t.slot_exponent, 0.0)
+        x = np.maximum(t.slot_counts(counts) + t.slot_exponent, 0.0)
         tot = t.node_totals(x)
         uniform = 1.0 / t.node_totals(np.ones_like(x))  # a node with no mass splits evenly
         return t.compose(np.where(tot > 0, x / np.where(tot > 0, tot, 1.0), uniform))

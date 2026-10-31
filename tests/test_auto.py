@@ -36,9 +36,11 @@ def short_nuts(monkeypatch):
 
 
 def test_auto_is_the_default_and_records_its_choice():
-    res = binference.infer(_lk(0.3), rng=0)
+    res = binference.infer(_lk(0.3), rng=0, check=False)
     assert res.method == res.info["auto_method"] == "gibbs"
     assert "missing information" in res.info["auto_reason"]
+    # deciding whether to extend the run computed the diagnostics; the result keeps them
+    assert "diagnostics" in res._cache
 
 
 def test_gibbs_runs_long_enough_for_the_target_ess():
@@ -70,7 +72,7 @@ def test_the_reason_names_the_rule_that_left_gibbs_out(short_nuts):
         "Gibbs would mix too slowly (missing information 0.99"
     )
     auto = inf.Auto(binference.PopulationModel(lk), gibbs_max_missing=0.9999, max_gibbs_draws=1500)
-    assert auto._plan(None)[1].startswith("Gibbs would need")
+    assert auto._plan(None)[1][0].startswith("Gibbs would need")
 
 
 def test_laplace_is_kept_when_its_importance_check_passes():
@@ -148,12 +150,6 @@ def test_auto_works_on_basis_likelihoods(short_nuts):
 def test_infer_refuses_an_n_samples_that_is_not_a_positive_integer(n_samples):
     with pytest.raises(ValueError, match="n_samples must be a positive integer"):
         binference.infer(_lk(0.3), method="gibbs", n_samples=n_samples, n_warmup=1)
-
-
-def test_auto_returns_the_gibbs_result_whose_diagnostics_it_computed():
-    # deciding whether to extend the run computed them; they are not computed again
-    res = binference.infer(_lk(0.3), rng=0, check=False)
-    assert res.method == "gibbs" and "diagnostics" in res._cache
 
 
 def test_auto_options_are_checked_by_name():
