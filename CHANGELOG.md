@@ -40,6 +40,22 @@ releases may break the API).
   counts as unbounded through rounding, so MAP keeps it on the simplex (DECISIONS #109).
 - The sdist no longer includes walkthrough notes, and its tests skip the checks that
   need `docs/` or `benchmarks/`, which it does not ship (DECISIONS #110).
+- `plot_individual` on a fit with a `Basis` drew the object's likelihood over the
+  components as if they were bins, or failed when there were more components than bins;
+  it is now shared among the bins as the hierarchical posterior is (DECISIONS #111).
+- The stack overlay of `plot(which="selected")` is no longer reweighted by the selection:
+  an average over the observed objects, it already estimates the selected population
+  (DECISIONS #111).
+- `plot_sbc` always shows the joint log-likelihood; with 12 or more other quantities it
+  was left out. A `max_panels` below one is refused by name.
+- A list or array of colours is accepted for the bars of categories only, one per
+  category; the other plots failed with a matplotlib error and now raise one naming the
+  argument, and `plot_sbc`, which coloured its rank bars from a list, refuses it too
+  (DECISIONS #111).
+- A truth overlay on `which="selected"` of a fit with a `Basis` is drawn as given
+  without a selection and refused with one, unless the basis is the bins; it failed
+  with a broadcasting error or, with as many components as bins, drew a wrong overlay
+  (DECISIONS #111).
 
 ## [0.1.0] - 2026-10-29
 

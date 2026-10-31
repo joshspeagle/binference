@@ -479,3 +479,4 @@ Append-only. One entry per working session (or per step within a long session).
 - #153: tree priors get `describe(bins, counts=None)`, a text drawing with α, mean share and mean mass on each branch; `DirichletTree` takes named groups and `alpha` by group or bin name; `_TreeStructure.ptr` becomes `node_start` (DECISIONS #108).
 - #158 merged (#153). #155: the NUTS tree-depth hint now reads the tails in the coordinates NUTS samples, through `BoundPrior.long_log_tails()`, and suggests Gibbs only where Gibbs can run; tree exponents are read from the concentrations, so rounding no longer makes a bounded tree unbounded (DECISIONS #109).
 - #159: `ci-ok` gates on `changes` and `slow` too, scikit-learn joins the `test` extra so its test runs, and the sdist is clean (DECISIONS #110).
+- #162: `plot_individual` and the truth overlay on a basis, the stack overlay on the selected population, colour lists and `plot_sbc`'s log-likelihood panel (DECISIONS #111).
