@@ -95,6 +95,13 @@ def test_a_stack_over_a_basis_is_drawn_per_bin(shape):
     plt.close("all")
 
 
+def test_plot_refuses_a_credible_level_outside_zero_and_one(res1d):
+    # 1.5 failed in np.quantile naming no argument, and 0 drew an empty band
+    for levels in ((1.5,), (0.0, 0.68)):
+        with pytest.raises(ValueError, match="levels must be in"):
+            res1d.plot(levels=levels)
+
+
 def test_the_sbc_plot_always_shows_the_joint_log_likelihood():
     names = ["a", "b", "c", "loglike"]
     ranks = np.random.default_rng(1).integers(0, 20, (30, 4))

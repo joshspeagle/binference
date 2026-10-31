@@ -47,6 +47,15 @@ releases may break the API).
   `Likelihoods.stack`'s docstring advised, is now refused when the numbers of components
   and bins differ and mapped twice when they agree. A `truth` or `stack` of the wrong
   length is refused by name (DECISIONS #114).
+- `PopulationResult` and `PointEstimate` keep read-only copies of every array they are
+  given (draws, total, `value`, `x`, labels, and the arrays in `info`), freeze what they
+  cache, and stay read-only through pickling: writing into `samples`, `chains`,
+  `component_draws`, `total`, `selected`, `data_support` or a column of `summary()`
+  raises, `diagnostics` is a read-only mapping, and changing the array passed in no
+  longer changes the result (DECISIONS #117).
+- `check()` flags Markov chains that give no R-hat or ESS, shorter than 8 draws
+  (`MIXING_MIN_DRAWS`) or constant; they passed with no message (DECISIONS #117).
+- `PointEstimate` refuses rates with the same message as `PopulationResult`.
 - `Measure` objects are immutable, as `Bins` are; renaming the shared `Measure.log()`
   broke the saving of bins. `Bins`, `Selection`, `Response` and `Measure` also refuse
   `del` of an attribute, after which it could be set again (DECISIONS #116).
@@ -63,6 +72,10 @@ releases may break the API).
 - `Engine.name` and `Engine.approximate`, which nothing read (DECISIONS #112).
 - `Response.measured_fractions`, which only a test used and which ignored the posterior
   means of a tallied response (DECISIONS #113).
+- `binference.diagnostics.kkt_gap` and `binference.diagnostics.missing_information`: use
+  `PopulationModel.kkt_gap` and `PopulationModel.missing_information`, or
+  `PointEstimate.kkt_gap` (DECISIONS #117).
+- `simulate.Truth.extra`, which nothing set or read.
 - `Bins.widths`, which nothing used; per-axis widths are `np.diff(bins.edges[d])`
   (DECISIONS #116).
 
@@ -120,6 +133,25 @@ releases may break the API).
   the function is still unread there; such a row was read as zero, so a selection
   function, or a bounded density, that is non-zero only within 4.7% of a bin edge was
   missed without a warning (DECISIONS #115).
+- `check()` computes and checks the tail ESS of a selection or response inferred with the
+  population (`ess_tail_selection`, `ess_tail_response`); it looked for these keys, which
+  were never computed.
+- `mock_1d` draws posterior samples flat in u within each bin when the interim prior is
+  omitted or known only per bin (masses or "flat"), as `Likelihoods.from_samples` reads
+  them; without an interim, `mock.interim` holds `Density.flat()`'s masses. On log bins
+  the likelihoods built from these samples were biased; linear bins are unchanged.
+- `summary(level=)`, `coverage(levels=)` and `plot(levels=)` refuse levels outside
+  (0, 1) by name, as `interval` does.
+- `rhat` of a constant chain is NaN without NumPy's "All-NaN" warning.
+- `exact_posterior` refuses a `prior` given with a `PopulationModel`, which ignored it.
+- `psis` refuses +inf log weights; it gave them zero weight.
+- `autocorr_time` and `autocorr_function` return NaN for a constant chain; they gave 1,
+  or the chain's length when its mean was off by round-off.
+- `mock_categorical` checks that `prevalence` and `train_prior` have `n_classes`
+  non-negative entries with a positive sum, naming them.
+- The ECDF p-value is documented as the Bonferroni bound below 1e-12, and Pareto
+  smoothing as needing at least 21 weights; with fewer, k̂ = inf and the weights are not
+  smoothed.
 - Unpickled `Bins`, and copies of grids with a non-linear measure, had writeable edges.
 - `Bins.linear`, `Bins.log` and `Bins.coarsen` refuse a count or factor that is not a
   positive integer, naming it; they truncated it, and `coarsen(1.5)` returned the bins
