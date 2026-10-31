@@ -86,7 +86,10 @@ def bin_log_average(
     a jump there goes unseen. With ``jumps`` each cell is also checked against
     Lobatto's 5-point rule with its ends :data:`EDGE_INSET` inside the cell. That
     suits a bounded function such as a detection probability: at an integrable
-    singularity on an edge the check would refine to ``max_depth``.
+    singularity on an edge the check would refine to ``max_depth``. A row whose
+    5-point estimates are all zero gives no scale for the error: where a check rule
+    reads something there, its cells are split until they are below ``tol`` of their
+    bin, and keep what the 5-point rule then reads.
 
     ``must_split(z_lo, z_hi, r)`` (per-row mode) marks cells, given by their
     bounds in ``z``, that must be split whatever the error estimate says: a
@@ -179,7 +182,8 @@ def bin_log_average(
     logvol = np.zeros(bins.K) if coordinate == "measure" else np.log(bins.volumes)
     # finite, so that where a row's 5-point estimates are all zero a check rule that reads
     # something still makes an error, rather than a NaN that would pass
-    rowmax = np.full(N, np.finfo(float).min)
+    unseen = np.finfo(float).min
+    rowmax = np.full(N, unseen)
     corners = np.array(list(product((0.0, 0.5), repeat=nd)))
     unconverged = np.zeros(bins.K, dtype=bool)
     for depth in range(max_depth + 1):
@@ -192,6 +196,10 @@ def bin_log_average(
         scale = (rowmax[:, None] if rows is None else rowmax[row]) - logvol[owner]
         with np.errstate(invalid="ignore", over="ignore"):  # the checks' largest disagreement
             diff = np.nan_to_num(np.abs(np.exp(fine - scale) - np.exp(np.stack(coarse) - scale)))
+        blind = rowmax == unseen  # no scale for the error: stop below tol of the bin
+        if blind.any():
+            small = logfrac < np.log(tol)
+            diff[:, blind[:, None] & small if rows is None else blind[row] & small] = 0.0
         err = np.exp(logfrac) * diff.max(axis=(0, 1) if rows is None else 0)
         ok = err <= tol
         if must_split is not None:
