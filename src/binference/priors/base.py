@@ -94,7 +94,11 @@ class BoundPrior:
     * NUTS, Laplace and L-BFGS: :meth:`forward`, :meth:`log_prior_and_grad` and
       :meth:`init_from_value`, in unconstrained coordinates ``x`` of size ``dim``;
     * MAP on the simplex and the KKT gap, when ``has_density``: :meth:`log_density`,
-      :meth:`grad_log_density` and :meth:`unbounded_density`;
+      :meth:`grad_log_density` and :meth:`unbounded_density`; for rates with
+      ``pseudocounts``, MAP's mix-SQP also reads ``b``, the Gamma rate parameters;
+    * NUTS's partial non-centring, when ``has_centering``: ``gamma``, ``n_active``,
+      ``with_centering``, ``recentre``, ``to_noncentred``, ``log_scales`` and
+      ``theta_from_x``, which the logistic family's bound priors share;
     * Gibbs, EM and mean-field VB, when ``conjugate``: :meth:`posterior_sample`,
       :meth:`map_from_counts` and the ``vb_`` methods, given the number of objects in
       each bin (drawn by Gibbs, expected by EM and VB);
