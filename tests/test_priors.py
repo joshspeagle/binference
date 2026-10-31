@@ -555,11 +555,21 @@ def test_named_groups_are_drawn_with_their_names():
         ({"spiral": ["Sa", "Sb"], "early": ["E0", "E3"]}, 1.0, GALAXIES, "in no group: S0"),
         (GROUPS, {"nope": 2.0}, GALAXIES, "'nope' names no group"),
         ([["a", "b"], 2], 1.0, B3, "labels need categories"),
+        ([b"ab", 2], 1.0, B3, "b'ab' is not a bin index"),
+        ([{0, 1}, 2], 1.0, B3, "neither a bin nor a group"),
+        ({"Sa": ["Sa", "Sb"], "x": ["E0", "E3", "S0"]}, {"Sa": 3.0}, GALAXIES, "more than one"),
+        (GROUPS, {"lenticular": 2.0, "S0": 7.0}, GALAXIES, "'lenticular' and 'S0' name one"),
+        (GROUPS, {"spiral": [1.0, 2.0]}, GALAXIES, "must be one number"),
     ],
 )
 def test_a_wrong_tree_or_alpha_key_is_refused_with_an_error_naming_it(tree, alpha, bins, message):
     with pytest.raises(ValueError, match=message):
         P.DirichletTree(tree, alpha=alpha).bind(bins)
+
+
+def test_a_dict_of_one_group_inside_a_list_names_that_group():
+    tree = P.DirichletTree([{"a": [0, 1]}, 2], alpha={"a": 4.0}).bind(B3).tree
+    np.testing.assert_array_equal(tree.slot_alpha, [4, 1, 1, 1])
 
 
 def test_a_group_name_used_twice_is_refused():

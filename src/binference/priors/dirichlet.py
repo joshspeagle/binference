@@ -425,6 +425,11 @@ def _parse_tree(tree: Any) -> tuple[list[list[tuple[str, Any]]], list[list[list[
     names: list[list[list[Any]]] = []
     seen: set[Any] = set()
 
+    def is_group(member: Any) -> bool:
+        return isinstance(member, Mapping | Sequence | np.ndarray) and not isinstance(
+            member, str | bytes
+        )
+
     def members(group: Any) -> list[tuple[Any, Any]]:
         if isinstance(group, Mapping):
             for name in group:
@@ -432,20 +437,28 @@ def _parse_tree(tree: Any) -> tuple[list[list[tuple[str, Any]]], list[list[list[
                     raise ValueError(f"tree: the group name {name!r} is used twice.")
                 seen.add(name)
             return list(group.items())
-        if isinstance(group, str) or not isinstance(group, Sequence | np.ndarray):
+        if not is_group(group):
             raise ValueError("tree: the root must be a list or dict of groups and bins.")
         return [(None, m) for m in group]
 
     def child(member: Any, name: Any) -> tuple[str, Any, list[Any]]:
         named = [] if name is None else [name]
-        if isinstance(member, Mapping | Sequence | np.ndarray) and not isinstance(member, str):
+        if is_group(member):
             items = members(member)
-            if named and len(items) == 1:  # a named group of one member is that member
+            # a group of one named member (a named group of one, or a dict of one group)
+            # is that member
+            if len(items) == 1 and (named or items[0][0] is not None):
                 kind, value, inner = child(items[0][1], items[0][0])
                 return kind, value, named + inner
             return "node", visit(items, name), named
         if isinstance(member, bool):
             raise ValueError(f"tree: {member!r} is not a bin.")
+        try:
+            hash(member)
+        except TypeError:
+            raise ValueError(
+                f"tree: {member!r} is neither a bin nor a group (a list or a dict)."
+            ) from None
         return "leaf", int(member) if isinstance(member, int | np.integer) else member, named
 
     def visit(items: list[tuple[Any, Any]], name: Any) -> int:
@@ -604,6 +617,8 @@ class DirichletTree(_TreePrior):
     >>> named = binference.priors.DirichletTree(groups, alpha={"spiral": 3.0})
     """
 
+    describe = _TreePrior.describe  # documented on this class's API page
+
     def __init__(
         self, tree: Any, alpha: float | Sequence[Any] | Mapping[Any, float] = 1.0
     ) -> None:
@@ -617,10 +632,19 @@ class DirichletTree(_TreePrior):
             out, used = [np.ones(len(ch)) for ch in self._nodes], set()
             for c, children in enumerate(self._nodes):
                 for j, (kind, v) in enumerate(children):
-                    for key in self._names[c][j] + ([v] if kind == "leaf" else []):
-                        if key in alpha:
-                            out[c][j] = float(check_positive(alpha[key], f"alpha[{key!r}]"))
-                            used.add(key)
+                    names = self._names[c][j] + ([v] if kind == "leaf" else [])
+                    keys = [key for key in names if key in alpha]
+                    if len(keys) > 1:
+                        raise ValueError(f"alpha: {keys[0]!r} and {keys[1]!r} name one branch.")
+                    if not keys:
+                        continue
+                    if keys[0] in used:  # a group named like a bin
+                        raise ValueError(f"alpha: {keys[0]!r} names more than one branch.")
+                    a = check_positive(alpha[keys[0]], f"alpha[{keys[0]!r}]")
+                    if a.ndim:
+                        raise ValueError(f"alpha[{keys[0]!r}] must be one number.")
+                    out[c][j] = float(a)
+                    used.add(keys[0])
             unknown = [key for key in alpha if key not in used]
             if unknown:
                 raise ValueError(
@@ -689,6 +713,8 @@ class GeneralizedDirichlet(_TreePrior):
         Permutation of the bins defining the stick-breaking order.
     """
 
+    describe = _TreePrior.describe  # documented on this class's API page
+
     def __init__(
         self,
         a: float | Sequence[float] | np.ndarray = 1.0,
@@ -749,6 +775,8 @@ class PolyaTree(_TreePrior):
         (an array is masses per bin). The default is flat in the measure
         coordinate.
     """
+
+    describe = _TreePrior.describe  # documented on this class's API page
 
     def __init__(
         self,
