@@ -127,6 +127,11 @@ routing, and [point estimates](../how-it-works/point-estimates.md)
 explains it.
 
 - **The choice** is recorded in `est.info["algorithm"]` and `est.info["space"]`.
+- **Which mode** depends on that space. On the simplex (EM, mix-SQP) the mode of a
+  $\mathrm{Dir}(\alpha)$ prior with counts $n_k$ is proportional to $n_k+\alpha_k-1$; in the
+  unconstrained coordinates (L-BFGS) it is proportional to $n_k+\alpha_k$, because the
+  density of those coordinates includes their Jacobian
+  ([two modes](../how-it-works/point-estimates.md#two-coordinate-systems-two-modes)).
 - **The convergence check** is the {term}`KKT gap`, `est.kkt_gap`, which should be
   about zero. `MAP(tol=...)` bounds it. For L-BFGS, which reports a gradient instead,
   see {class}`~binference.samplers.MAP`.
