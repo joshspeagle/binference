@@ -84,10 +84,11 @@ def mc_errors(draws):
 
 def assert_matches_reference(result, mean, sd, z: float = 5.0, ref_errors=(0.0, 0.0)):
     """Compare posterior means and sds with a reference within z combined Monte Carlo errors,
-    plus 1e-3 of the reference sd. The result's errors are its chains', or for resampled
-    draws the importance ESS's; ``ref_errors`` are the reference's own."""
+    plus 1e-3 of the reference sd. The result's errors are its chains', or for draws
+    resampled by importance weight those of n draws with 1/n = 1/ESS + 1/(number of draws);
+    ``ref_errors`` are the reference's own."""
     if "ess_importance" in result.info:
-        n = result.info["ess_importance"]
+        n = 1 / (1 / result.info["ess_importance"] + 1 / len(result.samples))
         kurt = stats.kurtosis(result.samples, axis=0, fisher=False)
         errors = result.std / np.sqrt(n), result.std * np.sqrt((kurt - 1) / (4 * n))
     else:

@@ -273,7 +273,7 @@ def test_fraction_selection_only_depends_on_ratios(k3_selection_problem, mode):
         fits[scale] = (est.rho, gibbs)
         assert np.all(gibbs.samples > 0)
     np.testing.assert_allclose(fits[3.0][0], fits[1.0][0], rtol=1e-6)
-    np.testing.assert_allclose(fits[3.0][1].mean, fits[1.0][1].mean, atol=0.02)
+    np.testing.assert_allclose(fits[3.0][1].samples, fits[1.0][1].samples, rtol=1e-12)
     exact_m = PopulationModel(lk, selection=S, selection_mode=mode)
     nuts = NUTS(exact_m, n_chains=2, n_warmup=300, rng=4).run(800)
     assert_draws_agree(fits[3.0][1].chains, nuts.chains)
@@ -296,7 +296,7 @@ def test_gibbs_rates_agree_with_nuts(k3_selection_problem):
         check=False,
     )
     assert g.rates is not None and n.rates is not None
-    assert_draws_agree(*(r.rates.reshape(r.n_chains, -1, 3) for r in (g, n)))
+    assert_draws_agree(*(r.rates.reshape(r.chains.shape) for r in (g, n)))
     np.testing.assert_allclose(g.samples.sum(1), 1.0)
 
 

@@ -5,7 +5,7 @@ The references (`tests/data/matrix_reference.json`) are 20,000-draw NUTS runs wr
 divergence), with the Monte Carlo errors of their means and s.d.s; each catalogue is
 rebuilt from the matrix's own builder and seed. Every mean and s.d. must agree within
 four combined Monte Carlo errors (``assert_matches_reference``): those of the chains for
-the samplers, of the importance ESS for Laplace.
+the samplers, of the importance ESS and the resampling for Laplace.
 """
 
 import json
