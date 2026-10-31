@@ -231,10 +231,11 @@ jobs:
           "$RUNNER_TEMP/clean/bin/python" -I -c "import binference; print(binference.__version__)"
 
   ci-ok:
-    # One check that sums up a run, for branch protection: it fails when a job failed or was
-    # cancelled, and passes when jobs were skipped because the change cannot affect them.
+    # One check that sums up a run, for branch protection: it fails when a job it needs failed
+    # or was cancelled (a failed changes job skips the rest), and passes when jobs were skipped
+    # because the change cannot affect them or the run does not ask for them.
     if: always()
-    needs: [lint, test, minimum-dependencies, docs, dist]
+    needs: [changes, lint, test, minimum-dependencies, slow, docs, dist]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
