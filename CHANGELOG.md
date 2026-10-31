@@ -18,6 +18,11 @@ releases may break the API).
 - `BoundPrior.long_log_tails()`: whether a bin without data has a long tail in the
   unconstrained coordinates NUTS samples (DECISIONS #109).
 
+### Changed
+
+- The `test` extra installs scikit-learn 1.6 or later, so the test of
+  `PopulationEstimator` with scikit-learn's model selection runs (DECISIONS #110).
+
 ### Removed
 
 - `PopulationModel.prior_transform`, `BoundPrior.prior_transform` (on the Dirichlet, tree
@@ -33,6 +38,8 @@ releases may break the API).
   `method="gibbs"` only when Gibbs can fit the model (DECISIONS #109).
 - A tree prior with a branch whose exponent on the simplex is exactly zero no longer
   counts as unbounded through rounding, so MAP keeps it on the simplex (DECISIONS #109).
+- The sdist no longer includes walkthrough notes, and its tests skip the checks that
+  need `docs/` or `benchmarks/`, which it does not ship (DECISIONS #110).
 
 ## [0.1.0] - 2026-10-29
 
