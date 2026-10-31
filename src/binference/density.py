@@ -265,7 +265,8 @@ def _has_cdf(dist: Any) -> bool:
 
 
 def _dist_log_masses(dist: Any, edges: np.ndarray) -> np.ndarray:
-    """Log mass between consecutive edges of a distribution with a CDF."""
+    """Log mass between consecutive edges of a distribution with a CDF; for a frozen
+    distribution whose parameters are columns, one row per distribution."""
     with np.errstate(divide="ignore"):
         if hasattr(dist, "logcdf"):
             lc = np.asarray(dist.logcdf(edges), dtype=float)
@@ -278,14 +279,14 @@ def _dist_log_masses(dist: Any, edges: np.ndarray) -> np.ndarray:
     out = log_interval_masses(lc, ls)
     # near the median a small interval's CDF difference cancels; the density is then
     # nearly constant across it, so a 5-point quadrature of the pdf keeps full precision
-    near = (out < np.log(1e-3)) & (np.abs(np.exp(lc[:-1]) - 0.5) < 0.25)
+    near = (out < np.log(1e-3)) & (np.abs(np.exp(lc[..., :-1]) - 0.5) < 0.25)
     if near.any() and _has_pdf(dist):
         x, w = np.polynomial.legendre.leggauss(5)
-        lo, hi = edges[:-1][near], edges[1:][near]
+        lo, hi = edges[:-1], edges[1:]
         pts = lo[:, None] + (hi - lo)[:, None] * (0.5 * (x + 1.0))
-        dens = np.exp(_dist_logpdf(dist, pts.ravel()).reshape(pts.shape))
+        dens = np.exp(_dist_logpdf(dist, pts.ravel()).reshape(*out.shape, 5))
         with np.errstate(divide="ignore"):
-            out[near] = np.log((dens @ (0.5 * w)) * (hi - lo))
+            out = np.where(near, np.log((dens @ (0.5 * w)) * (hi - lo)), out)
     return out
 
 

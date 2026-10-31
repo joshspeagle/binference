@@ -34,7 +34,7 @@ def test_injections_give_a_beta_posterior_per_bin():
     np.testing.assert_array_equal(injected, [2, 1, 3, 1])
     np.testing.assert_array_equal(recovered, [1, 1, 2, 0])
     np.testing.assert_allclose(sel.values, (1 + recovered) / (3 + injected))
-    assert sel.draw(5, rng=0).shape == (5, 4) and sel.at_mean().injections is None
+    assert sel.draw(5, rng=0).shape == (5, 4) and sel.fixed().injections is None
 
 
 def test_draws_of_a_selection_never_underflow_to_zero():
@@ -84,7 +84,7 @@ def test_engines_that_cannot_infer_a_selection_refuse_and_name_those_that_can():
     for kw in ({"space": "simplex"}, {"algorithm": "em"}):
         with pytest.raises(ValueError, match="space='unconstrained'"):
             MAP(m, **kw)
-    est = binference.infer(lk, selection=sel.at_mean(), method="map")  # the plug-in
+    est = binference.infer(lk, selection=sel.fixed(), method="map")  # the plug-in
     assert np.isfinite(est.rho).all()
     res = binference.infer(lk, selection=sel, method="auto", n_samples=50, rng=0, check=False)
     assert res.method == "gibbs" and res.info["selection_draws"].shape == (4, 50, 4)
@@ -144,7 +144,7 @@ def test_a_selection_on_the_measurement_is_only_a_plug_in():
     lk, sel = _problem("on_measurement")
     with pytest.raises(ValueError, match="on the truth"):
         binference.PopulationModel(lk, selection=sel)
-    assert np.isfinite(binference.infer(lk, selection=sel.at_mean(), method="map").rho).all()
+    assert np.isfinite(binference.infer(lk, selection=sel.fixed(), method="map").rho).all()
 
 
 @pytest.mark.slow
@@ -290,7 +290,7 @@ def test_auto_and_exact_choose_what_they_can_infer():
         Likelihoods(lk.toarray()[:, :3], Bins.linear(0, 1, 3)),
         selection=Selection.from_injections([0.1, 0.5], [1, 1], Bins.linear(0, 1, 3), "on_truth"),
     )
-    with pytest.raises(ValueError, match="at_mean"):
+    with pytest.raises(ValueError, match=r"selection\.fixed"):
         binference.validation.exact_posterior(m)
     with pytest.raises(ValueError, match="prior"):
         Selection.from_injections([0.1], [1], Bins.linear(0, 1, 3), "on_truth", prior=1.0)

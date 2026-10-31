@@ -963,17 +963,17 @@ EVAL_BUDGET = 2**24
 
 def _dists_logl(row, dists, interim, objects, labels, zz):
     # distributions of from_density: one vectorised call for the rows' own points
-    from .likelihoods import _rows_logpdf, log_interim
+    from .likelihoods import _log_interim, _rows_logpdf
 
     with np.errstate(invalid="ignore"):  # -inf - -inf where the interim vanishes: NaN
-        return _rows_logpdf(dists, 1)(zz, row[objects]) - log_interim(interim, zz)
+        return _rows_logpdf(dists, 1)(zz, row[objects]) - _log_interim(interim, zz)
 
 
 def _rows_logl(row, n_in, fn, log, interim, objects, labels, zz):
     # a density function of from_density returns every input row at common points: it
     # is called on the sub-points of a few bins at a time, at most EVAL_BUDGET values
     from .density import _log_nonneg
-    from .likelihoods import log_interim
+    from .likelihoods import _log_interim
 
     out = np.empty(zz.shape)
     _, first, inverse = np.unique(labels, return_index=True, return_inverse=True)
@@ -986,7 +986,7 @@ def _rows_logl(row, n_in, fn, log, interim, objects, labels, zz):
         v = np.asarray(v if log else _log_nonneg(v), dtype=float).reshape(n_in, *pts.shape)
         out[at] = v[row[objects[at]], inverse[at] - c]
     with np.errstate(invalid="ignore"):  # -inf - -inf where the interim vanishes: NaN
-        return out - log_interim(interim, zz)
+        return out - _log_interim(interim, zz)
 
 
 def _per_object(loglike: Callable[[np.ndarray, int], np.ndarray]) -> Callable:
@@ -1276,7 +1276,7 @@ class PopulationResult(_IndividualMixin):
         if (model.selection_uncertain or model.response is not None) and key not in (info or {}):
             raise ValueError(
                 f"This model infers its {key.split('_')[0]} with the population: pass its "
-                f'draws as info["{key}"], or fix it (`.fixed()` or `.at_mean()`) first.'
+                f'draws as info["{key}"], or fix it (`.fixed()`) first.'
             )
         X = np.asarray(samples, dtype=float)
         if X.ndim not in (2, 3) or X.shape[-1] != model.K:
@@ -1957,7 +1957,7 @@ class PopulationResult(_IndividualMixin):
         if selection is not None and selection.injections is not None:
             raise ValueError(
                 "A selection from injections does not move onto a basis: attach a fixed one "
-                "(selection.at_mean()) to the likelihoods build returns."
+                "(selection.fixed()) to the likelihoods build returns."
             )
         same = key == self.method
         if METHODS[key].markov:  # draws per chain, as the fit had them

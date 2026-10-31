@@ -109,16 +109,24 @@ class Response:
             eff = np.asarray(efficiency, dtype=float).ravel()
             if eff.shape != (truth_bins.K,) or not np.all((eff >= 0) & (eff <= 1)):
                 raise ValueError("efficiency must give one probability per truth bin.")
-            if not np.allclose(col[col > 0], 1.0, atol=MIGRATION_ATOL):
+            migration = np.isclose(col, 1.0, atol=MIGRATION_ATOL)
+            if not np.all(migration[col > 0]):
                 warn(
                     "With an explicit efficiency the matrix should be a migration matrix whose "
                     "columns sum to one; these columns do not, so the efficiency may be counted "
                     "twice.",
                     InputWarning,
                 )
-            R *= eff
-            col *= eff
-        if np.any(col > 1.0 + 1e-6):
+            scale = eff / np.where(migration, col, 1.0)  # a migration column then sums to eff
+            R *= scale
+            col *= scale
+        over = np.flatnonzero(col > 1.0 + 1e-6)
+        if over.size and generated is not None:
+            raise ValueError(
+                f"counts holds more events than generated in truth bin(s) {over[:5].tolist()}; "
+                "counts[:, k] are events generated in truth bin k, at most generated[k]."
+            )
+        if over.size:
             raise ValueError(
                 "Columns of the response sum to more than one, so they are not probabilities "
                 "P(measured j | true k). Divide each column by the number of events generated "
@@ -130,8 +138,8 @@ class Response:
             raise ValueError(
                 f"measured_bins has {measured_bins.K} bins but matrix has {R.shape[0]} rows."
             )
-        if open_ended and (measured_bins.is_categorical or measured_bins.ndim != 1):
-            raise ValueError("open_ended needs 1-D measured_bins.")
+        if open_ended:
+            _clip_open_ended((), measured_bins)  # refuses measured_bins that are not 1-D
         self._matrix = frozen(R)
         self.truth_bins = truth_bins
         self.measured_bins = measured_bins
@@ -262,9 +270,8 @@ class Response:
             for :meth:`from_counts`.
         """
         k = truth_bins.index(true_values)
-        if open_ended:  # the same rule as Response.index
-            e = measured_bins.edges[0]
-            measured_values = np.clip(np.asarray(measured_values, dtype=float), e[0], e[-1])
+        if open_ended:
+            measured_values = _clip_open_ended(measured_values, measured_bins)
         j = measured_bins.index(measured_values)
         if j.shape != k.shape:
             raise ValueError("true_values and measured_values must describe the same events.")
@@ -416,6 +423,13 @@ class Response:
     def _selection(self):
         """The on-measurement selection of :meth:`_rows`: its efficiency, unless it is one."""
         eff = self._rows().sum(axis=0)
+        never = np.flatnonzero(eff <= 0)
+        if never.size:
+            raise ValueError(
+                f"The response's columns for truth bin(s) {never[:5].tolist()} sum to zero: "
+                "objects there are never observed, so their fraction cannot be inferred. Remove "
+                "those truth bins."
+            )
         # column sums may exceed one by rounding (Response allows 1e-6)
         return None if np.allclose(eff, 1.0) else Selection(np.minimum(eff, 1.0), "on_measurement")
 
@@ -443,20 +457,8 @@ class Response:
             Measured values.
         """
         if self.open_ended:
-            e = self.measured_bins.edges[0]
-            values = np.clip(np.asarray(values, dtype=float), e[0], e[-1])
+            values = _clip_open_ended(values, self.measured_bins)
         return self.measured_bins.index(values)
-
-    def measured_fractions(self, rho: Any) -> np.ndarray:
-        """Expected share of observed objects in each measured bin, for true fractions ``rho``.
-
-        Parameters
-        ----------
-        rho : array_like (K,)
-            True fractions.
-        """
-        q = self._matrix @ np.asarray(rho, dtype=float)
-        return q / q.sum()
 
     def predictive_pvalue(self, counts: Any, rho_draws: Any, response_draws: Any = None) -> float:
         r"""Posterior predictive p-value of counts per measured bin, over draws of the fractions.
@@ -529,6 +531,15 @@ class Response:
     def __repr__(self) -> str:
         J, K = self._matrix.shape
         return f"Response(J={J} measured bins, K={K} truth bins, from {self.origin})"
+
+
+def _clip_open_ended(values: Any, measured_bins: Bins) -> np.ndarray:
+    """``values`` beyond the 1-D ``measured_bins`` moved into its outer two bins, which
+    take every value beyond them (``open_ended``)."""
+    if measured_bins.is_categorical or measured_bins.ndim != 1:
+        raise ValueError("open_ended needs 1-D measured_bins.")
+    e = measured_bins.edges[0]
+    return np.clip(np.asarray(values, dtype=float), e[0], e[-1])
 
 
 def _rebuild(
