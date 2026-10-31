@@ -378,8 +378,8 @@ class PopulationModel:
     ) -> tuple[float, np.ndarray]:
         L, v = self._rows(value, S)
         ll, nhat, _ = kern.loglike_and_counts(L, self._w, v)
-        if not np.isfinite(ll):
-            return -np.inf, np.zeros_like(value)
+        if ll == -np.inf:
+            return ll, np.zeros_like(value)
         ll += self._selection_term(value, S)
         S = self._S if S is None else S
         # gradient in the logits (or log-rates) of ll, selection term included
@@ -606,7 +606,9 @@ class PopulationModel:
             Value of an inferred response; ``None`` uses the rows of the likelihoods
             (its posterior means).
         """
-        v = np.asarray(value, dtype=float)
+        v = check_nonnegative(value, "value")
+        if not v.any():
+            raise ValueError("value must not be all zero.")
         if response is not None:
             if self.response is None:
                 raise ValueError("response applies only to a response inferred from tallies.")
@@ -626,8 +628,6 @@ class PopulationModel:
                 raise ValueError(f"S must have shape ({self.K},) with values in (0, 1].")
         L, u = self._rows(v, S)
         ll = kern.loglike(L, self._w, u)
-        if ll == -np.inf:  # impossible, whatever the selection term (inf at value = 0)
-            return ll
         return ll + self._selection_term(v, S) + (self._ll_const if absolute else 0.0)
 
     def log_prior(self, value: np.ndarray) -> float:
@@ -675,9 +675,9 @@ class PopulationModel:
             Fractions or rates.
         """
         v = check_nonnegative(value, "value")
-        ll, nhat, s = kern.loglike_and_counts(self._L, self._w, v)
-        if ll == -np.inf:
-            bad = np.flatnonzero(s <= kern.MIN_EVIDENCE)
+        _, nhat, s = kern.loglike_and_counts(self._L, self._w, v)
+        if not kern.possible(s):
+            bad = np.flatnonzero(~(s > kern.MIN_EVIDENCE))
             raise ValueError(
                 f"value gives {bad.size} object(s) zero likelihood (first: {bad[:5].tolist()}), "
                 "so their responsibilities and the expected counts are undefined."
@@ -769,11 +769,8 @@ class PopulationModel:
         and the lag-one autocorrelation of the slowest mode of the Gibbs sampler
         (integrated autocorrelation time roughly ``(1 + f) / (1 - f)``). With a
         selection function the missed objects count as missing data, as EM and
-        Gibbs impute them; ``include_prior`` adds the pseudo-counts of a Dirichlet
-        or ``GammaRates`` prior, as the MAP EM does (audit M-2; other priors add
-        none; NaN where concentrations or shapes below one outweigh the data).
-        Computed on the support of ``value`` and on a random subset of at most
-        ``max_objects`` objects, ``chunk`` objects at a time.
+        Gibbs impute them. Computed on the support of ``value`` and on a random
+        subset of at most ``max_objects`` objects, ``chunk`` objects at a time.
 
         Parameters
         ----------
@@ -785,7 +782,9 @@ class PopulationModel:
             Random number generator for the subset; the default ``0`` makes it
             reproducible.
         include_prior : bool, optional
-            Add the pseudo-counts of a Dirichlet or ``GammaRates`` prior, as the MAP EM does.
+            Add the pseudo-counts of a Dirichlet or ``GammaRates`` prior, as the MAP EM
+            does (audit M-2); other priors add none. NaN where concentrations or shapes
+            below one outweigh the data.
         chunk : int, optional
             Objects processed per block, which bounds memory.
         """
@@ -808,11 +807,11 @@ class PopulationModel:
             nhat += w[sl] @ R
             RwR += (R * w[sl, None]).T @ R
         Im = np.diag(nhat) - RwR
-        # a Dirichlet or GammaRates prior adds its pseudo-counts to the complete data, as
-        # in the MAP EM
+        # the prior's pseudo-counts join the complete data, as in the MAP EM
         a = self.prior.pseudocounts if include_prior else None
+        a = 0.0 if a is None else a[on]
         if self.kind == "rates":  # Poisson thinning imputes nothing
-            n_complete = nhat if a is None else nhat + a[on]
+            n_complete = nhat + a
             if np.any(n_complete < 0):  # shapes below one outweigh the data
                 return np.nan
             I_c = np.diag(n_complete)
@@ -820,8 +819,7 @@ class PopulationModel:
         else:
             rho = v[on] / v[on].sum()
             C = np.diag(rho) - np.outer(rho, rho)
-            # the total pseudo-count (A - K for a Dirichlet on every bin)
-            extra = 0.0 if a is None else float(np.sum(a[on]))
+            extra = float(np.sum(a))  # the total pseudo-count (A - K for a Dirichlet)
             # complete data: the observed objects and, with selection, the imputed missed ones
             S = np.ones(on.sum()) if self.selection is None else self._detect[on]
             phi = S * rho / float(S @ rho)

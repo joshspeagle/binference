@@ -36,7 +36,10 @@ releases may break the API).
   call, for their exact bin masses and for their densities; the densities' check for one
   family never matched, so each distribution was evaluated separately (DECISIONS #113).
 - `Measure` objects are immutable, as `Bins` are; renaming the shared `Measure.log()`
-  broke the saving of bins (DECISIONS #116).
+  broke the saving of bins. `Bins`, `Selection`, `Response` and `Measure` also refuse
+  `del` of an attribute, after which it could be set again (DECISIONS #116).
+- `PopulationModel.log_likelihood` refuses a value that is not finite and non-negative,
+  or is all zero; a negative fraction gave a finite log-likelihood (DECISIONS #116).
 - `sbc` ranks the log-likelihood of a model that infers its selection or response in one
   pass over the draws: the same values, about 11 times faster (DECISIONS #116).
 
