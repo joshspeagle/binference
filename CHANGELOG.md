@@ -20,6 +20,11 @@ releases may break the API).
 - `Selection.from_function` and `Selection.combined` take `max_depth`, the most
   refinements of their adaptive quadrature; the default, 20, allows the halvings a jump
   inside a bin needs (DECISIONS #113).
+- `Likelihoods.from_density`, `Density.from_function` and `Density.coerce` take
+  `bounded=`: the bin averages of a bounded density, such as a box, and of
+  `from_density`'s interim prior given as a function, are checked for jumps near bin
+  edges as a selection function's are, at 13/8 the points per cell in 1-D
+  (DECISIONS #115).
 
 ### Changed
 
@@ -35,6 +40,13 @@ releases may break the API).
 - `Likelihoods.from_density` evaluates frozen SciPy distributions of one family in one
   call, for their exact bin masses and for their densities; the densities' check for one
   family never matched, so each distribution was evaluated separately (DECISIONS #113).
+- `plot(stack=...)` takes the stack as `Likelihoods.stack` returns it, and on a fit with a
+  `Basis` shares its component weights among the bins, so `result.plot(stack=lk.stack())`
+  works on every fit; it failed with more components than bins and, with as many, drew
+  the component weights as bin fractions. A stack mapped to the bins first, as
+  `Likelihoods.stack`'s docstring advised, is now refused when the numbers of components
+  and bins differ and mapped twice when they agree. A `truth` or `stack` of the wrong
+  length is refused by name (DECISIONS #114).
 
 ### Removed
 
@@ -94,6 +106,11 @@ releases may break the API).
   `Response.from_simulation` with `open_ended` and categorical measured bins (an
   `AttributeError`); labelled scores that are not finite. `Selection.combined` checks
   `scale` before evaluating its functions.
+- Adaptive bin averages refine a row whose 5-point estimates are all zero where a check
+  rule reads something, until its cells are below `tol` of their bin, and warn where
+  the function is still unread there; such a row was read as zero, so a selection
+  function, or a bounded density, that is non-zero only within 4.7% of a bin edge was
+  missed without a warning (DECISIONS #115).
 
 ## [0.1.0] - 2026-10-29
 
