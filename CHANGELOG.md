@@ -20,6 +20,9 @@ releases may break the API).
 - `Selection.from_function` and `Selection.combined` take `max_depth`, the most
   refinements of their adaptive quadrature; the default, 20, allows the halvings a jump
   inside a bin needs (DECISIONS #113).
+- `Likelihoods.from_density` and `Density.from_function` take `bounded=`: the bin
+  averages of a bounded density, such as a box, are checked for jumps near bin edges as
+  a selection function's are, at 13/8 the points per cell in 1-D (DECISIONS #115).
 
 ### Changed
 
@@ -100,6 +103,10 @@ releases may break the API).
   `Response.from_simulation` with `open_ended` and categorical measured bins (an
   `AttributeError`); labelled scores that are not finite. `Selection.combined` checks
   `scale` before evaluating its functions.
+- Adaptive bin averages refine a row whose 5-point estimates are all zero where a check
+  rule reads something; such a row was read as zero, so a selection function, or a
+  bounded density, that is non-zero only within 4.7% of a bin edge was missed
+  (DECISIONS #115).
 
 ## [0.1.0] - 2026-10-29
 

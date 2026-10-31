@@ -177,7 +177,9 @@ def bin_log_average(
     # errors are measured on averages (in u) or on masses (in z), relative to the
     # row's largest; the reference grows as refinement resolves narrow peaks
     logvol = np.zeros(bins.K) if coordinate == "measure" else np.log(bins.volumes)
-    rowmax = np.full(N, -np.inf)
+    # finite, so that where a row's 5-point estimates are all zero a check rule that reads
+    # something still makes an error, rather than a NaN that would pass
+    rowmax = np.full(N, np.finfo(float).min)
     corners = np.array(list(product((0.0, 0.5), repeat=nd)))
     unconverged = np.zeros(bins.K, dtype=bool)
     for depth in range(max_depth + 1):
@@ -188,7 +190,7 @@ def bin_log_average(
             np.maximum.at(rowmax, row, fine + shift)
         rowmax = np.maximum(rowmax, (out + logvol).max(axis=1))
         scale = (rowmax[:, None] if rows is None else rowmax[row]) - logvol[owner]
-        with np.errstate(invalid="ignore"):  # the largest disagreement of the checks
+        with np.errstate(invalid="ignore", over="ignore"):  # the checks' largest disagreement
             diff = np.nan_to_num(np.abs(np.exp(fine - scale) - np.exp(np.stack(coarse) - scale)))
         err = np.exp(logfrac) * diff.max(axis=(0, 1) if rows is None else 0)
         ok = err <= tol

@@ -1264,6 +1264,7 @@ class Likelihoods:
         tol: float = 1e-3,
         max_depth: int = 12,
         n_sub: int | None = None,
+        bounded: bool = False,
         weights: Any = None,
         selection: Any = None,
         selection_mode: str | None = None,
@@ -1292,7 +1293,8 @@ class Likelihoods:
         average, splitting cells at most ``max_depth`` times; ``n_sub`` instead
         fixes ``n_sub`` Gauss-Legendre points per bin and axis. A jump in the outer
         4.7% of a cell, or a peak narrower than the spacing of the points, can fall
-        between them and be missed without a warning: put bin edges at the jumps.
+        between them and be missed without a warning: pass ``bounded=True`` for a
+        bounded density, such as a box, or put bin edges at the jumps.
         Distributions with a ``cdf`` on 1-D bins give exact bin masses, for posteriors
         and for likelihoods on bins linear in z, and the fraction of each one's mass
         outside the active bins is recorded in ``meta["outside_fraction"]`` (see
@@ -1320,6 +1322,12 @@ class Likelihoods:
             Most refinements of the adaptive quadrature.
         n_sub : int, optional
             Fixed Gauss-Legendre points per bin and axis in place of adaptive quadrature.
+        bounded : bool, optional
+            The densities are bounded: each cell is also checked against Lobatto's
+            5-point rule read just inside its edges, which sees a jump the Gauss points
+            miss, as for a selection function. A cell then reads 13/8 the points in 1-D,
+            a jump takes about log2(1 / tol) refinements, and an integrable singularity
+            on an edge would refine to ``max_depth``. Ignored with ``n_sub``.
         weights : array_like (N,), optional
             Integer multiplicity of each object; ``None`` gives every object weight one.
         selection : array_like (K,), callable or Selection, optional
@@ -1347,6 +1355,7 @@ class Likelihoods:
             "tol": tol,
             "max_depth": max_depth,
             "n_sub": n_sub,
+            "jumps": bool(bounded),
         }
         log_inside = None
         if callable(density):

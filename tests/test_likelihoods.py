@@ -285,6 +285,23 @@ def test_function_quadrature_converges():
     np.testing.assert_allclose(c.toarray(), a.toarray(), rtol=1e-4, atol=1e-8)
 
 
+@pytest.mark.parametrize(
+    ("f", "exact"),
+    [
+        (lambda z: np.where(z < 0.26, 1.0, 0.2), [1.0, (0.01 + 0.24 * 0.2) / 0.25, 0.2, 0.2]),
+        # a box that no Gauss-Legendre point reads, within 4.7% of the edge on both sides
+        (lambda z: np.where(np.abs(z - 0.25) < 0.005, 1.0, 0.0), [0.02, 0.02, 0.0, 0.0]),
+    ],
+)
+def test_a_bounded_density_is_checked_for_jumps_near_bin_edges(f, exact):
+    bins, exact = Bins.linear(0, 1, 4), np.array(exact)
+    lk = Likelihoods.from_density(lambda z: f(z)[None], bins, kind="likelihood", bounded=True)
+    masses = binference.Density.from_function(f, bounded=True).masses(bins)
+    # within twice tol of the largest: the error estimate is the rules' disagreement
+    np.testing.assert_allclose(lk.toarray()[0], exact / exact.max(), atol=2e-3)
+    np.testing.assert_allclose(masses / masses.max(), exact / exact.max(), atol=2e-3)
+
+
 def test_from_binned():
     R = np.array([[0.7, 0.1], [0.2, 0.6], [0.05, 0.2]])  # columns sum < 1 (efficiency)
     counts = np.array([10, 0, 3])
