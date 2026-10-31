@@ -14,6 +14,8 @@ from binference.samplers import Gibbs
 
 DOCS = Path(__file__).parents[1] / "docs"
 SCRIPT = DOCS / "_scripts" / "explainers.mjs"
+if not DOCS.exists():
+    pytest.skip("docs/ is not next to the tests (sdist)", allow_module_level=True)
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="needs Node.js")
 
 

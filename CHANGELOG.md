@@ -7,11 +7,30 @@ releases may break the API).
 
 ## [Unreleased]
 
+### Added
+
+- `describe(bins, counts=None)` on `Dirichlet` and the tree priors draws the tree as
+  text: each branch's concentration, mean share and mean mass, or the posterior given
+  counts (DECISIONS #108).
+- `DirichletTree` takes named groups (nested dicts, with bin labels on categorical bins),
+  and `alpha` as a dict from group names, and bins as the tree writes them, to the
+  concentration of the branch into each (DECISIONS #108).
+
+### Changed
+
+- The `test` extra installs scikit-learn 1.6 or later, so the test of
+  `PopulationEstimator` with scikit-learn's model selection runs (DECISIONS #110).
+
 ### Removed
 
 - `PopulationModel.prior_transform`, `BoundPrior.prior_transform` (on the Dirichlet, tree
   and `GammaRates` priors) and `BoundPrior.has_prior_transform`: the unit-cube map for
   nested samplers, which nothing in binference used (DECISIONS #107).
+
+### Fixed
+
+- The sdist no longer includes walkthrough notes, and its tests skip the checks that
+  need `docs/` or `benchmarks/`, which it does not ship (DECISIONS #110).
 
 ## [0.1.0] - 2026-10-29
 

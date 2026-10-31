@@ -10,7 +10,7 @@ import numpy as np
 
 from ._version import __version__
 from .basis import Basis
-from .bins import Bins
+from .bins import Bins, _bin_labels
 from .measure import Measure
 from .selection import Selection
 from .selection import _rebuild as _rebuild_selection
@@ -257,8 +257,6 @@ def to_datatree(result: PopulationResult):
         raise ImportError("to_datatree needs xarray: pip install 'binference[xarray]'.") from err
     C = result.chains
     n_chains, n_draws, _ = C.shape
-    from .results import _bin_labels
-
     coords: dict[str, Any] = {
         "chain": np.arange(n_chains),
         "draw": np.arange(n_draws),
