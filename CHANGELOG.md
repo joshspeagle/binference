@@ -32,9 +32,9 @@ releases may break the API).
   (DECISIONS #111).
 - `plot_sbc` always shows the joint log-likelihood; with 12 or more other quantities it
   was left out.
-- A list of colours is accepted for the bars of categories only; the other plots failed
-  with a matplotlib error and now raise one naming the argument, and `plot_sbc`, which
-  coloured its rank bars from a list, refuses it too (DECISIONS #111).
+- A list of colours is accepted for the bars of categories only, one per category; the
+  other plots failed with a matplotlib error and now raise one naming the argument, and
+  `plot_sbc`, which coloured its rank bars from a list, refuses it too (DECISIONS #111).
 - A truth overlay on `which="selected"` of a fit with a `Basis` is refused with a
   `ValueError`; it failed with a broadcasting error or, with as many components as bins,
   drew a wrong overlay (DECISIONS #111).
