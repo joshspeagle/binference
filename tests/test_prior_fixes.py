@@ -98,8 +98,9 @@ def test_a_bad_hyperparameter_is_named_in_the_error(make, name):
 
 
 def test_a_dirichlet_from_counts_names_a_bad_argument():
-    # a negative strength subtracted the reference sample; a bad base blamed alpha
-    for kw, name in (({"strength": -0.1}, "strength"), ({"base": 0.0}, "base")):
+    # a negative strength subtracted the reference sample; a bad base blamed alpha (a zero
+    # base is valid where every bin has counts)
+    for kw, name in (({"strength": -0.1}, "strength"), ({"base": -0.5}, "base")):
         with pytest.raises(ValueError, match=rf"^{name} must be"):
             P.Dirichlet.from_counts([1.0, 2.0], **kw)
     with pytest.raises(ValueError, match=r"^counts must be"):

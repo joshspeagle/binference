@@ -97,6 +97,9 @@ class Dirichlet(PopulationPrior):
         self.alpha = alpha
         self._base: tuple[float, Any] | None = None
 
+    def __repr__(self) -> str:
+        return "Dirichlet.reference()" if isinstance(self.alpha, str) else super().__repr__()
+
     def _params(self):
         if self._base is not None:
             return {"concentration": self._base[0], "base": self._base[1]}
@@ -134,7 +137,7 @@ class Dirichlet(PopulationPrior):
             Concentration added to every bin.
         """
         c = check_nonnegative(counts, "counts")
-        return cls(check_positive(base, "base") + check_nonnegative(strength, "strength") * c)
+        return cls(check_nonnegative(base, "base") + check_nonnegative(strength, "strength") * c)
 
     @classmethod
     def from_base_measure(cls, concentration: float = 1.0, base: Any = "flat") -> Dirichlet:

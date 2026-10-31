@@ -100,6 +100,9 @@ def test_vb_expected_log(prior, rng):
 
 def test_dirichlet_constructors():
     assert np.allclose(P.Dirichlet.reference().resolve_alpha(B4), 0.25)
+    assert repr(P.Dirichlet.reference()) == "Dirichlet.reference()"  # a prior one can build
+    # the counts can carry alpha alone (base 0), as long as every bin has some
+    np.testing.assert_allclose(P.Dirichlet.from_counts([3, 5, 2], base=0.0).alpha, [3, 5, 2])
     np.testing.assert_allclose(
         P.Dirichlet.from_counts([1, 0, 3], strength=0.5).resolve_alpha(B3), [1.5, 1.0, 2.5]
     )
