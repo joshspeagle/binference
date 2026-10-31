@@ -40,10 +40,10 @@ pytest --cov=binference         # coverage report
   * $L_{ik}$ for bin-averaged likelihoods;
   * $\rho$ for fractions and $\lambda$ for rates;
   * $\pi$ for interim priors and $r_{ik}$ for responsibilities.
-* Name arrays and densities by their coordinates: `value` for fractions or rates, `eta`
-  for logits or log-rates, `x` for the unconstrained coordinates; `log_posterior` is a
-  density of `value`, `log_density_unconstrained` one of `x`, and the two differ by the
-  Jacobian of the map between them.
+* In public signatures, `value` is fractions or rates, `eta` logits or log-rates and `x` the
+  unconstrained coordinates. Public densities without a qualifier (`log_prior`,
+  `log_likelihood`, `log_posterior`) are in `value`; `log_density_unconstrained` is in `x`
+  ([coordinates](docs/how-it-works/priors.md#coordinates)).
 * Randomness goes through a `rng` argument accepting a seed or
   `numpy.random.Generator` (SPEC 7), never the global NumPy state.
 * User-facing problems raise `ValueError`/`TypeError` with a message that says
