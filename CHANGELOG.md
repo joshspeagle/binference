@@ -108,6 +108,8 @@ releases may break the API).
 
 ### Fixed
 
+- Docstrings, error messages and attribute comments on the API pages no longer cite
+  design records ("DECISIONS #n"), which the site does not include.
 - The NUTS tree-depth hint of `check()` names long log tails only for priors that have
   them where NUTS samples, such as a tree with a branch concentration below one; it no
   longer blames trees whose concentrations are all at least one, such as
