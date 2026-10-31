@@ -508,6 +508,20 @@ def test_a_dirichlet_is_described_as_a_tree_of_one_node():
     ]
 
 
+def test_a_generalized_dirichlet_is_described_as_its_chain_of_splits():
+    gd = P.GeneralizedDirichlet([1.0, 2.0], [1.0, 1.0])
+    text = gd.describe(Bins.linear(0.0, 1.0, 3), counts=[2, 0, 1])
+    # Beta(1 + 2, 1 + 0 + 1) for bin 0 against the rest, then Beta(2 + 0, 1 + 1)
+    assert text.splitlines() == [
+        "GeneralizedDirichlet: posterior given the counts, on 3 bins",
+        "root: bins 0–2",
+        "├── α=3  share 0.60  mass 0.600  bin 0 [0, 0.3333)",
+        "└── α=2  share 0.40  mass 0.400  bins 1–2",
+        "    ├── α=2  share 0.50  mass 0.200  bin 1 [0.3333, 0.6667)",
+        "    └── α=2  share 0.50  mass 0.200  bin 2 [0.6667, 1)",
+    ]
+
+
 def test_named_groups_bind_to_the_tree_their_nested_lists_give():
     named = P.DirichletTree(GROUPS, alpha=2.0).bind(GALAXIES).tree
     nested = P.DirichletTree([[0, 1], [[2, 3], 4]], alpha=2.0).bind(GALAXIES).tree
