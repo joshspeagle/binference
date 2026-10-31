@@ -27,7 +27,7 @@ def _gauss(n: int) -> tuple[np.ndarray, np.ndarray]:
     return 0.5 * (x + 1.0), 0.5 * w
 
 
-# Lobatto's 5-point rule on [0, 1], its end nodes moved EDGE_INSET inside the cell
+# Lobatto's 5-point rule on [0, 1]
 _LOBATTO = (
     np.array([EDGE_INSET, 0.5 - np.sqrt(21) / 14, 0.5, 0.5 + np.sqrt(21) / 14, 1 - EDGE_INSET]),
     np.array([9.0, 49.0, 64.0, 49.0, 9.0]) / 180,
@@ -83,12 +83,10 @@ def bin_log_average(
     ``n_sub``-point rule is used instead.
 
     The Gauss-Legendre points leave the outer 4.7% of a cell at each end unread, so
-    a jump there goes unseen, and two Gauss rules can agree on a wrong value for a
-    peak between their points. With ``jumps`` each cell is also checked against
-    Lobatto's 5-point rule with its ends :data:`EDGE_INSET` inside the cell, which
-    sees a jump anywhere but within :data:`EDGE_INSET` of an edge. That suits a
-    bounded function such as a detection probability: at an integrable singularity
-    on an edge the check would refine to ``max_depth``.
+    a jump there goes unseen. With ``jumps`` each cell is also checked against
+    Lobatto's 5-point rule with its ends :data:`EDGE_INSET` inside the cell. That
+    suits a bounded function such as a detection probability: at an integrable
+    singularity on an edge the check would refine to ``max_depth``.
 
     ``must_split(z_lo, z_hi, r)`` (per-row mode) marks cells, given by their
     bounds in ``z``, that must be split whatever the error estimate says: a
@@ -103,13 +101,6 @@ def bin_log_average(
         # refine blocks of rows separately, so the per-row state stays bounded
         block = max(1, MAX_ELEMENTS // (8 * bins.K))
         if rows > block:
-            kw = {
-                "coordinate": coordinate,
-                "tol": tol,
-                "max_depth": max_depth,
-                "n_sub": n_sub,
-                "jumps": jumps,
-            }
             return np.concatenate(
                 [
                     bin_log_average(
@@ -119,7 +110,11 @@ def bin_log_average(
                         must_split=None
                         if must_split is None
                         else (lambda a, b, r, start=sl.start: must_split(a, b, r + start)),
-                        **kw,
+                        coordinate=coordinate,
+                        tol=tol,
+                        max_depth=max_depth,
+                        n_sub=n_sub,
+                        jumps=jumps,
                     )
                     for sl in chunk_slices(rows, block)
                 ]
@@ -195,8 +190,7 @@ def bin_log_average(
         scale = (rowmax[:, None] if rows is None else rowmax[row]) - logvol[owner]
         with np.errstate(invalid="ignore"):  # the largest disagreement of the checks
             diff = np.nan_to_num(np.abs(np.exp(fine - scale) - np.exp(np.stack(coarse) - scale)))
-        diff = diff.max(axis=0)
-        err = np.exp(logfrac) * (diff.max(axis=0) if rows is None else diff)
+        err = np.exp(logfrac) * diff.max(axis=(0, 1) if rows is None else 0)
         ok = err <= tol
         if must_split is not None:
             z_lo = np.stack([inv(lo[:, d]) for d, inv in enumerate(inverse)], axis=-1)

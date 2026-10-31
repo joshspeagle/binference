@@ -120,13 +120,7 @@ class Response:
             scale = eff / np.where(migration, col, 1.0)  # a migration column then sums to eff
             R *= scale
             col *= scale
-        over = np.flatnonzero(col > 1.0 + 1e-6)
-        if over.size and generated is not None:
-            raise ValueError(
-                f"counts holds more events than generated in truth bin(s) {over[:5].tolist()}; "
-                "counts[:, k] are events generated in truth bin k, at most generated[k]."
-            )
-        if over.size:
+        if np.any(col > 1.0 + 1e-6):
             raise ValueError(
                 "Columns of the response sum to more than one, so they are not probabilities "
                 "P(measured j | true k). Divide each column by the number of events generated "
@@ -211,9 +205,16 @@ class Response:
                 f"No events were generated in truth bin(s) {empty[:5].tolist()}, so their "
                 "response is unknown; simulate events there or remove those bins."
             )
+        R = np.asarray(counts, dtype=float) / g
+        over = np.flatnonzero(R.sum(axis=0) > 1.0 + 1e-6)  # as _setup allows by rounding
+        if over.size:
+            raise ValueError(
+                f"counts holds more events than generated in truth bin(s) {over[:5].tolist()}; "
+                "counts[:, k] are events generated in truth bin k, at most generated[k]."
+            )
         out = cls.__new__(cls)
         out._setup(
-            np.asarray(counts, dtype=float) / g,
+            R,
             truth_bins,
             measured_bins,
             None,

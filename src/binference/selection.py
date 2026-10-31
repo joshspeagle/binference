@@ -242,8 +242,7 @@ class Selection:
         return _draw_beta(s, f, as_generator(rng), size=(int(n), self.K))
 
     def fixed(self) -> Selection:
-        """This selection taken as known at its :attr:`values` (for one from injections the
-        posterior means, or with ``smooth`` the mode), a plug-in that ignores their
+        """This selection taken as known at its :attr:`values`, a plug-in that ignores their
         uncertainty."""
         return _rebuild(*self._parts()[:4])
 

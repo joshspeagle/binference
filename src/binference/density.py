@@ -282,11 +282,11 @@ def _dist_log_masses(dist: Any, edges: np.ndarray) -> np.ndarray:
     near = (out < np.log(1e-3)) & (np.abs(np.exp(lc[..., :-1]) - 0.5) < 0.25)
     if near.any() and _has_pdf(dist):
         t, w = _gauss(5)
-        lo, hi = edges[:-1], edges[1:]
-        pts = lo[:, None] + (hi - lo)[:, None] * t
+        lo, width = edges[:-1], np.diff(edges)
+        pts = lo[:, None] + width[:, None] * t
         dens = np.exp(_dist_logpdf(dist, pts.ravel()).reshape(*out.shape, 5))
         with np.errstate(divide="ignore"):
-            out = np.where(near, np.log((dens @ w) * (hi - lo)), out)
+            out = np.where(near, np.log((dens @ w) * width), out)
     return out
 
 

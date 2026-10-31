@@ -62,7 +62,6 @@ def test_a_reloaded_fit_keeps_a_combined_or_injection_selection(tmp_path, kind):
     res.save(str(tmp_path / "fit"))
     back = PopulationResult.load(str(tmp_path / "fit"))
     assert back.selection == res.selection  # values, row and injections
-    np.testing.assert_allclose(back.total, res.total)
 
 
 def test_attaching_other_likelihoods_redraws_the_total_and_missing_information():

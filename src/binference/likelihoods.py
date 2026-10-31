@@ -148,9 +148,9 @@ def _common(weights, selection, selection_mode, drop_empty, fractional_weights) 
     }
 
 
-def _one_family(dists: list[Any]) -> tuple | None:
-    """``(family, args, kwds)`` when ``dists`` are frozen SciPy distributions of one family,
-    with each parameter as an array over the distributions; ``None`` otherwise."""
+def _one_family(dists: list[Any]) -> Any:
+    """``dists``, frozen SciPy distributions of one family, as one frozen distribution whose
+    parameters are columns over them; ``None`` when they are not of one family."""
     family = getattr(dists[0], "dist", None)
     keys = sorted(getattr(dists[0], "kwds", {}))
     # each frozen distribution holds its own copy of a family's generator; only a public
@@ -167,18 +167,17 @@ def _one_family(dists: list[Any]) -> tuple | None:
         )
     ):
         return None
-    args = [np.array(a, dtype=float) for a in zip(*(d.args for d in dists), strict=True)]
-    kwds = {k: np.array([d.kwds[k] for d in dists], dtype=float) for k in keys}
-    return family, args, kwds
+    args = [np.array(a, dtype=float)[:, None] for a in zip(*(d.args for d in dists), strict=True)]
+    kwds = {k: np.array([d.kwds[k] for d in dists], dtype=float)[:, None] for k in keys}
+    return family(*args, **kwds)
 
 
 def _rows_logpdf(dists: list[Any], ndim: int) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
     """``f(z, r)``: log density of distribution ``r[p]`` at the points ``z[p]``."""
     one = _one_family(dists) if ndim == 1 else None
     if one is not None:  # one call for all
-        family, args, kwds = one
-        return lambda z, r: family.logpdf(
-            z, *(a[r, None] for a in args), **{k: v[r, None] for k, v in kwds.items()}
+        return lambda z, r: one.dist.logpdf(
+            z, *(a[r] for a in one.args), **{k: v[r] for k, v in one.kwds.items()}
         )
 
     def logpdf(z, r):
@@ -1362,12 +1361,8 @@ class Likelihoods:
                 one = _one_family(dists)
                 if one is None:
                     log_mass = np.stack([_dist_log_masses(d, bins.edges[0]) for d in dists])
-                else:  # one call for all, with each parameter a column
-                    family, args, kwds = one
-                    batch = family(
-                        *(a[:, None] for a in args), **{k: v[:, None] for k, v in kwds.items()}
-                    )
-                    log_mass = _dist_log_masses(batch, bins.edges[0])
+                else:  # one call for all
+                    log_mass = _dist_log_masses(one, bins.edges[0])
                 log_mass = log_mass[:, bins.cell_index[0]]
                 log_inside = special.logsumexp(log_mass, axis=1)
             if log_inside is not None and (posterior or bins.measures[0] == Measure.linear()):

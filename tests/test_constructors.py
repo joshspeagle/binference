@@ -36,16 +36,16 @@ def test_frozen_distributions_of_one_family_are_evaluated_together(monkeypatch):
 
     for name in calls:
         monkeypatch.setattr(family, name, counting(name))
+
+    def n_calls(dists, bins):
+        calls.update(logcdf=0, logpdf=0)
+        Likelihoods.from_density(dists, bins, kind="likelihood")
+        return calls.copy()
+
     dists = [stats.norm(m, 0.1) for m in (0.2, 0.5, 0.7)]
-    Likelihoods.from_density(dists, Bins.linear(0, 1, 4), kind="likelihood")  # exact masses
-    assert calls["logcdf"] == 1
-
-    def logpdf_calls(dists):  # quadrature in the measure coordinate
-        calls["logpdf"] = 0
-        Likelihoods.from_density(dists, Bins.log(0.1, 1.0, 4), kind="likelihood")
-        return calls["logpdf"]
-
-    assert logpdf_calls(dists) == logpdf_calls(dists * 2)
+    # exact masses on linear bins; quadrature in the measure coordinate on log bins
+    for bins in (Bins.linear(0, 1, 4), Bins.log(0.1, 1.0, 4)):
+        assert n_calls(dists, bins) == n_calls(dists * 2, bins)
 
 
 def test_frozen_histograms_are_not_taken_for_one_family():

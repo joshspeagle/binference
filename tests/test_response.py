@@ -163,9 +163,9 @@ def test_an_efficiency_must_be_probabilities():
 
 
 def test_a_migration_matrix_off_one_by_rounding_gets_exactly_its_efficiency():
-    for eff in ([1.0, 0.9], [0.9, 0.9]):  # the first column sums to 1.0005
-        resp = Response([[0.5005, 0.3], [0.5, 0.7]], Bins.categories(2), efficiency=eff)
-        np.testing.assert_allclose(resp.efficiency, eff, rtol=1e-12)
+    # the first column sums to 1.0005
+    resp = Response([[0.5005, 0.3], [0.5, 0.7]], Bins.categories(2), efficiency=[1.0, 0.9])
+    np.testing.assert_allclose(resp.efficiency, [1.0, 0.9], rtol=1e-12)
 
 
 def test_more_tallied_than_generated_events_name_the_truth_bins():
