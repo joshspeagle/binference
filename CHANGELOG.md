@@ -187,18 +187,17 @@ releases may break the API).
   what the code does.
 - A prior's fingerprint, which `attach` compares after `load`, includes the values of its
   base measure: priors with different base arrays of the same length no longer pass for
-  each other, and a named function as base matches in another process. Densities from two
-  frozen `rv_histogram`s with different data no longer compare equal.
+  each other, and a named function as base matches in another process.
 - MAP with a tree prior one of whose branches has exponent zero, such as
   `PolyaTree(c=K/2)`, converges when that branch's bins are empty: the KKT gap is checked
   on the tree's branch probabilities, where it keeps its precision; EM warned that it had
   not converged (at K = 32 also in 0.1.0).
 - A value that is not numbers, such as `Dirichlet("reference")`, raises an error naming
   the argument rather than NumPy's cast error.
-- `infer` refuses an `n_samples` that is not a positive integer, by name; `0` under auto
-  ran at the automatic length.
-- `Dirichlet.from_counts` refuses a negative `strength` and a non-positive `base`, naming
-  them; a negative strength subtracted the reference sample.
+- `infer` and `Auto.run` refuse an `n_samples` that is not a positive integer, by name;
+  `0` under auto ran at the automatic length.
+- `Dirichlet.from_counts` refuses a negative `strength` or `base`, naming them; a negative
+  strength subtracted the reference sample.
 - auto reported "the only engine that takes these options" when Gibbs took them but a
   rule left it out.
 - `amplitude`, `scale` and `length_scale` (and `length_scale[d]`) are named in their
