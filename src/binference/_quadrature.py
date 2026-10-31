@@ -89,7 +89,8 @@ def bin_log_average(
     singularity on an edge the check would refine to ``max_depth``. A row whose
     5-point estimates are all zero gives no scale for the error: where a check rule
     reads something there, its cells are split until they are below ``tol`` of their
-    bin, and keep what the 5-point rule then reads.
+    bin, and keep what the 5-point rule then reads, with an
+    :class:`~binference.InputWarning` where that is still nothing.
 
     ``must_split(z_lo, z_hi, r)`` (per-row mode) marks cells, given by their
     bounds in ``z``, that must be split whatever the error estimate says: a
@@ -186,6 +187,7 @@ def bin_log_average(
     rowmax = np.full(N, unseen)
     corners = np.array(list(product((0.0, 0.5), repeat=nd)))
     unconverged = np.zeros(bins.K, dtype=bool)
+    unread = np.zeros(bins.K, dtype=bool)  # bins where such a row stopped with nothing read
     for depth in range(max_depth + 1):
         shift = logfrac + logvol[owner]
         if rows is None:
@@ -197,9 +199,13 @@ def bin_log_average(
         with np.errstate(invalid="ignore", over="ignore"):  # the checks' largest disagreement
             diff = np.nan_to_num(np.abs(np.exp(fine - scale) - np.exp(np.stack(coarse) - scale)))
         blind = rowmax == unseen  # no scale for the error: stop below tol of the bin
+        stopped = None
         if blind.any():
             small = logfrac < np.log(tol)
-            diff[:, blind[:, None] & small if rows is None else blind[row] & small] = 0.0
+            mask = blind[:, None] & small if rows is None else blind[row] & small
+            stopped = (diff > 0).any(axis=0) & mask  # read only by a check rule
+            stopped = stopped.any(axis=0) if rows is None else stopped
+            diff[:, mask] = 0.0
         err = np.exp(logfrac) * diff.max(axis=(0, 1) if rows is None else 0)
         ok = err <= tol
         if must_split is not None:
@@ -209,6 +215,8 @@ def bin_log_average(
         if depth == max_depth:
             unconverged[owner[~ok]] = True
             ok[:] = True
+        if stopped is not None:
+            unread[owner[stopped & ok]] = True
         if rows is None:
             np.logaddexp.at(out.T, owner[ok], (fine[:, ok] + logfrac[ok]).T)
         else:
@@ -228,6 +236,13 @@ def bin_log_average(
         warn(
             f"Bin averages did not reach tol={tol:g} in {int(unconverged.sum())} bin(s) after "
             f"{max_depth} refinements; raise max_depth or tol.",
+            InputWarning,
+        )
+    if unread.any():
+        warn(
+            f"Bin averages read zero in {int(unread.sum())} bin(s) where the function is "
+            f"non-zero only in a feature too narrow to resolve at tol={tol:g}; lower tol, or "
+            "put bin edges at it.",
             InputWarning,
         )
     return out

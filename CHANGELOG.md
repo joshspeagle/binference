@@ -107,9 +107,10 @@ releases may break the API).
   `AttributeError`); labelled scores that are not finite. `Selection.combined` checks
   `scale` before evaluating its functions.
 - Adaptive bin averages refine a row whose 5-point estimates are all zero where a check
-  rule reads something; such a row was read as zero, so a selection function, or a
-  bounded density, that is non-zero only within 4.7% of a bin edge was missed
-  (DECISIONS #115).
+  rule reads something, until its cells are below `tol` of their bin, and warn where
+  the function is still unread there; such a row was read as zero, so a selection
+  function, or a bounded density, that is non-zero only within 4.7% of a bin edge was
+  missed without a warning (DECISIONS #115).
 
 ## [0.1.0] - 2026-10-29
 

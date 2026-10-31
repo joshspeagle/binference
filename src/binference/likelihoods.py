@@ -314,7 +314,8 @@ def _accepts_basis(within_bins: bool, exact: Callable[[dict], bool] | None = Non
                 bound.arguments["bins"] = basis.grid if within_bins else basis.bins
             interim = bound.arguments.get("interim")
             if within_bins and interim is not None:
-                dens = Density.coerce(interim, bound.arguments.pop("interim_representation", None))
+                rep = bound.arguments.pop("interim_representation", None)
+                dens = Density.coerce(interim, rep, bounded=bound.arguments.get("bounded", False))
                 if dens._values is not None:  # per reporting bin: flat in u within each
                     g, k = basis.grid, basis.grid_to_bins
                     share = g.u_volumes / basis.bins.u_volumes[k]
@@ -737,8 +738,8 @@ class Likelihoods:
         Parameters
         ----------
         interim : Density, "flat", callable, distribution or array_like (K,), optional
-            Prior the stacked posteriors are formed under; ``None`` uses the input's
-            interim prior.
+            Prior the stacked posteriors are formed under, an array one value per
+            column (per component on a basis); ``None`` uses the input's interim prior.
         interim_representation : {"mass", "density"}, optional
             Whether an array ``interim`` holds masses or densities.
         """
