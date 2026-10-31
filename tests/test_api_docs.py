@@ -7,9 +7,14 @@ import types
 from collections import Counter
 from pathlib import Path
 
+import pytest
+
 import binference
 
-API_PAGES = Path(__file__).parents[1] / "docs" / "reference" / "api"
+DOCS = Path(__file__).parents[1] / "docs"
+API_PAGES = DOCS / "reference" / "api"
+if not DOCS.exists():
+    pytest.skip("docs/ is not next to the tests (sdist)", allow_module_level=True)
 BLOCK = re.compile(r"^```\{eval-rst\}\n(.*?)^```", re.S | re.M)
 CURRENT = re.compile(r"^\.\. currentmodule:: (\S+)", re.M)
 ENTRIES = re.compile(r"^\.\. autosummary::\n((?:   .*\n|\n)*)", re.M)

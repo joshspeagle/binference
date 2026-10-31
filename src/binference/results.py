@@ -49,12 +49,6 @@ SAMPLE_VARIANCE_MAX = 1.0
 # ----------------------------------------------------------------------------
 # Summary table
 # ----------------------------------------------------------------------------
-def _small_concentration(model: Any) -> bool:
-    """Whether a conjugate prior's density is unbounded at the boundary (long log tails)."""
-    prior = getattr(model, "prior", None)
-    return bool(prior is not None and prior.conjugate and prior.unbounded_density())
-
-
 class Summary:
     """A small per-bin summary table with a readable ``repr``.
 
@@ -1777,7 +1771,13 @@ class PopulationResult(_IndividualMixin):
                 f"{100 * d['max_depth_fraction']:.0f}% of NUTS iterations hit the maximum tree "
                 "depth"
             )
-            if _small_concentration(self.model):
+            from .samplers import Gibbs  # the engines import this module
+
+            if (
+                self.model is not None
+                and self.model.prior.long_log_tails()
+                and Gibbs.unsupported(self.model) is None
+            ):
                 hints.append(
                     "this prior gives nearly empty bins very long tails in log space "
                     "(e.g. concentrations below one); method='gibbs' samples such "

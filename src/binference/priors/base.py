@@ -178,10 +178,26 @@ class BoundPrior:
     def unbounded_density(self) -> bool:
         """Whether the density of the fractions (or rates) is unbounded at the boundary.
 
-        Then its mode can lie on the boundary (components exactly zero), and
-        NUTS meets very long tails in log space for components without data.
+        Then its mode can lie on the boundary (components exactly zero).
         """
         return False
+
+    def long_log_tails(self) -> bool:
+        r"""Whether the prior gives bins without data long tails in the unconstrained coordinates.
+
+        As a group of bins empties, its total fraction (or rate) :math:`s` goes to zero and
+        the density of ``x``, the coordinates NUTS samples, falls like
+        :math:`s^{a} = e^{a \log s}`: a tail of scale :math:`1/a` in :math:`\log s`, which
+        NUTS needs long trajectories to cross. The tails count as long when some
+        :math:`a < 1`, the threshold of a Dirichlet's :math:`\alpha_k < 1`. The exponent
+        :math:`a` is the density's exponent at the boundary plus one for each bin in the
+        group, from the Jacobian of ``x``: for one bin of a Dirichlet, :math:`\alpha_k - 1`
+        becomes :math:`\alpha_k`. Where single bins have the longest tails, as for a
+        Dirichlet or Gamma rates, the tails are long exactly when the density is
+        unbounded, so this default returns :meth:`unbounded_density`; a prior whose
+        groups of several bins have their own exponents, such as a tree, overrides it.
+        """
+        return self.unbounded_density()
 
     def grad_log_density(self, value: np.ndarray) -> np.ndarray:
         """Gradient of :meth:`log_density` with respect to the fractions/rates.
