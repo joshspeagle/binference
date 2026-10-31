@@ -405,7 +405,7 @@ All engines take a `PopulationModel`, accept `rng` (SPEC 7: an int seed, `numpy.
 
 `PopulationModel` exposes:
 - `log_density_unconstrained(x)` and `log_density_unconstrained_and_grad(x)` (named `log_prob` and `log_prob_and_grad` until DECISIONS #70), `to_value(x)` (fractions or rates), `to_rho(x)` and `from_value(value)` in unconstrained coordinates (for emcee, BlackJAX, NumPyro and similar), and `log_posterior(value)`, `log_likelihood(value)` and `log_prior(value)` on the fractions or rates;
-- `prior_transform(u)` from the unit cube for priors that support it (Dirichlet via Beta stick-breaking quantiles; GD; trees; `GammaRates`), for dynesty, nautilus and UltraNest.
+- `prior_transform(u)` from the unit cube for priors that support it (Dirichlet via Beta stick-breaking quantiles; GD; trees; `GammaRates`), for dynesty, nautilus and UltraNest. Removed by DECISIONS #107: nothing used it.
 
 `PopulationResult.from_samples(model, rho_samples, ...)` wraps external draws, so all downstream tools work on them.
 
