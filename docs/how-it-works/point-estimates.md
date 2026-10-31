@@ -65,8 +65,8 @@ remaining error {cite:p}`dempster1977`.
   objects in all.
 - $f$ is computed on the support of $\rho$. A fraction at zero is an active constraint,
   not missing information.
-- With `include_prior=True`, a Dirichlet prior's pseudo-counts enter $I_c$ and
-  $I_{\rm obs}$, as they do in EM.
+- With `include_prior=True`, the pseudo-counts of a Dirichlet or `GammaRates` prior
+  enter $I_c$ and $I_{\rm obs}$, as they do in EM.
 
 The same number sets the speed of the Gibbs sampler
 ([Gibbs](engines.md#gibbs-sampling), explainer {ref}`explainer-v14`) and the choices of

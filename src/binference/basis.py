@@ -1,11 +1,11 @@
 r"""Mixture bases: the model's components and how they map to the reporting bins.
 
-The population is a mixture :math:`f(z) = \sum_k w_k \phi_k(z)` of fixed
+The population is a mixture :math:`\sum_k \beta_k \psi_k(z)` of fixed
 non-negative components of unit mass, so every per-object likelihood stays
-linear in the weights, :math:`L_{ik} = \int p(d_i \mid z)\,\phi_k(z)\,du`, and
+linear in the weights, :math:`L_{ik} = \int p(d_i \mid z)\,\psi_k(z)\,du`, and
 the engines and priors are unchanged (DECISIONS #4, #5, #76). Results are
 reported in the bins: the fraction in bin :math:`j` is
-:math:`\rho_j = \sum_k A_{jk} w_k` with :math:`A_{jk} = \int_{B_j} \phi_k\,du`.
+:math:`\rho_j = \sum_k A_{jk} \beta_k` with :math:`A_{jk} = \int_{B_j} \psi_k\,du`.
 
 The components sit on the reporting bins refined ``resolution`` times per axis
 in the measure coordinate ``u``. ``order=0`` makes each component flat in ``u``
@@ -24,7 +24,7 @@ from typing import Any
 import numpy as np
 import scipy.sparse as sp
 
-from ._utils import frozen
+from ._utils import check_positive_integers, frozen
 from .bins import Bins
 
 __all__ = ["Basis"]
@@ -89,28 +89,13 @@ class Basis:
                 "Linear components need an unmasked grid: next to a masked cell the hats "
                 "would not sum to one, biasing the bins there. Use order=0 on masked grids."
             )
-        try:
-            res = np.broadcast_to(np.asarray(resolution), (bins.ndim,))
-            valid = all(float(r).is_integer() and r >= 1 for r in res)
-        except (TypeError, ValueError):
-            valid = False
-        if not valid:
-            raise ValueError(
-                f"resolution must be a positive integer, or one per axis ({bins.ndim}); "
-                f"got {resolution!r}."
-            )
         if oversample is None:
             oversample = 1 if order == 0 else DEFAULT_OVERSAMPLE.get(bins.ndim, 2)
-        if not float(oversample).is_integer() or oversample < 1:
-            raise ValueError(f"oversample must be a positive integer; got {oversample!r}.")
         self.bins = bins
         self.order = int(order)
-        self.oversample = int(oversample)
-        self.components, _ = bins.refine(res.astype(int))
-        self.resolution = tuple(
-            (len(c) - 1) // (len(b) - 1)
-            for c, b in zip(self.components.edges, bins.edges, strict=True)
-        )
+        self.oversample = check_positive_integers(oversample, "oversample")[0]
+        self.resolution = check_positive_integers(resolution, "resolution", bins.ndim)
+        self.components, _ = bins.refine(self.resolution)
         fine = tuple(r * self.oversample for r in self.resolution)
         self.grid, grid_to_bins = bins.refine(fine)
         self.grid_to_bins = frozen(grid_to_bins)
@@ -169,7 +154,8 @@ class Basis:
         return out
 
     def masses(self, grid: Bins) -> sp.csr_array:
-        r"""``(grid.K, C)`` sparse masses :math:`M_{qk} = \int_{B_q} \phi_k\,du`.
+        r"""``(grid.K, C)`` sparse masses :math:`M_{qk} = \int_{B_q} \psi_k\,du` of the
+        components in the cells :math:`B_q` of ``grid`` (:math:`A` in the reporting bins).
 
         ``grid`` must cover the components' range with the same measures (the
         reporting bins, the components or any refinement of them). Each column
