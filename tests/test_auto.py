@@ -176,16 +176,17 @@ def test_auto_and_engine_options_are_checked_by_name_when_auto_is_made():
             inf.Auto(model, **kw)
 
 
-def test_auto_gives_each_engine_init_in_its_own_coordinates(short_nuts):
+def test_auto_and_nuts_read_init_as_fractions_like_gibbs(short_nuts):
     lk = _lk(0.3)
     v = np.arange(1.0, 11.0) / 55.0
-    # NUTS alone (target_accept) runs from fractions, which it refused before
+    # NUTS alone (target_accept) runs from fractions, under auto and named
     res = binference.infer(lk, init=v, target_accept=0.8, rng=0, n_samples=5, check=False)
     assert res.method == "nuts"
+    binference.infer(lk, init=v, method="nuts", rng=0, n_samples=5, check=False)
     model = binference.PopulationModel(lk)
     auto = inf.Auto(model, init=v)
-    np.testing.assert_array_equal(auto._make("gibbs").init, v)  # fractions, as Gibbs reads them
-    np.testing.assert_allclose(model.to_value(auto._make("nuts").init), v)  # unconstrained
+    np.testing.assert_array_equal(auto._make("gibbs").init, v)
+    np.testing.assert_allclose(model.to_value(auto._make("nuts").init_x), v)
 
 
 def test_laplace_draws_as_many_as_four_chains_would():

@@ -15,7 +15,7 @@ from .model import PopulationModel
 from .priors import PopulationPrior
 from .results import PointEstimate, PopulationResult
 from .samplers import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
-from .samplers.base import Engine, check_init
+from .samplers.base import Engine
 from .samplers.laplace import PROPOSAL_FACTOR
 from .warnings import ApproximationWarning, BinferenceWarning
 
@@ -91,9 +91,7 @@ class Auto(Engine):
     **engine_kwargs
         Options for the chosen engine. Auto makes each engine it may run when it is
         made, so that each checks them at once. ``init`` takes positive fractions or
-        rates of shape (K,), as for Gibbs; auto converts them to NUTS's unconstrained
-        coordinates (:meth:`PopulationModel.from_value`), which for a logistic prior is a
-        fit shrunk towards the prior, so NUTS starts near ``init`` rather than at it.
+        rates of shape (K,), as every engine reads it.
     """
 
     joint = True
@@ -117,8 +115,6 @@ class Auto(Engine):
         self.gibbs_max_missing = float(gibbs_max_missing)
         self.nnz_limit = float(check_positive(nnz_limit, "nnz_limit"))
         self.max_gibbs_draws = int(check_positive(max_gibbs_draws, "max_gibbs_draws"))
-        if engine_kwargs.get("init") is not None:
-            engine_kwargs["init"] = check_init(engine_kwargs["init"], model)
         self.engine_kwargs = engine_kwargs
         self._rng_arg = rng
         self._map: tuple[Any, float] | None = None  # the MAP and its missing information
@@ -133,11 +129,10 @@ class Auto(Engine):
             self._make(key)
 
     def _make(self, key: str) -> Engine:
-        """The engine ``key`` with auto's options, ``init`` in its coordinates."""
-        kw = self.engine_kwargs
-        if key == "nuts" and kw.get("init") is not None:
-            kw = {**kw, "init": self.model.from_value(kw["init"])}
-        return METHODS[key](self.model, rng=self._rng_arg, progress=self.progress, **kw)
+        """The engine ``key`` with auto's options."""
+        return METHODS[key](
+            self.model, rng=self._rng_arg, progress=self.progress, **self.engine_kwargs
+        )
 
     def _none_takes_the_options(self) -> ValueError:
         return ValueError(

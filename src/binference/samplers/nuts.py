@@ -17,7 +17,7 @@ from ..results import PopulationResult
 from ..warnings import ConvergenceWarning
 from ._curvature import covariance_from_hessian, fd_hessian, fd_hessian_diag
 from ._nuts_core import Metric, adaptation_windows, find_reasonable_eps, nuts_step
-from .base import MarkovEngine
+from .base import MarkovEngine, check_init
 
 __all__ = ["NUTS"]
 
@@ -289,11 +289,16 @@ class NUTS(MarkovEngine):
         hyperparameter, e.g. a handful of bins), the coefficients stay
         non-centred, which avoids funnels. This changes the sampling
         coordinates, not the posterior.
-    init : array_like (dim,) or (n_chains, dim), optional
-        Starting points in the model's unconstrained coordinates; a single
-        point gets ``jitter`` added for each chain. Every start must have a
-        finite log density. By default chains start at the posterior mode (in
-        unconstrained coordinates) plus ``jitter``.
+    init : array_like (K,), optional
+        Positive fractions or rates to start from, as for the other engines; they
+        are converted to one point in unconstrained coordinates
+        (:meth:`PopulationModel.from_value`, which for a logistic prior is a fit
+        shrunk towards the prior), and each chain adds ``jitter``. By default chains
+        start at the posterior mode (in unconstrained coordinates) plus ``jitter``.
+    init_x : array_like (dim,) or (n_chains, dim), optional
+        Starting points in the model's unconstrained coordinates instead of
+        ``init``; a single point gets ``jitter`` added for each chain. Every start
+        must have a finite log density.
     jitter : float
         Standard deviation of the Gaussian jitter around the starting point.
     n_jobs : int
@@ -340,6 +345,7 @@ class NUTS(MarkovEngine):
         metric: str = "auto",
         reparametrize: bool = True,
         init: Any = None,
+        init_x: Any = None,
         jitter: float = 0.1,
         n_jobs: int = 1,
         rng: RNGLike = None,
@@ -371,12 +377,16 @@ class NUTS(MarkovEngine):
         if not 0 < target_accept < 1:
             raise ValueError("target_accept must be in (0, 1).")
         self.n_chains = int(n_chains)
+        if init is not None and init_x is not None:
+            raise ValueError("Pass init (fractions or rates) or init_x, not both.")
         if init is not None:
-            init = np.array(init, dtype=float)  # a copy: the chains start from it
+            init_x = model.from_value(check_init(init, model))
+        elif init_x is not None:
+            init_x = np.array(init_x, dtype=float)  # a copy: the chains start from it
             d = model.dim
-            if init.shape not in ((d,), (self.n_chains, d)) or not np.all(np.isfinite(init)):
+            if init_x.shape not in ((d,), (self.n_chains, d)) or not np.all(np.isfinite(init_x)):
                 raise ValueError(
-                    f"init must be finite, of shape ({d},) or ({self.n_chains}, {d})."
+                    f"init_x must be finite, of shape ({d},) or ({self.n_chains}, {d})."
                 )
         self.n_warmup = int(n_warmup)
         self.target_accept = float(target_accept)
@@ -385,7 +395,7 @@ class NUTS(MarkovEngine):
             metric = "dense" if logistic and model.dim <= _DENSE_MAX_DIM else "diag"
         self.metric = metric
         self.reparametrize = bool(reparametrize)
-        self.init = init
+        self.init_x = init_x  # the starts in unconstrained coordinates, from init or init_x
         self.jitter = float(jitter)
         self._chains: list[_Chain] | None = None
         self._base_model = model
@@ -399,13 +409,13 @@ class NUTS(MarkovEngine):
     def _initial_points(self) -> np.ndarray:
         d = self.model.dim
         child = spawn(self.rng, 1)[0]
-        if self.init is not None:
-            x0 = self.init
+        if self.init_x is not None:
+            x0 = self.init_x
             if x0.shape == (d,):
                 x0 = np.tile(x0, (self.n_chains, 1))
                 x0 = x0 + self.jitter * child.standard_normal(x0.shape)
             if not all(np.isfinite(self.model.log_density_unconstrained(x)) for x in x0):
-                raise ValueError("init has a starting point with zero posterior density.")
+                raise ValueError("A starting point has zero posterior density.")
             return x0
         from .optimize import MAP
 

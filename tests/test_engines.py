@@ -180,10 +180,14 @@ def test_nuts_validation():
         NUTS(m, metric="full")
     with pytest.raises(ValueError):
         NUTS(m, target_accept=1.5)
-    with pytest.raises(ValueError, match="init"):
-        NUTS(m, init=np.zeros(5))  # its shape when the engine is made
+    with pytest.raises(ValueError, match="init_x"):
+        NUTS(m, init_x=np.zeros(5))  # its shape when the engine is made
     with pytest.raises(ValueError, match="zero posterior density"):  # its density when run
-        NUTS(PopulationModel(np.eye(2)), init=[1e3]).run(1)
+        NUTS(PopulationModel(np.eye(2)), init_x=[1e3]).run(1)
+    with pytest.raises(ValueError, match="fractions or rates of shape"):
+        NUTS(m, init=np.zeros(5) + 0.2)  # a point in unconstrained coordinates is not fractions
+    with pytest.raises(ValueError, match="not both"):
+        NUTS(m, init=[0.5, 0.5], init_x=[0.0])
     with pytest.raises(RuntimeError):
         _ = NUTS(m).result
 
@@ -191,10 +195,15 @@ def test_nuts_validation():
 def test_nuts_chains_start_at_a_given_init_jittered_only_when_it_is_one_point(k3_problem):
     m = PopulationModel(k3_problem[0].likelihoods)  # its mode is near (1.3, -0.4)
     starts = np.array([[2.0, -2.0], [-2.0, 2.0]])
-    eng = NUTS(m, n_chains=2, n_warmup=0, init=starts, rng=0)
+    eng = NUTS(m, n_chains=2, n_warmup=0, init_x=starts, rng=0)
     eng.warmup()
     np.testing.assert_array_equal([c.x for c in eng._chains], starts)
-    eng = NUTS(m, n_chains=2, n_warmup=0, init=starts[0], jitter=0.1, rng=0)
+    # init is fractions, as for the other engines: the same point, converted
+    v = m.to_value(starts[0])
+    eng = NUTS(m, n_chains=2, n_warmup=0, init=v, jitter=0.0, rng=0)
+    eng.warmup()
+    np.testing.assert_allclose([c.x for c in eng._chains], [starts[0]] * 2, atol=1e-12)
+    eng = NUTS(m, n_chains=2, n_warmup=0, init_x=starts[0], jitter=0.1, rng=0)
     eng.warmup()
     x = np.array([c.x for c in eng._chains])
     assert np.all(np.abs(x - starts[0]) < 0.6) and not np.allclose(x[0], x[1])
