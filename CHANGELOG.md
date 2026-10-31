@@ -22,6 +22,11 @@ releases may break the API).
   and `GammaRates` priors) and `BoundPrior.has_prior_transform`: the unit-cube map for
   nested samplers, which nothing in binference used (DECISIONS #107).
 
+### Fixed
+
+- The sdist no longer includes walkthrough notes, and its tests skip the checks that
+  need `docs/` or `benchmarks/`, which it does not ship (DECISIONS #110).
+
 ## [0.1.0] - 2026-10-29
 
 First release.
