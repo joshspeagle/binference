@@ -1771,8 +1771,13 @@ class PopulationResult(_IndividualMixin):
                 f"{100 * d['max_depth_fraction']:.0f}% of NUTS iterations hit the maximum tree "
                 "depth"
             )
-            prior = getattr(self.model, "prior", None)
-            if prior is not None and prior.conjugate and prior.long_log_tails():
+            from .samplers import Gibbs  # the engines import this module
+
+            if (
+                self.model is not None
+                and self.model.prior.long_log_tails()
+                and Gibbs.unsupported(self.model) is None
+            ):
                 hints.append(
                     "this prior gives nearly empty bins very long tails in log space "
                     "(e.g. concentrations below one); method='gibbs' samples such "

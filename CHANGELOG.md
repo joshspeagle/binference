@@ -27,8 +27,12 @@ releases may break the API).
 ### Fixed
 
 - The NUTS tree-depth hint of `check()` names long log tails only for priors that have
-  them where NUTS samples; it no longer blames the default `PolyaTree()` or
-  `GeneralizedDirichlet(1, 1)` (DECISIONS #109).
+  them where NUTS samples, such as a tree with a branch concentration below one; it no
+  longer blames trees whose concentrations are all at least one, such as
+  `GeneralizedDirichlet(1, 1)` or the default `PolyaTree()` on 4 bins, and suggests
+  `method="gibbs"` only when Gibbs can fit the model (DECISIONS #109).
+- A tree prior with a branch whose exponent on the simplex is exactly zero no longer
+  counts as unbounded through rounding, so MAP keeps it on the simplex (DECISIONS #109).
 
 ## [0.1.0] - 2026-10-29
 

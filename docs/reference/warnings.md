@@ -150,8 +150,9 @@ just noisy.
   - `E-BFMI = <x> < 0.3 in some chain`: NUTS explores the energy distribution poorly.
     A longer warm-up or another prior may help.
   - `<x>% of NUTS iterations hit the maximum tree depth`: trajectories are cut short.
-    With a concentration below one in a Dirichlet or tree prior, or a shape below one
-    in `GammaRates`, `method="gibbs"` is faster.
+    With a concentration below one, in a Dirichlet or on a branch of a tree prior, or a
+    shape below one in `GammaRates`, `method="gibbs"` is faster, and the hint says so
+    when Gibbs can fit the model.
   - `the optimiser did not converge`.
   - `Pareto k-hat = <k> >= <threshold> (importance sampling unreliable)`.
 

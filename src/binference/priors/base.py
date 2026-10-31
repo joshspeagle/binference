@@ -183,16 +183,19 @@ class BoundPrior:
         return False
 
     def long_log_tails(self) -> bool:
-        """Whether the prior gives bins without data long tails in the unconstrained coordinates.
+        r"""Whether the prior gives bins without data long tails in the unconstrained coordinates.
 
-        As a group of bins empties, the density of ``x`` falls like ``share**a``. Below one
-        that tail is long in log space, and NUTS needs long trajectories to cross it. The
-        exponent ``a`` is the one at the boundary plus the Jacobian of the coordinates, one
-        for each bin in the group: a single bin's ``alpha - 1`` becomes ``alpha``. When
-        single bins have the longest tails, as for a Dirichlet or Gamma rates, the tails
-        are long exactly when the density is unbounded, so this default returns
-        :meth:`unbounded_density`; a tree prior, whose branches hold several bins,
-        overrides it.
+        As a group of bins empties, its total fraction (or rate) :math:`s` goes to zero and
+        the density of ``x``, the coordinates NUTS samples, falls like
+        :math:`s^{a} = e^{a \log s}`: a tail of scale :math:`1/a` in :math:`\log s`, which
+        NUTS needs long trajectories to cross. The tails count as long when some
+        :math:`a < 1`, the threshold of a Dirichlet's :math:`\alpha_k < 1`. The exponent
+        :math:`a` is the density's exponent at the boundary plus one for each bin in the
+        group, from the Jacobian of ``x``: for one bin of a Dirichlet, :math:`\alpha_k - 1`
+        becomes :math:`\alpha_k`. Where single bins have the longest tails, as for a
+        Dirichlet or Gamma rates, the tails are long exactly when the density is
+        unbounded, so this default returns :meth:`unbounded_density`; a prior whose
+        groups of several bins have their own exponents, such as a tree, overrides it.
         """
         return self.unbounded_density()
 

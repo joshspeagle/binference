@@ -331,10 +331,11 @@ def test_densities_do_not_rebin():
         res.rebin([0, 0, 1, 1], which="density")
 
 
-def _nuts_result(prior, **info):
+def _nuts_result(prior, weights=None, **info):
     # well-mixed synthetic NUTS draws with injected engine statistics
     L = np.random.default_rng(1).random((30, 4)) + 0.1
-    model = binference.PopulationModel(Likelihoods(L, Bins.linear(0, 1, 4)), prior)
+    lk = Likelihoods(L, Bins.linear(0, 1, 4), weights=weights, fractional_weights=True)
+    model = binference.PopulationModel(lk, prior)
     draws = np.random.default_rng(0).dirichlet(np.ones(4) * 50, size=(4, 400))
     return PopulationResult(model, draws, method="nuts", info=info)
 
@@ -376,6 +377,16 @@ def test_saturated_trees_suggest_gibbs_only_for_priors_with_long_tails_where_nut
         msgs = _nuts_result(prior, max_depth_fraction=0.2).check()
     assert msgs == ["20% of NUTS iterations hit the maximum tree depth"]
     assert ("method='gibbs'" in str(rec[0].message)) is hint
+
+
+def test_saturated_trees_suggest_gibbs_only_where_gibbs_can_run():
+    with pytest.warns(binference.InputWarning, match="pseudo-likelihood"):
+        res = _nuts_result(
+            binference.priors.Dirichlet(0.5), np.full(30, 1.5), max_depth_fraction=0.2
+        )
+    with pytest.warns(binference.ConvergenceWarning) as rec:
+        res.check()
+    assert "method='gibbs'" not in str(rec[0].message)  # Gibbs needs integer weights
 
 
 def test_a_few_saturated_trees_are_tolerated():
