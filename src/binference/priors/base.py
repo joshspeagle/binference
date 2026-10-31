@@ -178,8 +178,17 @@ class BoundPrior:
     def unbounded_density(self) -> bool:
         """Whether the density of the fractions (or rates) is unbounded at the boundary.
 
-        Then its mode can lie on the boundary (components exactly zero), and
-        NUTS meets very long tails in log space for components without data.
+        Then its mode can lie on the boundary (components exactly zero).
+        """
+        return False
+
+    def long_log_tails(self) -> bool:
+        """Whether the prior gives bins without data long tails in the unconstrained coordinates.
+
+        As a group of bins empties, the density of ``x`` falls like ``share**a``, with an
+        exponent ``a`` that includes the Jacobian of the coordinates (``alpha`` for a
+        Dirichlet). Below one that tail is long in log space, and NUTS needs long
+        trajectories to cross it.
         """
         return False
 

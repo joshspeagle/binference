@@ -356,14 +356,28 @@ def test_check_compares_pareto_k_hat_with_the_threshold_the_engine_reported():
         _nuts_result(None, k_hat=0.7).check()
 
 
-def test_saturated_trees_suggest_gibbs_only_for_priors_with_unbounded_density():
+@pytest.mark.parametrize(
+    ("prior", "hint"),
+    [
+        (binference.priors.Dirichlet(0.5), True),
+        (binference.priors.PolyaTree(c=0.1), True),
+        (binference.priors.Dirichlet(1.0), False),
+        # unbounded on the simplex, but not in the coordinates NUTS samples
+        (binference.priors.PolyaTree(), False),
+        (binference.priors.GeneralizedDirichlet(1.0, 1.0), False),
+    ],
+    ids=repr,
+)
+def test_saturated_trees_suggest_gibbs_only_for_priors_with_long_tails_where_nuts_samples(
+    prior, hint
+):
     with pytest.warns(binference.ConvergenceWarning) as rec:
-        msgs = _nuts_result(binference.priors.Dirichlet(0.5), max_depth_fraction=0.2).check()
+        msgs = _nuts_result(prior, max_depth_fraction=0.2).check()
     assert msgs == ["20% of NUTS iterations hit the maximum tree depth"]
-    assert "method='gibbs'" in str(rec[0].message)
-    with pytest.warns(binference.ConvergenceWarning) as rec:
-        _nuts_result(binference.priors.Dirichlet(1.0), max_depth_fraction=0.2).check()
-    assert "Hint" not in str(rec[0].message)
+    assert ("method='gibbs'" in str(rec[0].message)) is hint
+
+
+def test_a_few_saturated_trees_are_tolerated():
     assert _nuts_result(None, max_depth_fraction=0.05).check() == []  # 5% is tolerated
 
 

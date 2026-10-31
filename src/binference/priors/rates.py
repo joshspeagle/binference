@@ -114,6 +114,9 @@ class _BoundGammaRates(BoundPrior):
     def unbounded_density(self):
         return bool(np.any(self.a < 1.0))
 
+    def long_log_tails(self):
+        return bool(np.any(self.a < 1.0))  # the density of log(rate) falls like rate**a
+
     def map_from_counts(self, counts, exposure=None):
         S = self._exposure(exposure)
         return np.maximum(self.a + np.asarray(counts, float) - 1.0, 0.0) / (self.b + S)

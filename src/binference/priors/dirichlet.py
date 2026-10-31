@@ -226,6 +226,9 @@ class _BoundDirichlet(_SimplexBound):
     def unbounded_density(self):
         return bool(np.any(self.alpha < 1.0))
 
+    def long_log_tails(self):
+        return bool(np.any(self.alpha < 1.0))  # the Jacobian turns alpha - 1 into alpha
+
     def map_from_counts(self, counts, exposure=None):
         x = np.maximum(np.asarray(counts, float) + self.alpha - 1.0, 0.0)
         tot = x.sum()
@@ -363,12 +366,18 @@ class _BoundTree(_SimplexBound):
         theta = self.tree.draw_theta(self.tree.slot_alpha, rng, size=n)
         return np.maximum(self.tree.compose(theta), _TINY)
 
-    def unbounded_density(self):
-        # log-density coefficients of the branch probabilities: negative ones (e.g.
-        # Polya trees, whose concentrations grow with depth) make it unbounded
+    def _branch_exponents(self, unconstrained: bool) -> np.ndarray:
+        # the log-density's coefficient of each branch's log share, on the simplex or in
+        # the unconstrained coordinates, whose Jacobian adds one for every bin below it
         t = self.tree
-        coef = t.slot_mem @ t.leaf_coef + t.slot_nodes @ t.node_coef
-        return bool(np.any(coef < 0.0))
+        return t.slot_mem @ (t.leaf_coef + unconstrained) + t.slot_nodes @ t.node_coef
+
+    def unbounded_density(self):
+        # negative coefficients (e.g. Polya trees, whose concentrations grow with depth)
+        return bool(np.any(self._branch_exponents(False) < 0.0))
+
+    def long_log_tails(self):
+        return bool(np.any(self._branch_exponents(True) < 1.0))
 
     def log_density(self, value):
         t = self.tree
