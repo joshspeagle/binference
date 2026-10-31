@@ -12,6 +12,8 @@ from numbers import Real
 import numpy as np
 from scipy import optimize, special
 
+from .._utils import check_positive
+
 __all__ = ["Fixed", "Gamma", "HalfNormal", "Hyperprior", "InverseGamma", "LogNormal"]
 
 
@@ -49,9 +51,7 @@ class Fixed(Hyperprior):
     fixed = True
 
     def __init__(self, value: float) -> None:
-        if not np.isfinite(value) or value <= 0:
-            raise ValueError("Fixed hyperparameter values must be positive and finite.")
-        self.value = float(value)
+        self.value = float(check_positive(value, "value"))
 
     def sample(self, n: int, rng: np.random.Generator) -> np.ndarray:
         return np.full(n, self.value)
@@ -228,13 +228,16 @@ class Gamma(Hyperprior):
         return float(special.gammaincinv(self.a, 0.5) / self.b)
 
 
-def as_hyperprior(value: Hyperprior | float | int) -> Hyperprior:
-    """Interpret a number as :class:`Fixed` and pass hyperpriors through."""
+def as_hyperprior(value: Hyperprior | float | int, name: str) -> Hyperprior:
+    """Interpret a number as :class:`Fixed` and pass hyperpriors through; ``name`` is
+    the argument's, for errors."""
     if isinstance(value, Hyperprior):
         return value
     number = isinstance(value, Real) or (
         isinstance(value, np.ndarray) and value.ndim == 0 and value.dtype.kind in "iuf"
     )
     if number and not isinstance(value, bool | np.bool_):
-        return Fixed(float(value))
-    raise TypeError(f"Expected a Hyperprior or a positive number; got {type(value).__name__}.")
+        return Fixed(float(check_positive(value, name)))
+    raise TypeError(
+        f"{name} must be a Hyperprior or a positive number; got {type(value).__name__}."
+    )

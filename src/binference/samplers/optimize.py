@@ -156,9 +156,9 @@ class MAP(Engine):
         conjugate prior); ``"unconstrained"`` the density in unconstrained
         coordinates (always interior); ``"auto"`` picks ``"simplex"`` unless
         the prior density is unbounded at the boundary (concentrations or
-        shapes below one, Polya trees; ``prior.unbounded_density()``), where the
-        simplex mode can have exact zeros, or a selection or response is
-        inferred jointly. The choice is in ``info["space"]`` and the solver in
+        shapes below one, the default Polya tree; ``prior.unbounded_density()``),
+        where the simplex mode can have exact zeros, or a selection or response
+        is inferred jointly. The choice is in ``info["space"]`` and the solver in
         ``info["algorithm"]``.
     tol : float
         Tolerance on first-order optimality. It bounds the KKT gap

@@ -76,9 +76,34 @@ def test_gp_per_axis_arguments_must_match_the_axes():
 
 
 def test_hyperpriors_accept_numpy_scalars_but_not_booleans():
-    assert as_hyperprior(np.array(2.0)).value == 2.0
+    assert as_hyperprior(np.array(2.0), "scale").value == 2.0
     with pytest.raises(TypeError):
-        as_hyperprior(True)
+        as_hyperprior(True, "scale")
+
+
+@pytest.mark.parametrize(
+    ("make", "name"),
+    [
+        (lambda: P.LogisticGP(amplitude=-1.0), "amplitude"),
+        (lambda: P.LogisticRandomWalk(scale=0.0), "scale"),
+        (lambda: P.LogisticNormal(scale="x"), "scale"),
+        (lambda: P.LogisticGP(length_scale=np.inf), "length_scale"),
+        (lambda: P.LogisticGP(length_scale=[1.0, -2.0]), r"length_scale\[1\]"),
+    ],
+    ids=["amplitude", "scale", "scale-type", "length-scale", "length-scale-per-axis"],
+)
+def test_a_bad_hyperparameter_is_named_in_the_error(make, name):
+    with pytest.raises((TypeError, ValueError), match=rf"^{name} must be"):
+        make()
+
+
+def test_a_dirichlet_from_counts_names_a_bad_argument():
+    # a negative strength subtracted the reference sample; a bad base blamed alpha
+    for kw, name in (({"strength": -0.1}, "strength"), ({"base": 0.0}, "base")):
+        with pytest.raises(ValueError, match=rf"^{name} must be"):
+            P.Dirichlet.from_counts([1.0, 2.0], **kw)
+    with pytest.raises(ValueError, match=r"^counts must be"):
+        P.Dirichlet.from_counts([1.0, np.nan])
 
 
 def test_generalized_dirichlet_arguments_are_checked():

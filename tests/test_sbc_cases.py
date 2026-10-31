@@ -8,6 +8,8 @@
   warning is an error under the test settings), so the
   thinned draws are effectively independent and autocorrelation cannot pass for
   miscalibration.
+* SBC of the logistic-normal and Gaussian-process priors with their default
+  hyperpriors, through NUTS, where a fit may fall short of that ESS.
 * Geweke "getting it right" tests of the Gibbs conditionals of the generalised
   Dirichlet, a Dirichlet tree and Gamma rates with an exposure.
 """
@@ -75,6 +77,20 @@ def test_sbc_ranks_are_uniform(case):
     res = _sbc(prior, _fit(method, prior=prior, **kw), n_simulations, n_draws, 2026, **sim)
     # at least 10 expected ranks per histogram bin
     _assert_uniform_ranks(res, n_bins=10 if n_simulations >= 150 else 5)
+
+
+@pytest.mark.parametrize("prior", [P.LogisticGP(), P.LogisticNormal()], ids=["gp", "normal"])
+# the fits whose warm-up ends on a poor metric mix slowly (one LogisticNormal fit in 25
+# had a bulk ESS of 15); low ESS over-disperses the ranks, which only makes the test stricter
+@pytest.mark.filterwarnings(
+    "ignore:In .* fits the smallest bulk ESS:binference.ConvergenceWarning"
+)
+def test_sbc_ranks_are_uniform_for_the_default_logistic_hyperpriors(prior):
+    # ten objects keep the posterior close to the prior, so the ranks test the prior draws
+    # against the density NUTS samples, and the fits short: 25 simulations took 193 s for
+    # each prior on one thread of a shared 4-core machine
+    fit = _fit("nuts", prior=prior, n_chains=1, n_warmup=500, n_samples=200)
+    _assert_uniform_ranks(_sbc(prior, fit, 25, 19, 2026, n_objects=10), n_bins=5)
 
 
 @pytest.mark.parametrize(

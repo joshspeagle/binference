@@ -111,15 +111,14 @@ def _rw_eigen(n: int, order: int) -> tuple[np.ndarray, np.ndarray]:
     U_rest = U_rest - null @ (null.T @ U_rest)
     U_rest, _ = np.linalg.qr(U_rest)
     U_rest = U_rest[:, : n - order]
-    lam_rest = np.sum(U_rest * (Q @ U_rest), axis=0)  # Rayleigh quotients
-    return np.concatenate([np.zeros(order), lam_rest]), np.concatenate([null, U_rest], axis=1)
+    eig_rest = np.sum(U_rest * (Q @ U_rest), axis=0)  # Rayleigh quotients
+    return np.concatenate([np.zeros(order), eig_rest]), np.concatenate([null, U_rest], axis=1)
 
 
 # ----------------------------------------------------------------------------
 # bound class shared by the logistic family
 # ----------------------------------------------------------------------------
 class _BoundLogistic(BoundPrior):
-    kind = "fractions"
     conjugate = False
     has_density = False
     has_centering = True
@@ -145,39 +144,41 @@ class _BoundLogistic(BoundPrior):
         self.hyper_names = [hypers[i][0] for i in self.free]
         # hyperparameter values with the fixed ones in place (the free ones are filled per x)
         self._theta0 = np.array([h.median() if h.fixed else 0.0 for _, h in hypers])
-        # Partial non-centring: coefficient j is c_j = s_j**lam_j * x_j with
-        # x_j ~ N(0, s_j**(2 (1 - lam_j))); lam = 1 is the whitened
-        # (non-centred) form, lam = 0 the centred one.
-        self.lam = np.ones(self.n_active)
+        # Partial non-centring: coefficient j is c_j = s_j**gamma_j * x_j with
+        # x_j ~ N(0, s_j**(2 (1 - gamma_j))); gamma = 1 is the whitened
+        # (non-centred) form, gamma = 0 the centred one.
+        self.gamma = np.ones(self.n_active)
 
-    def with_centering(self, lam: np.ndarray) -> _BoundLogistic:
-        """A copy using partial non-centring weights ``lam`` (1 = non-centred, 0 = centred)."""
-        lam = np.clip(np.asarray(lam, dtype=float), 0.0, 1.0)
-        if lam.shape != (self.n_active,):
-            raise ValueError(f"lam must have shape ({self.n_active},).")
+    def with_centering(self, gamma: np.ndarray) -> _BoundLogistic:
+        """A copy using partial non-centring weights ``gamma`` (1 = non-centred, 0 = centred)."""
+        gamma = np.clip(np.asarray(gamma, dtype=float), 0.0, 1.0)
+        if gamma.shape != (self.n_active,):
+            raise ValueError(f"gamma must have shape ({self.n_active},).")
         new = copy.copy(self)
-        new.lam = lam
+        new.gamma = gamma
         return new
 
-    def recentre(self, x: np.ndarray, lam: np.ndarray) -> np.ndarray:
-        """Map unconstrained ``x`` in this parametrisation to the one with weights ``lam``."""
+    def recentre(self, x: np.ndarray, gamma: np.ndarray) -> np.ndarray:
+        """Map unconstrained ``x`` in this parametrisation to the one with weights ``gamma``."""
         x = np.array(x, dtype=float, copy=True)
         log_s, _ = self.log_scales(self._theta(x[self.n_active :]))
         z = x[: self.n_active]
         with np.errstate(divide="ignore", over="ignore"):  # in log space, as the density
-            z[:] = np.sign(z) * np.exp(np.log(np.abs(z)) + (self.lam - np.clip(lam, 0, 1)) * log_s)
+            z[:] = np.sign(z) * np.exp(
+                np.log(np.abs(z)) + (self.gamma - np.clip(gamma, 0, 1)) * log_s
+            )
         return x
 
     def to_noncentred(self, X: np.ndarray, log_density: np.ndarray):
         """Points ``X`` (rows) in this parametrisation, and their log densities, in the
         non-centred one (all weights 1).
 
-        The log density gains the Jacobian ``sum_j (1 - lam_j) log s_j(theta)``.
+        The log density gains the Jacobian ``sum_j (1 - gamma_j) log s_j(theta)``.
         """
         X = np.array(X, dtype=float, copy=True)
         na = self.n_active
         LS = np.array([self.log_scales(self._theta(x[na:]))[0] for x in X]).reshape(-1, na)
-        one_m = 1.0 - self.lam
+        one_m = 1.0 - self.gamma
         z = X[:, :na]
         with np.errstate(divide="ignore", over="ignore"):  # in log space, as the density
             z[:] = np.sign(z) * np.exp(np.log(np.abs(z)) - one_m * LS)
@@ -209,7 +210,7 @@ class _BoundLogistic(BoundPrior):
         z = x[: self.n_active]
         u = x[self.n_active :]
         log_s, dlogs = self.log_scales(self._theta(u))
-        m = np.exp(self.lam * log_s)
+        m = np.exp(self.gamma * log_s)
         c = m * z
         return self._eta(c), (z, log_s, m, c, dlogs, u)
 
@@ -218,16 +219,16 @@ class _BoundLogistic(BoundPrior):
         if u.size and np.max(np.abs(u)) > 350.0:  # outside the clipped range of _theta
             return -np.inf, np.zeros(self.dim)
         bt = self.basis.rmatvec(d_eta)[self.active]
-        lam = self.lam
-        one_m = 1.0 - lam
-        # prior z_j ~ N(0, s_j**(2 (1 - lam_j))). From the log scales, so that value and
+        gamma = self.gamma
+        one_m = 1.0 - gamma
+        # prior z_j ~ N(0, s_j**(2 (1 - gamma_j))). From the log scales, so that value and
         # gradient agree however small a scale is (audit P-5), and in log space, since a
         # centred coefficient underflows to zero with its scale
         if one_m.any():
             with np.errstate(divide="ignore", over="ignore"):
-                a = np.log(np.abs(z)) - one_m * log_s  # log |z_j| / s_j**(1 - lam_j)
+                a = np.log(np.abs(z)) - one_m * log_s  # log |z_j| / s_j**(1 - gamma_j)
                 q = np.exp(2.0 * a)
-                z_prec = np.sign(z) * np.exp(a - one_m * log_s)  # z_j / s_j**(2 (1 - lam_j))
+                z_prec = np.sign(z) * np.exp(a - one_m * log_s)  # z_j / s_j**(2 (1 - gamma_j))
         else:  # fully non-centred: the same values, without the logarithms
             q, z_prec = z * z, z
         log_s_term = float(one_m @ log_s)
@@ -237,7 +238,7 @@ class _BoundLogistic(BoundPrior):
         lp -= 0.5 * self.n_active * np.log(2 * np.pi)
         g_z = m * bt - z_prec
         g_u = np.empty(self.n_free)
-        common = lam * bt * c + one_m * (q - 1.0)
+        common = gamma * bt * c + one_m * (q - 1.0)
         for j, i in enumerate(self.free):
             h = self.hypers[i][1]
             lp += h.logpdf_u(u[j])
@@ -277,7 +278,7 @@ class _BoundLogistic(BoundPrior):
             p = r_ + (rs_new / rs) * p
             rs = rs_new
         u0 = np.log(theta0[self.free]) if self.n_free else np.empty(0)
-        return np.concatenate([xi * s0 ** (1.0 - self.lam), u0])
+        return np.concatenate([xi * s0 ** (1.0 - self.gamma), u0])
 
     def sample(self, n, rng):
         theta = np.stack([h.sample(n, rng) for _, h in self.hypers], axis=1)
@@ -336,7 +337,7 @@ class LogisticNormal(PopulationPrior):
         self._eig = None if cov is None else _zero_sum_eigen(cov)
         if scale is None:
             scale = HalfNormal(2.0) if cov is None else Fixed(1.0)
-        self.scale = as_hyperprior(scale)
+        self.scale = as_hyperprior(scale, "scale")
 
     def bind(self, bins: Bins) -> _BoundLogisticNormal:
         K = bins.K
@@ -370,14 +371,14 @@ def _zero_sum_eigen(cov: Any) -> tuple[np.ndarray, np.ndarray] | None:
         raise ValueError("cov must be a positive number or a symmetric (K, K) array.")
     K = C.shape[0]
     P = np.eye(K) - 1.0 / K
-    lam, U = np.linalg.eigh(P @ C @ P)
+    eig, U = np.linalg.eigh(P @ C @ P)
     # a constant matrix leaves only round-off, so judge against the size of cov itself
-    if lam.max() <= 1e-12 * np.abs(C).max() or lam.min() < -1e-8 * lam.max():
+    if eig.max() <= 1e-12 * np.abs(C).max() or eig.min() < -1e-8 * eig.max():
         raise ValueError(
             "cov must be positive semi-definite on zero-sum vectors and not constant."
         )
-    keep = lam > 1e-10 * lam.max()
-    return U[:, keep], np.sqrt(lam[keep])
+    keep = eig > 1e-10 * eig.max()
+    return U[:, keep], np.sqrt(eig[keep])
 
 
 class _BoundLogisticNormal(_BoundLogistic):
@@ -438,20 +439,20 @@ class LogisticRandomWalk(PopulationPrior):
             raise ValueError("order must be 1, 2 or 3.")
         check_positive(trend_scale, "trend_scale")
         self.order = int(order)
-        self.scale = as_hyperprior(HalfNormal(1.0) if scale is None else scale)
+        self.scale = as_hyperprior(HalfNormal(1.0) if scale is None else scale, "scale")
         self.mean = _check_mean(mean)
         self.trend_scale = float(trend_scale)
 
     def bind(self, bins: Bins) -> _BoundRandomWalk:
         _require_full_grid(bins)
-        eig = [_rw_eigen(n, self.order) for n in bins.shape]
-        basis = _KronBasis([U for _, U in eig])
-        lam = np.zeros(1)
+        per_axis = [_rw_eigen(n, self.order) for n in bins.shape]
+        basis = _KronBasis([U for _, U in per_axis])
+        eig = np.zeros(1)
         null = np.ones(1, dtype=bool)
-        for lam_d, _ in eig:
-            nd = np.zeros(lam_d.size, dtype=bool)
+        for eig_d, _ in per_axis:
+            nd = np.zeros(eig_d.size, dtype=bool)
             nd[: self.order] = True
-            lam = (lam[:, None] + lam_d[None, :]).ravel()
+            eig = (eig[:, None] + eig_d[None, :]).ravel()
             null = (null[:, None] & nd[None, :]).ravel()
         # drop the global constant mode (index 0: product of constants)
         active = np.arange(1, basis.J)
@@ -463,7 +464,7 @@ class LogisticRandomWalk(PopulationPrior):
             active,
             mu,
             [("scale", self.scale)],
-            lam[active],
+            eig[active],
             null[active],
             # the modes have unit norm, so a root-mean-square size of 1/sqrt(K) (audit P-6)
             null_sd=self.trend_scale * np.sqrt(bins.K),
@@ -471,12 +472,12 @@ class LogisticRandomWalk(PopulationPrior):
 
 
 class _BoundRandomWalk(_BoundLogistic):
-    def __init__(self, prior, bins, basis, active, mu, hypers, lam, null, null_sd):
+    def __init__(self, prior, bins, basis, active, mu, hypers, eig, null, null_sd):
         super().__init__(prior, bins, basis, active, mu, hypers)
         self.null = null
-        # log s_j = log(tau) - log(lam_j) / 2 on penalised modes, log(null_sd) on the others
+        # log s_j = log(tau) - log(e_j) / 2 on penalised modes, log(null_sd) on the others
         self._pen = np.where(null, 0.0, 1.0)  # 1 on the modes the scale tau multiplies
-        self._log_base = np.where(null, np.log(null_sd), -0.5 * np.log(np.where(null, 1.0, lam)))
+        self._log_base = np.where(null, np.log(null_sd), -0.5 * np.log(np.where(null, 1.0, eig)))
 
     def log_scales(self, theta):
         return self._log_base + self._pen * np.log(theta[0]), self._pen[None, :]
@@ -531,7 +532,8 @@ class LogisticGP(PopulationPrior):
         Where that lower bound exceeds a quarter of the range (coarse grids),
         a ``LogNormal`` with standard deviation 1 in log length and median the
         larger of the bound and half the range instead. A fixed length scale
-        below the bound raises an :class:`~binference.InputWarning`.
+        below the shortest the basis resolves (``f * boundary_factor * S /
+        n_basis``) raises an :class:`~binference.InputWarning`.
     mean : array_like (K,), optional
         Mean log-fractions (e.g. the log of reference fractions). Defaults to
         a density flat in the measure coordinate: the GP acts on the
@@ -566,15 +568,17 @@ class LogisticGP(PopulationPrior):
             if nb.ndim > 1 or nb.dtype.kind not in "iu" or np.any(nb < 1):
                 raise ValueError("n_basis must be a positive integer or one per axis.")
         self.kernel = kernel
-        self.amplitude = as_hyperprior(HalfNormal(2.0) if amplitude is None else amplitude)
+        self.amplitude = as_hyperprior(
+            HalfNormal(2.0) if amplitude is None else amplitude, "amplitude"
+        )
         self.length_scale = length_scale
         per_axis = isinstance(length_scale, list | tuple) or np.ndim(length_scale) == 1
         if length_scale is None:
             self._ls = None
         elif per_axis:
-            self._ls = [as_hyperprior(v) for v in length_scale]
+            self._ls = [as_hyperprior(v, f"length_scale[{d}]") for d, v in enumerate(length_scale)]
         else:
-            self._ls = as_hyperprior(length_scale)
+            self._ls = as_hyperprior(length_scale, "length_scale")
         self.mean = _check_mean(mean)
         self.n_basis = n_basis
         self.boundary_factor = float(boundary_factor)

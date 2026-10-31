@@ -55,9 +55,11 @@ then keeps Gibbs whatever length it would need. A run that stores labels
 
 Auto keeps Laplace even when its check fails in two cases. One is likelihoods with more
 than `nnz_limit` stored entries. The other is options that no later engine takes. Such a
-result is flagged {term}`approximate`. The result records the choice and its reason in
-`result.info["auto_method"]` and `result.info["auto_reason"]`. Where auto computed the
-most probable population without a warning, the result keeps it as `result.best`.
+result is flagged {term}`approximate`. The result records the choice in
+`result.info["auto_method"]`, and in `result.info["auto_reason"]` the reasons for it: why a
+rule left Gibbs out, why earlier engines were not kept, and why this one was. Where auto
+computed the most probable population without a warning, the result keeps it as
+`result.best`.
 
 ## The benchmark behind the rules
 

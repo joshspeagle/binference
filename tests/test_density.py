@@ -96,6 +96,43 @@ def test_the_default_base_measure_is_flat_in_the_measure_coordinate():
     np.testing.assert_allclose(by_z, 2.0 * logbins.volumes / logbins.volumes.sum())
 
 
+def test_densities_are_equal_when_built_alike_from_equal_values():
+    a = np.linspace(1.0, 2.0, 10)
+    func = lambda z: z  # noqa: E731
+    equal = [
+        (Density.flat(), Density.flat()),
+        (Density.from_masses(a), Density.from_masses(list(a))),
+        (Density.from_distribution(stats.norm(0, 1)), Density.from_distribution(stats.norm(0, 1))),
+        (Density.from_function(func), Density.from_function(func)),
+    ]
+    for d1, d2 in equal:
+        assert d1 == d2 and hash(d1) == hash(d2)
+    unequal = [
+        (Density.flat(), Density.flat("z")),
+        (Density.from_masses(a), Density.from_masses(a[::-1])),
+        (Density.from_masses(a), Density.from_densities(a)),
+        (Density.from_distribution(stats.norm(0, 1)), Density.from_distribution(stats.norm(0, 2))),
+        (Density.from_function(func), Density.from_function(lambda z: z)),
+    ]
+    for d1, d2 in unequal:
+        assert d1 != d2
+
+
+def _ramp(z):
+    return 1.0 + z
+
+
+def test_a_prior_keys_a_named_function_by_its_name_and_others_by_identity(monkeypatch):
+    key = priors.PolyaTree(base=_ramp)._fingerprint()
+    # the same function defined anew under its name, as in another process
+    twin = type(_ramp)(_ramp.__code__, globals(), "_ramp")
+    monkeypatch.setitem(globals(), "_ramp", twin)
+    assert priors.PolyaTree(base=twin)._fingerprint() == key
+    # lambdas have no name that finds them
+    lambdas = [lambda z: 1.0 + z, lambda z: 1.0 + z]
+    assert len({priors.PolyaTree(base=f)._fingerprint() for f in lambdas}) == 2
+
+
 def test_population_accepts_a_density():
     bins = Bins.linear(0, 1, 5)
     d = Density.from_masses([1, 2, 3, 2, 1])

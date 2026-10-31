@@ -20,6 +20,9 @@ releases may break the API).
 - `Selection.from_function` and `Selection.combined` take `max_depth`, the most
   refinements of their adaptive quadrature; the default, 20, allows the halvings a jump
   inside a bin needs (DECISIONS #113).
+- `Density` compares by value and is hashable: flat densities by coordinate, arrays by
+  their values and reading, frozen SciPy distributions by family and parameters,
+  functions by identity (DECISIONS #119).
 
 ### Changed
 
@@ -35,6 +38,16 @@ releases may break the API).
 - `Likelihoods.from_density` evaluates frozen SciPy distributions of one family in one
   call, for their exact bin masses and for their densities; the densities' check for one
   family never matched, so each distribution was evaluated separately (DECISIONS #113).
+- `method="auto"` records first in `info["auto_reason"]` why a rule left Gibbs out, and
+  keeps an extended Gibbs result rather than rebuilding it (DECISIONS #119).
+- `binference.io` and `binference.plotting` are imported with the package and listed by
+  `dir()`; they stay out of `__all__`.
+- The partial-centring weights of the logistic priors' bound form are named `gamma` (was
+  `lam`), also in `with_centering` and `recentre`; `info["centring"]` is unchanged.
+- Tree priors take their EM weights from the concentrations, and binding no longer
+  builds a slot-by-node matrix: a `PolyaTree` on 2048 bins binds in 0.06 s (was 0.64 s)
+  (#166, DECISIONS #119).
+- `BoundPrior` documents the interface a new prior implements.
 
 ### Removed
 
@@ -44,6 +57,10 @@ releases may break the API).
 - `Engine.name` and `Engine.approximate`, which nothing read (DECISIONS #112).
 - `Response.measured_fractions`, which only a test used and which ignored the posterior
   means of a tallied response (DECISIONS #113).
+- `Dirichlet("reference")` and the `K` argument of `Dirichlet.reference()`, which takes `K`
+  from the bins (DECISIONS #119).
+- `PopulationPrior.kind` and `GammaRates.kind`; the bound prior's `kind` remains.
+- The lazy `binference.__getattr__`.
 
 ### Fixed
 
@@ -94,6 +111,19 @@ releases may break the API).
   `Response.from_simulation` with `open_ended` and categorical measured bins (an
   `AttributeError`); labelled scores that are not finite. `Selection.combined` checks
   `scale` before evaluating its functions.
+- A prior's fingerprint, which `attach` compares after `load`, includes the values of its
+  base measure: priors with different base arrays of the same length no longer pass for
+  each other, and a named function as base matches in another process.
+- `infer` refuses an `n_samples` that is not a positive integer, by name; `0` under auto
+  ran at the automatic length.
+- `Dirichlet.from_counts` refuses a negative `strength` and a non-positive `base`, naming
+  them; a negative strength subtracted the reference sample.
+- auto reported "the only engine that takes these options" when Gibbs took them but a
+  rule left it out.
+- `amplitude`, `scale` and `length_scale` (and `length_scale[d]`) are named in their
+  errors.
+- The docs say which priors have unbounded densities, give `GeneralizedDirichlet`'s
+  default `b_k = (K - k) a`, and the length scale below which `LogisticGP` warns.
 
 ## [0.1.0] - 2026-10-29
 

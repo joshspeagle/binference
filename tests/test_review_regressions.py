@@ -224,8 +224,13 @@ def test_polya_tree_map_avoids_boundary_zeros():
     est = MAP(m).run()
     assert est.info["space"] == "unconstrained"
     assert np.all(est.rho > 0)
-    with pytest.warns(InputWarning, match="unbounded"):
+    # EM stops with the empty bins near 1e-18, where the tree's KKT gap has lost its
+    # precision (its terms of order 1e19 cancel), so it may also warn that it stalled
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
         MAP(m, space="simplex").run()
+    assert any(w.category is InputWarning and "unbounded" in str(w.message) for w in caught)
+    assert {w.category for w in caught} <= {InputWarning, binference.ConvergenceWarning}
 
 
 def test_gp_binds_on_log_and_large_grids():
@@ -257,7 +262,7 @@ def test_weak_data_smoothness_fits_stay_non_centred():
     eng = NUTS(model, rng=1, n_chains=2, n_warmup=150)
     eng.run(1)
     penalised = ~eng.model.prior.null
-    assert np.all(eng.model.prior.lam[penalised] == 1.0)
+    assert np.all(eng.model.prior.gamma[penalised] == 1.0)
 
 
 def test_parallel_chains_fall_back_when_the_model_cannot_be_pickled():
@@ -313,4 +318,4 @@ def test_data_rich_gp_fits_are_partially_centred():
     lk = binference.simulate.mock_1d(400, bins, noise=(0.05, 0.15), rng=21).likelihoods[:300]
     eng = NUTS(PopulationModel(lk, P.LogisticGP()), rng=2, n_warmup=40)
     eng.run(1)
-    assert np.mean(eng.model.prior.lam < 0.5) > 0.1
+    assert np.mean(eng.model.prior.gamma < 0.5) > 0.1

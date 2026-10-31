@@ -5,6 +5,7 @@ import pytest
 
 import binference
 from binference import Bins, Likelihoods, PopulationResult, Selection
+from binference.priors import Dirichlet, PolyaTree
 from binference.samplers import Gibbs
 
 
@@ -226,13 +227,19 @@ def test_plots_refuse_three_axes_and_warn_when_two_drop_overlays():
         square.plot(truth=np.full(4, 0.25))
 
 
-def test_plotting_and_io_are_reachable_from_the_package():
+def test_plotting_and_io_are_listed_on_the_package_without_loading_their_extras():
     import subprocess
     import sys
 
-    code = "import binference; print(binference.plotting.__name__, binference.io.__name__)"
+    # in a fresh interpreter: listed by dir(), matplotlib and xarray not loaded, and a
+    # star import leaves the standard io alone
+    code = (
+        "import sys, binference; star = {}; exec('from binference import *', star); "
+        "print({'plotting', 'io'} <= set(dir(binference)), "
+        "{'matplotlib', 'xarray'} & set(sys.modules), 'io' in star)"
+    )
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
-    assert out.stdout.split() == ["binference.plotting", "binference.io"], out.stderr
+    assert out.stdout.split() == ["True", "set()", "False"], out.stderr
 
 
 def test_method_em_runs_em_and_auto_is_recorded_in_any_case():
@@ -429,14 +436,26 @@ def test_a_reloaded_fit_keeps_its_draws_and_needs_its_own_prior_for_the_best_fit
     assert back.prior_information_ratio() == res.prior_information_ratio()
 
 
-def test_a_prior_that_differs_only_in_a_long_array_is_not_the_fits(tmp_path):
-    # both reprs read Dirichlet(alpha=array(shape=(10,))); the full arguments differ
+@pytest.mark.parametrize(
+    ("fit", "other"),
+    [
+        (Dirichlet(np.full(10, 0.5)), Dirichlet(np.full(10, 3.0))),
+        # base measures of the same length (a Density's repr gives only their number)
+        (PolyaTree(base=np.linspace(1, 2, 10)), PolyaTree(base=np.linspace(2, 1, 10))),
+        (
+            Dirichlet.from_base_measure(2.0, np.linspace(1, 2, 10)),
+            Dirichlet.from_base_measure(2.0, np.linspace(2, 1, 10)),
+        ),
+    ],
+    ids=["alpha", "polya-tree-base", "dirichlet-base"],
+)
+def test_a_prior_that_differs_only_in_the_values_of_an_array_is_not_the_fits(tmp_path, fit, other):
+    # both reprs shorten the array, so they are equal; the full arguments differ
     lk = binference.simulate.mock_1d(200, Bins.linear(0, 1, 10), rng=3).likelihoods
-    fit = binference.priors.Dirichlet(np.full(10, 0.5))
     res = Gibbs(binference.PopulationModel(lk, fit), n_warmup=10, rng=0).run(10)
     res.save(str(tmp_path / "r.npz"))
     back = PopulationResult.load(str(tmp_path / "r.npz"))
-    other = binference.PopulationModel(lk, binference.priors.Dirichlet(np.full(10, 3.0)))
+    other = binference.PopulationModel(lk, other)
     assert repr(other.prior_spec) == back.prior_repr
     with pytest.raises(ValueError, match="needs the fit's prior"):
         _ = back.attach(other).best

@@ -57,9 +57,20 @@ def test_broad_likelihoods_leave_gibbs_and_a_failed_laplace_check_goes_to_nuts(s
     assert _plan(lk) == ["laplace", "nuts"]  # f > 0.98: Gibbs would mix too slowly
     assert _plan(lk, gibbs_max_missing=0.99999, max_gibbs_draws=10**7)[0] == "gibbs"
     res = binference.infer(lk, P.Dirichlet(0.1), rng=0, n_samples=50, check=False)
-    assert (
-        res.method == "nuts" and res.info["auto_reason"] == "the Laplace importance check failed"
+    assert res.method == "nuts" and res.info["auto_reason"].endswith(
+        "; the Laplace importance check failed"
     )
+
+
+def test_the_reason_names_the_rule_that_left_gibbs_out(short_nuts):
+    # Gibbs takes n_warmup and n_chains (Laplace does not), but would mix too slowly
+    lk = _lk(3.0)
+    res = binference.infer(lk, rng=0, n_samples=50, n_warmup=50, n_chains=1, check=False)
+    assert res.method == "nuts" and res.info["auto_reason"].startswith(
+        "Gibbs would mix too slowly (missing information 0.99"
+    )
+    auto = inf.Auto(binference.PopulationModel(lk), gibbs_max_missing=0.9999, max_gibbs_draws=1500)
+    assert auto._plan(None)[1].startswith("Gibbs would need")
 
 
 def test_laplace_is_kept_when_its_importance_check_passes():
@@ -131,6 +142,18 @@ def test_auto_works_on_basis_likelihoods(short_nuts):
     lk = binference.Likelihoods.from_gaussian(z + rng.normal(0, 0.1, 300), 0.1, basis)
     res = binference.infer(lk, rng=0, n_samples=50, check=False)
     assert res.info["auto_method"] in ("gibbs", "laplace", "nuts")
+
+
+@pytest.mark.parametrize("n_samples", [0, -5, 2.5, "10"])
+def test_infer_refuses_an_n_samples_that_is_not_a_positive_integer(n_samples):
+    with pytest.raises(ValueError, match="n_samples must be a positive integer"):
+        binference.infer(_lk(0.3), method="gibbs", n_samples=n_samples, n_warmup=1)
+
+
+def test_auto_returns_the_gibbs_result_whose_diagnostics_it_computed():
+    # deciding whether to extend the run computed them; they are not computed again
+    res = binference.infer(_lk(0.3), rng=0, check=False)
+    assert res.method == "gibbs" and "diagnostics" in res._cache
 
 
 def test_auto_options_are_checked_by_name():

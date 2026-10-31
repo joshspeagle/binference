@@ -7,6 +7,8 @@ meaning wherever it appears (DECISIONS #26). It is resolved against bins with
 
 from __future__ import annotations
 
+import hashlib
+import sys
 from collections.abc import Callable
 from typing import Any, Literal
 
@@ -238,6 +240,43 @@ class Density:
         if self._dist is not None:
             return f"Density.from_distribution({self._dist!r})"
         return f"Density.from_function({self._func!r})"
+
+    def _fingerprint(self) -> str:
+        """This density's key in a prior's fingerprint: its repr, with what that leaves out.
+
+        Values enter by a digest, a frozen SciPy distribution by its family and
+        parameters, and a function by its module and qualified name where that name finds
+        it (as pickle finds a function); these keys are the same in every process. Any
+        other function or distribution enters by its repr, which may hold its address.
+        """
+        if self._values is not None:
+            digest = hashlib.sha256(self._values.tobytes()).hexdigest()
+            return f"Density(values={digest}, per_volume={self._per_volume})"
+        family = getattr(getattr(self._dist, "dist", None), "name", None)
+        if family is not None:  # a frozen SciPy distribution
+            return f"Density.from_distribution({family}{self._dist.args!r}{self._dist.kwds!r})"
+        if self._func is not None:
+            return f"Density.from_function({_qualified_name(self._func)})"
+        return repr(self)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Density):
+            return NotImplemented
+        if self._func is not None or other._func is not None:
+            return self._func is other._func  # functions by identity, as Python compares them
+        return self._fingerprint() == other._fingerprint()
+
+    def __hash__(self) -> int:
+        return hash(id(self._func) if self._func is not None else self._fingerprint())
+
+
+def _qualified_name(func: Any) -> str:
+    # module.qualname where that name finds func, else its repr (with its address)
+    module, qualname = getattr(func, "__module__", None), str(getattr(func, "__qualname__", ""))
+    found = sys.modules.get(module)
+    for part in qualname.split("."):
+        found = getattr(found, part, None)
+    return f"{module}.{qualname}" if found is func else repr(func)
 
 
 def _equal_volumes(vol: np.ndarray) -> bool:
