@@ -8,8 +8,8 @@
   warning is an error under the test settings), so the
   thinned draws are effectively independent and autocorrelation cannot pass for
   miscalibration.
-* SBC of the logistic-normal and Gaussian-process priors with their default
-  hyperpriors, through NUTS, where a fit may fall short of that ESS.
+* The logistic-normal and Gaussian-process priors with their default hyperpriors:
+  NUTS on flat likelihoods, whose posterior is the prior, against the prior's own draws.
 * Geweke "getting it right" tests of the Gibbs conditionals of the generalised
   Dirichlet, a Dirichlet tree and Gamma rates with an exposure.
 """
@@ -17,9 +17,11 @@
 import numpy as np
 import pytest
 
+import binference
+from binference import Bins, Likelihoods
 from binference import priors as P
 
-from .conftest import assert_uniform_ranks
+from .conftest import assert_draws_agree, assert_uniform_ranks
 from .test_slow import _fit, _geweke_z_scores, _sbc
 
 pytestmark = pytest.mark.slow
@@ -81,17 +83,23 @@ def test_sbc_ranks_are_uniform(case):
 
 
 @pytest.mark.parametrize("prior", [P.LogisticGP(), P.LogisticNormal()], ids=["gp", "normal"])
-# the fits whose warm-up ends on a poor metric mix slowly (one LogisticNormal fit in 25
-# had a bulk ESS of 15); low ESS over-disperses the ranks, which only makes the test stricter
-@pytest.mark.filterwarnings(
-    "ignore:In .* fits the smallest bulk ESS:binference.ConvergenceWarning"
-)
-def test_sbc_ranks_are_uniform_for_the_default_logistic_hyperpriors(prior):
-    # ten objects keep the posterior close to the prior, so the ranks test the prior draws
-    # against the density NUTS samples, and the fits short: 25 simulations took 193 s for
-    # each prior on one thread of a shared 4-core machine
-    fit = _fit("nuts", prior=prior, n_chains=1, n_warmup=500, n_samples=200)
-    assert_uniform_ranks(_sbc(prior, fit, 25, 19, 2026, n_objects=10), n_bins=5)
+def test_nuts_on_flat_likelihoods_draws_what_the_default_logistic_hyperpriors_sample(prior):
+    # flat likelihoods leave the prior as the posterior, so the density NUTS samples is
+    # checked against the prior's own draws: a HalfNormal(1) scale in place of the default
+    # HalfNormal(2) gives |z| of 25 to 29 on the sds (DECISIONS #119)
+    bins = Bins.linear(0, 1, 4)
+    res = binference.infer(
+        Likelihoods(np.ones((10, 4)), bins=bins),
+        prior,
+        method="nuts",
+        rng=1,
+        n_chains=4,
+        n_warmup=1000,
+        n_samples=2000,
+        check=False,
+    )
+    draws = prior.bind(bins).sample(100_000, np.random.default_rng(2))
+    assert_draws_agree(res.chains, draws[None])
 
 
 @pytest.mark.parametrize(
