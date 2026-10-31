@@ -1,8 +1,10 @@
 # Walkthrough plan
 
-**Current position:** the walkthrough has moved into the **teardown artifact** (DECISIONS #106, issue #150): a map of the whole project with four lenses at three depths, progress, a findings ledger and comments that change it. It is built whole-map-first at overview depth; deeper depths follow Josh's requests, in the order of the phases below. Findings run as issues and pull requests as they are found. Steps 1.1, 1.2, 1.4 and 2.1–2.6 were done in the chat walkthrough; 3.1 was under way. The landing (Phases A–C) and the docs phase (#99) are complete, and 0.1.0 is released.
+**Current position:** the walkthrough continues in the teardown artifact (DECISIONS #106, issue #150), now at overview depth over the whole map; the walkthrough and deep dive follow Josh's requests in the order of the phases below. The landing (Phases A–C), the docs phase (#99) and the 0.1.0 release are complete.
 
 ## How each step works
+
+Superseded by DECISIONS #106: the teardown artifact replaces the briefings, and findings are fixed at once.
 
 1. **Briefing.** Claude writes `briefings/<step>.md`: what the code does, the
    statistics or algorithm behind it, every non-obvious decision with its
@@ -84,7 +86,7 @@ Order is a proposal: Josh may jump around. Rough default levels in brackets.
 
 ## Background audit
 
-Seven auditor reports land in `audit/` (see `audit/README.md`). Per DECISIONS #13, findings are triaged after the walkthrough is complete; the mapping below is for reference: inputs → 2.2/2.3, model-map → 2.6/4.4, priors → Phase 3, nuts-laplace → 4.1/4.2/4.5, gibbs-vb-validation → 4.3/4.5/5.3, outputs-api → Phase 5/7, tests-docs → Phases 6/8.
+Seven auditor reports land in `audit/` (see `audit/README.md`). Per DECISIONS #13 (amended by #106: findings are now fixed as the teardown finds them), findings were to be triaged after the walkthrough; the mapping below is for reference: inputs → 2.2/2.3, model-map → 2.6/4.4, priors → Phase 3, nuts-laplace → 4.1/4.2/4.5, gibbs-vb-validation → 4.3/4.5/5.3, outputs-api → Phase 5/7, tests-docs → Phases 6/8.
 
 ## Status
 
@@ -101,4 +103,4 @@ Seven auditor reports land in `audit/` (see `audit/README.md`). Per DECISIONS #1
 | 2.4 Selection (code) | L2–L3 | done (decisions #46–#49) | `briefings/2.4-selection.html` (+ .md) | |
 | 2.5 Population, sample, objects | L2 | done (decisions #50–#53) | `briefings/2.5-individuals.html` (+ .md) | |
 | 2.6 Model and kernels | L2–L3 | done (decisions #54–#57) | `briefings/2.6-model-core.html` (+ .md) | |
-| 3.1 Dirichlet family | L2–L3 | briefing published (2026-10-26); discussion pending | `briefings/3.1-dirichlet-family.html` (+ .md) | five questions in QUESTIONS |
+| 3.1 Dirichlet family | L2–L3 | briefing published (2026-10-26); discussion moved to the teardown (#106) | `briefings/3.1-dirichlet-family.html` (+ .md) | five questions in QUESTIONS |
