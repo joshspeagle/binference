@@ -48,6 +48,17 @@ def test_frozen_distributions_of_one_family_are_evaluated_together(monkeypatch):
         assert n_calls(dists, bins) == n_calls(dists * 2, bins)
 
 
+def test_a_batch_of_one_family_gives_each_distribution_its_own_masses():
+    # the wide one's intervals sit near its median with tiny masses: their pdf correction
+    bins = Bins.linear(0, 1, 50)
+    dists = [stats.norm(0.5, 0.1), stats.norm(0.2, 1000.0), stats.norm(0.8, 0.3)]
+    kw = {"kind": "likelihood", "warn_outside": False}
+    one = [Likelihoods.from_density([d], bins, **kw).toarray()[0] for d in dists]
+    np.testing.assert_allclose(
+        Likelihoods.from_density(dists, bins, **kw).toarray(), one, rtol=1e-12
+    )
+
+
 def test_frozen_histograms_are_not_taken_for_one_family():
     # a frozen rv_histogram's generator holds its histogram, so one call would use the first
     data = ([0.1, 0.2, 0.2, 0.3], [0.6, 0.7, 0.7, 0.9])

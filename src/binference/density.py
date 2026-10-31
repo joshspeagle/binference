@@ -281,12 +281,18 @@ def _dist_log_masses(dist: Any, edges: np.ndarray) -> np.ndarray:
     # nearly constant across it, so a 5-point quadrature of the pdf keeps full precision
     near = (out < np.log(1e-3)) & (np.abs(np.exp(lc[..., :-1]) - 0.5) < 0.25)
     if near.any() and _has_pdf(dist):
+        *row, k = np.nonzero(near)  # only the near intervals: one wide object has many
         t, w = _gauss(5)
-        lo, width = edges[:-1], np.diff(edges)
-        pts = lo[:, None] + width[:, None] * t
-        dens = np.exp(_dist_logpdf(dist, pts.ravel()).reshape(*out.shape, 5))
+        width = np.diff(edges)[k]
+        pts = edges[:-1][k, None] + width[:, None] * t
+        if row:  # a batch: the near rows' parameters, a row of points each
+            args = (np.asarray(a)[row[0]] for a in dist.args)
+            dist = dist.dist(*args, **{n: np.asarray(v)[row[0]] for n, v in dist.kwds.items()})
+            logpdf = _dist_logpdf(dist, pts)
+        else:
+            logpdf = _dist_logpdf(dist, pts.ravel()).reshape(pts.shape)
         with np.errstate(divide="ignore"):
-            out = np.where(near, np.log((dens @ w) * width), out)
+            out[near] = np.log((np.exp(logpdf) @ w) * width)
     return out
 
 
