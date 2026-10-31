@@ -249,7 +249,7 @@ class _TreeStructure:
         slot_child: list[tuple[str, int]] = []
         slot_node: list[int] = []
         slot_alpha: list[float] = []
-        ptr = [0]
+        node_start = [0]  # node c's slots are node_start[c] to node_start[c + 1] - 1 (CSR)
         for c, (children, a) in enumerate(zip(nodes, alphas, strict=True)):
             for (kind, idx), aj in zip(children, a, strict=True):
                 s = len(slot_child)
@@ -267,13 +267,13 @@ class _TreeStructure:
                     if parent_slot_of_node[idx] != -1:
                         raise ValueError(f"Node {idx} has more than one parent.")
                     parent_slot_of_node[idx] = s
-            ptr.append(len(slot_child))
+            node_start.append(len(slot_child))
         if sorted(seen_leaves) != list(range(K)):
             raise ValueError("Tree leaves must be exactly 0..K-1, each appearing once.")
         if np.any(parent_slot_of_node[1:] < 0):
             raise ValueError("Every internal node except the root needs a parent.")
         self.K, self.C = K, C
-        self.ptr = np.asarray(ptr)
+        self.node_start = np.asarray(node_start)
         self.slot_node = np.asarray(slot_node)
         self.slot_alpha = np.asarray(slot_alpha)
         self.slot_child = slot_child
@@ -294,7 +294,7 @@ class _TreeStructure:
                 slot_mem[s] = node_mem[idx]
         self.node_mem = node_mem
         self.slot_mem = slot_mem
-        A_node = np.add.reduceat(self.slot_alpha, self.ptr[:-1])
+        A_node = np.add.reduceat(self.slot_alpha, self.node_start[:-1])
         self.A_node = A_node
         self.leaf_coef = self.slot_alpha[leaf_slot] - 1.0  # (K,)
         nr = np.arange(1, C)
@@ -321,7 +321,7 @@ class _TreeStructure:
         shape = (alpha_slots.size,) if size is None else (size, alpha_slots.size)
         theta = np.empty(shape)
         for c in range(self.C):
-            sl = slice(self.ptr[c], self.ptr[c + 1])
+            sl = slice(self.node_start[c], self.node_start[c + 1])
             theta[..., sl] = _dirichlet_draw(alpha_slots[sl], rng, size=size)
         return theta
 
@@ -387,8 +387,8 @@ class _BoundTree(_SimplexBound):
         t = self.tree
         x = t.slot_mem @ (np.asarray(counts, float) + t.leaf_coef) + t.slot_nodes @ t.node_coef
         x = np.maximum(x, 0.0)
-        tot = np.add.reduceat(x, t.ptr[:-1])
-        n_ch = np.diff(t.ptr)
+        tot = np.add.reduceat(x, t.node_start[:-1])
+        n_ch = np.diff(t.node_start)
         tot_rep = np.repeat(tot, n_ch)
         theta = np.where(
             tot_rep > 0, x / np.where(tot_rep > 0, tot_rep, 1.0), 1.0 / np.repeat(n_ch, n_ch)
@@ -400,7 +400,7 @@ class _BoundTree(_SimplexBound):
 
     def vb_expected_log(self, state):
         t = self.tree
-        tot = np.repeat(np.add.reduceat(state, t.ptr[:-1]), np.diff(t.ptr))
+        tot = np.repeat(np.add.reduceat(state, t.node_start[:-1]), np.diff(t.node_start))
         return (special.digamma(state) - special.digamma(tot)) @ t.slot_mem
 
     def vb_sample(self, state, n, rng):
@@ -408,7 +408,7 @@ class _BoundTree(_SimplexBound):
 
     def vb_mean(self, state):
         t = self.tree
-        tot = np.repeat(np.add.reduceat(state, t.ptr[:-1]), np.diff(t.ptr))
+        tot = np.repeat(np.add.reduceat(state, t.node_start[:-1]), np.diff(t.node_start))
         return t.compose(state / tot)
 
 
