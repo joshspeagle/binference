@@ -469,3 +469,10 @@ Append-only. One entry per working session (or per step within a long session).
   now only publishes a tag on `main` to PyPI (DECISIONS #105).
 - #146: release 0.1.0 prepared: version, citation, dated CHANGELOG section, install from
   PyPI in the README and install page. Josh tags `v0.1.0` after merge.
+
+## 2026-10-31: the teardown replaces the chat walkthrough
+
+- Step 3.1 in chat stalled: printouts of the tree arrays did not explain the structure, the engines needed more than a paragraph each, and corrections were scattered through the conversation. Josh asked for one integrated artifact instead: a deck, a document and a dashboard at once, with levels and lenses he can switch between, progress, and comments that change it directly.
+- Josh chose: the whole map first, every finding run at once, and the content kept in the artifact (DECISIONS #106, #150).
+- Found in chat before the switch, and carried into the teardown's ledger: `_TreeStructure.ptr` is an undocumented CSR-style index; nothing calls `prior_transform`, and `_stick_break` exists only for it; the tree priors need a readable drawing and a named-group input; the α against α − 1 coordinates deserve a note where results are read; `unbounded_density()` serves both MAP's choice of coordinates (right) and the NUTS tree-depth hint, which needs the tails in the unconstrained coordinates instead.
+- The walkthrough's measurements in chat were first run against a stale checkout (`/home/user/pastry`, at PR #110) on the import path; rerun on `main`, every figure agreed. Scripts now set `PYTHONPATH` to the checkout they describe.
