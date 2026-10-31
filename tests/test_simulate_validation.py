@@ -78,8 +78,8 @@ def test_mock_1d_posteriors_and_samples_follow_the_interim_prior_given(kind):
 
 
 def test_mock_1d_samples_weigh_each_grid_step_by_its_width_on_unequal_bins():
-    # without an interim prior the samples follow the likelihood, flat in z; a narrow
-    # bin's 50 steps are short and must carry little mass
+    # without an interim prior the samples follow the likelihood, flat in u (here z); a
+    # narrow bin's 50 steps are short and must carry little mass
     bins = Bins([0.0, 0.1, 3.0])
     mock = mock_1d(200, bins, density=[0.5, 0.5], noise=1.0, n_samples=500, rng=0)
     obs, sig = mock.measurements["mean"], mock.measurements["sigma"]
@@ -88,6 +88,33 @@ def test_mock_1d_samples_weigh_each_grid_step_by_its_width_on_unequal_bins():
     S = mock.samples.shape[1]
     zscore = ((mock.samples < 0.1).sum() - S * p.sum()) / np.sqrt(S * (p * (1 - p)).sum())
     assert abs(zscore) < 4
+
+
+@pytest.mark.parametrize("interim", [None, np.arange(1.0, 6.0) / 15.0])
+def test_mock_samples_are_flat_in_the_measure_coordinate_within_bins(interim):
+    # the samples were flat in z within each bin, while binference reads a per-bin interim
+    # (and Density.flat(), the default) flat in u: on log bins from_samples was biased
+    bins = Bins.log(1.0, 10.0, 5)
+    Pi = binference.Density.flat().masses(bins) if interim is None else interim
+    mock = mock_1d(300, bins, noise=(1, 2), interim=interim, n_samples=2000, rng=0)
+    np.testing.assert_allclose(mock.interim, Pi)
+    # each object's posterior mass per bin: Pi_k times its likelihood averaged over u
+    p = mock.likelihoods.toarray() * Pi
+    p /= p.sum(1, keepdims=True)
+    counts = np.stack([np.bincount(bins.index(s), minlength=5) for s in mock.samples])
+    S = mock.samples.shape[1]
+    # sum over objects of multinomial counts: mean S sum_i p_ik, variance S sum_i p(1 - p)
+    zscore = (counts.sum(0) - S * p.sum(0)) / np.sqrt(S * (p * (1 - p)).sum(0))
+    assert np.all(np.abs(zscore) < 4), zscore
+
+
+def test_mock_categorical_names_a_class_vector_of_the_wrong_length():
+    # numpy's "a and p must have same size" named neither argument
+    for name, value in (("prevalence", [0.5, 0.5]), ("train_prior", [0.2, 0.8])):
+        with pytest.raises(ValueError, match=f"{name} must have n_classes = 4"):
+            mock_categorical(100, 4, rng=0, **{name: value})
+    with pytest.raises(ValueError, match="summing to 0"):
+        mock_categorical(100, 4, prevalence=np.zeros(4), rng=0)
 
 
 def test_mock_selection_thins_each_bin_and_adds_the_outlier_fraction():
@@ -140,6 +167,19 @@ def test_exact_posterior_conjugate():
         binference.validation.exact_posterior(Likelihoods(np.ones((3, 4))))
     with pytest.raises(ValueError):
         binference.validation.exact_posterior(lk, P.LogisticNormal())
+
+
+def test_exact_posterior_refuses_a_prior_beside_a_model():
+    # the prior was ignored: a model carries its own
+    lk = Likelihoods(np.eye(3)[[0, 1, 2, 0]])
+    with pytest.raises(ValueError, match="prior must be None"):
+        binference.validation.exact_posterior(binference.PopulationModel(lk), P.Dirichlet(10.0))
+
+
+def test_coverage_refuses_a_level_outside_zero_and_one_before_any_fit():
+    # a level of 1.5 failed in np.quantile after the first fit, naming no argument
+    with pytest.raises(ValueError, match="levels must be in"):
+        binference.validation.coverage(None, None, levels=(0.5, 1.5))
 
 
 def test_sbc_and_coverage_smoke():

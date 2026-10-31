@@ -174,8 +174,10 @@ What a fit returns: posterior draws or a point estimate, and their summary table
 
 ## Diagnostics and validation
 
-Checks of a single fit: convergence of draws, importance sampling for approximations,
-and optimality of a point estimate.
+Checks of a single fit: convergence of draws and importance sampling for
+approximations. The optimality of a point estimate,
+{meth}`~binference.PopulationModel.kkt_gap`, and the missing information,
+{meth}`~binference.PopulationModel.missing_information`, are methods of the model.
 
 ```{eval-rst}
 .. currentmodule:: binference.diagnostics
@@ -192,8 +194,6 @@ and optimality of a point estimate.
    psis
    psis_threshold
    importance_ess
-   kkt_gap
-   missing_information
 ```
 
 Checks of a method: exact posteriors for small problems, simulation-based calibration

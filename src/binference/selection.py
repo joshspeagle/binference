@@ -40,7 +40,7 @@ import numpy as np
 from scipy import special
 
 from ._quadrature import bin_log_average
-from ._utils import as_generator, check_positive, frozen, warn
+from ._utils import SetOnce, as_generator, check_positive, frozen, warn
 from .basis import Basis
 from .bins import Bins
 from .density import _log_nonneg
@@ -71,7 +71,7 @@ _HELP = (
 )
 
 
-class Selection:
+class Selection(SetOnce):
     """Per-bin detection probability (fractions) or exposure (rates), with its mode.
 
     Parameters
@@ -117,12 +117,6 @@ class Selection:
         self.scale = scale
         self.basis = None
         self.injections = None
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name in Selection.__slots__ and not hasattr(self, name):
-            object.__setattr__(self, name, value)
-        else:
-            raise AttributeError("Selection objects are immutable.")
 
     def _parts(self) -> tuple:
         # the arguments of _rebuild; row as "values" when it is the values (on the truth)

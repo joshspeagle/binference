@@ -60,11 +60,18 @@ print(lk_d.N)
   {term}`interim prior`'s mass in the bin.
 - **On 1-D bins**, a distribution with a CDF is integrated exactly where that gives
   the answer: for posteriors, and for likelihoods on linear bins. The integral is taken
-  in log space, so far tails keep their precision.
+  in log space, so far tails keep their precision; the upper tail needs `sf` or
+  `logsf`, which SciPy's distributions have.
 - **Everything else** uses adaptive quadrature. Each bin is halved along every axis
   until the error estimate is below `tol`, relative to the object's largest bin
-  average. At most `max_depth` halvings are made.
+  average (its largest bin mass for posteriors). At most `max_depth` halvings are made.
 
 If some bins do not reach `tol`, binference raises an `InputWarning`
 ([warnings](../../reference/warnings.md#inputwarning)). If that happens, raise
 `max_depth` or `tol`, or pass `n_sub=` for a fixed number of points per bin and axis.
+
+The quadrature's points leave the outer 4.7% of each cell unread, so a jump there can
+be missed without a warning. For a bounded density with jumps, such as a box, pass
+`bounded=True`: each cell is also checked against points just inside its edges, at
+13/8 the points per cell in 1-D. A posterior's interim prior given as a function gets
+the same check.

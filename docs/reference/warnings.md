@@ -69,6 +69,14 @@ result may be biased.
   **Fix.** Raise `max_depth` or `tol`, or put a bin edge at the jump; `from_density`
   also takes `n_sub=` for fixed quadrature points.
 
+`Bin averages read zero in <n> bin(s) where the function is non-zero only in a feature too narrow to resolve at tol=<tol>; ...`
+: **When.** None of the quadrature's main points reads the function anywhere, the
+  checks near cell edges read something, and the cells there have been split to below
+  `tol` of their bin.
+  **Cause.** The function is non-zero only in a feature thinner than the quadrature
+  resolves at `tol`, such as a thin box on a bin edge.
+  **Fix.** Lower `tol`, or put bin edges at the feature.
+
 `<n> injections fall outside the bins and are ignored.`
 : **When.** `Selection.from_injections` gets injections outside the bins.
   **Fix.** Widen the bins, or drop those injections first.
@@ -146,6 +154,8 @@ just noisy.
     few effective draws. Run longer.
   - the same two messages `of the selection` or `of the response's efficiencies`, for a
     selection or response inferred with the population.
+  - `R-hat and ESS are undefined: chains shorter than 8, or constant`: the chains are
+    too short for R-hat and ESS, or never move. Run longer, or check the sampler.
   - `<n> divergent transitions (<x>% of draws)`: NUTS met a region it cannot explore.
     Try `target_accept=0.95`; see [diagnostics](../guides/checking.md#diagnostics).
   - `E-BFMI = <x> < 0.3 in some chain`: NUTS explores the energy distribution poorly.

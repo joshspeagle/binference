@@ -156,9 +156,9 @@ class MAP(Engine):
         conjugate prior); ``"unconstrained"`` the density in unconstrained
         coordinates (always interior); ``"auto"`` picks ``"simplex"`` unless
         the prior density is unbounded at the boundary (concentrations or
-        shapes below one, Polya trees; ``prior.unbounded_density()``), where the
-        simplex mode can have exact zeros, or a selection or response is
-        inferred jointly. The choice is in ``info["space"]`` and the solver in
+        shapes below one, the default Polya tree; ``prior.unbounded_density()``),
+        where the simplex mode can have exact zeros, or a selection or response
+        is inferred jointly. The choice is in ``info["space"]`` and the solver in
         ``info["algorithm"]``.
     tol : float
         Tolerance on first-order optimality. It bounds the KKT gap
@@ -480,9 +480,8 @@ def _objective(m: PopulationModel, v: np.ndarray) -> tuple[float, np.ndarray]:
     # log posterior on the simplex (or orthant), up to the likelihoods' log-scales, and the
     # evidences L @ v it uses (m.log_likelihood(v, absolute=False) + the prior); components
     # clipped to zero are active constraints: the prior is evaluated at a tiny positive
-    # value so the objective stays finite (and constant) for them
+    # value so the objective stays finite (and constant) for them; -inf, through ll, where
+    # an object is impossible
     s = kern.matvec(m._L, v)
     ll = kern.loglike_of_evidences(m._w, s)
-    if not np.isfinite(ll):
-        return -np.inf, s
     return ll + m._selection_term(v) + m.log_prior(np.maximum(v, _TINY)), s

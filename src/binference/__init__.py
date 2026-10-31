@@ -28,6 +28,10 @@ Main entry points
 """
 
 from . import diagnostics, priors, samplers, simulate, validation
+
+# not in __all__, so that a star import leaves the standard io alone
+from . import io as io
+from . import plotting as plotting
 from ._version import __version__
 from .basis import Basis
 from .bins import Bins
@@ -74,12 +78,3 @@ __all__ = [
     "simulate",
     "validation",
 ]
-
-
-def __getattr__(name: str):
-    # binference.plotting and binference.io load on first use (matplotlib stays optional)
-    if name in ("io", "plotting"):
-        import importlib
-
-        return importlib.import_module(f".{name}", __name__)
-    raise AttributeError(f"module 'binference' has no attribute {name!r}")

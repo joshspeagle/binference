@@ -1,5 +1,7 @@
 """Tests for Density (DECISIONS #26), interim priors (#24) and explicit stacking (#11)."""
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 from scipy import stats
@@ -27,6 +29,14 @@ def test_a_distribution_cdf_and_its_pdf_give_the_same_masses():
     exact = Density.from_distribution(d).masses(bins)
     quad = Density.from_function(d.pdf).masses(bins, n_sub=8)
     np.testing.assert_allclose(quad, exact, rtol=1e-6)
+
+
+def test_a_distribution_with_a_cdf_and_an_sf_keeps_its_upper_tail():
+    # nine standard deviations up the CDF rounds to one; the survival function does not
+    norm = SimpleNamespace(cdf=stats.norm.cdf, sf=stats.norm.sf, pdf=stats.norm.pdf)
+    bins = Bins.linear(9, 12, 3)
+    exact = Density.from_distribution(stats.norm()).masses(bins)  # logcdf and logsf
+    np.testing.assert_allclose(Density.from_distribution(norm).masses(bins), exact, rtol=1e-12)
 
 
 def test_a_callable_on_categories_receives_the_labels():
@@ -94,6 +104,74 @@ def test_the_default_base_measure_is_flat_in_the_measure_coordinate():
     np.testing.assert_allclose(alpha, 0.5)
     by_z = priors.Dirichlet.from_base_measure(2.0, Density.flat("z")).resolve_alpha(logbins)
     np.testing.assert_allclose(by_z, 2.0 * logbins.volumes / logbins.volumes.sum())
+
+
+def test_densities_are_equal_when_built_alike_from_equal_values():
+    a = np.linspace(1.0, 2.0, 10)
+    func = lambda z: z  # noqa: E731
+    ramp = _Ramp()
+    equal = [
+        (Density.flat(), Density.flat()),
+        (Density.from_masses(a), Density.from_masses(list(a))),
+        (Density.from_distribution(stats.norm(0, 1)), Density.from_distribution(stats.norm(0, 1))),
+        (Density.from_function(func), Density.from_function(func)),
+        # numbers as floats; a bound method as Python compares it (a new object per access)
+        (
+            Density.from_distribution(stats.norm(0, 1)),
+            Density.from_distribution(stats.norm(0.0, 1.0)),
+        ),
+        (Density.from_function(ramp.pdf), Density.from_function(ramp.pdf)),
+    ]
+    for d1, d2 in equal:
+        assert d1 == d2 and hash(d1) == hash(d2)
+    unequal = [
+        (Density.flat(), Density.flat("z")),
+        (Density.from_masses(a), Density.from_masses(a[::-1])),
+        (Density.from_masses(a), Density.from_densities(a)),
+        (Density.from_distribution(stats.norm(0, 1)), Density.from_distribution(stats.norm(0, 2))),
+        # a frozen rv_histogram's family name and arguments leave out its histogram
+        tuple(
+            Density.from_distribution(stats.rv_histogram((h, [0, 1, 2]))())
+            for h in ([1, 2], [2, 1])
+        ),
+        (Density.from_function(func), Density.from_function(lambda z: z)),
+        # a distribution outside SciPy's public families by identity, not by its repr
+        (Density.from_distribution(ramp), Density.from_distribution(_Ramp())),
+        (Density.from_function(func), Density.from_function(func, bounded=True)),
+    ]
+    for d1, d2 in unequal:
+        assert d1 != d2
+    # a prior keys a bounded density apart from the same function unbounded
+    keys = {
+        priors.PolyaTree(base=Density.from_function(_ramp, bounded=b))._fingerprint()
+        for b in (False, True)
+    }
+    assert len(keys) == 2
+
+
+class _Ramp:
+    """A distribution whose repr does not tell two apart."""
+
+    def pdf(self, z):
+        return np.asarray(z, float)
+
+    def __repr__(self):
+        return "_Ramp()"
+
+
+def _ramp(z):
+    return 1.0 + z
+
+
+def test_a_prior_keys_a_named_function_by_its_name_and_others_by_identity(monkeypatch):
+    key = priors.PolyaTree(base=_ramp)._fingerprint()
+    # the same function defined anew under its name, as in another process
+    twin = type(_ramp)(_ramp.__code__, globals(), "_ramp")
+    monkeypatch.setitem(globals(), "_ramp", twin)
+    assert priors.PolyaTree(base=twin)._fingerprint() == key
+    # lambdas have no name that finds them
+    lambdas = [lambda z: 1.0 + z, lambda z: 1.0 + z]
+    assert len({priors.PolyaTree(base=f)._fingerprint() for f in lambdas}) == 2
 
 
 def test_population_accepts_a_density():

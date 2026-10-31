@@ -31,7 +31,7 @@ def test_positions_from_sample_are_in_the_model_coordinates():
     draws = eng.sample(1)
     x = next(draws)
     draws.close()  # records the draw
-    assert not np.all(eng.model.prior.lam == 1.0)  # sampled partly centred
+    assert not np.all(eng.model.prior.gamma == 1.0)  # sampled partly centred
     np.testing.assert_allclose(m.to_value(x[0]), eng.result.chains[0, -1])
 
 

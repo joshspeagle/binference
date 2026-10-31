@@ -19,7 +19,7 @@ from .optimize import MAP
 __all__ = ["Laplace"]
 
 #: Importance proposals per draw when ``n_proposals`` is ``None`` (at least
-#: ``diagnostics.PSIS_MIN_WEIGHTS`` in all, the fewest Pareto smoothing takes).
+#: ``diagnostics.PSIS_MIN_WEIGHTS`` in all, the fewest ``diagnostics.psis`` takes).
 PROPOSAL_FACTOR = 2
 #: Eigenvalues of a Hessian that is not positive definite are raised to this times the
 #: largest (at least one).

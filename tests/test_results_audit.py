@@ -5,6 +5,7 @@ import pytest
 
 import binference
 from binference import Bins, Likelihoods, PopulationResult, Selection
+from binference.priors import Dirichlet, PolyaTree
 from binference.samplers import Gibbs
 
 
@@ -135,6 +136,39 @@ def test_check_flags_energy_tail_mixing_one_chain_and_unconverged_fits():
         _external(stuck, m).check()
 
 
+def test_check_flags_chains_too_short_or_constant_to_diagnose():
+    # chains below MIXING_MIN_DRAWS get no R-hat or ESS, and constant ones NaN: check()
+    # passed both silently
+    model = binference.PopulationModel(Likelihoods(np.ones((5, 4)), Bins.linear(0, 1, 4)))
+    short = np.random.default_rng(0).dirichlet(np.ones(4), size=(4, 7))
+    constant = np.full((4, 500, 4), 0.25)
+    for draws in (short, constant):
+        with pytest.warns(binference.ConvergenceWarning, match="R-hat and ESS are undefined"):
+            assert len(_external(draws, model).check()) == 1
+    assert PopulationResult(model, short, method="bootstrap").check() == []  # independent
+
+
+def test_check_reads_the_tail_ess_of_an_inferred_selection_and_keeps_its_own_draws():
+    # the selection's tail ESS was never computed, so its check could not fire
+    bins = Bins.linear(0, 1, 4)
+    z = np.repeat(bins.centers, 20)
+    sel = Selection.from_injections(z, np.arange(z.size) % 2 == 0, bins, "on_truth")
+    model = binference.PopulationModel(Likelihoods(np.ones((5, 4)), bins), selection=sel)
+    rng = np.random.default_rng(0)
+    rho = rng.dirichlet(np.ones(4) * 50, size=(4, 400))
+    S = np.repeat(rng.uniform(0.3, 0.7, size=(4, 40, 4)), 10, axis=1)  # stuck
+    res = _external(rho, model, selection_draws=S)
+    with pytest.warns(binference.ConvergenceWarning, match="tail ESS of the selection"):
+        res.check()
+    constant = _external(rho, model, selection_draws=np.full((4, 400, 4), 0.5))
+    with pytest.warns(binference.ConvergenceWarning, match="ESS of the selection are undefined"):
+        constant.check()
+    # the selection's draws are copied with the population's
+    before = res.assignment_probabilities(n_draws=None)
+    S[:] = 0.5
+    np.testing.assert_array_equal(res.assignment_probabilities(n_draws=None), before)
+
+
 def test_a_strict_check_raises_a_diagnostics_error():
     _, res = _fit_with_selection()
     stuck = np.repeat(np.random.default_rng(0).dirichlet(np.ones(4) * 50, (4, 40)), 10, axis=1)
@@ -155,6 +189,15 @@ def test_summary_mixing_columns_describe_the_quantity_summarised():
     assert res.summary(which="rates")["ess_bulk"].max() < 150
     with pytest.raises(ValueError, match="which"):
         res.summary(which="bogus")
+
+
+def test_summary_and_interval_refuse_a_level_outside_zero_and_one():
+    # summary passed level to np.quantile: 1.5 raised numpy's error, 0 gave one column
+    res = PopulationResult(None, np.random.default_rng(0).dirichlet(np.ones(3), 40), method="x")
+    for level in (0.0, 1.0, 1.5):
+        for method in (res.summary, res.interval):
+            with pytest.raises(ValueError, match="level must be in"):
+                method(level=level)
 
 
 def test_psis_rounds_the_tail_length_up():
@@ -226,13 +269,19 @@ def test_plots_refuse_three_axes_and_warn_when_two_drop_overlays():
         square.plot(truth=np.full(4, 0.25))
 
 
-def test_plotting_and_io_are_reachable_from_the_package():
+def test_plotting_and_io_are_listed_on_the_package_without_loading_their_extras():
     import subprocess
     import sys
 
-    code = "import binference; print(binference.plotting.__name__, binference.io.__name__)"
+    # in a fresh interpreter: listed by dir(), matplotlib and xarray not loaded, and a
+    # star import leaves the standard io alone
+    code = (
+        "import sys, binference; star = {}; exec('from binference import *', star); "
+        "print({'plotting', 'io'} <= set(dir(binference)), "
+        "{'matplotlib', 'xarray'} & set(sys.modules), 'io' in star)"
+    )
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
-    assert out.stdout.split() == ["binference.plotting", "binference.io"], out.stderr
+    assert out.stdout.split() == ["True", "set()", "False"], out.stderr
 
 
 def test_method_em_runs_em_and_auto_is_recorded_in_any_case():
@@ -278,7 +327,13 @@ def test_the_datatree_uses_arviz_names_numeric_centres_and_hyperparameters():
     bins = Bins.linear(0, 1, 6)
     lk = binference.simulate.mock_1d(100, bins, noise=0.1, rng=0).likelihoods
     res = binference.infer(
-        lk, binference.priors.LogisticRandomWalk(), n_samples=20, n_warmup=30, rng=0, check=False
+        lk,
+        binference.priors.LogisticRandomWalk(),
+        method="nuts",
+        n_samples=20,
+        n_warmup=30,
+        rng=0,
+        check=False,
     )
     tree = res.to_datatree()
     post, stats = tree["posterior"], tree["sample_stats"]
@@ -429,14 +484,26 @@ def test_a_reloaded_fit_keeps_its_draws_and_needs_its_own_prior_for_the_best_fit
     assert back.prior_information_ratio() == res.prior_information_ratio()
 
 
-def test_a_prior_that_differs_only_in_a_long_array_is_not_the_fits(tmp_path):
-    # both reprs read Dirichlet(alpha=array(shape=(10,))); the full arguments differ
+@pytest.mark.parametrize(
+    ("fit", "other"),
+    [
+        (Dirichlet(np.full(10, 0.5)), Dirichlet(np.full(10, 3.0))),
+        # base measures of the same length (a Density's repr gives only their number)
+        (PolyaTree(base=np.linspace(1, 2, 10)), PolyaTree(base=np.linspace(2, 1, 10))),
+        (
+            Dirichlet.from_base_measure(2.0, np.linspace(1, 2, 10)),
+            Dirichlet.from_base_measure(2.0, np.linspace(2, 1, 10)),
+        ),
+    ],
+    ids=["alpha", "polya-tree-base", "dirichlet-base"],
+)
+def test_a_prior_that_differs_only_in_the_values_of_an_array_is_not_the_fits(tmp_path, fit, other):
+    # both reprs shorten the array, so they are equal; the full arguments differ
     lk = binference.simulate.mock_1d(200, Bins.linear(0, 1, 10), rng=3).likelihoods
-    fit = binference.priors.Dirichlet(np.full(10, 0.5))
     res = Gibbs(binference.PopulationModel(lk, fit), n_warmup=10, rng=0).run(10)
     res.save(str(tmp_path / "r.npz"))
     back = PopulationResult.load(str(tmp_path / "r.npz"))
-    other = binference.PopulationModel(lk, binference.priors.Dirichlet(np.full(10, 3.0)))
+    other = binference.PopulationModel(lk, other)
     assert repr(other.prior_spec) == back.prior_repr
     with pytest.raises(ValueError, match="needs the fit's prior"):
         _ = back.attach(other).best

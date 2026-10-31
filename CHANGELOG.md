@@ -20,6 +20,14 @@ releases may break the API).
 - `Selection.from_function` and `Selection.combined` take `max_depth`, the most
   refinements of their adaptive quadrature; the default, 20, allows the halvings a jump
   inside a bin needs (DECISIONS #113).
+- `Likelihoods.from_density`, `Density.from_function` and `Density.coerce` take
+  `bounded=`: the bin averages of a bounded density, such as a box, and of
+  `from_density`'s interim prior given as a function, are checked for jumps near bin
+  edges as a selection function's are, at 13/8 the points per cell in 1-D
+  (DECISIONS #115).
+- `Density` compares by value and is hashable: flat densities by coordinate, arrays by
+  their values and reading, frozen SciPy distributions by family and parameters,
+  functions by identity (DECISIONS #119).
 
 ### Changed
 
@@ -35,6 +43,39 @@ releases may break the API).
 - `Likelihoods.from_density` evaluates frozen SciPy distributions of one family in one
   call, for their exact bin masses and for their densities; the densities' check for one
   family never matched, so each distribution was evaluated separately (DECISIONS #113).
+- `plot(stack=...)` takes the stack as `Likelihoods.stack` returns it, and on a fit with a
+  `Basis` shares its component weights among the bins, so `result.plot(stack=lk.stack())`
+  works on every fit; it failed with more components than bins and, with as many, drew
+  the component weights as bin fractions. A stack mapped to the bins first, as
+  `Likelihoods.stack`'s docstring advised, is now refused when the numbers of components
+  and bins differ and mapped twice when they agree. A `truth` or `stack` of the wrong
+  length is refused by name (DECISIONS #114).
+- `PopulationResult` and `PointEstimate` keep read-only copies of every array they are
+  given (draws, total, `value`, `x`, labels, and the arrays in `info`), freeze what they
+  cache, and stay read-only through pickling: writing into `samples`, `chains`,
+  `component_draws`, `total`, `selected`, `data_support` or a column of `summary()`
+  raises, `diagnostics` is a read-only mapping, and changing the array passed in no
+  longer changes the result (DECISIONS #117).
+- `check()` flags Markov chains that give no R-hat or ESS, shorter than 8 draws
+  (`MIXING_MIN_DRAWS`) or constant; they passed with no message (DECISIONS #117).
+- `PointEstimate` refuses rates with the same message as `PopulationResult`.
+- `Measure` objects are immutable, as `Bins` are; renaming the shared `Measure.log()`
+  broke the saving of bins. `Bins`, `Selection`, `Response` and `Measure` also refuse
+  `del` of an attribute, after which it could be set again (DECISIONS #116).
+- `PopulationModel.log_likelihood` refuses a value that is not finite and non-negative,
+  or is all zero; a negative fraction gave a finite log-likelihood (DECISIONS #116).
+- `sbc` ranks the log-likelihood of a model that infers its selection or response in one
+  pass over the draws: the same values, about 11 times faster (DECISIONS #116).
+- `method="auto"` records first in `info["auto_reason"]` why a rule left Gibbs out, and
+  keeps an extended Gibbs result rather than rebuilding it (DECISIONS #119).
+- `binference.io` and `binference.plotting` are imported with the package and listed by
+  `dir()`; they stay out of `__all__`.
+- The partial-centring weights of the logistic priors' bound form are named `gamma` (was
+  `lam`), also in `with_centering` and `recentre`; `info["centring"]` is unchanged.
+- Tree priors take their EM weights from the concentrations, and binding no longer
+  builds a slot-by-node matrix: a `PolyaTree` on 2048 bins binds in 0.06 s (was 0.64 s)
+  (#166, DECISIONS #119).
+- `BoundPrior` documents the interface a new prior implements.
 - `method="auto"` builds every engine it may run when it is made, so a bad engine
   option, or options that no engine takes, raise before any fit (#174, DECISIONS #120).
 - Above 200 dimensions, NUTS takes a logistic prior's hyperparameter curvature at one
@@ -49,6 +90,16 @@ releases may break the API).
 - `Engine.name` and `Engine.approximate`, which nothing read (DECISIONS #112).
 - `Response.measured_fractions`, which only a test used and which ignored the posterior
   means of a tallied response (DECISIONS #113).
+- `binference.diagnostics.kkt_gap` and `binference.diagnostics.missing_information`: use
+  `PopulationModel.kkt_gap` and `PopulationModel.missing_information`, or
+  `PointEstimate.kkt_gap` (DECISIONS #117).
+- `simulate.Truth.extra`, which nothing set or read.
+- `Bins.widths`, which nothing used; per-axis widths are `np.diff(bins.edges[d])`
+  (DECISIONS #116).
+- `Dirichlet("reference")` and the `K` argument of `Dirichlet.reference()`, which takes `K`
+  from the bins (DECISIONS #119).
+- `PopulationPrior.kind` and `GammaRates.kind`; the bound prior's `kind` remains.
+- The lazy `binference.__getattr__`.
 
 ### Fixed
 
@@ -99,6 +150,65 @@ releases may break the API).
   `Response.from_simulation` with `open_ended` and categorical measured bins (an
   `AttributeError`); labelled scores that are not finite. `Selection.combined` checks
   `scale` before evaluating its functions.
+- Adaptive bin averages refine a row whose 5-point estimates are all zero where a check
+  rule reads something, until its cells are below `tol` of their bin, and warn where
+  the function is still unread there; such a row was read as zero, so a selection
+  function, or a bounded density, that is non-zero only within 4.7% of a bin edge was
+  missed without a warning (DECISIONS #115).
+- `check()` computes and checks the tail ESS of a selection or response inferred with the
+  population (`ess_tail_selection`, `ess_tail_response`); it looked for these keys, which
+  were never computed.
+- `mock_1d` draws posterior samples flat in u within each bin when the interim prior is
+  omitted or known only per bin (masses or "flat"), as `Likelihoods.from_samples` reads
+  them; without an interim, `mock.interim` holds `Density.flat()`'s masses. On log bins
+  the likelihoods built from these samples were biased; linear bins are unchanged.
+- `summary(level=)`, `coverage(levels=)` and `plot(levels=)` refuse levels outside
+  (0, 1) by name, as `interval` does.
+- `rhat` of a constant chain is NaN without NumPy's "All-NaN" warning.
+- `exact_posterior` refuses a `prior` given with a `PopulationModel`, which ignored it.
+- `psis` refuses +inf log weights; it gave them zero weight.
+- `autocorr_time` and `autocorr_function` return NaN for a constant chain; they gave 1,
+  or the chain's length when its mean was off by round-off.
+- `mock_categorical` checks that `prevalence` and `train_prior` have `n_classes`
+  non-negative entries with a positive sum, naming them.
+- The ECDF p-value is documented as the Bonferroni bound below 1e-12, and Pareto
+  smoothing as needing at least 21 weights; with fewer, k̂ = inf and the weights are not
+  smoothed.
+- Unpickled `Bins`, and copies of grids with a non-linear measure, had writeable edges.
+- `Bins.linear`, `Bins.log` and `Bins.coarsen` refuse a count or factor that is not a
+  positive integer, naming it; they truncated it, and `coarsen(1.5)` returned the bins
+  unchanged. `Bins.categories(2.0)` raises a TypeError naming `labels`.
+- `PopulationModel.expected_counts` raises, naming the objects of zero likelihood, and
+  checks `value`; it returned zeros for them.
+- `missing_information(include_prior=True)` adds a `GammaRates` prior's pseudo-counts as
+  the MAP EM does: 0.49 instead of 0.89 for `GammaRates(200, 1)`, which corrects the
+  missing information reported when the rates EM does not converge. It is NaN where
+  shapes below one outweigh the data (DECISIONS #116).
+- A distribution with `cdf` and `sf` but no `logsf` keeps its upper tail.
+- `Likelihoods.from_samples` names the measure when a sample falls where a
+  `Measure.transform` has no finite slope, and `Measure.log_jacobian` no longer emits
+  NumPy warnings there.
+- The docs of `tol`, of `PopulationModel(bins=)` and of `kkt_gap(include_prior=)` say
+  what the code does.
+- A prior's fingerprint, which `attach` compares after `load`, includes the values of its
+  base measure: priors with different base arrays of the same length no longer pass for
+  each other, and a named function as base matches in another process.
+- MAP with a tree prior one of whose branches has exponent zero, such as
+  `PolyaTree(c=K/2)`, converges when that branch's bins are empty: the KKT gap is checked
+  on the tree's branch probabilities, where it keeps its precision; EM warned that it had
+  not converged (at K = 32 also in 0.1.0).
+- A value that is not numbers, such as `Dirichlet("reference")`, raises an error naming
+  the argument rather than NumPy's cast error.
+- `infer` and `Auto.run` refuse an `n_samples` that is not a positive integer, by name;
+  `0` under auto ran at the automatic length.
+- `Dirichlet.from_counts` refuses a negative `strength` or `base`, naming them; a negative
+  strength subtracted the reference sample.
+- auto reported "the only engine that takes these options" when Gibbs took them but a
+  rule left it out.
+- `amplitude`, `scale` and `length_scale` (and `length_scale[d]`) are named in their
+  errors.
+- The docs say which priors have unbounded densities, give `GeneralizedDirichlet`'s
+  default `b_k = (K - k) a`, and the length scale below which `LogisticGP` warns.
 - `init` given to `method="auto"` is fractions or rates and reaches NUTS in its
   unconstrained coordinates; NUTS refused it, or for rate priors read rates as log-rates
   (#174, DECISIONS #120).

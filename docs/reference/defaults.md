@@ -26,12 +26,12 @@ explain behaviour, not as settings to change.
 |---|---|---|---|
 | `TAIL_QUANTILES` | `(0.05, 0.95)` | `binference.diagnostics` | Quantiles whose indicators define the tail ESS. |
 | `K_HAT_MAX` | `0.7` | `binference.diagnostics` | Pareto k-hat at or above which importance sampling is unreliable, reached from about 2,000 weights; with n weights the limit is min(1 - 1/log10(n), K_HAT_MAX). |
-| `PSIS_MIN_WEIGHTS` | `5` | `binference.diagnostics` | Pareto smoothing needs at least this many importance weights. |
+| `PSIS_MIN_WEIGHTS` | `5` | `binference.diagnostics` | Fewest importance weights `psis` takes. Smoothing fits a tail of more than four weights (see `PSIS_TAIL`), which needs at least 21: with fewer, unequal weights get k_hat = inf and are not smoothed. |
 | `PSIS_TAIL` | `(0.2, 3)` | `binference.diagnostics` | The generalised Pareto is fitted to the ceil(min(a n, b sqrt(n))) largest of n weights, for (a, b) these. |
 | `N_DRAWS` | `500` | `binference.results` | Population draws the per-object methods use by default. |
 | `RHAT_MAX` | `1.01` | `binference.results` | Largest split R-hat that `PopulationResult.check` accepts by default. |
 | `ESS_MIN_PER_CHAIN` | `100` | `binference.results` | Smallest bulk and tail ESS per chain that `PopulationResult.check` accepts by default. |
-| `MIXING_MIN_DRAWS` | `8` | `binference.results` | Chains shorter than this many draws get no R-hat or ESS. |
+| `MIXING_MIN_DRAWS` | `8` | `binference.results` | Chains shorter than this many draws get no R-hat or ESS, and `PopulationResult.check` flags them, as it flags constant chains. |
 | `EBFMI_MIN` | `0.3` | `binference.results` | `PopulationResult.check` warns when a NUTS chain's E-BFMI is below this. |
 | `MAX_DEPTH_SHARE` | `0.05` | `binference.results` | `PopulationResult.check` warns when a larger share of NUTS iterations hit `max_depth`. |
 | `SAMPLE_VARIANCE_MAX` | `1` | `binference.results` | `PopulationResult.check` warns when the summed Monte Carlo variance of likelihoods from samples exceeds this. |
@@ -46,7 +46,7 @@ explain behaviour, not as settings to change.
 | `_TERM_BUFFER` | `50` | `binference.samplers._nuts_core` | Iterations of the last fast phase of Stan-style warm-up. |
 | `_MAX_ENERGY_ERROR` | `1000` | `binference.samplers._nuts_core` | A leapfrog step whose energy rose by more than this since the trajectory's start (or became non-finite) is a divergence. |
 | `INTERIOR_START_ITER` | `50` | `binference.samplers.base` | Most regularised EM steps of the start of Gibbs and of MAP's EM and L-BFGS paths when `init` is `None`. |
-| `PROPOSAL_FACTOR` | `2` | `binference.samplers.laplace` | Importance proposals per draw when `n_proposals` is `None` (at least `diagnostics.PSIS_MIN_WEIGHTS` in all, the fewest Pareto smoothing takes). |
+| `PROPOSAL_FACTOR` | `2` | `binference.samplers.laplace` | Importance proposals per draw when `n_proposals` is `None` (at least `diagnostics.PSIS_MIN_WEIGHTS` in all, the fewest `diagnostics.psis` takes). |
 | `EIGEN_FLOOR` | `1e-08` | `binference.samplers.laplace` | Eigenvalues of a Hessian that is not positive definite are raised to this times the largest (at least one). |
 | `_TARGET_ACCEPT` | `0.8` | `binference.samplers.nuts` | `target_accept` when it is `None`, except for logistic priors. |
 | `_TARGET_ACCEPT_LOGISTIC` | `0.9` | `binference.samplers.nuts` | `target_accept` for logistic priors when it is `None`. |

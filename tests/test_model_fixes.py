@@ -75,31 +75,38 @@ def test_missing_information_is_nan_where_a_sparse_prior_outweighs_the_data():
 
 
 def _em_jacobian_radius(m, value, h=1e-6):
-    # spectral radius of the EM map at its fixed point, in isometric log-ratios
-    V = helmert_basis(m.K)
+    # spectral radius of the EM map at its fixed point, in isometric log-ratios (fractions,
+    # which need not be normalised: V's columns sum to zero) or log-rates
+    if m.kind == "rates":
+        to_x, to_value = np.log, np.exp
+    else:
+        V = helmert_basis(m.K)
+        to_x, to_value = (lambda v: V.T @ np.log(v)), (lambda x: softmax(V @ x))
 
     def F(x):
-        out = em_update(m, softmax(V @ x))
-        out = out / out.sum()
-        return V.T @ np.log(out)
+        return to_x(em_update(m, to_value(x)))
 
-    x0 = V.T @ np.log(value)
-    J = np.column_stack([(F(x0 + h * e) - F(x0 - h * e)) / (2 * h) for e in np.eye(m.K - 1)])
+    x0 = to_x(value)
+    J = np.column_stack([(F(x0 + h * e) - F(x0 - h * e)) / (2 * h) for e in np.eye(x0.size)])
     return float(np.max(np.abs(np.linalg.eigvals(J))))
 
 
 @pytest.mark.parametrize("mode", [None, "on_truth", "on_measurement"])
-@pytest.mark.parametrize("alpha", [1.0, 50.0])
-def test_missing_information_is_the_rate_of_em(mode, alpha):
+@pytest.mark.parametrize(
+    "prior",
+    [P.Dirichlet(1.0), P.Dirichlet(50.0), P.GammaRates(1.0, 1e-9), P.GammaRates(200.0, 1.0)],
+    ids=repr,
+)
+def test_missing_information_is_the_rate_of_em(mode, prior):
     # an interior estimate: at a fraction of zero the EM rate there is that of an active
     # constraint, not of missing information
     mock = binference.simulate.mock_1d(
         1500, Bins.linear(0, 3, 6), density="uniform", noise=0.25, rng=1
     )
     sel = None if mode is None else Selection(np.linspace(1.0, 0.3, 6), mode)
-    m = PopulationModel(mock.likelihoods, P.Dirichlet(alpha), selection=sel)
+    m = PopulationModel(mock.likelihoods, prior, selection=sel)
     mode_value = MAP(m, algorithm="em", max_iter=100000).run().value
-    f = m.missing_information(mode_value, include_prior=alpha != 1.0)
+    f = m.missing_information(mode_value, include_prior=True)
     np.testing.assert_allclose(f, _em_jacobian_radius(m, mode_value), atol=1e-4)
 
 

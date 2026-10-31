@@ -8,6 +8,8 @@
   warning is an error under the test settings), so the
   thinned draws are effectively independent and autocorrelation cannot pass for
   miscalibration.
+* The logistic-normal and Gaussian-process priors with their default hyperpriors:
+  NUTS on flat likelihoods, whose posterior is the prior, against the prior's own draws.
 * Geweke "getting it right" tests of the Gibbs conditionals of the generalised
   Dirichlet, a Dirichlet tree and Gamma rates with an exposure.
 """
@@ -15,9 +17,12 @@
 import numpy as np
 import pytest
 
+import binference
+from binference import Bins, Likelihoods
 from binference import priors as P
 
-from .test_slow import _assert_uniform_ranks, _fit, _geweke_z_scores, _sbc
+from .conftest import assert_draws_agree, assert_uniform_ranks
+from .test_slow import _fit, _geweke_z_scores, _sbc
 
 pytestmark = pytest.mark.slow
 
@@ -74,7 +79,27 @@ def test_sbc_ranks_are_uniform(case):
     # unfiltered, sbc's ESS warning is an error: every fit has min_ess >= n_draws
     res = _sbc(prior, _fit(method, prior=prior, **kw), n_simulations, n_draws, 2026, **sim)
     # at least 10 expected ranks per histogram bin
-    _assert_uniform_ranks(res, n_bins=10 if n_simulations >= 150 else 5)
+    assert_uniform_ranks(res, n_bins=10 if n_simulations >= 150 else 5)
+
+
+@pytest.mark.parametrize("prior", [P.LogisticGP(), P.LogisticNormal()], ids=["gp", "normal"])
+def test_nuts_on_flat_likelihoods_draws_what_the_default_logistic_hyperpriors_sample(prior):
+    # flat likelihoods leave the prior as the posterior, so the density NUTS samples is
+    # checked against the prior's own draws: a HalfNormal(1) scale in place of the default
+    # HalfNormal(2) gives |z| of 25 to 29 on the sds (DECISIONS #119)
+    bins = Bins.linear(0, 1, 4)
+    res = binference.infer(
+        Likelihoods(np.ones((10, 4)), bins=bins),
+        prior,
+        method="nuts",
+        rng=1,
+        n_chains=4,
+        n_warmup=1000,
+        n_samples=2000,
+        check=False,
+    )
+    draws = prior.bind(bins).sample(100_000, np.random.default_rng(2))
+    assert_draws_agree(res.chains, draws[None])
 
 
 @pytest.mark.parametrize(

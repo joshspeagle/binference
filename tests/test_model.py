@@ -221,6 +221,50 @@ def test_the_batched_log_likelihood_is_minus_infinity_where_an_object_is_impossi
     assert np.isneginf(got[[2, 7]]).all() and np.isfinite(np.delete(got, [2, 7])).all()
 
 
+@pytest.mark.parametrize("case", ["selection", "response"])
+def test_the_batched_log_likelihood_of_a_joint_model_is_that_of_one_point_at_a_time(case):
+    from .test_injections import _problem
+    from .test_joint_response import _unfolding
+
+    if case == "selection":
+        lk, sel = _problem()
+        m = PopulationModel(lk, selection=sel)
+    else:
+        m = PopulationModel(_unfolding()[0])
+    V = np.random.default_rng(4).dirichlet(np.ones(m.K), 20)
+    one = [m.log_likelihood(v, absolute=False) for v in V]
+    np.testing.assert_allclose(m._log_likelihood_many(V), one, rtol=1e-12)
+
+
+def test_every_likelihood_kernel_is_minus_infinity_where_an_evidence_is_infinite():
+    from binference import _kernels as kern
+
+    L, w, rho = np.array([[1.0, 0.5], [0.3, 1.0]]), np.ones(2), np.array([np.inf, 0.5])
+    assert kern.loglike(L, w, rho) == -np.inf
+    assert kern.loglike_many(L, w, rho[None])[0] == -np.inf
+
+
+def test_the_log_likelihood_refuses_a_value_that_is_not_a_population():
+    # a negative fraction gave a finite value, and zeros with a selection -inf + inf
+    m = PopulationModel(
+        np.array([[1.0, 0.5, 0.2], [0.2, 0.5, 1.0]]),
+        selection=[1.0, 0.5, 0.8],
+        selection_mode="on_truth",
+    )
+    with pytest.raises(ValueError, match="value must be finite and non-negative"):
+        m.log_likelihood(np.array([-0.1, 0.6, 0.5]))
+    with pytest.raises(ValueError, match="value must not be all zero"):
+        m.log_likelihood(np.zeros(3))
+    with pytest.raises(ValueError, match=r"value must have shape \(3,\)"):
+        m.log_likelihood(np.array([0.3, 0.7]))
+
+
+def test_expected_counts_refuse_a_population_under_which_an_object_is_impossible():
+    m = PopulationModel(np.array([[1.0, 0.0, 0.0], [0.2, 0.5, 0.3], [0.1, 0.9, 0.4]]))
+    with pytest.raises(ValueError, match=r"1 object\(s\) zero likelihood \(first: \[0\]\)"):
+        m.expected_counts(np.array([0.0, 0.5, 0.5]))
+
+
 def test_missing_information_is_the_same_in_chunks(lk6):
     m = PopulationModel(lk6)
     rho = m.expected_counts(np.full(6, 1 / 6)) / m.W

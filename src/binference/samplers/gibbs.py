@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from .. import _kernels as kern
-from .._utils import RNGLike, check_nonnegative, is_integer_array, progress, spawn
+from .._utils import RNGLike, check_nonnegative, frozen, is_integer_array, progress, spawn
 from ..model import PopulationModel
 from ..priors.dirichlet import _dirichlet_draw
 from ..results import PopulationResult
@@ -249,12 +249,13 @@ class Gibbs(MarkovEngine):
 
     @property
     def result(self) -> PopulationResult:
-        D = self._all_draws()
-        labels = np.concatenate(self._labels, axis=1) if self._labels else None
+        # fresh and read-only, so the result keeps them rather than copying them
+        D = frozen(self._all_draws())
+        labels = frozen(np.concatenate(self._labels, axis=1)) if self._labels else None
         info = {"thin": self.thin, "n_warmup": self.n_warmup}
         if self._extra_draws:  # inferred with the population (DECISIONS #79, #81)
             key = "selection_draws" if self.model.selection_uncertain else "response_draws"
-            info[key] = np.concatenate(self._extra_draws, axis=1)
+            info[key] = frozen(np.concatenate(self._extra_draws, axis=1))
         return PopulationResult(
             self.model,
             D,

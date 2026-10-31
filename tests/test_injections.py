@@ -14,6 +14,8 @@ from binference.samplers import MAP, NUTS, Gibbs, Laplace, MeanFieldVB
 from binference.selection import S_FLOOR, _logit_density
 from binference.validation import SBCResult
 
+from .conftest import assert_draws_agree, assert_uniform_ranks
+
 
 def _injections(S, bins, n_per_bin, rng):
     z = np.repeat(bins.centers, n_per_bin) + rng.uniform(
@@ -170,8 +172,7 @@ def test_joint_inference_of_population_and_selection_is_calibrated():
         R, Sd = res.samples[idx], res.info["selection_draws"].reshape(-1, 4)[idx]
         ranks.append(np.concatenate([(R < rho).sum(0), (Sd < S).sum(0)]))
     names = [f"rho[{k}]" for k in range(4)] + [f"S[{k}]" for k in range(4)]
-    p = SBCResult(np.array(ranks), n_draws, names).pvalues(n_bins=10)
-    assert np.all(p > 1e-3 / p.size), dict(zip(names, p, strict=True))
+    assert_uniform_ranks(SBCResult(np.array(ranks), n_draws, names))
 
 
 def test_per_object_methods_use_each_draws_selection():
@@ -200,17 +201,8 @@ def test_nuts_agrees_with_joint_gibbs():
     lk, sel = _problem()
     m = binference.PopulationModel(lk, selection=sel)
     fits = [NUTS(m, rng=1).run(2000), Gibbs(m, rng=1).run(5000)]
-    stats = []
-    for r in fits:
-        draws = np.concatenate([r.samples, r.info["selection_draws"].reshape(-1, 4)], axis=1)
-        d = r.diagnostics
-        ess = np.concatenate([d["ess_bulk"], d["ess_bulk_selection"]])
-        stats.append((draws.mean(0), draws.std(0), ess))
-    (m1, s1, e1), (m2, s2, e2) = stats
-    # Monte Carlo errors: of a mean sd / sqrt(ESS), of an sd about sd / sqrt(2 ESS)
-    np.testing.assert_array_less(np.abs(m1 - m2), 4 * np.hypot(s1 / np.sqrt(e1), s2 / np.sqrt(e2)))
-    se_sd = np.hypot(s1 / np.sqrt(2 * e1), s2 / np.sqrt(2 * e2))
-    np.testing.assert_array_less(np.abs(s1 - s2), 4 * se_sd)
+    draws = [np.concatenate([r.chains, r.info["selection_draws"]], axis=-1) for r in fits]
+    assert_draws_agree(*draws, z=4)
 
 
 @pytest.mark.slow
@@ -235,8 +227,7 @@ def test_joint_inference_with_a_logistic_prior_and_nuts_is_calibrated():
         R, Sd = res.samples[idx], res.info["selection_draws"].reshape(-1, 4)[idx]
         ranks.append(np.concatenate([(R < rho).sum(0), (Sd < S).sum(0)]))
     names = [f"rho[{k}]" for k in range(4)] + [f"S[{k}]" for k in range(4)]
-    p = SBCResult(np.array(ranks), n_draws, names).pvalues(n_bins=7)
-    assert np.all(p > 1e-3 / p.size), dict(zip(names, p, strict=True))
+    assert_uniform_ranks(SBCResult(np.array(ranks), n_draws, names), n_bins=7)
 
 
 def test_a_smooth_selection_is_the_mode_of_its_injection_posterior():
