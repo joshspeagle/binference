@@ -521,7 +521,7 @@ def _check_values(values: Any, scale: str, name: str) -> np.ndarray:
         raise ValueError(
             f"{name} values are detection probabilities and must not exceed one; for "
             "absolute exposures pass Selection(S, mode, scale='exposure'), for values known "
-            "only up to a constant Selection(S, mode, scale='relative') (DECISIONS #46)."
+            "only up to a constant Selection(S, mode, scale='relative')."
         )
     return v
 

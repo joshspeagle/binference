@@ -124,10 +124,7 @@ class PopulationModel:
                     "rates pass selection.fixed() or a fixed exposure."
                 )
         if sel is not None and sel.scale == "relative" and self.prior.kind == "rates":
-            raise ValueError(
-                "Rates need an absolute selection (exposures); this one is relative "
-                "(DECISIONS #46)."
-            )
+            raise ValueError("Rates need an absolute selection (exposures); this one is relative.")
         resp = likelihoods.meta.get("response")
         #: a response tallied from events, inferred with the population (or ``None``)
         self.response = resp if resp is not None and resp.uncertain else None

@@ -191,7 +191,7 @@ class _IndividualMixin:
         if X is None:
             raise ValueError(
                 "This result has no rates: its selection is only relative, so the total is "
-                "not identified (DECISIONS #46), or it has no model (attach the likelihoods "
+                "not identified, or it has no model (attach the likelihoods "
                 "to a loaded result)."
             )
         return np.atleast_2d(X)
@@ -550,7 +550,7 @@ class _IndividualMixin:
         if S is None:
             raise ValueError(
                 "Full-sample counts need an absolute selection; this one is relative, so "
-                "the number of missed objects is not identified (DECISIONS #46)."
+                "the number of missed objects is not identified."
             )
         return S
 
@@ -1294,8 +1294,9 @@ class PopulationResult(_IndividualMixin):
             else Bins.categories(d.shape[-1])
         )
         self.x = read_only(x, None)
+        # DECISIONS #15
         #: log posterior density of each draw in the unconstrained coordinates
-        #: (with the Jacobian; DECISIONS #15), for samplers that compute it
+        #: (with the Jacobian), for samplers that compute it
         self.log_density_unconstrained = read_only(log_density_unconstrained, None)
         self.method = method
         self.approximate = approximate
