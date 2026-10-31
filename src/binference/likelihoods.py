@@ -986,7 +986,8 @@ class Likelihoods:
             zz = flat[inside].reshape(-1, bins.ndim)
             log_pi_u = np.asarray(log_pi(zz[:, 0] if bins.ndim == 1 else zz), dtype=float).ravel()
             for d, m in enumerate(bins.measures):
-                log_jac = m.log_jacobian(zz[:, d])
+                with np.errstate(divide="ignore", invalid="ignore"):  # NaN at an edge: below
+                    log_jac = m.log_jacobian(zz[:, d])
                 if not np.all(np.isfinite(log_jac)):
                     raise ValueError(
                         f"Samples fall where the slope of {m!r} is infinite, zero or undefined, "

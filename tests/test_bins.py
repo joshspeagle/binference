@@ -132,5 +132,6 @@ def test_bin_counts_and_factors_must_be_positive_integers():
         with pytest.raises(ValueError, match=f"{name} must be a positive integer"):
             build()
     assert Bins.linear(0, 1, 6.0) == Bins.linear(0, 1, 6)  # as refine, an integral float
-    with pytest.raises(TypeError, match="labels must be"):
-        Bins.categories(2.0)
+    for labels in (2.0, "star"):  # a string is one label, not four
+        with pytest.raises(TypeError, match="labels must be"):
+            Bins.categories(labels)

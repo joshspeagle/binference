@@ -606,7 +606,7 @@ class PopulationModel:
             Value of an inferred response; ``None`` uses the rows of the likelihoods
             (its posterior means).
         """
-        v = check_nonnegative(value, "value")
+        v = self._population(value)
         if not v.any():
             raise ValueError("value must not be all zero.")
         if response is not None:
@@ -674,15 +674,22 @@ class PopulationModel:
         value : ndarray (K,)
             Fractions or rates.
         """
-        v = check_nonnegative(value, "value")
-        _, nhat, s = kern.loglike_and_counts(self._L, self._w, v)
-        if not kern.possible(s):
+        ll, nhat, s = kern.loglike_and_counts(self._L, self._w, self._population(value))
+        if ll == -np.inf:  # an impossible object, or a sum that overflows
             bad = np.flatnonzero(~(s > kern.MIN_EVIDENCE))
+            why = f"gives {bad.size} object(s) zero likelihood (first: {bad[:5].tolist()})"
             raise ValueError(
-                f"value gives {bad.size} object(s) zero likelihood (first: {bad[:5].tolist()}), "
-                "so their responsibilities and the expected counts are undefined."
+                f"value {why if bad.size else 'overflows the likelihood'}, so the expected "
+                "counts are undefined."
             )
         return nhat
+
+    def _population(self, value: Any) -> np.ndarray:
+        """``value`` checked: finite, non-negative fractions or rates of shape ``(K,)``."""
+        v = check_nonnegative(value, "value")
+        if v.shape != (self.K,):
+            raise ValueError(f"value must have shape ({self.K},); got {v.shape}.")
+        return v
 
     def responsibilities(self, value: np.ndarray, idx: Any = None) -> np.ndarray:
         r"""Per-object posteriors over bins given the population: :math:`r_{ik}`.

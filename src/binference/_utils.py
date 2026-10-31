@@ -34,7 +34,8 @@ class SetOnce:
     __slots__ = ()
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name in type(self).__slots__ and not hasattr(self, name):
+        slots = (s for c in type(self).__mro__ for s in getattr(c, "__slots__", ()))
+        if name in slots and not hasattr(self, name):
             object.__setattr__(self, name, value)
         else:
             raise AttributeError(f"{type(self).__name__} objects are immutable.")

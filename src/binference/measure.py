@@ -190,8 +190,7 @@ class Measure(SetOnce):
             j = np.clip(np.searchsorted(zt, z, side="right") - 1, 0, zt.size - 2)
             return np.log((ut[j + 1] - ut[j]) / (zt[j + 1] - zt[j]))
         h = 1e-6 * np.where(z != 0, np.abs(z), 1.0)  # relative, so small z stay in the domain
-        with np.errstate(divide="ignore", invalid="ignore"):  # outside the domain: NaN
-            return np.log((self.forward(z + h) - self.forward(z - h)) / (2 * h))
+        return np.log((self.forward(z + h) - self.forward(z - h)) / (2 * h))
 
     def _covers(self, lo: float, hi: float) -> bool:
         # whether [lo, hi] lies inside the measure's domain

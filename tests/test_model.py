@@ -255,6 +255,8 @@ def test_the_log_likelihood_refuses_a_value_that_is_not_a_population():
         m.log_likelihood(np.array([-0.1, 0.6, 0.5]))
     with pytest.raises(ValueError, match="value must not be all zero"):
         m.log_likelihood(np.zeros(3))
+    with pytest.raises(ValueError, match=r"value must have shape \(3,\)"):
+        m.log_likelihood(np.array([0.3, 0.7]))
 
 
 def test_expected_counts_refuse_a_population_under_which_an_object_is_impossible():
