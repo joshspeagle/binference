@@ -84,6 +84,8 @@ def test_laplace_draws_a_few_samples_from_enough_proposals_to_smooth():
     with pytest.warns(binference.ApproximationWarning):
         res = Laplace(_dirichlet_model(), rng=0).run(2)
     assert res.n_draws == 2 and res.approximate
+    with pytest.raises(ValueError, match="n_samples"):
+        Laplace(_dirichlet_model(), rng=0).run(0)
 
 
 def test_the_laplace_k_hat_threshold_tightens_for_few_proposals():

@@ -91,7 +91,7 @@ def test_mixsqp_starts_from_its_init():
 
 def test_map_checks_its_init_and_em_moves_a_zero_in_it():
     m = PopulationModel(_mock(n=200, K=4).likelihoods)
-    for init in (np.full(7, 0.1), [0.5, 0.6, -0.2, 0.1]):
+    for init in (np.full(7, 0.1), [0.5, 0.6, -0.2, 0.1], np.zeros(4)):
         with pytest.raises(ValueError, match="init"):
             MAP(m, init=init)
     em = MAP(m, algorithm="em", init=[0.5, 0.5, 0.0, 0.0]).run()  # the mode's third is 0.26

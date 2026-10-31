@@ -117,5 +117,5 @@ def interior_start(model: PopulationModel, n_iter: int = INTERIOR_START_ITER) ->
         if converged:
             break
     if rates:
-        return np.maximum(model.W * rho / np.maximum(model._S, 1e-12), 1e-12)
+        return np.maximum(model.W * rho / model._S, 1e-12)  # a selection's S is positive
     return rho

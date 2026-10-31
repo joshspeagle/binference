@@ -368,7 +368,7 @@ class NUTS(Engine):
             raise ValueError("target_accept must be in (0, 1).")
         self.n_chains = int(n_chains)
         if init is not None:
-            init = np.asarray(init, dtype=float)
+            init = np.array(init, dtype=float)  # a copy: the chains start from it
             d = model.dim
             if init.shape not in ((d,), (self.n_chains, d)) or not np.all(np.isfinite(init)):
                 raise ValueError(

@@ -94,8 +94,8 @@ class Bootstrap(Engine):
         integer = is_integer_array(w)
         rates = m.kind == "rates"
         base = MAP(m, tol=self.tol, max_iter=self.max_iter).run()  # warns if it fails
-        # EM cannot revive components that are exactly (or nearly) zero, and maximum
-        # likelihood estimates on grids are often sparse: start replicates inside
+        # maximum likelihood estimates on grids are often sparse, and EM revives a zero
+        # only slowly, from its floor: start replicates inside
         start = 0.5 * base.value + 0.5 * base.value.mean()
         out = np.empty((int(n_samples), m.K))
         n_not_converged = 0

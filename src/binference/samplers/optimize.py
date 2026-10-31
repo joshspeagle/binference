@@ -180,8 +180,9 @@ class MAP(Engine):
         and L-BFGS in the unconstrained space. ``"mixsqp"`` and ``"em"`` solve on
         the simplex, as ``space="simplex"`` does (not for joint models).
     init : array_like (K,), optional
-        Non-negative starting fractions (or rates); EM and mix-SQP raise zeros to 1e-12,
-        so that they can move them. By default mix-SQP starts after 10
+        Non-negative starting fractions (or rates), not all zero; EM and mix-SQP raise
+        zeros to a small positive value, so that they can move them. By default mix-SQP
+        starts after 10
         regularised EM steps from uniform, the other algorithms after up to 50.
     rng, progress
         Accepted for a common signature; unused.
@@ -216,6 +217,8 @@ class MAP(Engine):
             init = check_nonnegative(init, "init")
             if init.shape != (model.K,):
                 raise ValueError(f"init must have shape ({model.K},); got {init.shape}.")
+            if not init.any():
+                raise ValueError("init must have a positive entry.")
         self.init = init
         # an explicit algorithm or space="simplex" solves on the simplex, if it can
         self._on_simplex = algorithm != "auto" or space == "simplex"
@@ -339,7 +342,9 @@ class MAP(Engine):
         fractions = m.kind == "fractions"
         if start is None:
             start = interior_start(m) if self.init is None else self.init
-        v = np.maximum(start, 1e-12)  # EM multiplies each by its update: a zero never moves
+        # EM multiplies each by its update, so a zero never moves: floored as the priors'
+        # init_from_value floor theirs
+        v = np.maximum(start, 1e-12 * start.max())
         if fractions:
             v = v / v.sum()
 
