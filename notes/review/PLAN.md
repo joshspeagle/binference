@@ -1,8 +1,10 @@
 # Walkthrough plan
 
-**Current position:** landing on `main` (see `landing-plan.md`): Phase C, C1–C11, C7b, C7c, C11b (derived rates, selection from injections and tallied responses inferred jointly) merged; C12 (results) merged; C13 (#72, #73) merged; C13b (#76: benchmark matrix, `method="auto"` default) merged; C14-1 (#82) and the Auto fix (#85) merged; C14-3 (#87) merged; #90 and C14-2 (#91) merged; C15 (#94: phase-wide review) merged; Phase C complete and the landing summary published; the walkthrough resumed at Phase 3, paused at step 3.1 for the documentation site (Josh, 2026-10-27), and **resumes at 3.1** now that the docs have landed: first refresh the 3.1 page against the code. **Docs phase (#99):** audit, content plan and design lock done (DECISIONS #91–#95, PR #106); theme (#107, PR #108, DECISIONS #96) merged; structure (#109, PR #110) and plot colours (#112, PR #113) merged; foundations (#111, PR #114) and path-filtered CI (#121, PR #122, DECISIONS #100) merged; the six section rewrites merged (Fields #123, Start #125, Concepts #126, How it works #127, Guides #128, Tutorials #130); the final pass (D5) merged: one shared figure style (#131, PR #132), the explainers (#133, PRs #134 and #136), the home page (#137, PR #138) and the site-wide check (#135, PR #139); the docs phase is complete and its report is on #99. Follow-ups filed: #124 (notation symbols in docstrings and pages), #129 (SBC for `LogisticGP`). Phase 1 done except 1.3's architecture decisions. Step 1.3's architecture decisions remain deferred until the relevant code has been read.
+**Current position:** the walkthrough continues in the teardown artifact (DECISIONS #106, issue #150), now at overview depth over the whole map; the walkthrough and deep dive follow Josh's requests in the order of the phases below. The landing (Phases A–C), the docs phase (#99) and the 0.1.0 release are complete. Still open: #124 (notation symbols in docstrings and pages), #129 (SBC for `LogisticGP`) and step 1.3's architecture decisions, deferred until the relevant code has been read.
 
 ## How each step works
+
+Superseded by DECISIONS #106: the teardown artifact replaces the briefings, and findings are fixed at once.
 
 1. **Briefing.** Claude writes `briefings/<step>.md`: what the code does, the
    statistics or algorithm behind it, every non-obvious decision with its
@@ -84,7 +86,7 @@ Order is a proposal: Josh may jump around. Rough default levels in brackets.
 
 ## Background audit
 
-Seven auditor reports land in `audit/` (see `audit/README.md`). Per DECISIONS #13, findings are triaged after the walkthrough is complete; the mapping below is for reference: inputs → 2.2/2.3, model-map → 2.6/4.4, priors → Phase 3, nuts-laplace → 4.1/4.2/4.5, gibbs-vb-validation → 4.3/4.5/5.3, outputs-api → Phase 5/7, tests-docs → Phases 6/8.
+Seven auditor reports land in `audit/` (see `audit/README.md`). Per DECISIONS #13 (amended by #106: findings are now fixed as the teardown finds them), findings were to be triaged after the walkthrough; the mapping below is for reference: inputs → 2.2/2.3, model-map → 2.6/4.4, priors → Phase 3, nuts-laplace → 4.1/4.2/4.5, gibbs-vb-validation → 4.3/4.5/5.3, outputs-api → Phase 5/7, tests-docs → Phases 6/8.
 
 ## Status
 
@@ -101,4 +103,4 @@ Seven auditor reports land in `audit/` (see `audit/README.md`). Per DECISIONS #1
 | 2.4 Selection (code) | L2–L3 | done (decisions #46–#49) | `briefings/2.4-selection.html` (+ .md) | |
 | 2.5 Population, sample, objects | L2 | done (decisions #50–#53) | `briefings/2.5-individuals.html` (+ .md) | |
 | 2.6 Model and kernels | L2–L3 | done (decisions #54–#57) | `briefings/2.6-model-core.html` (+ .md) | |
-| 3.1 Dirichlet family | L2–L3 | briefing published (2026-10-26); discussion pending | `briefings/3.1-dirichlet-family.html` (+ .md) | five questions in QUESTIONS |
+| 3.1 Dirichlet family | L2–L3 | briefing published (2026-10-26); discussion moved to the teardown (#106) | `briefings/3.1-dirichlet-family.html` (+ .md) | five questions in QUESTIONS |

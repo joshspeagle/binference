@@ -13,13 +13,14 @@ releases may break the API).
   text: each branch's concentration, mean share and mean mass, or the posterior given
   counts (DECISIONS #108).
 - `DirichletTree` takes named groups (nested dicts, with bin labels on categorical bins),
-  and `alpha` as a dict from group or bin names to the concentration of the branch into
-  each (DECISIONS #108).
+  and `alpha` as a dict from group names, and bins as the tree writes them, to the
+  concentration of the branch into each (DECISIONS #108).
 
 ### Removed
 
-- `PopulationModel.prior_transform` and the priors' `prior_transform`, a unit-cube map
-  for nested samplers that nothing in binference used (DECISIONS #107).
+- `PopulationModel.prior_transform`, `BoundPrior.prior_transform` (on the Dirichlet, tree
+  and `GammaRates` priors) and `BoundPrior.has_prior_transform`: the unit-cube map for
+  nested samplers, which nothing in binference used (DECISIONS #107).
 
 ## [0.1.0] - 2026-10-29
 

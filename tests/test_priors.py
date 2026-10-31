@@ -170,11 +170,11 @@ def test_dirichlet_tree_consistent_collapses_to_dirichlet():
 
 
 def test_dirichlet_tree_validation():
-    with pytest.raises(ValueError):
-        P.DirichletTree([[0, 1], 1]).bind(B3)  # leaf repeated
-    with pytest.raises(ValueError):
-        P.DirichletTree([[0], 1, 2]).bind(B3)  # single child
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"more than once: bin 1 \[1, 2\)"):
+        P.DirichletTree([[0, 1], 1]).bind(B3)
+    with pytest.raises(ValueError, match="a group needs at least two members"):
+        P.DirichletTree([[0], 1, 2]).bind(B3)
+    with pytest.raises(ValueError, match="one alpha array per internal node"):
         P.DirichletTree([[0, 1], 2], alpha=[[1.0, 1.0]]).bind(B3)
 
 
@@ -483,29 +483,28 @@ def test_describe_draws_each_branch_with_its_concentration_share_and_mass():
     )
 
 
-def test_describe_with_counts_shows_the_posterior_mean_of_every_branch():
-    bins, counts = Bins.linear(0.0, 1.0, 4), np.array([3.0, 0.0, 5.0, 2.0])
-    text = P.PolyaTree().describe(bins, counts=counts)
-    # each branch's concentration is raised by the counts below it
-    for a in ("α=4 ", "α=8 ", "α=7 ", "α=4 ", "α=9 ", "α=6 "):
-        assert a in text
-    # the masses are the posterior mean of rho
-    t = P.PolyaTree().bind(bins).tree
-    post = t.slot_alpha + t.slot_counts(counts)
-    share = post / np.repeat(np.add.reduceat(post, t.node_start[:-1]), np.diff(t.node_start))
-    mean = t.compose(share)
-    for k, m in enumerate(mean):
-        assert f"mass {m:.3f}  bin {k} " in text
-    with pytest.raises(ValueError, match="counts must be 4"):
-        P.PolyaTree().describe(bins, counts=[1, 2])
-
-
 def test_a_dirichlet_is_described_as_a_tree_of_one_node():
     text = P.Dirichlet([1.0, 3.0]).describe(Bins.categories(["a", "b"]))
     assert text.splitlines()[2:] == [
         "├── α=1  share 0.25  mass 0.250  a",
         "└── α=3  share 0.75  mass 0.750  b",
     ]
+
+
+def test_a_generalized_dirichlet_is_described_as_its_chain_of_splits():
+    gd = P.GeneralizedDirichlet([1.0, 2.0], [1.0, 1.0])
+    text = gd.describe(Bins.linear(0.0, 1.0, 3), counts=[2, 0, 1])
+    # Beta(1 + 2, 1 + 0 + 1) for bin 0 against the rest, then Beta(2 + 0, 1 + 1)
+    assert text.splitlines() == [
+        "GeneralizedDirichlet: posterior given the counts, on 3 bins",
+        "root: bins 0–2",
+        "├── α=3  share 0.60  mass 0.600  bin 0 [0, 0.3333)",
+        "└── α=2  share 0.40  mass 0.400  bins 1–2",
+        "    ├── α=2  share 0.50  mass 0.200  bin 1 [0.3333, 0.6667)",
+        "    └── α=2  share 0.50  mass 0.200  bin 2 [0.6667, 1)",
+    ]
+    with pytest.raises(ValueError, match="one value per bin"):
+        gd.describe(Bins.linear(0.0, 1.0, 3), counts=[1, 2])
 
 
 def test_named_groups_bind_to_the_tree_their_nested_lists_give():
@@ -520,9 +519,28 @@ def test_an_alpha_mapping_sets_exactly_the_branches_it_names():
     # slots in pre-order: root (spiral, early), spiral (Sa, Sb), early (elliptical, S0),
     # elliptical (E0, E3)
     np.testing.assert_array_equal(prior.bind(GALAXIES).tree.slot_alpha, [3, 1, 1, 1, 1, 2, 5, 1])
-    text = prior.describe(GALAXIES)
-    assert "α=3  share 0.75  mass 0.750  spiral: Sa, Sb" in text
-    assert "lenticular: S0" in text
+
+
+def test_an_alpha_key_names_a_bin_as_the_tree_writes_it():
+    # the tree writes bins by index, so the key 1 is index 1, never the label 1 (index 0)
+    tree = P.DirichletTree([[0, 1], 2], alpha={1: 5.0}).bind(Bins.categories([1, 0, 2])).tree
+    np.testing.assert_array_equal(tree.slot_alpha, [1, 1, 1, 5])
+
+
+def test_named_groups_are_drawn_with_their_names():
+    # the drawing docs/guides/priors.md shows
+    assert P.DirichletTree(GROUPS, alpha={"spiral": 3.0}).describe(GALAXIES).splitlines() == [
+        "DirichletTree: prior, on 5 bins",
+        "root: Sa, Sb, E0, E3, S0",
+        "├── α=3  share 0.75  mass 0.750  spiral: Sa, Sb",
+        "│   ├── α=1  share 0.50  mass 0.375  Sa",
+        "│   └── α=1  share 0.50  mass 0.375  Sb",
+        "└── α=1  share 0.25  mass 0.250  early: E0, E3, S0",
+        "    ├── α=1  share 0.50  mass 0.125  elliptical: E0, E3",
+        "    │   ├── α=1  share 0.50  mass 0.062  E0",
+        "    │   └── α=1  share 0.50  mass 0.062  E3",
+        "    └── α=1  share 0.50  mass 0.125  lenticular: S0",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -534,26 +552,26 @@ def test_an_alpha_mapping_sets_exactly_the_branches_it_names():
             GALAXIES,
             "'Sx' is not one of the bins' labels",
         ),
-        (
-            {"spiral": ["Sa", "Sb", "Sa"], "early": ["E0", "E3", "S0"]},
-            1.0,
-            GALAXIES,
-            "more than once: Sa",
-        ),
         ({"spiral": ["Sa", "Sb"], "early": ["E0", "E3"]}, 1.0, GALAXIES, "in no group: S0"),
         (GROUPS, {"nope": 2.0}, GALAXIES, "'nope' names no group"),
         ([["a", "b"], 2], 1.0, B3, "labels need categories"),
+        ([b"ab", 2], 1.0, B3, "b'ab' is not a bin index"),
+        ([{0, 1}, 2], 1.0, B3, "neither a bin nor a group"),
+        ({"Sa": ["Sa", "Sb"], "x": ["E0", "E3", "S0"]}, {"Sa": 3.0}, GALAXIES, "more than one"),
+        (GROUPS, {"lenticular": 2.0, "S0": 7.0}, GALAXIES, "'lenticular' and 'S0' name one"),
+        (GROUPS, {"spiral": [1.0, 2.0]}, GALAXIES, "must be one number"),
     ],
 )
-def test_a_wrong_tree_fails_when_bound_with_an_error_naming_the_problem(
-    tree, alpha, bins, message
-):
+def test_a_wrong_tree_or_alpha_key_is_refused_with_an_error_naming_it(tree, alpha, bins, message):
     with pytest.raises(ValueError, match=message):
         P.DirichletTree(tree, alpha=alpha).bind(bins)
 
 
-def test_a_tree_with_a_repeated_group_name_or_a_lone_member_is_refused():
+def test_a_dict_of_one_group_inside_a_list_names_that_group():
+    tree = P.DirichletTree([{"a": [0, 1]}, 2], alpha={"a": 4.0}).bind(B3).tree
+    np.testing.assert_array_equal(tree.slot_alpha, [4, 1, 1, 1])
+
+
+def test_a_group_name_used_twice_is_refused():
     with pytest.raises(ValueError, match="group name 'g' is used twice"):
         P.DirichletTree({"g": [0, 1], "h": {"g": [2, 3], "i": [4]}})
-    with pytest.raises(ValueError, match="a group needs at least two members"):
-        P.DirichletTree([[0], 1, 2])
