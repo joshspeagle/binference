@@ -18,17 +18,17 @@ releases may break the API).
 - `BoundPrior.long_log_tails()`: whether a bin without data has a long tail in the
   unconstrained coordinates NUTS samples (DECISIONS #109).
 
-### Fixed
-
-- The NUTS tree-depth hint of `check()` names long log tails only for priors that have
-  them where NUTS samples; it no longer blames the default `PolyaTree()` or
-  `GeneralizedDirichlet(1, 1)` (DECISIONS #109).
-
 ### Removed
 
 - `PopulationModel.prior_transform`, `BoundPrior.prior_transform` (on the Dirichlet, tree
   and `GammaRates` priors) and `BoundPrior.has_prior_transform`: the unit-cube map for
   nested samplers, which nothing in binference used (DECISIONS #107).
+
+### Fixed
+
+- The NUTS tree-depth hint of `check()` names long log tails only for priors that have
+  them where NUTS samples; it no longer blames the default `PolyaTree()` or
+  `GeneralizedDirichlet(1, 1)` (DECISIONS #109).
 
 ## [0.1.0] - 2026-10-29
 
