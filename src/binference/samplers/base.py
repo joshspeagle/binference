@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from .. import _kernels as kern
 from .._utils import RNGLike, as_generator, check_nonnegative, check_positive
 from ..model import PopulationModel
-from ..results import PopulationResult
+
+if TYPE_CHECKING:
+    from ..results import PopulationResult
 
 __all__ = ["Engine"]
 
@@ -145,8 +147,10 @@ def check_init(init: Any, model: PopulationModel, *, positive: bool = True) -> n
         return None
     init = check_positive(init, "init") if positive else check_nonnegative(init, "init")
     if init.shape != (model.K,):
-        raise ValueError(f"init must have shape ({model.K},); got {init.shape}.")
-    if not init.any():
+        raise ValueError(
+            f"init must be fractions or rates of shape ({model.K},); got {init.shape}."
+        )
+    if not positive and not init.any():
         raise ValueError("init must have a positive entry.")
     return init
 
