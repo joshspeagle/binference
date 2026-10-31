@@ -17,7 +17,8 @@ import pytest
 
 from binference import priors as P
 
-from .test_slow import _assert_uniform_ranks, _fit, _geweke_z_scores, _sbc
+from .conftest import assert_uniform_ranks
+from .test_slow import _fit, _geweke_z_scores, _sbc
 
 pytestmark = pytest.mark.slow
 
@@ -74,7 +75,7 @@ def test_sbc_ranks_are_uniform(case):
     # unfiltered, sbc's ESS warning is an error: every fit has min_ess >= n_draws
     res = _sbc(prior, _fit(method, prior=prior, **kw), n_simulations, n_draws, 2026, **sim)
     # at least 10 expected ranks per histogram bin
-    _assert_uniform_ranks(res, n_bins=10 if n_simulations >= 150 else 5)
+    assert_uniform_ranks(res, n_bins=10 if n_simulations >= 150 else 5)
 
 
 @pytest.mark.parametrize(

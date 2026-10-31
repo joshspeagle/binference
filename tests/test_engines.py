@@ -13,7 +13,7 @@ from binference import priors as P
 from binference.samplers import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
 from binference.warnings import ApproximationWarning, InputWarning
 
-from .conftest import assert_matches_reference, sd_mcse
+from .conftest import assert_draws_agree, assert_matches_reference
 
 GAP = 1e3 * 1e-8  # MAP's guarantee: tol = 1e-8, or 1e3 * tol once round-off stops it
 
@@ -73,6 +73,7 @@ def test_nuts_onehot_is_conjugate(onehot, metric):
     res = binference.infer(
         lk,
         P.Dirichlet(alpha),
+        method="nuts",
         rng=2,
         n_chains=2,
         n_warmup=300,
@@ -204,6 +205,7 @@ def test_nuts_with_a_logistic_prior_matches_a_long_run():
     res = binference.infer(
         mock.likelihoods,
         P.LogisticRandomWalk(order=2),
+        method="nuts",
         rng=1,
         n_chains=2,
         n_warmup=200,
@@ -218,13 +220,9 @@ def test_nuts_with_a_logistic_prior_matches_a_long_run():
     #       n_warmup=1000, n_samples=10000) -> .mean, .std, rounded to 6 digits
     mean = [0.028023, 0.261029, 0.163405, 0.175175, 0.270258, 0.091127, 0.009948, 0.001036]
     sd = [0.013765, 0.031731, 0.030073, 0.028615, 0.031246, 0.020168, 0.005868, 0.00146]
-    for k in range(8):
-        x = res.chains[:, :, k]
-        assert abs(x.mean() - mean[k]) < 5 * binference.diagnostics.mcse(x), k
-        # MC error of the sd from the MCSE of the squared deviations, which underestimates
-        # it by up to 1.3x on the skewed edge bins of short runs (measured over 40 seeds):
-        # 6 such sigma are 4.6 true sigma
-        assert abs(x.std() - sd[k]) < 6 * sd_mcse(x), k
+    # sd_mcse underestimates the error of an sd by up to 1.3x on the skewed edge bins of
+    # runs this short (40 seeds), so z = 5 is about 3.8 true sigma there
+    assert_matches_reference(res, mean, sd)
 
 
 # -------------------------------------------------------------------- Gibbs
@@ -250,7 +248,13 @@ def test_gibbs_selection_matches_exact(k3_selection_problem):
     )
     assert_matches_reference(res, exact.mean, exact.std)
     nuts = binference.infer(
-        mock.likelihoods, rng=5, n_chains=2, n_warmup=300, n_samples=1500, check=False
+        mock.likelihoods,
+        method="nuts",
+        rng=5,
+        n_chains=2,
+        n_warmup=300,
+        n_samples=1500,
+        check=False,
     )
     assert_matches_reference(nuts, exact.mean, exact.std)
 
@@ -266,13 +270,13 @@ def test_fraction_selection_only_depends_on_ratios(k3_selection_problem, mode):
         m = PopulationModel(lk, selection=Selection(scale * S, mode, scale="relative"))
         est = MAP(m).run()
         gibbs = Gibbs(m, n_chains=2, n_warmup=200, rng=3).run(1500)
-        fits[scale] = (est.rho, gibbs.mean, gibbs.std)
+        fits[scale] = (est.rho, gibbs)
         assert np.all(gibbs.samples > 0)
     np.testing.assert_allclose(fits[3.0][0], fits[1.0][0], rtol=1e-6)
-    np.testing.assert_allclose(fits[3.0][1], fits[1.0][1], atol=0.02)
+    np.testing.assert_allclose(fits[3.0][1].samples, fits[1.0][1].samples, rtol=1e-12)
     exact_m = PopulationModel(lk, selection=S, selection_mode=mode)
     nuts = NUTS(exact_m, n_chains=2, n_warmup=300, rng=4).run(800)
-    np.testing.assert_allclose(fits[3.0][1], nuts.mean, atol=0.02)
+    assert_draws_agree(fits[3.0][1].chains, nuts.chains)
 
 
 def test_gibbs_rates_agree_with_nuts(k3_selection_problem):
@@ -282,11 +286,17 @@ def test_gibbs_rates_agree_with_nuts(k3_selection_problem):
         mock.likelihoods, prior, method="gibbs", rng=6, n_samples=3000, check=False
     )
     n = binference.infer(
-        mock.likelihoods, prior, rng=6, n_chains=2, n_warmup=300, n_samples=1500, check=False
+        mock.likelihoods,
+        prior,
+        method="nuts",
+        rng=6,
+        n_chains=2,
+        n_warmup=300,
+        n_samples=1500,
+        check=False,
     )
     assert g.rates is not None and n.rates is not None
-    np.testing.assert_allclose(g.rates.mean(0), n.rates.mean(0), rtol=0.06)
-    np.testing.assert_allclose(g.rates.std(0), n.rates.std(0), rtol=0.15)
+    assert_draws_agree(*(r.rates.reshape(r.chains.shape) for r in (g, n)))
     np.testing.assert_allclose(g.samples.sum(1), 1.0)
 
 
@@ -297,9 +307,16 @@ def test_gibbs_tree_priors_agree_with_nuts(prior):
         mock.likelihoods, prior, method="gibbs", rng=7, n_samples=3000, check=False
     )
     n = binference.infer(
-        mock.likelihoods, prior, rng=7, n_chains=2, n_warmup=300, n_samples=1500, check=False
+        mock.likelihoods,
+        prior,
+        method="nuts",
+        rng=7,
+        n_chains=2,
+        n_warmup=300,
+        n_samples=1500,
+        check=False,
     )
-    assert_matches_reference(g, n.mean, n.std, z=6, sd_rtol=0.2)
+    assert_draws_agree(g.chains, n.chains)
 
 
 def test_gibbs_validation_and_labels(onehot):
@@ -327,7 +344,7 @@ def test_gibbs_integer_weights_compressed(rng):
     assert lk_comp.N == 3
     a = binference.infer(lk_full, method="gibbs", rng=1, n_samples=4000, check=False)
     b = binference.infer(lk_comp, method="gibbs", rng=1, n_samples=4000, check=False)
-    assert_matches_reference(b, a.mean, a.std, z=6, sd_rtol=0.2)
+    assert_draws_agree(b.chains, a.chains)
 
 
 def test_label_sampling_dense_sparse_agree(rng):
@@ -491,8 +508,7 @@ def test_laplace_with_importance(k3_problem):
     mock, exact = k3_problem
     res = binference.infer(mock.likelihoods, method="laplace", rng=4, n_samples=4000)
     assert "k_hat" in res.info
-    np.testing.assert_allclose(res.mean, exact.mean, atol=0.01)
-    np.testing.assert_allclose(res.std, exact.std, rtol=0.15)
+    assert_matches_reference(res, exact.mean, exact.std)
 
 
 def test_laplace_uncorrected_is_flagged(k3_problem):
@@ -527,9 +543,7 @@ def test_vb_exact_for_onehot_and_overconfident_otherwise(onehot, k3_problem):
     lk, counts = onehot
     with pytest.warns(ApproximationWarning):
         res = MeanFieldVB(PopulationModel(lk), rng=1).run(20000)
-    mean, sd = dirichlet_moments(1.0 + counts)
-    np.testing.assert_allclose(res.mean, mean, atol=3e-3)
-    np.testing.assert_allclose(res.std, sd, rtol=0.05)
+    assert_matches_reference(res, *dirichlet_moments(1.0 + counts))
     mock, exact = k3_problem
     with pytest.warns(ApproximationWarning):
         vb = MeanFieldVB(PopulationModel(mock.likelihoods), rng=1).run(4000)

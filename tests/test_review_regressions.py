@@ -206,8 +206,8 @@ def test_save_load_labels_and_hyperparameters(tmp_path):
     back = PopulationResult.load(tmp_path / "a.npz")
     assert back.bins == lk.bins  # integer category labels survive
     mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 6), rng=7)
-    gp = binference.infer(mock.likelihoods, P.LogisticGP(), rng=1, n_samples=30, n_warmup=60,
-                      n_chains=2, check=False)  # fmt: skip
+    gp = binference.infer(mock.likelihoods, P.LogisticGP(), method="nuts", rng=1, n_samples=30,
+                      n_warmup=60, n_chains=2, check=False)  # fmt: skip
     gp.save(tmp_path / "gp.npz")
     back = PopulationResult.load(tmp_path / "gp.npz")
     for name, draws in gp.info["hyperparameters"].items():

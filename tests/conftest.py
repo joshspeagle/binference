@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from scipy import stats
 
 import binference
 from binference import diagnostics as diag
@@ -74,13 +75,44 @@ def sd_mcse(x) -> float:
     return diag.mcse((x - x.mean()) ** 2) / (2 * x.std())
 
 
-def assert_matches_reference(result, mean, sd, z: float = 5.0, sd_rtol: float = 0.15):
-    """Compare posterior means (within z * MCSE) and sds (relative tolerance)."""
-    C = result.chains
-    for k in range(C.shape[-1]):
-        x = C[:, :, k]
-        err = diag.mcse(x)
-        if not np.isfinite(err):
-            err = x.std() / np.sqrt(x.size)
-        assert abs(x.mean() - mean[k]) <= z * err + 1e-3 * sd[k], (k, x.mean(), mean[k], err)
-        assert abs(x.std() - sd[k]) <= sd_rtol * sd[k], (k, x.std(), sd[k])
+def mc_errors(draws):
+    """Monte Carlo errors of the means and sds of ``draws`` (chains, draws, K), by ``mcse``
+    and :func:`sd_mcse`."""
+    cols = np.moveaxis(draws, -1, 0)
+    return np.array([diag.mcse(x) for x in cols]), np.array([sd_mcse(x) for x in cols])
+
+
+def assert_matches_reference(result, mean, sd, z: float = 5.0, ref_errors=(0.0, 0.0)):
+    """Compare posterior means and sds with a reference within z combined Monte Carlo errors,
+    plus 1e-3 of the reference sd. The result's errors are its chains', or for draws
+    resampled by importance weight those of n draws with 1/n = 1/ESS + 1/(number of draws);
+    ``ref_errors`` are the reference's own."""
+    if "ess_importance" in result.info:
+        n = 1 / (1 / result.info["ess_importance"] + 1 / len(result.samples))
+        kurt = stats.kurtosis(result.samples, axis=0, fisher=False)
+        errors = result.std / np.sqrt(n), result.std * np.sqrt((kurt - 1) / (4 * n))
+    else:
+        errors = mc_errors(result.chains)
+    pairs = zip((result.mean, result.std), (mean, sd), errors, ref_errors, strict=True)
+    for est, ref, err, ref_err in pairs:
+        tol = z * np.hypot(err, ref_err) + 1e-3 * np.asarray(sd)
+        assert np.all(np.abs(est - np.asarray(ref)) <= tol), (est, ref, tol)
+
+
+def assert_draws_agree(a, b, z: float = 5.0):
+    """Compare the means and sds of two runs' draws ``a`` and ``b`` (chains, draws, K)
+    within z combined Monte Carlo errors."""
+    for f, err_a, err_b in zip((np.mean, np.std), mc_errors(a), mc_errors(b), strict=True):
+        x, y = f(a, axis=(0, 1)), f(b, axis=(0, 1))
+        assert np.all(np.abs(x - y) <= z * np.hypot(err_a, err_b)), (f.__name__, x, y)
+
+
+def sbc_pvalues(res, n_bins=10):
+    # the chi-square is the more sensitive to width errors, the ECDF test to bias
+    return {"chisquare": res.pvalues(n_bins), "ecdf": res.pvalues(method="ecdf")}
+
+
+def assert_uniform_ranks(res, alpha=1e-3, n_bins=10):
+    # both tests, each at the Bonferroni-corrected level of SBCResult.passed (DECISIONS #87)
+    for method, p in sbc_pvalues(res, n_bins).items():
+        assert np.all(p > alpha / p.size), (method, dict(zip(res.names, p, strict=True)))
