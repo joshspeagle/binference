@@ -109,7 +109,7 @@ def test_dirichlet_constructors():
         P.Dirichlet(0.0)
     with pytest.raises(ValueError):
         P.Dirichlet([1.0, 2.0]).bind(B3)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Dirichlet alpha"):  # not NumPy's cast error
         P.Dirichlet("flat")
 
 

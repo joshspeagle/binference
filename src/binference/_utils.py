@@ -117,17 +117,23 @@ def check_positive_weights(weights: Any, n: int) -> np.ndarray:
 
 def check_positive(value: Any, name: str) -> np.ndarray:
     """``value`` as a float array, after checking that it is finite and strictly positive."""
-    a = np.asarray(value, dtype=float)
-    if not np.all(np.isfinite(a)) or np.any(a <= 0):
-        raise ValueError(f"{name} must be finite and strictly positive.")
-    return a
+    return _check_sign(value, name, positive=True)
 
 
 def check_nonnegative(value: Any, name: str) -> np.ndarray:
     """``value`` as a float array, after checking that it is finite and non-negative."""
-    a = np.asarray(value, dtype=float)
-    if not np.all(np.isfinite(a)) or np.any(a < 0):
-        raise ValueError(f"{name} must be finite and non-negative.")
+    return _check_sign(value, name, positive=False)
+
+
+def _check_sign(value: Any, name: str, positive: bool) -> np.ndarray:
+    try:
+        a = np.asarray(value, dtype=float)
+        ok = np.all(np.isfinite(a)) and np.all(a > 0 if positive else a >= 0)
+    except (TypeError, ValueError):  # not numbers: name the argument, not NumPy's cast
+        ok = False
+    if not ok:
+        what = "strictly positive" if positive else "non-negative"
+        raise ValueError(f"{name} must be finite and {what}.")
     return a
 
 
