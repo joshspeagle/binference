@@ -60,10 +60,11 @@ releases may break the API).
 - Boolean category labels reload as booleans; they came back as 0 and 1.
 - Errors name the input at fault: a single distribution passed to `from_density`;
   objects in a measured bin whose response row is zero (the error suggested
-  `drop_empty`); a truth bin whose response column sums to zero (the error spoke of
-  selection values); `Response.from_counts` with more counts than generated events;
-  `Response.from_simulation` with `open_ended` and categorical measured bins (an
-  `AttributeError`). `Selection.combined` checks `scale` before evaluating its functions.
+  `drop_empty`); selection values that are zero or not finite, such as a truth bin whose
+  response column sums to zero; `Response.from_counts` with more counts than generated
+  events; `Response.from_simulation` with `open_ended` and categorical measured bins (an
+  `AttributeError`); labelled scores that are not finite. `Selection.combined` checks
+  `scale` before evaluating its functions.
 
 ## [0.1.0] - 2026-10-29
 
