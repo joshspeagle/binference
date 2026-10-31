@@ -185,12 +185,16 @@ class BoundPrior:
     def long_log_tails(self) -> bool:
         """Whether the prior gives bins without data long tails in the unconstrained coordinates.
 
-        As a group of bins empties, the density of ``x`` falls like ``share**a``, with an
-        exponent ``a`` that includes the Jacobian of the coordinates (``alpha`` for a
-        Dirichlet). Below one that tail is long in log space, and NUTS needs long
-        trajectories to cross it.
+        As a group of bins empties, the density of ``x`` falls like ``share**a``. Below one
+        that tail is long in log space, and NUTS needs long trajectories to cross it. The
+        exponent ``a`` is the one at the boundary plus the Jacobian of the coordinates, one
+        for each bin in the group: a single bin's ``alpha - 1`` becomes ``alpha``. When
+        single bins have the longest tails, as for a Dirichlet or Gamma rates, the tails
+        are long exactly when the density is unbounded, so this default returns
+        :meth:`unbounded_density`; a tree prior, whose branches hold several bins,
+        overrides it.
         """
-        return False
+        return self.unbounded_density()
 
     def grad_log_density(self, value: np.ndarray) -> np.ndarray:
         """Gradient of :meth:`log_density` with respect to the fractions/rates.

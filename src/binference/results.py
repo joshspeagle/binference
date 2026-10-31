@@ -49,12 +49,6 @@ SAMPLE_VARIANCE_MAX = 1.0
 # ----------------------------------------------------------------------------
 # Summary table
 # ----------------------------------------------------------------------------
-def _long_log_tails(model: Any) -> bool:
-    """Whether a conjugate prior gives bins without data long tails where NUTS samples."""
-    prior = getattr(model, "prior", None)
-    return bool(prior is not None and prior.conjugate and prior.long_log_tails())
-
-
 class Summary:
     """A small per-bin summary table with a readable ``repr``.
 
@@ -1777,7 +1771,8 @@ class PopulationResult(_IndividualMixin):
                 f"{100 * d['max_depth_fraction']:.0f}% of NUTS iterations hit the maximum tree "
                 "depth"
             )
-            if _long_log_tails(self.model):
+            prior = getattr(self.model, "prior", None)
+            if prior is not None and prior.conjugate and prior.long_log_tails():
                 hints.append(
                     "this prior gives nearly empty bins very long tails in log space "
                     "(e.g. concentrations below one); method='gibbs' samples such "

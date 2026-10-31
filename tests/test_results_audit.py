@@ -364,7 +364,8 @@ def test_check_compares_pareto_k_hat_with_the_threshold_the_engine_reported():
         (binference.priors.Dirichlet(1.0), False),
         # unbounded on the simplex, but not in the coordinates NUTS samples
         (binference.priors.PolyaTree(), False),
-        (binference.priors.GeneralizedDirichlet(1.0, 1.0), False),
+        # the same, with branches at exactly one that a sum of coefficients rounds below it
+        (binference.priors.GeneralizedDirichlet([2, 2, 1], [1, 2.9, 1.2]), False),
     ],
     ids=repr,
 )
