@@ -80,7 +80,7 @@ def test_engines_that_cannot_infer_a_selection_refuse_and_name_those_that_can():
     lk, sel = _problem()
     m = binference.PopulationModel(lk, selection=sel)
     with pytest.raises(ValueError, match="method='nuts', 'gibbs', 'map', 'laplace' or 'auto',"):
-        MeanFieldVB(m)  # not 'em', which runs L-BFGS on a joint model
+        MeanFieldVB(m)
     for kw in ({"space": "simplex"}, {"algorithm": "em"}):
         with pytest.raises(ValueError, match="space='unconstrained'"):
             MAP(m, **kw)

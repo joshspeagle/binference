@@ -65,12 +65,6 @@ def test_em_stops_with_a_warning_where_an_object_becomes_impossible():
         assert np.isfinite(est.log_posterior) and not np.allclose(est.value, 0.25)
 
 
-def test_an_init_that_makes_an_object_impossible_is_refused():
-    m = PopulationModel(Likelihoods(_one_object_bin(), Bins.categories(5)))
-    with pytest.raises(ValueError, match="init"):
-        MAP(m, algorithm="em", init=[0.25, 0.25, 0.25, 0.25, 0.0]).run()
-
-
 def test_missing_information_is_nan_where_a_sparse_prior_outweighs_the_data():
     mock = binference.simulate.mock_1d(5, Bins.linear(0, 3, 10), rng=7)
     m = PopulationModel(mock.likelihoods, P.Dirichlet(0.3))
@@ -130,21 +124,16 @@ def test_the_rates_kkt_gap_does_not_depend_on_the_units_of_the_exposure():
 def test_the_rates_start_is_the_observed_composition_over_the_exposure():
     from binference.samplers.base import interior_start
 
-    mock = binference.simulate.mock_1d(1000, Bins.linear(0, 3, 6), rng=3)
-    S = np.linspace(0.9, 0.3, 6)
-    m = PopulationModel(
-        mock.likelihoods, P.GammaRates(1.0, 1e-9), selection=Selection(S, "on_truth")
-    )
-    start = interior_start(m)
-    mle = MAP(m).run().value
-    np.testing.assert_allclose(start.sum(), mle.sum(), rtol=0.1)
-    # for broad likelihoods the composition must be fitted on the columns of L over S: for
+    # broad likelihoods, so the composition must be fitted on the columns of L over S: for
     # seeds 0-19 of this mock the start's log posterior is 0.2-2.2 below the mode's (26-47
     # when fitted on L)
     lk = binference.simulate.mock_1d(1000, Bins.linear(0, 3, 6), noise=0.8, rng=3).likelihoods
+    S = np.linspace(0.9, 0.3, 6)
     for mode in ("on_truth", "on_measurement"):
         m = PopulationModel(lk, P.GammaRates(1.0, 1e-9), selection=Selection(S, mode))
-        assert m.log_posterior(MAP(m).run().value) - m.log_posterior(interior_start(m)) < 8.0
+        start, mle = interior_start(m), MAP(m).run().value
+        np.testing.assert_allclose(start.sum(), mle.sum(), rtol=0.1)
+        assert m.log_posterior(mle) - m.log_posterior(start) < 8.0
 
 
 def test_a_gp_prior_works_on_two_bins():

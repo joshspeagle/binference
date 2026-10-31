@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 
 from .. import _kernels as kern
-from .._utils import RNGLike, as_generator, check_positive
+from .._utils import RNGLike, as_generator
 from ..model import PopulationModel
 
 __all__ = ["Engine"]
@@ -62,8 +62,10 @@ class Engine:
         if model.joint and not cls.joint:
             from ..inference import METHODS  # the registry imports the engines
 
-            # each engine once: "em" is MAP's alias, and on a joint model it runs L-BFGS
-            *names, last = (repr(k) for k, e in METHODS.items() if e.joint and k != "em")
+            first: dict[type, str] = {}  # each engine by its first name, without aliases
+            for k, e in METHODS.items():
+                first.setdefault(e, k)
+            *names, last = (repr(k) for e, k in first.items() if e.joint)
             fixed = "selection.at_mean()" if model.selection_uncertain else "response.fixed()"
             return (
                 f"{cls.__name__} cannot infer a selection from injections or a tallied "
@@ -102,10 +104,8 @@ def interior_start(model: PopulationModel, n_iter: int = INTERIOR_START_ITER) ->
     Returns fractions (or rates for rate models) bounded away from zero.
     """
     K = model.K
-    # for rates rho is the composition of the observed objects, rho_k proportional to
-    # S_k lambda_k (rates impute nothing), in which object i's likelihood is proportional
-    # to sum_k (L_ik / S_k) rho_k: its expected counts are those of the rates rho / S, and
-    # the MLE-like start is W rho_k / S_k (audit M-7)
+    # for rates rho is the observed composition, rho_k proportional to S_k lambda_k: its
+    # expected counts are those of the rates rho / S, and the start is W rho / S (audit M-7)
     rates = model.kind == "rates"
     rho = np.full(K, 1.0 / K)
     for _ in range(n_iter):
@@ -119,13 +119,3 @@ def interior_start(model: PopulationModel, n_iter: int = INTERIOR_START_ITER) ->
     if rates:
         return np.maximum(model.W * rho / np.maximum(model._S, 1e-12), 1e-12)
     return rho
-
-
-def check_init(init: Any, model: PopulationModel) -> np.ndarray | None:
-    """``init`` as ``K`` finite positive fractions or rates (DECISIONS #75), or ``None``."""
-    if init is None:
-        return None
-    init = check_positive(init, "init")
-    if init.shape != (model.K,):
-        raise ValueError(f"init must have shape ({model.K},); got {init.shape}.")
-    return init

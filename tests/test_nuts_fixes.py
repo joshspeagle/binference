@@ -79,11 +79,11 @@ def test_an_uncorrected_laplace_returns_every_draw_asked_for():
     assert res.n_draws == 400
 
 
-def test_laplace_refuses_too_few_importance_proposals_before_finding_the_mode():
-    eng = Laplace(_dirichlet_model(), rng=0)
-    with pytest.raises(ValueError, match="n_samples"):
-        eng.run(2)  # 2 * n_samples = 4 proposals; Pareto smoothing needs 5
-    assert eng._eigen is None
+def test_laplace_draws_a_few_samples_from_enough_proposals_to_smooth():
+    # 2 * n_samples = 4 proposals by default; Pareto smoothing needs 5, too few to vouch
+    with pytest.warns(binference.ApproximationWarning):
+        res = Laplace(_dirichlet_model(), rng=0).run(2)
+    assert res.n_draws == 2 and res.approximate
 
 
 def test_the_laplace_k_hat_threshold_tightens_for_few_proposals():

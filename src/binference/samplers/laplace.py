@@ -151,13 +151,11 @@ class Laplace(Engine):
         n_samples : int, optional
             Draws returned in total.
         """
-        # without importance resampling the proposals are the draws (audit N-4)
-        M = (self.n_proposals or PROPOSAL_FACTOR * n_samples) if self.importance else n_samples
-        if self.importance and M < diag.PSIS_MIN_WEIGHTS:  # n_proposals is checked when made
-            raise ValueError(
-                f"Importance resampling needs at least {diag.PSIS_MIN_WEIGHTS} proposals "
-                f"(n_proposals, by default {PROPOSAL_FACTOR} * n_samples); got {M}."
-            )
+        # without importance resampling the proposals are the draws (audit N-4); Pareto
+        # smoothing needs a few, which n_proposals is checked for when the engine is made
+        M = n_samples
+        if self.importance:
+            M = self.n_proposals or max(PROPOSAL_FACTOR * n_samples, diag.PSIS_MIN_WEIGHTS)
         m = self.model
         x0, _, lam, U, cov = self._mode_and_eigen()
         d = x0.size

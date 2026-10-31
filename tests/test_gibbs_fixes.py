@@ -45,7 +45,6 @@ def test_gibbs_inputs_are_checked_when_the_engine_is_made():
         Gibbs(m, init=[0.5, 0.5, 0.0, 0.0])
     with pytest.raises(ValueError, match="n_warmup"):
         Gibbs(m, n_warmup=-1)
-    # rows with multiplicities draw counts, not labels: no object's labels can be stored
     compressed = PopulationModel(Likelihoods(np.eye(2)[[0, 0, 1]], Bins.categories(2)).compress())
     for store_labels in (True, [0]):
         with pytest.raises(ValueError, match="store_labels needs unit object weights"):
