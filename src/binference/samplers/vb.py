@@ -47,9 +47,6 @@ class MeanFieldVB(Engine):
         Accepted for a common signature; unused.
     """
 
-    name = "vb"
-    approximate = True
-
     def __init__(
         self,
         model: PopulationModel,

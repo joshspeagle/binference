@@ -18,7 +18,8 @@ from .optimize import MAP
 
 __all__ = ["Laplace"]
 
-#: Importance proposals per draw when ``n_proposals`` is ``None``.
+#: Importance proposals per draw when ``n_proposals`` is ``None`` (at least
+#: ``diagnostics.PSIS_MIN_WEIGHTS`` in all, the fewest Pareto smoothing takes).
 PROPOSAL_FACTOR = 2
 #: Eigenvalues of a Hessian that is not positive definite are raised to this times the
 #: largest (at least one).
@@ -55,7 +56,7 @@ class Laplace(Engine):
         Apply PSIS importance resampling.
     n_proposals : int, optional
         Number of proposals for importance resampling (default
-        ``2 * n_samples``); without it the draws are the proposals themselves.
+        ``max(2 * n_samples, 5)``); without it the draws are the proposals themselves.
     df : float or None
         Degrees of freedom of the multivariate Student-t importance proposal
         (default 5); ``None`` uses the Gaussian itself. Heavier tails make the
@@ -78,7 +79,6 @@ class Laplace(Engine):
     replacement for NUTS.
     """
 
-    name = "laplace"
     joint = True
 
     def __init__(
@@ -94,8 +94,10 @@ class Laplace(Engine):
         progress: bool = False,
     ) -> None:
         super().__init__(model, rng=rng, progress=progress)
-        if n_proposals is not None and n_proposals < 5:
-            raise ValueError("n_proposals must be at least 5 (for Pareto smoothing).")
+        if n_proposals is not None and n_proposals < diag.PSIS_MIN_WEIGHTS:
+            raise ValueError(
+                f"n_proposals must be at least {diag.PSIS_MIN_WEIGHTS} (for Pareto smoothing)."
+            )
         self.importance = bool(importance)
         self.n_proposals = n_proposals
         if df is not None and df <= 0:
@@ -150,12 +152,17 @@ class Laplace(Engine):
         n_samples : int, optional
             Draws returned in total.
         """
+        # without importance resampling the proposals are the draws (audit N-4); Pareto
+        # smoothing needs a few, which n_proposals is checked for when the engine is made
+        if n_samples < 1:
+            raise ValueError(f"n_samples must be at least 1; got {n_samples}.")
+        M = n_samples
+        if self.importance:
+            M = self.n_proposals or max(PROPOSAL_FACTOR * n_samples, diag.PSIS_MIN_WEIGHTS)
         m = self.model
         x0, _, lam, U, cov = self._mode_and_eigen()
         d = x0.size
         sd_mat = (U / np.sqrt(lam)) * self.inflate
-        # without importance resampling the proposals are the draws (audit N-4)
-        M = (self.n_proposals or PROPOSAL_FACTOR * n_samples) if self.importance else n_samples
         Z = self.rng.standard_normal((M, d))
         if self.importance and self.df is not None:
             Z = Z / np.sqrt(self.rng.chisquare(self.df, size=M) / self.df)[:, None]

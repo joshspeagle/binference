@@ -28,6 +28,7 @@ releases may break the API).
 - `PopulationModel.prior_transform`, `BoundPrior.prior_transform` (on the Dirichlet, tree
   and `GammaRates` priors) and `BoundPrior.has_prior_transform`: the unit-cube map for
   nested samplers, which nothing in binference used (DECISIONS #107).
+- `Engine.name` and `Engine.approximate`, which nothing read (DECISIONS #112).
 
 ### Fixed
 
@@ -56,6 +57,17 @@ releases may break the API).
   without a selection and refused with one, unless the basis is the bins; it failed
   with a broadcasting error or, with as many components as bins, drew a wrong overlay
   (DECISIONS #111).
+- `MAP` checks `init`'s shape and sign, and that it is not all zero, when the engine is
+  made; a wrong shape failed inside NumPy. EM raises zeros in its start to 1e-12 of the
+  largest value, so a zero, from `init` or from mix-SQP's hand-off to EM, no longer
+  leaves a wrong mode with only a convergence warning (DECISIONS #112).
+- `NUTS` checks `model` and the shape and finiteness of `init` when it is made.
+- The start for rates with a selection is near the mode for broad likelihoods too
+  (DECISIONS #112).
+- Gibbs refuses a negative `n_warmup`; `Laplace.run` with fewer than 3 samples draws 5
+  importance proposals rather than failing in Pareto smoothing (DECISIONS #112); the
+  engines that can infer a selection are each named once in the refusal of those that
+  cannot.
 
 ## [0.1.0] - 2026-10-29
 

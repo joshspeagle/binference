@@ -480,3 +480,4 @@ Append-only. One entry per working session (or per step within a long session).
 - #158 merged (#153). #155: the NUTS tree-depth hint now reads the tails in the coordinates NUTS samples, through `BoundPrior.long_log_tails()`, and suggests Gibbs only where Gibbs can run; tree exponents are read from the concentrations, so rounding no longer makes a bounded tree unbounded (DECISIONS #109).
 - #159: `ci-ok` gates on `changes` and `slow` too, scikit-learn joins the `test` extra so its test runs, and the sdist is clean (DECISIONS #110).
 - #162: `plot_individual` and the truth overlay on a basis, the stack overlay on the selected population, colour lists and `plot_sbc`'s log-likelihood panel (DECISIONS #111).
+- #160: engine inputs are checked when the engine is made, EM moves zeros in its start, the rates start is fitted on L over S, and `Engine.name` and `approximate` are removed (DECISIONS #112).

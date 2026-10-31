@@ -34,8 +34,6 @@ class Engine:
         Show a progress bar.
     """
 
-    name: str = "engine"
-    approximate: bool = False
     #: whether the engine infers a selection from injections or a tallied response jointly
     #: (DECISIONS #30, #80, #81)
     joint: bool = False
@@ -64,7 +62,10 @@ class Engine:
         if model.joint and not cls.joint:
             from ..inference import METHODS  # the registry imports the engines
 
-            *names, last = (repr(k) for k, e in METHODS.items() if e.joint)
+            first: dict[type, str] = {}  # each engine by its first name, without aliases
+            for k, e in METHODS.items():
+                first.setdefault(e, k)
+            *names, last = (repr(k) for e, k in first.items() if e.joint)
             fixed = "selection.at_mean()" if model.selection_uncertain else "response.fixed()"
             return (
                 f"{cls.__name__} cannot infer a selection from injections or a tallied "
@@ -103,16 +104,18 @@ def interior_start(model: PopulationModel, n_iter: int = INTERIOR_START_ITER) ->
     Returns fractions (or rates for rate models) bounded away from zero.
     """
     K = model.K
+    # for rates rho is the observed composition, rho_k proportional to S_k lambda_k: its
+    # expected counts are those of the rates rho / S, and the start is W rho / S (audit M-7)
+    rates = model.kind == "rates"
     rho = np.full(K, 1.0 / K)
     for _ in range(n_iter):
-        nhat = model._complete_counts(rho, model.expected_counts(rho))
+        value = rho / model._S if rates else rho
+        nhat = model._complete_counts(rho, model.expected_counts(value))
         new = (nhat + 0.5) / (nhat.sum() + 0.5 * K)
         converged = np.max(np.abs(new - rho)) < 1e-6
         rho = new
         if converged:
             break
-    if model.kind == "rates":
-        # rho is the composition of the observed objects, n_k proportional to S_k lambda_k
-        # (rates impute nothing), so the MLE-like start is W rho_k / S_k (audit M-7)
-        return np.maximum(model.W * rho / np.maximum(model._S, 1e-12), 1e-12)
+    if rates:
+        return np.maximum(model.W * rho / model._S, 1e-12)  # a selection's S is positive
     return rho
