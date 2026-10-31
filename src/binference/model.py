@@ -747,12 +747,8 @@ class PopulationModel:
         if self.kind == "fractions":
             if self.selection is not None:
                 G = G - self.W * self.selection / float(self.selection @ v)
-            return max(0.0, self.prior._kkt_violation(v, G, include_prior)) / max(self.W, 1.0)
-        G = G - self._S
-        if include_prior and self.prior.has_density:
-            # at a zero, the gradient at _TINY (as in the MAP objective): -b for rates of
-            # shape one (DECISIONS #71)
-            G = G + self.prior.grad_log_density(np.maximum(v, _TINY))
+            return max(0.0, self.prior._kkt_violation(v, G, self.W, include_prior))
+        G = self.prior._kkt_gradient(v, G - self._S, include_prior)
         pos = v > 0
         # G <= 0 everywhere and lambda . G = 0 (the total), relative to the exposure so
         # free of its units (audit M-4); one-sided like the fractions' test, so a rate

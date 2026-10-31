@@ -242,6 +242,19 @@ def test_map_of_a_bounded_polya_tree_converges_when_half_its_bins_are_empty(K):
     assert m.kkt_gap(est.rho) < 1e-12
 
 
+def test_a_flat_tree_and_a_flat_dirichlet_give_comparable_kkt_gaps():
+    # the same objective: the tree's gap, checked node by node in branch coordinates, is
+    # not shrunk by a node's mass (a pair holding 1.5% of the objects, split evenly)
+    mock = binference.simulate.mock_1d(
+        2000, Bins.linear(0, 1, 4), density=np.array([0.6, 0.38, 0.015, 0.005]), noise=0.05, rng=3
+    )
+    tree = P.DirichletTree([[0, 1], [2, 3]], alpha=[[2.0, 2.0], [1.0, 1.0], [1.0, 1.0]])
+    flat, mt = PopulationModel(mock.likelihoods), PopulationModel(mock.likelihoods, tree)
+    v = MAP(flat).run().rho
+    w = np.r_[v[:2], [(v[2] + v[3]) / 2] * 2]
+    assert flat.kkt_gap(w) > 1e-2 and 0.5 < mt.kkt_gap(w) / flat.kkt_gap(w) < 4
+
+
 def test_gp_binds_on_log_and_large_grids():
     for bins in (Bins.log(0.01, 10, 20), Bins.linear(0, 1, 3000)):
         P.LogisticGP().bind(bins)

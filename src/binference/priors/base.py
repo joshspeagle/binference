@@ -237,16 +237,21 @@ class BoundPrior:
         """
         raise NotImplementedError(f"{type(self.prior).__name__} has no closed-form density.")
 
-    def _kkt_violation(self, value, grad, include_prior=True):
-        # max_k (g_k - rho . g over the bins with mass) for the gradient g of the MAP
-        # objective on the simplex: `grad` from the likelihood, plus this prior's. At a zero
-        # the prior's gradient is taken at _TINY, as in the objective: hugely negative where
-        # the density is unbounded there (no violation), hugely positive where it vanishes
+    def _kkt_gradient(self, value, grad, include_prior=True):
+        # `grad` from the likelihood plus this prior's gradient, taken at _TINY at a zero, as
+        # in the MAP objective: hugely negative where the density is unbounded there (no
+        # violation), hugely positive where it vanishes, -b for rates of shape one
         # (DECISIONS #71)
         if include_prior and self.has_density:
-            grad = grad + self.grad_log_density(np.maximum(value, _TINY))
+            return grad + self.grad_log_density(np.maximum(value, _TINY))
+        return grad
+
+    def _kkt_violation(self, value, grad, W, include_prior=True):
+        # the KKT gap on the simplex: max_k (g_k - rho . g over the bins with mass) / W for
+        # the gradient g of the MAP objective
+        g = self._kkt_gradient(value, grad, include_prior)
         pos = value > 0
-        return float(np.max(grad - value[pos] @ grad[pos]))
+        return float(np.max(g - value[pos] @ g[pos])) / max(W, 1.0)
 
     # -- conjugate updates ----------------------------------------------------
     def posterior_sample(
