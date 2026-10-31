@@ -228,6 +228,33 @@ def test_polya_tree_map_avoids_boundary_zeros():
         MAP(m, space="simplex").run()
 
 
+@pytest.mark.parametrize("K", [8, 32])
+def test_map_of_a_bounded_polya_tree_converges_when_half_its_bins_are_empty(K):
+    # c = K/2 gives the root's branches exponent zero; as the empty half goes to zero the
+    # KKT gap in rho cancels terms of order 1/rho (a gap of 1e5 at K = 8), so it is
+    # checked in branch coordinates
+    bins = Bins.linear(0, 1, K)
+    rho = np.r_[np.full(K // 2, 2 / K), np.zeros(K // 2)]
+    mock = binference.simulate.mock_1d(300, bins, density=rho, noise=0.02, rng=8)
+    m = PopulationModel(mock.likelihoods, P.PolyaTree(c=K / 2))
+    est = MAP(m).run()  # a ConvergenceWarning fails the test
+    assert est.info["space"] == "simplex" and est.converged
+    assert m.kkt_gap(est.rho) < 1e-12
+
+
+def test_a_flat_tree_and_a_flat_dirichlet_give_comparable_kkt_gaps():
+    # the same objective: the tree's gap, checked node by node in branch coordinates, is
+    # not shrunk by a node's mass (a pair holding 1.5% of the objects, split evenly)
+    mock = binference.simulate.mock_1d(
+        2000, Bins.linear(0, 1, 4), density=np.array([0.6, 0.38, 0.015, 0.005]), noise=0.05, rng=3
+    )
+    tree = P.DirichletTree([[0, 1], [2, 3]], alpha=[[2.0, 2.0], [1.0, 1.0], [1.0, 1.0]])
+    flat, mt = PopulationModel(mock.likelihoods), PopulationModel(mock.likelihoods, tree)
+    v = MAP(flat).run().rho
+    w = np.r_[v[:2], [(v[2] + v[3]) / 2] * 2]
+    assert flat.kkt_gap(w) > 1e-2 and 0.5 < mt.kkt_gap(w) / flat.kkt_gap(w) < 4
+
+
 def test_gp_binds_on_log_and_large_grids():
     for bins in (Bins.log(0.01, 10, 20), Bins.linear(0, 1, 3000)):
         P.LogisticGP().bind(bins)
@@ -257,7 +284,7 @@ def test_weak_data_smoothness_fits_stay_non_centred():
     eng = NUTS(model, rng=1, n_chains=2, n_warmup=150)
     eng.run(1)
     penalised = ~eng.model.prior.null
-    assert np.all(eng.model.prior.lam[penalised] == 1.0)
+    assert np.all(eng.model.prior.gamma[penalised] == 1.0)
 
 
 def test_parallel_chains_fall_back_when_the_model_cannot_be_pickled():
@@ -313,4 +340,4 @@ def test_data_rich_gp_fits_are_partially_centred():
     lk = binference.simulate.mock_1d(400, bins, noise=(0.05, 0.15), rng=21).likelihoods[:300]
     eng = NUTS(PopulationModel(lk, P.LogisticGP()), rng=2, n_warmup=40)
     eng.run(1)
-    assert np.mean(eng.model.prior.lam < 0.5) > 0.1
+    assert np.mean(eng.model.prior.gamma < 0.5) > 0.1

@@ -153,11 +153,11 @@ def test_nuts_reparametrises_logistic_priors_without_touching_the_model():
     eng = NUTS(m, n_chains=2, n_warmup=150, rng=1)
     assert eng.metric == "dense" and eng.target_accept == 0.9
     res = eng.run(40)
-    assert np.all(m.prior.lam == 1.0)  # the user's model keeps its parametrisation
+    assert np.all(m.prior.gamma == 1.0)  # the user's model keeps its parametrisation
     assert eng.model is not m
-    assert not np.all(eng.model.prior.lam == 1.0)  # strong data: some modes centred
+    assert not np.all(eng.model.prior.gamma == 1.0)  # strong data: some modes centred
     # results are in the user's (non-centred) coordinates (audit N-1)
-    assert res.model is m and np.array_equal(res.info["centring"], eng.model.prior.lam)
+    assert res.model is m and np.array_equal(res.info["centring"], eng.model.prior.gamma)
     np.testing.assert_allclose(m.to_value(res.x[0, -1]), res.chains[0, -1])
     np.testing.assert_allclose(
         res.log_density_unconstrained[0, -5:],

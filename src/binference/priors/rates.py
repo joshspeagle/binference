@@ -52,8 +52,6 @@ class GammaRates(PopulationPrior):
         calibration.
     """
 
-    kind = "rates"
-
     def __init__(self, shape: Any = 1.0, rate: Any = 1e-6) -> None:
         check_positive(shape, "shape")
         check_positive(rate, "rate")

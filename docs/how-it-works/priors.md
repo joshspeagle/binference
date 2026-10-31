@@ -74,8 +74,12 @@ independent shares, with second moment $\prod_h(a_h+1)/(2(2a_h+1))$ for
 $a_h=c_{\rm PT}h^2$.
 ```
 
-Concentrations below one, and the Pólya tree, give densities that are unbounded at the
-edge of the simplex. Their most probable population is then found in unconstrained
+A branch whose concentration is less than the number of bins below it gives a density
+that is unbounded at the edge of the simplex: a Dirichlet concentration below one, or,
+in a Pólya tree whose base measure gives every bin the same mass, $c_{\rm PT}$ below half
+the number of bins (the default $c_{\rm PT}=1$ on three bins or more).
+The bound prior's {meth}`~binference.priors.BoundPrior.unbounded_density` says whether it
+has one. With such a prior the most probable population is found in unconstrained
 coordinates ([L-BFGS](point-estimates.md#l-bfgs)).
 
 ## The logistic family

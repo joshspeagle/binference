@@ -100,7 +100,9 @@ def test_vb_expected_log(prior, rng):
 
 def test_dirichlet_constructors():
     assert np.allclose(P.Dirichlet.reference().resolve_alpha(B4), 0.25)
-    assert np.allclose(P.Dirichlet.reference(4).resolve_alpha(B4), 0.25)
+    assert repr(P.Dirichlet.reference()) == "Dirichlet.reference()"  # a prior one can build
+    # the counts can carry alpha alone (base 0), as long as every bin has some
+    np.testing.assert_allclose(P.Dirichlet.from_counts([3, 5, 2], base=0.0).alpha, [3, 5, 2])
     np.testing.assert_allclose(
         P.Dirichlet.from_counts([1, 0, 3], strength=0.5).resolve_alpha(B3), [1.5, 1.0, 2.5]
     )
@@ -110,7 +112,7 @@ def test_dirichlet_constructors():
         P.Dirichlet(0.0)
     with pytest.raises(ValueError):
         P.Dirichlet([1.0, 2.0]).bind(B3)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Dirichlet alpha"):  # not NumPy's cast error
         P.Dirichlet("flat")
 
 
@@ -240,9 +242,9 @@ def test_fixed_and_as_hyperprior():
         P.Fixed(-1.0)
     from binference.priors.hyper import as_hyperprior
 
-    assert isinstance(as_hyperprior(3), P.Fixed)
+    assert isinstance(as_hyperprior(3, "scale"), P.Fixed)
     with pytest.raises(TypeError):
-        as_hyperprior("x")
+        as_hyperprior("x", "scale")
 
 
 LOGISTIC_PRIORS = [
@@ -308,27 +310,27 @@ def test_partial_centring_is_a_reparametrisation(prior, rng):
     """Same field for mapped coordinates; the prior on the field is unchanged."""
     bins = Bins.linear(0.0, 3.0, 6)
     b = prior.bind(bins)
-    lam = rng.random(b.n_active)
-    c = b.with_centering(lam)
-    assert np.all(b.lam == 1.0)  # the original is untouched
+    gamma = rng.random(b.n_active)
+    c = b.with_centering(gamma)
+    assert np.all(b.gamma == 1.0)  # the original is untouched
     x = rng.normal(scale=0.5, size=b.dim)
-    y = b.recentre(x, lam)
+    y = b.recentre(x, gamma)
     np.testing.assert_allclose(c.forward(y)[0], b.forward(x)[0], atol=1e-12)
     np.testing.assert_allclose(c.recentre(y, np.ones(b.n_active)), x, atol=1e-12)
 
     # log-density difference between parametrisations is the log-Jacobian
-    # sum_j (1 - lam_j) log s_j, whatever the field values
+    # sum_j (1 - gamma_j) log s_j, whatever the field values
     def lp(bound, xx):
         eta, cache = bound.forward(xx)
         return bound.log_prior_and_grad(xx, cache, softmax(eta), np.zeros(6))[0]
 
     log_s, _ = b.log_scales(b.theta_from_x(x))
-    np.testing.assert_allclose(lp(b, x) - lp(c, y), float((1 - lam) @ log_s), atol=1e-10)
+    np.testing.assert_allclose(lp(b, x) - lp(c, y), float((1 - gamma) @ log_s), atol=1e-10)
     x2 = x.copy()
     x2[: b.n_active] = rng.normal(size=b.n_active)
     log_s2, _ = b.log_scales(b.theta_from_x(x2))
-    y2 = b.recentre(x2, lam)
-    np.testing.assert_allclose(lp(b, x2) - lp(c, y2), float((1 - lam) @ log_s2), atol=1e-10)
+    y2 = b.recentre(x2, gamma)
+    np.testing.assert_allclose(lp(b, x2) - lp(c, y2), float((1 - gamma) @ log_s2), atol=1e-10)
     with pytest.raises(ValueError):
         b.with_centering(np.ones(b.n_active + 1))
 
@@ -336,8 +338,8 @@ def test_partial_centring_is_a_reparametrisation(prior, rng):
 def test_logistic_prior_survives_scale_underflow():
     """Extreme hyperparameters underflow some scales to zero without NaNs or warnings."""
     b = P.LogisticGP(kernel="rbf").bind(Bins.linear(0.0, 3.0, 12))
-    lam = np.r_[np.full(6, 0.5), np.ones(b.n_active - 6)]
-    for prior in (b, b.with_centering(lam)):
+    gamma = np.r_[np.full(6, 0.5), np.ones(b.n_active - 6)]
+    for prior in (b, b.with_centering(gamma)):
         x = np.zeros(prior.dim)
         x[prior.n_active :] = [-800.0, 800.0]  # absurd amplitude and length scale
         eta, cache = prior.forward(x)

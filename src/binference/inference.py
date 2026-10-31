@@ -9,7 +9,7 @@ from typing import Any
 
 import numpy as np
 
-from ._utils import RNGLike, check_positive, warn
+from ._utils import RNGLike, check_positive, check_positive_integers, warn
 from .bins import Bins
 from .model import PopulationModel
 from .priors import PopulationPrior
@@ -120,8 +120,13 @@ class Auto(Engine):
         n_samples : int, optional
             Draws per chain of the runs; ``None`` uses the engines' own lengths.
         """
+        return self._plan(n_samples)[0]
+
+    def _plan(self, n_samples: int | None) -> tuple[list[tuple[str, str, int | None]], list[str]]:
+        # the candidates, and why the rules leave out Gibbs where it could run
         m, kw = self.model, self.engine_kwargs
         out: list[tuple[str, str, int | None]] = []
+        left_out: list[str] = []
         if Gibbs.unsupported(m) is None and set(kw) <= set(_options(Gibbs)):
             if m.joint:  # exact and fast (DECISIONS #80, #81)
                 out.append(("gibbs", "a joint model with a conjugate prior", None))
@@ -142,6 +147,16 @@ class Auto(Engine):
                     )
                     if n_samples is not None or n <= self.max_gibbs_draws:
                         out.append(("gibbs", f"conjugate prior, missing information {f:.2f}", n))
+                    else:
+                        left_out.append(
+                            f"Gibbs would need {n} draws per chain "
+                            f"(> max_gibbs_draws={self.max_gibbs_draws})"
+                        )
+                else:
+                    left_out.append(
+                        f"Gibbs would mix too slowly (missing information {f:.3f} > "
+                        f"gibbs_max_missing={self.gibbs_max_missing:g})"
+                    )
         out += [
             (key, "", None)
             for key, engine in (("laplace", Laplace), ("nuts", NUTS))
@@ -153,7 +168,7 @@ class Auto(Engine):
                 f"and Gibbs where it applies) takes all of {sorted(kw)}; pass method= "
                 "explicitly."
             )
-        return out
+        return out, left_out
 
     def run(self, n_samples: int | None = None) -> PopulationResult:
         """Run the first candidate that applies (see the class docstring).
@@ -164,15 +179,17 @@ class Auto(Engine):
             Draws per chain; ``None`` lets auto set the run length. Laplace returns as
             many in total as NUTS's default four chains would (4000 by default).
         """
-        plan = self.candidates(n_samples)
-        rejected: list[str] = []  # why earlier candidates were not kept
+        if n_samples is not None:
+            n_samples = check_positive_integers(n_samples, "n_samples")[0]
+        plan, rejected = self._plan(n_samples)  # and why earlier engines were not kept
         for i, (key, why, n_gibbs) in enumerate(plan):
             last = i == len(plan) - 1
             engine = METHODS[key](
                 self.model, rng=self._rng_arg, progress=self.progress, **self.engine_kwargs
             )
             if key == "laplace":
-                n = _options(NUTS)["n_chains"].default * (n_samples or _default_draws(NUTS))
+                per_chain = _default_draws(NUTS) if n_samples is None else n_samples
+                n = _options(NUTS)["n_chains"].default * per_chain
                 result, why = (engine.run(n), "") if last else self._try(engine, n)
                 if result is None:
                     rejected.append(why)
@@ -187,17 +204,16 @@ class Auto(Engine):
                         ApproximationWarning,
                     )
             else:
-                n = n_samples or n_gibbs
+                n = n_gibbs if n_samples is None else n_samples
                 result = engine.run() if n is None else engine.run(n)
                 # stored labels grow with the run: their length stays as asked
-                extend = key == "gibbs" and n_samples is None and engine.label_index is None
-                if extend and not self._extend(engine, result):
-                    if not last:
-                        rejected.append("Gibbs mixed too slowly")
-                        continue
-                    why += f"; it did not mix within max_gibbs_draws={self.max_gibbs_draws}"
-                if extend:
-                    result = engine.result
+                if key == "gibbs" and n_samples is None and engine.label_index is None:
+                    result, mixed = self._extend(engine, result)
+                    if not mixed:
+                        if not last:
+                            rejected.append("Gibbs mixed too slowly")
+                            continue
+                        why += f"; it did not mix within max_gibbs_draws={self.max_gibbs_draws}"
             reasons = [*rejected, why] if why else rejected
             result.info["auto_method"] = key
             result.info["auto_reason"] = (
@@ -208,23 +224,24 @@ class Auto(Engine):
             return result
         raise AssertionError("unreachable: the last candidate always returns")  # pragma: no cover
 
-    def _extend(self, engine: Gibbs, result: PopulationResult) -> bool:
+    def _extend(self, engine: Gibbs, result: PopulationResult) -> tuple[PopulationResult, bool]:
         """Extend the Gibbs run until its bulk ESS reaches ``target_ess`` and it passes the
-        limits of ``check()``; False once that is projected to need more than
+        limits of ``check()``: the result with every draw so far (its diagnostics computed)
+        and whether it got there, False once that is projected to need more than
         ``max_gibbs_draws`` draws per chain."""
         while True:
             d = result.diagnostics
             ess = np.concatenate([np.ravel(v) for k, v in d.items() if k.startswith("ess_bulk")])
             ess = float(np.min(ess[np.isfinite(ess)], initial=np.inf))  # constant: no ESS
             if ess >= self.target_ess and not result._mixing_problems():
-                return True
+                return result, True
             done = result.chains.shape[1]
             need = ceil(
                 done
                 * max(EXTEND_TARGET * self.target_ess / max(ess, 1.0) - 1.0, EXTEND_MIN_FACTOR)
             )
             if done + need > self.max_gibbs_draws:
-                return False
+                return result, False
             # bounded, so a poor first projection costs less
             result = engine.run(min(need, EXTEND_MAX_FACTOR * done))
 
@@ -343,6 +360,8 @@ def infer(
     >>> res.mean.shape
     (5,)
     """
+    if n_samples is not None:
+        n_samples = check_positive_integers(n_samples, "n_samples")[0]
     if isinstance(likelihoods, PopulationModel):
         if any(v is not None for v in (prior, selection, selection_mode, bins)):
             raise ValueError("Pass prior/selection/bins when building the model, not to infer().")

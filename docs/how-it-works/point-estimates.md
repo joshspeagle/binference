@@ -102,7 +102,7 @@ The other cases maximise the density in {term}`unconstrained coordinates` with
 {term}`L-BFGS`:
 
 - Priors whose density is unbounded at the edge of the simplex, such as concentrations
-  below one or a Pólya tree. Their mode on the simplex can be exactly zero.
+  below one or the default Pólya tree. Their mode on the simplex can be exactly zero.
 - Priors that are not conjugate, such as the logistic family.
 - A selection or response inferred with the population.
 
