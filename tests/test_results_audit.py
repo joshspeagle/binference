@@ -135,12 +135,15 @@ def test_check_flags_energy_tail_mixing_one_chain_and_unconverged_fits():
         _external(stuck, m).check()
 
 
-def test_check_flags_chains_too_short_to_diagnose():
-    # chains below MIXING_MIN_DRAWS get no R-hat or ESS, and check() passed them silently
+def test_check_flags_chains_too_short_or_constant_to_diagnose():
+    # chains below MIXING_MIN_DRAWS get no R-hat or ESS, and constant ones NaN: check()
+    # passed both silently
     model = binference.PopulationModel(Likelihoods(np.ones((5, 4)), Bins.linear(0, 1, 4)))
     short = np.random.default_rng(0).dirichlet(np.ones(4), size=(4, 7))
-    with pytest.warns(binference.ConvergenceWarning, match="chains of 7 draws are too short"):
-        assert len(_external(short, model).check()) == 1
+    constant = np.full((4, 500, 4), 0.25)
+    for draws in (short, constant):
+        with pytest.warns(binference.ConvergenceWarning, match="R-hat and ESS are undefined"):
+            assert len(_external(draws, model).check()) == 1
     assert PopulationResult(model, short, method="bootstrap").check() == []  # independent
 
 

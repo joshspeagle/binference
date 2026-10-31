@@ -47,12 +47,14 @@ releases may break the API).
   `Likelihoods.stack`'s docstring advised, is now refused when the numbers of components
   and bins differ and mapped twice when they agree. A `truth` or `stack` of the wrong
   length is refused by name (DECISIONS #114).
-- `PopulationResult` and `PointEstimate` keep read-only copies of their draws, total,
-  jointly inferred selection or response draws and `value`: writing into `samples`,
-  `chains`, `component_draws`, `total`, `selected` or `data_support` raises, and changing
-  the array passed in no longer changes the result (DECISIONS #117).
-- `check()` flags Markov chains shorter than 8 draws (`MIXING_MIN_DRAWS`) as too short to
-  diagnose; they passed with no message (DECISIONS #117).
+- `PopulationResult` and `PointEstimate` keep read-only copies of every array they are
+  given (draws, total, `value`, `x`, labels, and the arrays in `info`), freeze what they
+  cache, and stay read-only through pickling: writing into `samples`, `chains`,
+  `component_draws`, `total`, `selected`, `data_support` or a column of `summary()`
+  raises, `diagnostics` is a read-only mapping, and changing the array passed in no
+  longer changes the result (DECISIONS #117).
+- `check()` flags Markov chains that give no R-hat or ESS, shorter than 8 draws
+  (`MIXING_MIN_DRAWS`) or constant; they passed with no message (DECISIONS #117).
 - `PointEstimate` refuses rates with the same message as `PopulationResult`.
 
 ### Removed
@@ -129,8 +131,9 @@ releases may break the API).
   omitted or known only per bin (masses or "flat"), as `Likelihoods.from_samples` reads
   them; without an interim, `mock.interim` holds `Density.flat()`'s masses. On log bins
   the likelihoods built from these samples were biased; linear bins are unchanged.
-- `summary(level=)` and `coverage(levels=)` refuse levels outside (0, 1) by name, as
-  `interval` does.
+- `summary(level=)`, `coverage(levels=)` and `plot(levels=)` refuse levels outside
+  (0, 1) by name, as `interval` does.
+- `rhat` of a constant chain is NaN without NumPy's "All-NaN" warning.
 - `exact_posterior` refuses a `prior` given with a `PopulationModel`, which ignored it.
 - `psis` refuses +inf log weights; it gave them zero weight.
 - `autocorr_time` and `autocorr_function` return NaN for a constant chain; they gave 1,

@@ -90,21 +90,16 @@ def test_mock_1d_samples_weigh_each_grid_step_by_its_width_on_unequal_bins():
     assert abs(zscore) < 4
 
 
-@pytest.mark.parametrize("interim", [None, "masses"])
+@pytest.mark.parametrize("interim", [None, np.arange(1.0, 6.0) / 15.0])
 def test_mock_samples_are_flat_in_the_measure_coordinate_within_bins(interim):
     # the samples were flat in z within each bin, while binference reads a per-bin interim
     # (and Density.flat(), the default) flat in u: on log bins from_samples was biased
     bins = Bins.log(1.0, 10.0, 5)
-    Pi = np.arange(1.0, 6.0) / 15.0 if interim else binference.Density.flat().masses(bins)
-    given = None if interim is None else Pi
-    mock = mock_1d(300, bins, noise=(1, 2), interim=given, n_samples=2000, rng=0)
+    Pi = binference.Density.flat().masses(bins) if interim is None else interim
+    mock = mock_1d(300, bins, noise=(1, 2), interim=interim, n_samples=2000, rng=0)
     np.testing.assert_allclose(mock.interim, Pi)
     # each object's posterior mass per bin: Pi_k times its likelihood averaged over u
-    ue = bins.u_edges[0]
-    u = ue[:-1, None] + np.diff(ue)[:, None] * (np.arange(2000) + 0.5) / 2000
-    z = bins.measures[0].inverse(u)
-    obs, sig = mock.measurements["mean"], mock.measurements["sigma"]
-    p = np.exp(-0.5 * ((z[None] - obs[:, None, None]) / sig[:, None, None]) ** 2).mean(-1) * Pi
+    p = mock.likelihoods.toarray() * Pi
     p /= p.sum(1, keepdims=True)
     counts = np.stack([np.bincount(bins.index(s), minlength=5) for s in mock.samples])
     S = mock.samples.shape[1]
@@ -183,11 +178,8 @@ def test_exact_posterior_refuses_a_prior_beside_a_model():
 
 def test_coverage_refuses_a_level_outside_zero_and_one_before_any_fit():
     # a level of 1.5 failed in np.quantile after the first fit, naming no argument
-    def simulate(rng):
-        raise AssertionError("nothing is simulated")
-
     with pytest.raises(ValueError, match="levels must be in"):
-        binference.validation.coverage(simulate, None, levels=(0.5, 1.5))
+        binference.validation.coverage(None, None, levels=(0.5, 1.5))
 
 
 def test_sbc_and_coverage_smoke():

@@ -174,7 +174,7 @@ def plot_population(
     -------
     matplotlib Axes, or an array of Axes for 2-D grids
     """
-    from .results import _central, _which_name
+    from .results import _central, _check_level, _which_name
 
     plt = _plt()
     bins = result.bins
@@ -182,6 +182,8 @@ def plot_population(
     sample_color = _style_color("sample_color", sample_color, 1)
     ink = plt.rcParams["text.color"]
     which = _which_name(which)
+    for lev in levels:
+        _check_level(lev, "levels")
     if bins.ndim > 2 and not bins.is_categorical:
         raise ValueError(
             "plot supports 1-D and 2-D grids and categories; for more axes use "

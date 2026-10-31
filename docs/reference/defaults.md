@@ -31,7 +31,7 @@ explain behaviour, not as settings to change.
 | `N_DRAWS` | `500` | `binference.results` | Population draws the per-object methods use by default. |
 | `RHAT_MAX` | `1.01` | `binference.results` | Largest split R-hat that `PopulationResult.check` accepts by default. |
 | `ESS_MIN_PER_CHAIN` | `100` | `binference.results` | Smallest bulk and tail ESS per chain that `PopulationResult.check` accepts by default. |
-| `MIXING_MIN_DRAWS` | `8` | `binference.results` | Chains shorter than this many draws get no R-hat or ESS, and `PopulationResult.check` flags them as too short to diagnose. |
+| `MIXING_MIN_DRAWS` | `8` | `binference.results` | Chains shorter than this many draws get no R-hat or ESS, and `PopulationResult.check` flags them, as it flags constant chains. |
 | `EBFMI_MIN` | `0.3` | `binference.results` | `PopulationResult.check` warns when a NUTS chain's E-BFMI is below this. |
 | `MAX_DEPTH_SHARE` | `0.05` | `binference.results` | `PopulationResult.check` warns when a larger share of NUTS iterations hit `max_depth`. |
 | `SAMPLE_VARIANCE_MAX` | `1` | `binference.results` | `PopulationResult.check` warns when the summed Monte Carlo variance of likelihoods from samples exceeds this. |

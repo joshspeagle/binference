@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import math
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from functools import partial
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -49,7 +50,7 @@ RHAT_MAX = 1.01
 #: default.
 ESS_MIN_PER_CHAIN = 100.0
 #: Chains shorter than this many draws get no R-hat or ESS, and
-#: :meth:`PopulationResult.check` flags them as too short to diagnose.
+#: :meth:`PopulationResult.check` flags them, as it flags constant chains.
 MIXING_MIN_DRAWS = 8
 #: :meth:`PopulationResult.check` warns when a NUTS chain's E-BFMI is below this.
 EBFMI_MIN = 0.3
@@ -173,6 +174,13 @@ class _IndividualMixin:
         """Values ``(..., C)`` as fractions: rates normalised, fractions as they are."""
         return values / values.sum(axis=-1, keepdims=True) if self.kind == "rates" else values
 
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        # pickling and deepcopy rebuild writable arrays: freeze them again, and drop caches
+        self.__dict__.update(state, _cache={})
+        for v in (*vars(self).values(), *self.info.values()):
+            if isinstance(v, np.ndarray):
+                frozen(v)
+
     def _which(self, which: str) -> np.ndarray:
         """Draws ``(n, K)`` of the fractions, rates, densities or selected population (see
         :func:`_which_name`); a point estimate is one draw."""
@@ -213,7 +221,7 @@ class _IndividualMixin:
         """Per-draw selection ``(chain, draw, K)`` when a selection from injections or a
         tallied response (its efficiencies) is inferred with the population."""
         if "response_draws" in self.info:
-            return np.asarray(self.info["response_draws"]).sum(axis=-2)
+            return self.info["response_draws"].sum(axis=-2)
         return self.info.get("selection_draws")
 
     def _joint_selection(self, n_draws: int | None) -> np.ndarray | None:
@@ -874,6 +882,18 @@ def _flat_draws(A: Any, n_tail: int, n_draws: int | None) -> np.ndarray:
     return A[_draw_index(len(A), n_draws)]
 
 
+def _read_only_or_none(a: Any) -> np.ndarray | None:
+    """An array argument of a result as a read-only copy (its own dtype), or ``None``."""
+    return None if a is None else read_only(a, dtype=None)
+
+
+def _read_only_info(info: dict[str, Any] | None) -> dict[str, Any]:
+    """A result's ``info``, its arrays read-only copies."""
+    return {
+        k: read_only(v, None) if isinstance(v, np.ndarray) else v for k, v in (info or {}).items()
+    }
+
+
 def _check_level(level: float, name: str = "level") -> None:
     """Refuse a credible level ``name`` outside (0, 1)."""
     if not 0 < level < 1:
@@ -900,17 +920,19 @@ def _which_name(which: str) -> str:
     return name
 
 
-def _mixing(C: np.ndarray, tail: bool = False) -> dict[str, np.ndarray]:
-    """Bulk (and tail) ESS and split R-hat of each column of draws ``(chain, draw, K)``;
-    none below ``MIXING_MIN_DRAWS`` per chain (split R-hat also for one chain, audit O-7)."""
+def _mixing(C: np.ndarray) -> dict[str, np.ndarray]:
+    """Bulk and tail ESS and split R-hat of each column of draws ``(chain, draw, K)``,
+    read-only; none below ``MIXING_MIN_DRAWS`` per chain (split R-hat also for one chain,
+    audit O-7)."""
     if C.shape[1] < MIXING_MIN_DRAWS:
         return {}
     cols = range(C.shape[-1])
-    out = {"ess_bulk": np.array([diag.ess(C[:, :, k], "bulk") for k in cols])}
-    if tail:
-        out["ess_tail"] = np.array([diag.ess(C[:, :, k], "tail") for k in cols])
-    out["rhat"] = np.array([diag.rhat(C[:, :, k]) for k in cols])
-    return out
+    out = {
+        "ess_bulk": [diag.ess(C[:, :, k], "bulk") for k in cols],
+        "ess_tail": [diag.ess(C[:, :, k], "tail") for k in cols],
+        "rhat": [diag.rhat(C[:, :, k]) for k in cols],
+    }
+    return {key: frozen(np.array(v)) for key, v in out.items()}
 
 
 def _draw_index(n_total: int, n_draws: int | None) -> np.ndarray | slice:
@@ -1261,18 +1283,15 @@ class PopulationResult(_IndividualMixin):
             if model is not None
             else Bins.categories(d.shape[-1])
         )
-        self.x = x
+        self.x = _read_only_or_none(x)
         #: log posterior density of each draw in the unconstrained coordinates
         #: (with the Jacobian; DECISIONS #15), for samplers that compute it
-        self.log_density_unconstrained = log_density_unconstrained
+        self.log_density_unconstrained = _read_only_or_none(log_density_unconstrained)
         self.method = method
         self.approximate = approximate
-        self.info = dict(info or {})
-        for key in ("selection_draws", "response_draws"):  # draws as the population's
-            if key in self.info:
-                self.info[key] = read_only(self.info[key])
-        self.labels = labels
-        self.label_index = label_index
+        self.info = _read_only_info(info)
+        self.labels = _read_only_or_none(labels)
+        self.label_index = _read_only_or_none(label_index)
         self.prior_repr = prior_repr or (repr(model.prior_spec) if model is not None else None)
         #: a digest of the prior's arguments in full, which attach compares (the repr
         #: shortens arrays)
@@ -1651,12 +1670,12 @@ class PopulationResult(_IndividualMixin):
         base = self.kind if which == "density" else which
         if ("mixing", base) not in self._cache:
             X = self._which(base).reshape(self.n_chains, -1, self.K)
-            self._cache["mixing", base] = _mixing(X, tail=True)
+            self._cache["mixing", base] = _mixing(X)
         return self._cache["mixing", base]
 
     @property
-    def diagnostics(self) -> dict[str, Any]:
-        """Convergence diagnostics (computed lazily and cached)."""
+    def diagnostics(self) -> Mapping[str, Any]:
+        """Convergence diagnostics, read-only (computed lazily and cached)."""
         if "diagnostics" in self._cache:
             return self._cache["diagnostics"]
         out: dict[str, Any] = {}
@@ -1665,7 +1684,9 @@ class PopulationResult(_IndividualMixin):
         Sd = self._inferred_selection()  # a selection, or a response's efficiencies
         if Sd is not None:
             name = "response" if "response_draws" in self.info else "selection"
-            out.update({f"{k}_{name}": v for k, v in _mixing(Sd, tail=True).items()})
+            if ("mixing", name) not in self._cache:
+                self._cache["mixing", name] = _mixing(Sd)
+            out.update({f"{k}_{name}": v for k, v in self._cache["mixing", name].items()})
         for key in (
             "n_divergent",
             "k_hat",
@@ -1678,8 +1699,8 @@ class PopulationResult(_IndividualMixin):
         ):
             if key in self.info:
                 out[key] = self.info[key]
-        self._cache["diagnostics"] = out
-        return out
+        self._cache["diagnostics"] = MappingProxyType(out)
+        return self._cache["diagnostics"]
 
     def _missing_information(self) -> float | None:
         """Fraction of missing information at the posterior mean (cached in ``info``)."""
@@ -1701,7 +1722,7 @@ class PopulationResult(_IndividualMixin):
     ) -> list[str]:
         """R-hat above ``rhat_max`` and bulk or tail ESS below ``ess_min`` per chain, of
         the population and of an inferred selection or response, for Markov chains; or
-        chains too short for either."""
+        chains that give neither, too short or constant."""
         d, msgs = self.diagnostics, []
         # Markov chains (and external draws), whose draws are correlated; independent
         # draws have no chain for R-hat and ESS to describe
@@ -1710,11 +1731,9 @@ class PopulationResult(_IndividualMixin):
         engine = METHODS.get(self.method)
         if self.approximate or (engine is not None and not engine.markov):
             return msgs
-        n = self._draws.shape[1]
-        if n < MIXING_MIN_DRAWS:  # no R-hat or ESS (see _mixing): not a pass
+        if np.all(np.isnan(d.get("rhat", np.nan))):  # none (see _mixing), or all constant
             return [
-                f"chains of {n} draws are too short to diagnose (R-hat and ESS need "
-                f"{MIXING_MIN_DRAWS})"
+                f"R-hat and ESS are undefined: chains shorter than {MIXING_MIN_DRAWS}, or constant"
             ]
         for suffix, what in (
             ("", ""),
@@ -2159,13 +2178,13 @@ class PointEstimate(_IndividualMixin):
         self.model = model
         self.value = read_only(value)
         self.method = method
-        self.x = x
+        self.x = _read_only_or_none(x)
         self.log_posterior = float(log_posterior)
         self.log_likelihood = float(log_likelihood)
         self.kkt_gap = float(kkt_gap)
         self.n_iter = int(n_iter)
         self.converged = bool(converged)
-        self.info = dict(info or {})
+        self.info = _read_only_info(info)
         self._cache: dict[str, Any] = {}
         self.kind = model.kind if model is not None else "fractions"
         self.basis = model.likelihoods.basis if model is not None else None

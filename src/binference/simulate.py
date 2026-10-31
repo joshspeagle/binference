@@ -19,7 +19,7 @@ from scipy import special, stats
 from ._utils import RNGLike, as_generator, check_nonnegative
 from .bins import Bins
 from .density import Density
-from .likelihoods import Likelihoods
+from .likelihoods import Likelihoods, _interim_at_points, _log_interim
 from .priors import PopulationPrior
 from .response import Response
 from .selection import Selection, _bin_average
@@ -257,23 +257,20 @@ def mock_1d(
         bins, density, n_objects, noise, selection, measured_range, outlier_fraction, gen
     )
     lk, obs, sigma = mock.likelihoods, mock.measurements["mean"], mock.measurements["sigma"]
-    log_pi = None
     if interim is not None:
         if isinstance(interim, str) and interim == "gaussian":
             lo, hi = bins.range[0]
             interim = stats.norm(0.4 * lo + 0.6 * hi, 0.3 * (hi - lo))
         interim = _as_density(interim, bins)
-        log_pi = interim._log_pointwise()
         Pi = interim.masses(bins, tol=1e-6)
         P = lk.toarray() * Pi[None, :]  # row scales are irrelevant after normalising
         mock.posteriors = P / P.sum(axis=1, keepdims=True)
         mock.interim = Pi
     if n_samples > 0:
-        if mock.interim is None:
-            mock.interim = Density.flat().masses(bins)
-        mock.samples = _posterior_samples_1d(
-            obs, sigma, bins, log_pi, mock.interim, n_samples, gen
-        )
+        if interim is None:
+            interim = Density.flat()
+            mock.interim = interim.masses(bins)
+        mock.samples = _posterior_samples_1d(obs, sigma, bins, interim, n_samples, gen)
     return mock
 
 
@@ -351,18 +348,14 @@ def _gaussian_mock(
     return Mock(bins, lk, truth, {"mean": obs, "sigma": sigma})
 
 
-def _posterior_samples_1d(obs, sigma, bins, log_pi, pi_masses, n_samples, gen):
+def _posterior_samples_1d(obs, sigma, bins, interim, n_samples, gen):
     grid = bins.refine(50)[0].edges[0]  # 50 steps per bin, equal in u: each in one bin
     mid = 0.5 * (grid[1:] + grid[:-1])
-    k = bins.index(mid)
-    # the prior mass of each step, none in masked bins: the density in z times the step's
-    # width, or with masses each bin's shared equally by its steps (flat in u within it)
+    # the prior mass of each step, the interim density in z read as from_samples reads it
+    # (a per-bin one flat in u) times the step's width; none in masked bins
     with np.errstate(divide="ignore"):
-        if log_pi is not None:
-            log_prior = np.asarray(log_pi(mid), dtype=float) + np.log(np.diff(grid))
-        else:
-            log_prior = np.log(pi_masses[k])
-    log_prior = np.where(k >= 0, log_prior, -np.inf)
+        log_prior = _log_interim(_interim_at_points(interim, bins), mid) + np.log(np.diff(grid))
+    log_prior = np.where(bins.index(mid) >= 0, log_prior, -np.inf)
     out = np.empty((obs.size, n_samples))
     for i in range(obs.size):
         logp = -0.5 * ((mid - obs[i]) / sigma[i]) ** 2 + log_prior

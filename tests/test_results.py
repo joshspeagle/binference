@@ -1,5 +1,6 @@
 """Tests for PopulationResult and PointEstimate (spec 7; R-OUT-*)."""
 
+import pickle
 import warnings
 
 import numpy as np
@@ -129,24 +130,21 @@ def test_realized_counts_add_fractional_weights():
     np.testing.assert_allclose(counts, np.broadcast_to(expect, (20, 5)))
 
 
-def test_a_result_keeps_a_read_only_copy_of_its_draws(small_1d):
-    # the draws were the caller's array, writeable through samples, chains and
-    # component_draws: a change on either side changed the result under its cached summaries
+def test_a_result_keeps_read_only_copies_of_its_draws_and_diagnostics(small_1d):
+    # the draws were the caller's array, and the cached diagnostics writeable: a change on
+    # either side changed the result, and what check() reports, under its cached summaries
     model = PopulationModel(small_1d.likelihoods)
     draws = np.random.default_rng(0).dirichlet(np.ones(12), size=(2, 30))
     res = PopulationResult(model, draws, method="test")
     mean = res.mean
     draws[:] = 1.0 / 12
     np.testing.assert_array_equal(res.mean, mean)
-    for arr in (res.samples, res.chains, res.component_draws, res.total, res.selected):
-        with pytest.raises(ValueError, match="read-only"):
-            arr[0] = 0.0
-    # a rate model's draws are wrapped as they are given
-    rates = PopulationModel(small_1d.likelihoods, binference.priors.GammaRates(1.0, 1e-3))
-    lam = np.random.default_rng(1).gamma(50.0, size=(30, 12))
-    ext = PopulationResult.from_samples(rates, lam)
-    lam[:] = 0.0
-    assert np.all(ext.rates > 0)
+    for r in (res, pickle.loads(pickle.dumps(res))):  # unpickled, still read-only
+        for arr in (r.samples, r.total, r.summary().rhat):
+            with pytest.raises(ValueError, match="read-only"):
+                arr[0] = 0.0
+        with pytest.raises(TypeError):
+            r.diagnostics["rhat"] = None
     value = np.full(12, 1.0 / 12)
     est = binference.PointEstimate(model, value)
     value[0] = 1.0

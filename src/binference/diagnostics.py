@@ -6,10 +6,6 @@
   (Sokal 1997; Goodman & Weare 2010).
 * :func:`psis` implements Pareto-smoothed importance sampling (Vehtari et al.
   2024), returning smoothed log-weights and the shape diagnostic ``k_hat``.
-
-The optimality of a point estimate, :meth:`~binference.PopulationModel.kkt_gap`, and
-the missing information, :meth:`~binference.PopulationModel.missing_information`, are
-methods of the model.
 """
 
 from __future__ import annotations
@@ -86,8 +82,8 @@ def autocorr_function(x: Any) -> np.ndarray:
 
 
 def autocorr_time(x: Any, c: float = 5.0) -> float:
-    """Integrated autocorrelation time with Sokal's adaptive window; NaN when a chain is
-    constant (as :func:`ess`).
+    """Integrated autocorrelation time with Sokal's adaptive window; NaN when any chain is
+    constant, as emcee gives.
 
     Parameters
     ----------
@@ -228,7 +224,7 @@ def rhat(x: Any) -> float:
         return float("nan")
     bulk = _rhat_raw(_z_scale(a))
     folded = _rhat_raw(_z_scale(np.abs(a - np.median(a))))
-    return float(np.nanmax([bulk, folded]))
+    return float(np.fmax(bulk, folded))  # NaN only if both are, without numpy's warning
 
 
 def mcse(x: Any) -> float:
@@ -312,8 +308,7 @@ def psis(log_weights: Any) -> tuple[np.ndarray, float]:
         Estimated Pareto shape: the estimate is reliable below
         :func:`psis_threshold` of the number of weights (0.7 from about 2,000);
         ``-inf`` for equal weights, which have no tail; ``inf`` when the tail cannot
-        be fitted (four or fewer weights above its cut, as always below 21 weights),
-        and then the weights are not smoothed.
+        be fitted (see ``PSIS_MIN_WEIGHTS``), and then the weights are not smoothed.
     """
     lw = np.array(log_weights, dtype=float).ravel()
     if lw.size < PSIS_MIN_WEIGHTS:
@@ -329,12 +324,11 @@ def psis(log_weights: Any) -> tuple[np.ndarray, float]:
 
 def _psis_rows(log_weights: np.ndarray, block: int = 2**22) -> tuple[np.ndarray, np.ndarray]:
     """:func:`psis` of each row of the float array ``log_weights`` ``(r, n)``, ``n >= 5``,
-    none ``+inf``, in place: the smoothed log-weights (that array) and ``k_hat`` ``(r,)``.
-    Rows whose tails are equally long are fitted together, about ``block`` values at a
-    time."""
+    in place: the smoothed log-weights (that array) and ``k_hat`` ``(r,)``. Rows whose
+    tails are equally long are fitted together, about ``block`` values at a time."""
     lw = log_weights
     r, n = lw.shape
-    lw[np.isnan(lw)] = -np.inf
+    lw[~np.isfinite(lw)] = -np.inf
     lw -= lw.max(axis=1, keepdims=True)
     k = np.full(r, np.inf)  # no tail of more than 4 weights to fit
     equal = np.all(lw > -1e-10, axis=1)  # equal weights (to round-off): exact, no tail

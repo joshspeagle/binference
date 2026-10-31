@@ -38,11 +38,11 @@ def frozen(a: Any) -> Any:
     return a
 
 
-def read_only(a: Any) -> np.ndarray:
-    """``a`` as a float array that cannot be changed in place: reused only when it is
-    already read-only and owns its data (a read-only view could still change through
-    its base), else a read-only copy."""
-    a = np.asarray(a, dtype=float)
+def read_only(a: Any, dtype: Any = float) -> np.ndarray:
+    """``a`` as an array (of ``dtype``; ``None`` keeps its own) that cannot be changed in
+    place: reused only when it is already read-only and owns its data (a read-only view
+    could still change through its base), else a read-only copy."""
+    a = np.asarray(a, dtype=dtype)
     return a if not a.flags.writeable and a.base is None else frozen(a.copy())
 
 

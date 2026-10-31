@@ -154,8 +154,8 @@ just noisy.
     few effective draws. Run longer.
   - the same two messages `of the selection` or `of the response's efficiencies`, for a
     selection or response inferred with the population.
-  - `chains of <n> draws are too short to diagnose (R-hat and ESS need 8)`: no R-hat or
-    ESS can be computed. Run longer.
+  - `R-hat and ESS are undefined: chains shorter than 8, or constant`: the chains are
+    too short for R-hat and ESS, or never move. Run longer, or check the sampler.
   - `<n> divergent transitions (<x>% of draws)`: NUTS met a region it cannot explore.
     Try `target_accept=0.95`; see [diagnostics](../guides/checking.md#diagnostics).
   - `E-BFMI = <x> < 0.3 in some chain`: NUTS explores the energy distribution poorly.
