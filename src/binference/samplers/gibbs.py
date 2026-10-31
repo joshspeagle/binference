@@ -201,15 +201,10 @@ class Gibbs(MarkovEngine):
         self._state[c] = m.prior.posterior_sample(counts + missed, rng)
         return self._state[c], None
 
-    def warmup(self) -> None:
-        """Run burn-in if it has not been run yet."""
-        self._setup()
-        if self._warm:
-            return
+    def _warm_up(self) -> None:
         for _ in progress(range(self.n_warmup), self.n_warmup, "Gibbs burn-in", self.progress):
             for c in range(self.n_chains):
                 self._iterate(c)
-        self._warm = True
 
     def sample(self, n_samples: int) -> Iterator[np.ndarray]:
         """Generator over kept iterations, yielding ``(n_chains, K)`` values.

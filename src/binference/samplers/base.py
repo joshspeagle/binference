@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from typing import Any
 
 import numpy as np
@@ -96,8 +95,12 @@ class MarkovEngine(Engine):
         self._warm = False  # whether warm-up has run
         self._draws: list[np.ndarray] = []  # (n_chains, n, ...) per sample() call
 
-    def sample(self, n_samples: int) -> Iterator[np.ndarray]:  # pragma: no cover - abstract
-        raise NotImplementedError
+    def warmup(self) -> None:
+        """Run warm-up (Gibbs's burn-in, NUTS's adaptation) if it has not been run yet."""
+        self._setup()
+        if not self._warm:
+            self._warm_up()
+            self._warm = True
 
     def run(self, n_samples: int = 1000) -> PopulationResult:
         """Warm up (first call only), draw ``n_samples`` per chain, and return all draws so far.

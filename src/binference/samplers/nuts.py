@@ -551,11 +551,7 @@ class NUTS(MarkovEngine):
                 _, _, div, _, _ = ch.step(self.max_depth, adapt=adapt)
                 self.warmup_divergences += int(div)
 
-    def warmup(self) -> None:
-        """Run warm-up (adaptation) if it has not been run yet."""
-        self._setup()
-        if self._warm:
-            return
+    def _warm_up(self) -> None:
         assert self._chains is not None
         windows = self._chains[0].windows
         logistic = self._base_model.prior.has_centering
@@ -568,7 +564,6 @@ class NUTS(MarkovEngine):
             self._advance(self.n_warmup - switch, adapt=True, desc="NUTS warm-up")
         finally:
             self._close_pool()  # warm-up phases share one pool; sampling starts its own
-        self._warm = True
 
     def _record(self, xs, lps, st, n_done: int) -> None:
         if n_done:
