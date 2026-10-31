@@ -163,6 +163,7 @@ def _one_family(dists: list[Any]) -> Any:
             type(getattr(d, "dist", None)) is type(family)
             and len(d.args) == len(dists[0].args)
             and sorted(d.kwds) == keys
+            and all(np.ndim(x) == 0 for x in (*d.args, *d.kwds.values()))
             for d in dists
         )
     ):
@@ -1470,8 +1471,9 @@ class Likelihoods:
         if dead.size:
             raise ValueError(
                 f"Measured bin(s) {dead[:5].tolist()} hold observed objects, but the response "
-                "gives them zero probability from every truth bin. A response tallied from "
-                "events, left uncertain (not .fixed()), gives every measured bin a row."
+                "gives them zero probability from every truth bin: remove those bins' counts, "
+                "or give the response a row there (a response tallied from events and left "
+                "uncertain, not .fixed(), has one)."
             )
         lk = cls(
             rows[keep],

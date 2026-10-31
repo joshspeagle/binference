@@ -171,6 +171,8 @@ def test_a_migration_matrix_off_one_by_rounding_gets_exactly_its_efficiency():
 def test_more_tallied_than_generated_events_name_the_truth_bins():
     with pytest.raises(ValueError, match=r"more events than generated in truth bin\(s\) \[0\]"):
         Response.from_counts([[6, 1], [5, 1]], [10, 10], Bins.categories(2))
+    with pytest.raises(ValueError, match="must have shape"):  # not a count per truth bin
+        Response.from_counts([6, 7], [10, 10], Bins.categories(2))
 
 
 def test_open_ended_needs_one_dimensional_measured_bins_whatever_the_constructor():
@@ -182,5 +184,5 @@ def test_open_ended_needs_one_dimensional_measured_bins_whatever_the_constructor
 
 def test_a_truth_bin_the_response_never_observes_is_named():
     resp = Response(np.array([[0.5, 0, 0.3], [0.5, 0, 0.3]]), Bins.categories(3))
-    with pytest.raises(ValueError, match=r"bin\(s\) \[1\] are not"):
+    with pytest.raises(ValueError, match=r"truth bin\(s\) \[1\] sum to zero"):
         Likelihoods.from_binned(resp, counts=[3, 4])

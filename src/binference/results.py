@@ -946,7 +946,13 @@ def _value_drawer(model, loglike, n_sub: int, n_sweeps: int) -> tuple[Callable, 
     if kind == "samples":
         direct = model.likelihoods.basis is None  # labels are the bins the samples are in
         return partial(_draw_samples, measures, flat, direct, row, *data), True
-    evaluate = partial(_dists_logl if kind == "dists" else _rows_logl, row, *data)
+    if kind == "dists":  # one family's parameters are packed once, not per call
+        from .likelihoods import _rows_logpdf
+
+        dists, interim = data
+        evaluate = partial(_dists_logl, row, _rows_logpdf(dists, 1), interim)
+    else:
+        evaluate = partial(_rows_logl, row, *data)
     return partial(_draw_subpoints, measures, n_sub, evaluate), True
 
 
@@ -955,12 +961,12 @@ def _value_drawer(model, loglike, n_sub: int, n_sweeps: int) -> tuple[Callable, 
 EVAL_BUDGET = 2**24
 
 
-def _dists_logl(row, dists, interim, objects, labels, zz):
+def _dists_logl(row, logpdf, interim, objects, labels, zz):
     # distributions of from_density: one vectorised call for the rows' own points
-    from .likelihoods import _log_interim, _rows_logpdf
+    from .likelihoods import _log_interim
 
     with np.errstate(invalid="ignore"):  # -inf - -inf where the interim vanishes: NaN
-        return _rows_logpdf(dists, 1)(zz, row[objects]) - _log_interim(interim, zz)
+        return logpdf(zz, row[objects]) - _log_interim(interim, zz)
 
 
 def _rows_logl(row, n_in, fn, log, interim, objects, labels, zz):

@@ -59,6 +59,17 @@ def test_a_batch_of_one_family_gives_each_distribution_its_own_masses():
     )
 
 
+def test_distributions_with_array_parameters_are_taken_one_at_a_time():
+    bins = Bins.linear(0, 1, 10)
+    scalar = [stats.norm(0.3 + 0.01 * i, 0.1) for i in range(5)]
+    arrays = [stats.norm(np.array([0.3 + 0.01 * i]), 0.1) for i in range(5)]
+    for b in (bins, Bins.log(0.1, 1.0, 10)):  # exact masses and the quadrature
+        lk = [
+            Likelihoods.from_density(d, b, kind="likelihood").toarray() for d in (scalar, arrays)
+        ]
+        np.testing.assert_allclose(lk[1], lk[0], rtol=1e-12)
+
+
 def test_frozen_histograms_are_not_taken_for_one_family():
     # a frozen rv_histogram's generator holds its histogram, so one call would use the first
     data = ([0.1, 0.2, 0.2, 0.3], [0.6, 0.7, 0.7, 0.9])

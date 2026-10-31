@@ -30,8 +30,8 @@ from .warnings import InputWarning
 
 __all__ = ["Response"]
 
-#: With ``efficiency``, a warning is raised unless the matrix's columns sum to one within
-#: this.
+#: With ``efficiency``, columns that sum to one within this are divided by their sum (a
+#: migration matrix off by rounding); a warning is raised for the others.
 MIGRATION_ATOL = 1e-3
 
 
@@ -133,7 +133,7 @@ class Response:
                 f"measured_bins has {measured_bins.K} bins but matrix has {R.shape[0]} rows."
             )
         if open_ended:
-            _clip_open_ended((), measured_bins)  # refuses measured_bins that are not 1-D
+            _check_open_ended(measured_bins)
         self._matrix = frozen(R)
         self.truth_bins = truth_bins
         self.measured_bins = measured_bins
@@ -206,8 +206,9 @@ class Response:
                 "response is unknown; simulate events there or remove those bins."
             )
         R = np.asarray(counts, dtype=float) / g
-        over = np.flatnonzero(R.sum(axis=0) > 1.0 + 1e-6)  # as _setup allows by rounding
-        if over.size:
+        # as _setup allows by rounding; counts that are not 2-D get _setup's shape error
+        over = np.flatnonzero(R.sum(axis=0) > 1.0 + 1e-6) if R.ndim == 2 else []
+        if len(over):
             raise ValueError(
                 f"counts holds more events than generated in truth bin(s) {over[:5].tolist()}; "
                 "counts[:, k] are events generated in truth bin k, at most generated[k]."
@@ -426,6 +427,13 @@ class Response:
     def _selection(self):
         """The on-measurement selection of :meth:`_rows`: its efficiency, unless it is one."""
         eff = self._rows().sum(axis=0)
+        never = np.flatnonzero(eff <= 0)
+        if never.size:
+            raise ValueError(
+                f"The response's columns for truth bin(s) {never[:5].tolist()} sum to zero: "
+                "objects there are never observed, so their fraction cannot be inferred. Remove "
+                "those truth bins."
+            )
         # column sums may exceed one by rounding (Response allows 1e-6)
         return None if np.allclose(eff, 1.0) else Selection(np.minimum(eff, 1.0), "on_measurement")
 
@@ -529,11 +537,15 @@ class Response:
         return f"Response(J={J} measured bins, K={K} truth bins, from {self.origin})"
 
 
+def _check_open_ended(measured_bins: Bins) -> None:
+    if measured_bins.is_categorical or measured_bins.ndim != 1:
+        raise ValueError("open_ended needs 1-D measured_bins.")
+
+
 def _clip_open_ended(values: Any, measured_bins: Bins) -> np.ndarray:
     """``values`` beyond the 1-D ``measured_bins`` moved into its outer two bins, which
     take every value beyond them (``open_ended``)."""
-    if measured_bins.is_categorical or measured_bins.ndim != 1:
-        raise ValueError("open_ended needs 1-D measured_bins.")
+    _check_open_ended(measured_bins)
     e = measured_bins.edges[0]
     return np.clip(np.asarray(values, dtype=float), e[0], e[-1])
 

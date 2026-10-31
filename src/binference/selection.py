@@ -270,8 +270,10 @@ class Selection:
         points ``z`` (shape ``(M,)`` in 1-D, ``(M, ndim)`` on grids, labels for
         categories). Each bin takes its average in the measure coordinate, the
         within-bin shape of the population (DECISIONS #10, #47), by adaptive
-        quadrature to ``tol`` relative to the largest bin average. A jump inside a bin
-        is found wherever it lies, and each refinement halves the cell that holds it,
+        quadrature to ``tol`` relative to the largest bin average. A single jump inside a
+        bin is found wherever it lies (a window narrower than the spacing of the points can
+        still fall between them: put bin edges at its ends), and each refinement halves the
+        cell that holds it,
         so reaching ``tol`` takes about :math:`\\log_2(1/\\mathrm{tol})` refinements, 20
         for the default ``tol``, which the default ``max_depth`` allows; for a smaller
         ``tol`` raise ``max_depth``, or put a bin edge at the jump. With a
