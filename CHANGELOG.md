@@ -35,6 +35,10 @@ releases may break the API).
 - `Likelihoods.from_density` evaluates frozen SciPy distributions of one family in one
   call, for their exact bin masses and for their densities; the densities' check for one
   family never matched, so each distribution was evaluated separately (DECISIONS #113).
+- `Measure` objects are immutable, as `Bins` are; renaming the shared `Measure.log()`
+  broke the saving of bins (DECISIONS #116).
+- `sbc` ranks the log-likelihood of a model that infers its selection or response in one
+  pass over the draws: the same values, about 11 times faster (DECISIONS #116).
 
 ### Removed
 
@@ -44,6 +48,8 @@ releases may break the API).
 - `Engine.name` and `Engine.approximate`, which nothing read (DECISIONS #112).
 - `Response.measured_fractions`, which only a test used and which ignored the posterior
   means of a tallied response (DECISIONS #113).
+- `Bins.widths`, which nothing used; per-axis widths are `np.diff(bins.edges[d])`
+  (DECISIONS #116).
 
 ### Fixed
 
@@ -94,6 +100,22 @@ releases may break the API).
   `Response.from_simulation` with `open_ended` and categorical measured bins (an
   `AttributeError`); labelled scores that are not finite. `Selection.combined` checks
   `scale` before evaluating its functions.
+- Unpickled `Bins`, and copies of grids with a non-linear measure, had writeable edges.
+- `Bins.linear`, `Bins.log` and `Bins.coarsen` refuse a count or factor that is not a
+  positive integer, naming it; they truncated it, and `coarsen(1.5)` returned the bins
+  unchanged. `Bins.categories(2.0)` raises a TypeError naming `labels`.
+- `PopulationModel.expected_counts` raises, naming the objects of zero likelihood, and
+  checks `value`; it returned zeros for them.
+- `missing_information(include_prior=True)` adds a `GammaRates` prior's pseudo-counts as
+  the MAP EM does: 0.49 instead of 0.89 for `GammaRates(200, 1)`, which corrects the
+  missing information reported when the rates EM does not converge. It is NaN where
+  shapes below one outweigh the data (DECISIONS #116).
+- A distribution with `cdf` and `sf` but no `logsf` keeps its upper tail.
+- `Likelihoods.from_samples` names the measure when a sample falls where a
+  `Measure.transform` has no finite slope, and `Measure.log_jacobian` no longer emits
+  NumPy warnings there.
+- The docs of `tol`, of `PopulationModel(bins=)` and of `kkt_gap(include_prior=)` say
+  what the code does.
 
 ## [0.1.0] - 2026-10-29
 

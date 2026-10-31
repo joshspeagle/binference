@@ -172,7 +172,8 @@ class Measure:
         """``log dT/dz``: the log of the within-bin population density in ``z``, up to a constant.
 
         Exact for linear, log and tabulated measures; a central difference for
-        :meth:`transform`.
+        :meth:`transform`, NaN where it leaves the map's domain, as at an edge of it
+        (where the slope is often infinite).
 
         Parameters
         ----------
@@ -189,7 +190,8 @@ class Measure:
             j = np.clip(np.searchsorted(zt, z, side="right") - 1, 0, zt.size - 2)
             return np.log((ut[j + 1] - ut[j]) / (zt[j + 1] - zt[j]))
         h = 1e-6 * np.where(z != 0, np.abs(z), 1.0)  # relative, so small z stay in the domain
-        return np.log((self.forward(z + h) - self.forward(z - h)) / (2 * h))
+        with np.errstate(divide="ignore", invalid="ignore"):  # outside the domain: NaN
+            return np.log((self.forward(z + h) - self.forward(z - h)) / (2 * h))
 
     def _covers(self, lo: float, hi: float) -> bool:
         # whether [lo, hi] lies inside the measure's domain
@@ -222,6 +224,12 @@ class Measure:
 
     def __hash__(self) -> int:
         return self._hash
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in Measure.__slots__ and not hasattr(self, name):
+            object.__setattr__(self, name, value)
+        else:
+            raise AttributeError("Measure objects are immutable.")
 
     def __reduce__(self):
         kind = self._key[0]

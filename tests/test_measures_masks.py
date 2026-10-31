@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 import binference
-from binference import Bins, InputWarning, Likelihoods
+from binference import Bins, Density, InputWarning, Likelihoods
 from binference.io import _bins_from_parts, _bins_to_parts
 from binference.measure import Measure
 
@@ -61,6 +61,19 @@ def test_measures_compare_by_name_or_table():
     assert pickle.loads(pickle.dumps(a)) == a
     with pytest.raises(ValueError, match="measure must be"):
         Measure.coerce("sqrt")
+
+
+def test_measures_are_immutable_so_the_shared_built_ins_cannot_be_renamed():
+    with pytest.raises(AttributeError, match="immutable"):
+        Measure.log().name = "renamed"
+    assert Measure.log().name == "log"
+
+
+def test_samples_where_a_measure_has_no_finite_slope_are_refused_naming_it():
+    # the slope of sqrt is infinite at zero, the lowest edge
+    bins = Bins([0.0, 1.0, 4.0], measure=Measure.transform(np.sqrt, np.square, name="sqrt"))
+    with pytest.raises(ValueError, match=r"slope of Measure\('sqrt'\)"):
+        Likelihoods.from_samples(np.array([[0.0, 0.5, 2.0]]), bins, interim=Density.flat("z"))
 
 
 def test_negative_zero_edges_hash_like_positive_zero():

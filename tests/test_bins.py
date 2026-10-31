@@ -1,5 +1,6 @@
 """Tests for binference.Bins (spec 4.1; R-BINS-1)."""
 
+import copy
 import pickle
 
 import numpy as np
@@ -114,3 +115,26 @@ def test_immutable_equality_pickle():
     assert hash(b) == hash(Bins.linear(0, 1, 3))
     for obj in (b, Bins.grid([0, 1, 2], [0, 1]), Bins.categories(["a", "b"])):
         assert pickle.loads(pickle.dumps(obj)) == obj
+
+
+def test_pickled_and_copied_bins_keep_their_edges_read_only():
+    b = Bins.grid([1.0, 2.0, 4.0], [0.0, 1.0, 3.0], measure=["log", "linear"])
+    for new in (pickle.loads(pickle.dumps(b)), copy.copy(b), copy.deepcopy(b)):
+        assert new == b
+        for e in new.edges:
+            with pytest.raises(ValueError, match="read-only"):
+                e[0] = -5.0
+
+
+def test_bin_counts_and_factors_must_be_positive_integers():
+    for build, name in (
+        (lambda: Bins.linear(0, 1, 2.5), "n"),
+        (lambda: Bins.log(1, 10, 3.7), "n"),
+        (lambda: Bins.linear(0, 1, 6).coarsen(2.7), "factor"),
+        (lambda: Bins.linear(0, 1, 6).coarsen(1.5), "factor"),
+    ):
+        with pytest.raises(ValueError, match=f"{name} must be a positive integer"):
+            build()
+    assert Bins.linear(0, 1, 6.0) == Bins.linear(0, 1, 6)  # as refine, an integral float
+    with pytest.raises(TypeError, match="labels must be"):
+        Bins.categories(2.0)

@@ -141,7 +141,7 @@ def population(bins: Bins, density: Any = "bimodal", tol: float = 1e-6) -> np.nd
         names are ``"bimodal"``, ``"gaussian"``, ``"uniform"`` and ``"steep"`` on
         1-D bins, ``"banana"`` and ``"gaussian"`` on 2-D grids.
     tol : float, optional
-        Tolerance of the adaptive quadrature over each bin.
+        Tolerance of the adaptive quadrature, relative to the largest bin mass.
     """
     return _as_density(density, bins).masses(bins, tol=tol)
 
