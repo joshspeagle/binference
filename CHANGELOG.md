@@ -80,9 +80,13 @@ releases may break the API).
 - Breaking: `init` is fractions or rates of shape (K,) for `method="auto"` and `NUTS`, as
   for Gibbs and MAP; NUTS converts it with `PopulationModel.from_value` to one point that
   each chain jitters. Starts in NUTS's unconstrained coordinates, shape (dim,) or
-  (n_chains, dim), are passed as `init_x`. Before, auto refused a fraction for NUTS's
-  start, read a rate as a log-rate, and passed a point in NUTS's coordinates on as given
-  (#174, #190).
+  (n_chains, dim), are passed as `init_x`. Before, `NUTS(init=)` read a point in its
+  unconstrained coordinates, and auto refused a fraction for NUTS's start and read a rate
+  as a log-rate. Such a point passed as `init` is now refused by its shape, or, when it
+  is positive and of length K (log-rates above 0, or a logistic prior whose dimension is
+  K), read as fractions or rates without an error (#174, #190).
+- A jittered NUTS start from `init` or `init_x` with zero density is drawn again at a
+  tenth of the jitter, then taken without jitter, as the start from the mode already was.
 - Above 200 dimensions, NUTS takes a logistic prior's hyperparameter curvature at one
   chain, like the rest of its warm-up curvature.
 - The defaults page lists NUTS's divergence threshold, `_MAX_ENERGY_ERROR`.

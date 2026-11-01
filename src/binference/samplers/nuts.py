@@ -300,7 +300,9 @@ class NUTS(MarkovEngine):
         ``init``; a single point gets ``jitter`` added for each chain. Every start
         must have a finite log density.
     jitter : float
-        Standard deviation of the Gaussian jitter around the starting point.
+        Standard deviation of the Gaussian jitter around the starting point; a
+        jittered start with zero density is drawn again at ``jitter / 10``, then
+        taken without jitter.
     n_jobs : int
         Number of worker processes for the chains (``-1``: one per CPU this
         process may use). The default ``1`` runs the chains in this process.
@@ -409,26 +411,25 @@ class NUTS(MarkovEngine):
     def _initial_points(self) -> np.ndarray:
         d = self.model.dim
         child = spawn(self.rng, 1)[0]
-        if self.init_x is not None:
-            x0 = self.init_x
-            if x0.shape == (d,):
-                x0 = np.tile(x0, (self.n_chains, 1))
-                x0 = x0 + self.jitter * child.standard_normal(x0.shape)
+        x0 = self.init_x
+        if x0 is not None and x0.shape != (d,):  # one start per chain, used as given
             if not all(np.isfinite(self.model.log_density_unconstrained(x)) for x in x0):
-                raise ValueError("A starting point has zero posterior density.")
+                raise ValueError("init_x has a chain start with zero posterior density.")
             return x0
-        from .optimize import MAP
+        if x0 is None:
+            from .optimize import MAP
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", ConvergenceWarning)
-            mode = MAP(self.model, space="unconstrained").run()
-        x_mode = mode.x
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", ConvergenceWarning)
+                x0 = MAP(self.model, space="unconstrained").run().x
         pts = []
         for _ in range(self.n_chains):
             for scale in (self.jitter, self.jitter / 10, 0.0):
-                x = x_mode + scale * child.standard_normal(d)
+                x = x0 + scale * child.standard_normal(d)
                 if np.isfinite(self.model.log_density_unconstrained(x)):
                     break
+            else:
+                raise ValueError("The start from init or init_x has zero posterior density.")
             pts.append(x)
         return np.asarray(pts)
 

@@ -192,6 +192,13 @@ def test_nuts_validation():
         _ = NUTS(m).result
 
 
+def test_nuts_backs_off_a_jitter_that_leaves_the_support_from_init_as_from_the_mode():
+    # this model's density is zero beyond |x| of about 700, so jitter 1e4 leaves it
+    nuts = NUTS(PopulationModel(np.eye(2)), init=[0.5, 0.5], jitter=1e4, n_chains=4, rng=0)
+    starts = nuts._initial_points()
+    assert np.all(np.abs(starts) < 700)
+
+
 def test_nuts_chains_start_at_a_given_init_jittered_only_when_it_is_one_point(k3_problem):
     m = PopulationModel(k3_problem[0].likelihoods)  # its mode is near (1.3, -0.4)
     starts = np.array([[2.0, -2.0], [-2.0, 2.0]])
@@ -203,6 +210,10 @@ def test_nuts_chains_start_at_a_given_init_jittered_only_when_it_is_one_point(k3
     eng = NUTS(m, n_chains=2, n_warmup=0, init=v, jitter=0.0, rng=0)
     eng.warmup()
     np.testing.assert_allclose([c.x for c in eng._chains], [starts[0]] * 2, atol=1e-12)
+    rates = PopulationModel(k3_problem[0].likelihoods, P.GammaRates(1.0, 1e-3))
+    lam = np.array([30.0, 70.0, 5.0])  # rates above 1, whose logs are positive too
+    x = NUTS(rates, n_chains=1, init=lam, jitter=0.0)._initial_points()[0]
+    np.testing.assert_allclose(rates.to_value(x), lam)
     eng = NUTS(m, n_chains=2, n_warmup=0, init_x=starts[0], jitter=0.1, rng=0)
     eng.warmup()
     x = np.array([c.x for c in eng._chains])
