@@ -19,8 +19,7 @@ permissions:
 jobs:
   changes:
     # What a pull request touches, so docs-only changes skip the test matrix and code-only
-    # changes skip nothing they could break. Pushes to main and manual runs
-    # run every job.
+    # changes skip nothing they could break. Pushes to main and manual runs run every job.
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
