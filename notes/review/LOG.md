@@ -491,3 +491,4 @@ Append-only. One entry per working session (or per step within a long session).
 - 0.1.0 released 2026-10-29: tag `v0.1.0`, the Release workflow, PyPI.
 - #178: the 0.1.0 changelog's original list uses the released names and defaults; settled questions closed; the landscape page notes the old name; benchmark figures allowed when dated; the brand files the site uses named; the normal CDF's source credited; public docstrings, rendered comments and error messages no longer cite decisions, which a test enforces (DECISIONS #121).
 - #190: `NUTS(init=)` reads fractions or rates like every engine, unconstrained starts move to `init_x`, and auto loses its NUTS special case (DECISIONS #122; Josh's choice).
+- #192: CI no longer runs on a weekly schedule; the slow suite and the link check run by hand, and the slow suite also on pull requests labelled `slow` (DECISIONS #123; Josh's choice).
