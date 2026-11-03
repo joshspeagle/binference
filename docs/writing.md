@@ -39,7 +39,7 @@ Astronomy leads the examples. Every input type and every field still has its own
 
 ## Concept pages
 
-- Open with the question the page answers.
+- Open with the problem or mechanism the page explains (avoid rhetorical questions or "This page..." meta-signposting).
 - Ask the reader to run no code; code belongs in tutorials and guides.
 - Add at most one "In plain words" note, with the `{plain-words}` directive:
 

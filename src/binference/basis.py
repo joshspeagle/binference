@@ -155,7 +155,7 @@ class Basis:
         return out
 
     def masses(self, grid: Bins) -> sp.csr_array:
-        r"""``(grid.K, C)`` sparse masses :math:`M_{qk} = \int_{B_q} \psi_k\,du` of the
+        r"""``(grid.K, C)`` sparse masses :math:`A_{qk} = \int_{B_q} \psi_k\,du` of the
         components in the cells :math:`B_q` of ``grid`` (:math:`A` in the reporting bins).
 
         ``grid`` must cover the components' range with the same measures (the

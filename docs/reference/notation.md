@@ -108,41 +108,6 @@ other indices are declared where they are used. The {doc}`glossary` defines the 
 | $V_i(\rho)$ | relative Monte Carlo variance of a likelihood from samples | `lk.sample_variance` | [inputs](../guides/inputs/samples.md) |
 | $n_{\rm sim}$ | number of simulated data sets | `n_simulations=` | [validation](../how-it-works/validation.md#simulation-based-calibration) |
 
-## Symbols on older pages
-
-Some guides, tutorials and docstrings were written before this table and still use a
-symbol with a second meaning. Read them with this mapping; the section rewrites of the
-documentation adopt the symbols above and remove it.
-
-| Older symbol | Meaning there | Symbol here |
-|---|---|---|
-| $S$ | number of importance proposals; number of simulations in SBC | $n_{\rm draw}$; $n_{\rm sim}$ |
-| $S$ | half the range of a grid axis | $\Delta$ |
-| $\lambda$ | strength of a reference sample | $\kappa$ |
-| $\lambda_j$ | partial-centring weight | $\gamma_j$ |
-| $\ell$ | log-likelihood of the catalogue | $\log p(D\mid\rho)$ |
-| $\ell_{ik}$ | likelihood normalised over the bins | $L_{ik}/\sum_kL_{ik}$ |
-| $w_k$ | weight of a `Basis` component | $\beta_k$ |
-| $w_s$ | importance weight of a sample | $\omega_s$ |
-| $\phi_k(z)$ | component of a `Basis` | $\psi_k(z)$ |
-| $f(z)$ | population density | $p(z\mid\rho)$ |
-| $\psi$ | composition of the rates in mix-SQP | $\chi$ |
-| $B$ | basis of a logistic prior | $E$ |
-| $c$, $m$, $p$ | Pólya-tree concentration, depth and growth | $c_{\rm PT}$, $h$, $p_{\rm PT}$ |
-| $f$ | resolution factor of a kernel | $f_{\rm ker}$ |
-| $m$ | reference counts | $n^{\rm ref}_k$ |
-| $M$ | draws per SBC fit; component masses on a grid | $n_{\rm draw}$; $A$ |
-| $n_k$, $d_k$ | injected and recovered objects | $n^{\rm inj}_k$, $n^{\rm rec}_k$ |
-| $z_i$ | bin of object $i$ | $k_i$ |
-| $x_i$ | data of object $i$ | $d_i$ |
-| $s_i$ | $L_i\cdot\rho$ | $L_i\cdot\rho$ |
-| $V$ | Helmert basis | $Q$ |
-| $V_k$ | stick-breaking proportion | $\nu_k$ |
-| $C(z)$, $T(d)$ | parts of a combined selection | $S^{\rm truth}(z)$, $S^{\rm meas}(d)$ |
-| $\tau$ | step scale of a smooth injection selection | $\tau_S$ |
-| $\beta$ | concentration of a tallied response | $\alpha$ |
-| $G$ | gradient of the log posterior in $\lambda$ | $\partial\log p/\partial\lambda$ |
-
 The field pages quote each field's own formulas. On the gravitational-wave page,
 $\Lambda$ denotes hyperparameters, $\theta$ an event's parameters, $S_i$ the number of
 samples of event $i$, $R$ the merger rate and $N_\text{draw}$ the number of injections.

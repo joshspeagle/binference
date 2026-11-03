@@ -325,7 +325,7 @@ def _accepts_basis(within_bins: bool, exact: Callable[[dict], bool] | None = Non
 
 
 class Likelihoods:
-    r"""Bin-averaged per-object likelihoods :math:`L_{ik} \propto p(d_i \mid z_i \in B_k)`.
+    r"""Bin-averaged per-object likelihoods :math:`L_{ik} \propto p(d_i \mid k_i = k)`.
 
     This container holds the ``(N, K)`` matrix of likelihoods of every object
     for every bin, together with the :class:`~binference.Bins`, optional object
@@ -640,7 +640,7 @@ class Likelihoods:
         as likelihoods of the components of ``basis``.
 
         The likelihood is taken as flat within each of its bins, so
-        :math:`L_{ik} = \\sum_q L_{iq} M_{qk}` with :math:`M` the components'
+        :math:`L_{ik} = \\sum_q L_{iq} A_{qk}` with :math:`A` the components'
         masses in those bins; constructors that know the likelihood within bins
         (:meth:`from_gaussian`, :meth:`from_density`, :meth:`from_samples`) do
         this on the quadrature cells when given the :class:`~binference.Basis`
@@ -899,7 +899,7 @@ class Likelihoods:
         r"""Build likelihoods from per-object posterior samples.
 
         One Monte Carlo estimator, :math:`\hat L_{ik} \propto \frac1S \sum_s
-        w_s\,\mathbb 1[z_s \in B_k]\,T'(z_s) / \pi(z_s)`, averaged over each bin
+        \omega_s\,\mathbb 1[z_s \in B_k]\,T'(z_s) / \pi(z_s)`, averaged over each bin
         in the measure coordinate:
 
         * when the interim prior is known only per bin (``"flat"``, masses or
@@ -937,7 +937,7 @@ class Likelihoods:
             of entries are non-zero (``_kernels.SPARSE_FILL``).
         min_samples : int
             Warn if more than 10% of the objects have fewer effective samples
-            inside the bins than this (audit I-23).
+            inside the bins than this.
         floor : float
             Pseudo-samples added to every object, spread over the bins in
             proportion to the interim prior: a Dirichlet floor that keeps bins no

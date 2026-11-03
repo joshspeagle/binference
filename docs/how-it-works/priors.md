@@ -1,8 +1,6 @@
 # Priors in detail
 
-What exactly does each prior on the population say, and in which coordinates do the
-engines see it? This page defines the two families of priors, the coordinates the
-gradient-based engines use, and the priors on hyperparameters. The
+binference provides two families of population priors (conjugate Dirichlet-tree priors and smooth logistic-normal priors) together with unconstrained coordinate transforms for gradient-based engines and hyperpriors for smoothness parameters. The
 {doc}`priors guide <../guides/priors>` says which prior to choose for which data.
 
 ## The Dirichlet family as trees

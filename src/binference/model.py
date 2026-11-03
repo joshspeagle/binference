@@ -792,7 +792,7 @@ class PopulationModel:
             reproducible.
         include_prior : bool, optional
             Add the pseudo-counts of a Dirichlet or ``GammaRates`` prior, as the MAP EM
-            does (audit M-2); other priors add none. NaN where concentrations or shapes
+            does; other priors add none. NaN where concentrations or shapes
             below one outweigh the data.
         chunk : int, optional
             Objects processed per block, which bounds memory.

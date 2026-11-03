@@ -9,8 +9,7 @@ kernelspec:
 
 # How auto chooses
 
-How does `method="auto"` pick an engine, and what evidence sets its rules? This page
-states the rules and describes the benchmark behind them.
+`method="auto"` selects an engine by testing Gibbs, Laplace, and NUTS in sequence against mixing and importance-sampling thresholds calibrated on a benchmark suite.
 {class}`~binference.inference.Auto` gives the defaults of their options. The
 {doc}`engines guide <../guides/engines>` covers when to override the choice.
 

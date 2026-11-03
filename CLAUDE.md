@@ -25,7 +25,7 @@ likelihoods, posteriors, samples, binned measurements or classifier outputs.
 
 ## Commands
 
-Set-up, tests, lint (`pre-commit run --all-files`), docs and the snippet runner are in
+Use the shared `~/.venvs/default` Python environment (`PYTHONPATH=src ~/.venvs/default/bin/pytest`, `~/.local/bin/ruff`). Set-up, tests, lint (`pre-commit run --all-files`), docs and the snippet runner are in
 `CONTRIBUTING.md`; CI runs the same commands (`.github/workflows/ci.yml`). Fast tests take
 about 80 s, the slow suite about 20 min on one thread, a clean docs build about 9 min. Use
 `OPENBLAS_NUM_THREADS=1` for timings in shared containers.
@@ -100,10 +100,12 @@ All code reaches `main` through a pull request that closes an issue (DECISIONS #
 
 ## Agents
 
+- Follow the `github-flow` skill (`<Dropbox>/.agents/skills/github-flow/SKILL.md`) before modifying tracked files (`>10` lines).
 - Subagents get self-contained briefs and never commit. Read every line a subagent writes
   before committing it. Parallel writers get separate worktrees.
 
 ## Writing
 
+- Follow the Synergistic Prose Register (`<Dropbox>/.agents/memory/writing-and-voice.md` and `<Dropbox>/.agents/skills/co-writer/SKILL.md`) and `docs/writing.md`.
 - Plain and exact; literal over metaphor. Replies lead with the answer, then the reason,
   then the next step.

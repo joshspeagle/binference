@@ -1,10 +1,6 @@
 # Validation
 
-How do we know a result is right? Two kinds of check answer two questions. Diagnostics
-ask whether one run computed its posterior well. Calibration asks whether the whole
-pipeline, from likelihoods and prior to engine, gives posteriors that are right on
-average. This page defines both, and lists the statistical checks binference's own test
-suite runs. The {doc}`checking guide <../guides/checking>` shows how to run them on
+Two complementary checks verify an inference result: single-run diagnostics test whether an engine explored its target posterior, and simulation-based calibration tests whether the full pipeline from likelihoods and prior to engine produces calibrated posteriors on average. The {doc}`checking guide <../guides/checking>` shows how to run them on
 your own analysis.
 
 ## Diagnostics of one run

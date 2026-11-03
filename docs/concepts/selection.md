@@ -9,8 +9,7 @@ kernelspec:
 
 # Selection
 
-*Your catalogue is missing objects. When does that bias the population, and what does
-binference need to correct it?*
+*When a catalogue misses objects with a bin-dependent probability, the likelihood must account for whether the selection acts on the true value or on the measured data.*
 
 ```{code-cell} python
 :tags: [remove-cell]
@@ -59,10 +58,10 @@ mystnb:
   figure:
     name: fig-selection-modes
     caption: |
-      300 mock objects with true values $z$. Their measured values $d$ have Gaussian
-      errors of 0.3. Top: each object is kept with a probability that falls from one
-      to zero around $z=1.5$. Bottom: objects with $d$ above 1.6 (dashed line) are
-      missed. Filled: selected. Open: missed.
+      300 mock objects with true values $z$ are measured with Gaussian errors of 0.3.
+      In the top panel, each object is kept with a probability that falls from one to
+      zero around $z=1.5$. In the bottom panel, objects with $d$ above 1.6 (dashed line)
+      are missed. Filled markers show selected objects and open markers show missed objects.
   image:
     alt: |
       Two scatter plots of measured value against true value. The points lie along a
@@ -109,10 +108,10 @@ mystnb:
   figure:
     name: fig-normaliser
     caption: |
-      Top: the selection $S_k$ of the two examples above, on 15 bins, computed by
-      binference. One comes from a smooth selection on the truth, the other from the
-      cut at $d=1.6$. Bottom: the population (outline) and its part selected by the cut
-      (shaded). The shaded area is $S\cdot\rho$.
+      The top panel shows the selection $S_k$ on 15 bins for a smooth selection on the
+      truth (solid) and for a measurement cut at $d=1.6$ (dashed). The bottom panel
+      shows the full population (outline) and the subset selected by the measurement cut
+      (shaded), whose area is $S\cdot\rho$.
   image:
     alt: |
       Top panel: two step curves near one at low true values fall to near zero above
