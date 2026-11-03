@@ -16,7 +16,7 @@ from typing import Any
 
 import numpy as np
 
-from ._utils import warn
+from ._utils import check_positive_integers, warn
 from .warnings import InputWarning
 
 __all__ = [
@@ -340,6 +340,7 @@ def _chosen_bins(result: Any, which: str, idx: Any, max_bins: int):
 
     X = result._which(which)
     if idx is None:
+        max_bins = check_positive_integers(max_bins, "max_bins")[0]
         idx = np.sort(np.argsort(-X.mean(axis=0))[:max_bins])
     return X, list(idx), _SYMBOL[_which_name(which)]
 
@@ -377,6 +378,7 @@ def plot_corner(
     matplotlib Figure
     """
     plt = _plt()
+    n_hist = check_positive_integers(n_hist, "n_hist")[0]
     color = _style_color("color", color, 0)
     X, idx, name = _chosen_bins(result, which, idx, max_bins)
     n = len(idx)
@@ -479,6 +481,7 @@ def plot_individual(
     from .density import Density
 
     lk = result._require_model().likelihoods  # its columns: the bins or the components
+    n_draws = check_positive_integers(n_draws, "n_draws")[0]
     own = result._to_bins(lk[i].stack(Density.flat("z")))  # a population flat in z
     bins = result.bins
     shrunk = result.assignment_probabilities(idx=[i], n_draws=n_draws)[0]
@@ -547,10 +550,9 @@ def plot_sbc(
     from scipy import stats
 
     plt = _plt()
+    max_panels = check_positive_integers(max_panels, "max_panels")[0]
     color = _style_color("color", color, 0)
     ink = plt.rcParams["text.color"]
-    if max_panels < 1:
-        raise ValueError(f"max_panels must be at least 1; got {max_panels}.")
     H = sbc_result.histogram(n_bins)
     names = sbc_result.names
     q = min(len(names), max_panels)

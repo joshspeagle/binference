@@ -193,7 +193,7 @@ def load_result(path: str) -> PopulationResult:
         if not os.path.exists(name) and os.path.exists(name + ".npz"):
             path = name + ".npz"
     with np.load(path, allow_pickle=False) as data:
-        meta = json.loads(str(data["meta"]))
+        meta = json.loads(str(data["meta"].item()))
         if meta.get("schema", 0) > SCHEMA_VERSION:
             raise ValueError("This file was written by a newer version of binference.")
         bins = _bins_from_parts(meta, data)

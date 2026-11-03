@@ -34,14 +34,18 @@ ENGINES = {
 }
 
 
+def _matrix_cases() -> list[tuple[tuple[str, str], str]]:
+    cases: list[tuple[tuple[str, str], str]] = []
+    for cell, (engines, pick) in ENGINES.items():
+        others = [e for e in engines if e != pick]
+        cases.extend((cell, e) for e in ("auto", *others))
+    return cases
+
+
 @pytest.mark.parametrize(
     ("cell", "engine"),
     # "auto" covers the engine it picks
-    [
-        (cell, e)
-        for cell, (engines, pick) in ENGINES.items()
-        for e in ("auto", *(e for e in engines if e != pick))
-    ],
+    _matrix_cases(),
 )
 def test_engines_reproduce_the_reference_posterior_of_a_matrix_cell(matrix, cell, engine):
     name, prior_name = cell

@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 
-from .._utils import RNGLike, progress, spawn, warn
+from .._utils import RNGLike, check_positive_integers, progress, spawn, warn
 from ..model import PopulationModel
 from ..results import PopulationResult
 from ..warnings import ConvergenceWarning
@@ -361,24 +361,22 @@ class NUTS(MarkovEngine):
                 "model: the logistic prior must be in its non-centred form (prior.gamma all 1), "
                 "as the model is built; NUTS chooses the centring itself."
             )
-        if n_chains < 1:
-            raise ValueError("n_chains must be at least 1.")
-        if max_depth < 1:
-            raise ValueError("max_depth must be at least 1.")
+        self.n_chains = check_positive_integers(n_chains, "n_chains")[0]
+        self.max_depth = check_positive_integers(max_depth, "max_depth")[0]
         if n_warmup < 0 or jitter < 0:
             raise ValueError("n_warmup and jitter must be non-negative.")
-        if n_jobs == -1:
+        if not isinstance(n_jobs, bool) and n_jobs == -1:
             n_jobs = _cpu_count()
-        if n_jobs < 1:
-            raise ValueError("n_jobs must be a positive integer or -1.")
-        self.n_jobs = int(n_jobs)
+        try:
+            self.n_jobs = check_positive_integers(n_jobs, "n_jobs")[0]
+        except ValueError as err:
+            raise ValueError("n_jobs must be a positive integer or -1.") from err
         if metric not in ("auto", "diag", "dense"):
             raise ValueError("metric must be 'auto', 'diag' or 'dense'.")
         if target_accept is None:
             target_accept = _TARGET_ACCEPT_LOGISTIC if logistic else _TARGET_ACCEPT
         if not 0 < target_accept < 1:
             raise ValueError("target_accept must be in (0, 1).")
-        self.n_chains = int(n_chains)
         if init is not None and init_x is not None:
             raise ValueError("Pass init (fractions or rates) or init_x, not both.")
         if init is not None:
@@ -392,7 +390,6 @@ class NUTS(MarkovEngine):
                 )
         self.n_warmup = int(n_warmup)
         self.target_accept = float(target_accept)
-        self.max_depth = int(max_depth)
         if metric == "auto":
             metric = "dense" if logistic and model.dim <= _DENSE_MAX_DIM else "diag"
         self.metric = metric
@@ -613,7 +610,7 @@ class NUTS(MarkovEngine):
             self.warmup()
             assert self._chains is not None
             C, d = self.n_chains, self.model.dim
-            n_samples = int(n_samples)
+            n_samples = check_positive_integers(n_samples, "n_samples")[0]
             if self.n_jobs > 1 and C > 1 and n_samples > 0:
                 outs = self._parallel(n_samples, adapt=False, record=True)
                 if outs is not None:
