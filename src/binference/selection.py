@@ -95,7 +95,7 @@ class Selection(SetOnce):
         :math:`S_k`, the probability that an object in bin *k* is selected.
     row : ndarray (K,) or None
         The factor applied to the likelihood columns (:math:`S_k` on the
-        truth, :math:`S^{\rm truth}_k` combined, ``None`` on the measurement).
+        truth, :math:`S^{\\rm truth}_k` combined, ``None`` on the measurement).
     basis : Basis or None
         Set when the values are per component of a :class:`~binference.Basis`
         (:math:`\\psi_k`-weighted averages) rather than per bin.
@@ -142,9 +142,9 @@ class Selection(SetOnce):
     ) -> Selection:
         """A selection measured by injecting objects of known true value ``z``.
 
-        Counts the injections per bin, :math:`n^{\rm inj}_k`, and those recovered,
-        :math:`n^{\rm rec}_k`; with a :math:`\\mathrm{Beta}(a, b)` prior each :math:`S_k` has the
-        posterior :math:`\\mathrm{Beta}(a + n^{\rm rec}_k, b + n^{\rm inj}_k - n^{\rm rec}_k)`
+        Counts the injections per bin, :math:`n^{\\rm inj}_k`, and those recovered,
+        :math:`n^{\\rm rec}_k`; with a :math:`\\mathrm{Beta}(a, b)` prior each :math:`S_k` has the
+        posterior :math:`\\mathrm{Beta}(a + n^{\\rm rec}_k, b + n^{\\rm inj}_k - n^{\\rm rec}_k)`
         given the injections alone. With ``smooth`` the :math:`S_k` are tied together by a
         second-order random walk on :math:`y_k = \\mathrm{logit}\\,S_k`, the log density
         gaining :math:`-\\sum_k (y_{k-1} - 2y_k + y_{k+1})^2 / 2\\tau_S^2`, which lends
@@ -319,7 +319,7 @@ class Selection(SetOnce):
         Parameters
         ----------
         on_truth : array_like (K,) or callable
-            :math:`S^{\rm truth}`, the detection probability given the true value.
+            :math:`S^{\\rm truth}`, the detection probability given the true value.
         on_measurement : array_like (K,) or callable
             :math:`P(d \\in A \\mid z)`, the probability that the measured data
             pass the cut given the true value.
