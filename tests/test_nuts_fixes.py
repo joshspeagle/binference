@@ -40,8 +40,8 @@ def test_nuts_arguments_are_checked():
     for kwargs in ({"max_depth": 0}, {"n_warmup": -1}, {"jitter": -0.1}):
         with pytest.raises(ValueError):
             NUTS(m, **kwargs)
-    with pytest.raises(ValueError, match="init"):
-        NUTS(m, init=np.full(m.dim, np.nan))
+    with pytest.raises(ValueError, match="init_x"):
+        NUTS(m, init_x=np.full(m.dim, np.nan))
 
 
 def test_an_error_in_a_worker_is_raised_not_hidden_by_a_serial_rerun():
