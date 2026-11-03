@@ -6,7 +6,7 @@ import warnings
 
 import numpy as np
 
-from .._utils import RNGLike, is_integer_array, progress, warn
+from .._utils import RNGLike, check_positive_integers, is_integer_array, progress, warn
 from ..model import PopulationModel
 from ..results import PopulationResult
 from ..warnings import ApproximationWarning, ConvergenceWarning
@@ -64,7 +64,7 @@ class Bootstrap(Engine):
             raise ValueError("scheme must be 'nonparametric' or 'bayesian'.")
         self.scheme = scheme
         self.tol = float(tol)
-        self.max_iter = int(max_iter)
+        self.max_iter = check_positive_integers(max_iter, "max_iter")[0]
 
     def _replicate_weights(self, w: np.ndarray, integer: bool, rates: bool) -> np.ndarray:
         rng = self.rng
@@ -90,6 +90,7 @@ class Bootstrap(Engine):
         n_samples : int, optional
             Number of bootstrap replicates.
         """
+        n_samples = check_positive_integers(n_samples, "n_samples")[0]
         m = self.model
         w = m.likelihoods.weights
         integer = is_integer_array(w)
@@ -98,9 +99,9 @@ class Bootstrap(Engine):
         # maximum likelihood estimates on grids are often sparse, and EM revives a zero
         # only slowly, from its floor: start replicates inside
         start = 0.5 * base.value + 0.5 * base.value.mean()
-        out = np.empty((int(n_samples), m.K))
+        out = np.empty((n_samples, m.K))
         n_not_converged = 0
-        for b in progress(range(int(n_samples)), n_samples, "Bootstrap", self.progress):
+        for b in progress(range(n_samples), n_samples, "Bootstrap", self.progress):
             wb = self._replicate_weights(w, integer, rates)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", ConvergenceWarning)
@@ -112,7 +113,7 @@ class Bootstrap(Engine):
             n_not_converged += not est.converged
         if n_not_converged:  # their warnings were silenced one by one (audit G-8)
             warn(
-                f"{n_not_converged} of {int(n_samples)} bootstrap fits did not converge; raise "
+                f"{n_not_converged} of {n_samples} bootstrap fits did not converge; raise "
                 "max_iter.",
                 ConvergenceWarning,
             )

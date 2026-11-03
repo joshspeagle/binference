@@ -8,7 +8,15 @@ from typing import Any
 import numpy as np
 
 from .. import _kernels as kern
-from .._utils import RNGLike, check_nonnegative, frozen, is_integer_array, progress, spawn
+from .._utils import (
+    RNGLike,
+    check_nonnegative,
+    check_positive_integers,
+    frozen,
+    is_integer_array,
+    progress,
+    spawn,
+)
 from ..model import PopulationModel
 from ..priors.dirichlet import _dirichlet_draw
 from ..results import PopulationResult
@@ -101,12 +109,10 @@ class Gibbs(MarkovEngine):
         # with multiplicities m_i each row draws Mult(m_i, r_i) counts, and no labels
         if self.label_index is not None and not self._unit:
             raise ValueError("store_labels needs unit object weights (uncompressed likelihoods).")
-        if n_chains < 1 or thin < 1:
-            raise ValueError("n_chains and thin must be positive.")
-        self.n_chains = int(n_chains)
+        self.n_chains = check_positive_integers(n_chains, "n_chains")[0]
         self.n_warmup = int(check_nonnegative(n_warmup, "n_warmup"))
-        self.thin = int(thin)
-        self.chunk = None if chunk is None else int(chunk)
+        self.thin = check_positive_integers(thin, "thin")[0]
+        self.chunk = None if chunk is None else check_positive_integers(chunk, "chunk")[0]
         self.init = check_init(init, model)
         self._state: list[np.ndarray] | None = None
         self._rngs: list[np.random.Generator] | None = None
@@ -214,6 +220,7 @@ class Gibbs(MarkovEngine):
         n_samples : int
             Kept iterations per chain.
         """
+        n_samples = check_positive_integers(n_samples, "n_samples")[0]
         self.warmup()
         C, K = self.n_chains, self.model.K
         draws = np.empty((C, n_samples, K))

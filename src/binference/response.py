@@ -23,7 +23,15 @@ from typing import Any
 import numpy as np
 from scipy import stats
 
-from ._utils import SetOnce, as_generator, check_nonnegative, check_positive, frozen, warn
+from ._utils import (
+    SetOnce,
+    as_generator,
+    check_nonnegative,
+    check_positive,
+    check_positive_integers,
+    frozen,
+    warn,
+)
 from .bins import Bins
 from .priors.dirichlet import _dirichlet_draw
 from .selection import Selection
@@ -355,9 +363,10 @@ class Response(SetOnce):
         truth = Bins.categories(np.unique(y).tolist() if classes is None else classes)
         open_ended = measured_bins is None and s.dtype.kind == "f"
         if open_ended:
-            if int(n_bins) < 2:
+            n_bins = check_positive_integers(n_bins, "n_bins")[0]
+            if n_bins < 2:
                 raise ValueError(f"n_bins must be at least 2; got {n_bins}.")
-            edges = np.unique(np.quantile(s, np.linspace(0.0, 1.0, int(n_bins) + 1)))
+            edges = np.unique(np.quantile(s, np.linspace(0.0, 1.0, n_bins + 1)))
             if edges.size < 3:
                 raise ValueError("scores take too few distinct values to form score bins.")
             measured_bins = Bins(edges)

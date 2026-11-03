@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from .. import diagnostics as diag
-from .._utils import RNGLike, check_positive, warn
+from .._utils import RNGLike, check_positive, check_positive_integers, warn
 from ..model import PopulationModel
 from ..results import PopulationResult
 from ..warnings import ApproximationWarning, ConvergenceWarning
@@ -93,10 +93,12 @@ class Laplace(Engine):
         progress: bool = False,
     ) -> None:
         super().__init__(model, rng=rng, progress=progress)
-        if n_proposals is not None and n_proposals < diag.PSIS_MIN_WEIGHTS:
-            raise ValueError(
-                f"n_proposals must be at least {diag.PSIS_MIN_WEIGHTS} (for Pareto smoothing)."
-            )
+        if n_proposals is not None:
+            n_proposals = check_positive_integers(n_proposals, "n_proposals")[0]
+            if n_proposals < diag.PSIS_MIN_WEIGHTS:
+                raise ValueError(
+                    f"n_proposals must be at least {diag.PSIS_MIN_WEIGHTS} (for Pareto smoothing)."
+                )
         self.importance = bool(importance)
         self.n_proposals = n_proposals
         if df is not None and df <= 0:
@@ -153,8 +155,7 @@ class Laplace(Engine):
         """
         # without importance resampling the proposals are the draws (audit N-4); Pareto
         # smoothing needs a few, which n_proposals is checked for when the engine is made
-        if n_samples < 1:
-            raise ValueError(f"n_samples must be at least 1; got {n_samples}.")
+        n_samples = check_positive_integers(n_samples, "n_samples")[0]
         M = n_samples
         if self.importance:
             M = self.n_proposals or max(PROPOSAL_FACTOR * n_samples, diag.PSIS_MIN_WEIGHTS)

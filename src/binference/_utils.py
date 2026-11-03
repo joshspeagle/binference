@@ -44,7 +44,9 @@ class SetOnce:
     __slots__ = ()
 
     def __setattr__(self, name: str, value: Any) -> None:
-        slots = (s for c in type(self).__mro__ for s in getattr(c, "__slots__", ()))
+        slots: list[str] = []
+        for c in type(self).__mro__:
+            slots.extend(getattr(c, "__slots__", ()))
         if name in slots and not hasattr(self, name):
             object.__setattr__(self, name, value)
         else:
@@ -58,8 +60,9 @@ def check_positive_integers(value: Any, name: str, n: int = 1) -> tuple[int, ...
     """``value``, one for all ``n`` axes or one per axis, as ``n`` positive integers (an
     integral float is accepted)."""
     try:
-        v = np.broadcast_to(np.asarray(value), (n,))
-        if all(float(x).is_integer() and x >= 1 for x in v):
+        a = np.asarray(value)
+        v = np.broadcast_to(a, (n,))
+        if a.dtype.kind != "b" and all(float(x).is_integer() and x >= 1 for x in v):
             return tuple(int(x) for x in v)
     except (TypeError, ValueError):
         pass
@@ -127,8 +130,13 @@ def check_nonnegative(value: Any, name: str) -> np.ndarray:
 
 def _check_sign(value: Any, name: str, positive: bool) -> np.ndarray:
     try:
-        a = np.asarray(value, dtype=float)
-        ok = np.all(np.isfinite(a)) and np.all(a > 0 if positive else a >= 0)
+        raw = np.asarray(value)
+        a = np.asarray(raw, dtype=float)
+        ok = (
+            raw.dtype.kind != "b"
+            and np.all(np.isfinite(a))
+            and np.all(a > 0 if positive else a >= 0)
+        )
     except (TypeError, ValueError):  # not numbers: name the argument, not NumPy's cast
         ok = False
     if not ok:
