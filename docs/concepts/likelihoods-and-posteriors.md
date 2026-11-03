@@ -9,8 +9,7 @@ kernelspec:
 
 # Likelihoods and posteriors
 
-*Many codes report each object's posterior instead of its likelihood. What is the
-difference, and why does it matter for the population?*
+*Many upstream codes report per-object posteriors rather than likelihoods, so their interim prior must be divided out before fitting a population.*
 
 ```{code-cell} python
 :tags: [remove-cell]
@@ -51,10 +50,10 @@ mystnb:
     name: fig-interim
     caption: |
       One object's likelihood (dashed) times an interim prior (dotted) gives its
-      posterior (solid), on 60 bins. The likelihood is Gaussian with mean 1.9 and
-      standard deviation 0.3. Top: a broad interim prior, normal with mean 1.5 and standard deviation 0.9.
-      Bottom: a narrow one, normal with mean 0.9 and standard deviation 0.3. Each
-      curve has unit area.
+      posterior (solid) on 60 bins. The likelihood is Gaussian with mean 1.9 and
+      standard deviation 0.3. The top panel uses a broad normal interim prior (mean 1.5,
+      standard deviation 0.9), and the bottom panel uses a narrow normal interim prior
+      (mean 0.9, standard deviation 0.3). Each curve has unit area.
   image:
     alt: |
       Two stacked panels. In the top panel the posterior almost coincides with the

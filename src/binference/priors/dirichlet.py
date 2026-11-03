@@ -721,8 +721,8 @@ class DirichletTree(_TreePrior):
 class GeneralizedDirichlet(_TreePrior):
     r"""Generalised Dirichlet (Connor & Mosimann 1969) via stick-breaking Betas.
 
-    :math:`V_k \sim \mathrm{Beta}(a_k, b_k)` for ``k = 1..K-1`` and
-    :math:`\rho_k = V_k \prod_{j<k} (1 - V_j)`, breaking sticks in bin order (or
+    :math:`\nu_k \sim \mathrm{Beta}(a_k, b_k)` for ``k = 1..K-1`` and
+    :math:`\rho_k = \nu_k \prod_{j<k} (1 - \nu_j)`, breaking sticks in bin order (or
     ``order``). It reduces to :math:`\mathrm{Dir}(\alpha_1, \dots, \alpha_K)`
     with :math:`a_k = \alpha_k` and :math:`b_k = \sum_{j>k}\alpha_j`, the sum
     including :math:`\alpha_K`; other choices give more flexible (including
@@ -783,9 +783,9 @@ class GeneralizedDirichlet(_TreePrior):
 class PolyaTree(_TreePrior):
     r"""Finite Polya-tree prior on an ordered 1-D grid (a balanced binary Dirichlet-tree).
 
-    Bins are split recursively into halves; a split at level :math:`m`
+    Bins are split recursively into halves; a split at level :math:`h`
     (root = 1) has Beta concentrations
-    :math:`c\,m^{p}\cdot 2 G_0(\text{child})/G_0(\text{parent})`, so the prior
+    :math:`c_{\rm PT}\,h^{p_{\rm PT}}\cdot 2 G_0(\text{child})/G_0(\text{parent})`, so the prior
     mean is the base measure :math:`G_0` and fluctuations shrink at finer
     scales (``power=2`` gives absolutely continuous limits; Lavine 1992). A
     conjugate, multi-scale alternative to smoothness priors.
@@ -793,9 +793,9 @@ class PolyaTree(_TreePrior):
     Parameters
     ----------
     c : float
-        Overall concentration (larger = closer to the base measure).
+        Overall concentration :math:`c_{\rm PT}` (larger = closer to the base measure).
     power : float
-        Growth of concentration with depth.
+        Growth exponent :math:`p_{\rm PT}` of concentration with depth :math:`h`.
     base : Density, "flat", callable or array_like (K,)
         Base measure, read by :meth:`Density.coerce <binference.Density.coerce>`
         (an array is masses per bin). The default is flat in the measure

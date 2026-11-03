@@ -225,7 +225,7 @@ class SBCResult:
         """Expected count per histogram bin under uniform ranks, ``(n_bins,)``.
 
         Bins hold different numbers of the ``n_draws + 1`` possible ranks unless
-        ``n_bins`` divides ``n_draws + 1`` (audit G-1).
+        ``n_bins`` divides ``n_draws + 1``.
 
         Parameters
         ----------
@@ -251,19 +251,19 @@ class SBCResult:
             Chi-square test of the rank histogram or ECDF test of the ranks.
             ``"chisquare"``: Pearson's chi-square test of the rank histogram.
             ``"ecdf"``: the ECDF test of Säilynoja, Bürkner & Vehtari (2022).
-            With :math:`S` simulations and :math:`M` = ``n_draws``, the count
+            With :math:`n_{\rm sim}` simulations and :math:`n_{\rm draw}` = ``n_draws``, the count
             :math:`C_j` of ranks at most :math:`j` is
-            :math:`\mathrm{Binomial}(S, (j+1)/(M+1))` under uniformity. The
+            :math:`\mathrm{Binomial}(n_{\rm sim}, (j+1)/(n_{\rm draw}+1))` under uniformity. The
             statistic is the smallest two-sided binomial tail probability
 
             .. math:: \hat\gamma = \min_j 2\min\{P(C \le C_j), P(C \ge C_j)\}
 
-            over :math:`j = 0, \dots, M-1`, and the p-value is
+            over :math:`j = 0, \dots, n_{\rm draw}-1`, and the p-value is
             :math:`P(\gamma \le \hat\gamma)` for uniform ranks, computed
             exactly from the joint (multinomial) law of the counts: the smallest
             :math:`\alpha` for which the rank ECDF leaves the simultaneous
             :math:`1 - \alpha` band. When the Bonferroni bound
-            :math:`M\hat\gamma` of that p-value is below :math:`10^{-12}`, the bound
+            :math:`n_{\rm draw}\hat\gamma` of that p-value is below :math:`10^{-12}`, the bound
             is returned instead. It takes no ``n_bins``.
 
         Returns

@@ -9,10 +9,7 @@ kernelspec:
 
 # Population and objects
 
-*What does binference infer: the population, the objects you observed, or each object's
-true value?*
-
-It infers the first two, and a posterior for the third. This page separates them.
+*binference infers the underlying population distribution, the realised histogram of the observed sample, and a shrinkage posterior for each individual object.*
 
 ```{code-cell} python
 :tags: [remove-cell]
@@ -52,10 +49,10 @@ mystnb:
   figure:
     name: fig-realised
     caption: |
-      Top: a population on 15 bins (indigo). The coral lines are the histograms of
-      three samples of 100 objects drawn from it. Bottom: 25 objects of
-      one sample, sorted by true value. Each has a true value (open circle) and a
-      measured value with its error bar (filled).
+      The top panel shows a population on 15 bins (indigo) alongside the histograms of
+      three samples of 100 objects drawn from it (coral). The bottom panel shows 25
+      objects from one sample, sorted by true value, with each object's true value
+      (open circle) and measured value with error bar (filled).
   image:
     alt: |
       Top panel: an indigo step histogram with two humps. Three coral step histograms
@@ -126,9 +123,10 @@ mystnb:
   figure:
     name: fig-em
     caption: |
-      2,000 mock objects on 20 bins, with measurement errors between 0.15 and 0.35.
-      Indigo: the hierarchical fit, the posterior mean and 68% band from Gibbs, four
-      chains of 1,000 draws. Pale: the stack. Dashed: the true population.
+      A hierarchical fit to 2,000 mock objects on 20 bins with measurement errors
+      between 0.15 and 0.35 recovers the two peaks of the true population (dashed).
+      The indigo curve and band show the posterior mean and 68% credible interval from
+      four Gibbs chains of 1,000 draws, while the pale curve shows the stacked posteriors.
   image:
     alt: |
       An indigo band contains the dashed truth, which has two humps, in most bins. The

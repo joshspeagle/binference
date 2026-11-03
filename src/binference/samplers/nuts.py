@@ -197,7 +197,7 @@ def _cpu_count() -> int:
 
 def _worker_threads(n_workers: int) -> int:
     """BLAS threads per worker: the cores shared between workers, never above the
-    limit already in force in this process (e.g. ``OMP_NUM_THREADS=1``; audit N-3)."""
+    limit already in force in this process (e.g. ``OMP_NUM_THREADS=1``)."""
     from threadpoolctl import threadpool_info
 
     share = max(1, _cpu_count() // n_workers)
@@ -236,7 +236,7 @@ def _chain_worker(payload):
     """Run in a worker process: advance one chain and send it back without the model.
 
     An error from the model comes back as a value, so the parent can tell it from a
-    failure of the pool itself (audit N-7).
+    failure of the pool itself.
     """
     chain, gamma, n_iter, adapt, max_depth, record = payload
     try:
@@ -585,7 +585,7 @@ class NUTS(MarkovEngine):
                 self._stats[k].append(st[:, j, :n_done])
 
     def _report(self, X: np.ndarray, LP: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Draws and log densities from the sampling coordinates to the model's (audit N-1)."""
+        """Draws and log densities from the sampling coordinates to the model's."""
         if self._gamma is None:
             return X, LP
         d = self.model.prior.dim  # an inferred selection's logit S follows unchanged

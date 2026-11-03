@@ -9,11 +9,9 @@ kernelspec:
 
 # Point estimates
 
-How does binference find the single most probable population, and how does it know it
-has found it? A {term}`point estimate` maximises the posterior {eq}`eq-P` of the
+A {term}`point estimate` maximises the posterior {eq}`eq-P` of the
 {doc}`model <model>`. Three solvers share the work: EM, mix-SQP and L-BFGS. Each
-estimate carries a certificate of optimality. The answer also depends on the coordinates
-the posterior is written in, as the last section shows.
+estimate carries a certificate of optimality, and the location of the mode depends on the coordinate system in which the posterior density is written.
 
 ## EM is iterated stacking
 
@@ -178,9 +176,9 @@ mystnb:
       central 68 per cent interval in both panels.
   figure:
     caption: >-
-      One posterior in two coordinates. Two bins hold one object certainly in bin 1 and
+      The same posterior has different modes in different coordinate systems. Two bins hold one object certainly in bin 1 and
       seven certainly in bin 2, under a flat prior. The fraction of bin 1 then has a
-      Beta(2, 8) posterior (top), and its isometric log-ratio $x$ the density below.
+      Beta(2, 8) posterior (top), and its isometric log-ratio $x$ has the density shown below.
       Each panel's peak is its own mode. The shaded central 68% interval holds the same
       draws in both.
     name: fig-two-modes

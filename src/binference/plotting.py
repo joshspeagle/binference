@@ -187,7 +187,7 @@ def plot_population(
     if bins.ndim > 2 and not bins.is_categorical:
         raise ValueError(
             "plot supports 1-D and 2-D grids and categories; for more axes use "
-            "result.density() or result.summary() (audit O-9)."
+            "result.density() or result.summary()."
         )
     X = result._which(which)
     # overlays of rates (and of densities of rate models) are scaled to the mean total

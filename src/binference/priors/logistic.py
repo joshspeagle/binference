@@ -3,16 +3,16 @@ r"""Logistic-normal (smooth) priors: Gaussian priors on log-fractions.
 Fractions are :math:`\rho = \mathrm{softmax}(\eta)` with a Gaussian prior on
 :math:`\eta`, written in whitened ("non-centred") form
 
-.. math:: \eta = \mu + B\,(s(\theta) \odot \xi), \qquad \xi \sim \mathcal N(0, I),
+.. math:: \eta = \mu + E\,(s(\theta) \odot \xi), \qquad \xi \sim \mathcal N(0, I),
 
 so that the hyperparameters :math:`\theta` (scales, length scales) are sampled
-jointly with :math:`\xi` by gradient-based engines. ``B`` is a fixed basis:
+jointly with :math:`\xi` by gradient-based engines. ``E`` is a fixed basis:
 
-* :class:`LogisticNormal` -- eigenvectors of a fixed covariance (or the
+* :class:`LogisticNormal`: eigenvectors of a fixed covariance (or the
   zero-sum Helmert basis for i.i.d. shrinkage);
-* :class:`LogisticRandomWalk` -- eigenvectors of a random-walk / ICAR precision
+* :class:`LogisticRandomWalk`: eigenvectors of a random-walk / ICAR precision
   on the grid (Kronecker structure for N-D grids);
-* :class:`LogisticGP` -- the Hilbert-space Gaussian-process basis of Solin &
+* :class:`LogisticGP`: the Hilbert-space Gaussian-process basis of Solin &
   Sarkka (2020) on 1-D/N-D grids.
 
 The softmax is invariant to adding a constant to :math:`\eta`; the constant
@@ -525,14 +525,14 @@ class LogisticGP(PopulationPrior):
         Length scale(s) in the measure coordinate. Default: per axis, an
         inverse gamma with 1% prior mass below the shortest length scale the
         grid and the basis resolve (the larger of two bin widths and
-        ``f * boundary_factor * S / n_basis``, with ``S`` half the range and
-        ``f`` = 1.3, 1.8, 2.2 and 8.5 for the RBF, Matérn-5/2, -3/2 and -1/2
+        ``f_ker * boundary_factor * Delta / n_basis``, with ``Delta`` half the range and
+        ``f_ker`` = 1.3, 1.8, 2.2 and 8.5 for the RBF, Matérn-5/2, -3/2 and -1/2
         kernels) and 1% above the axis range, so the field is neither rougher
         than the prior can represent nor flatter than the data can constrain.
         Where that lower bound exceeds a quarter of the range (coarse grids),
         a ``LogNormal`` with standard deviation 1 in log length and median the
         larger of the bound and half the range instead. A fixed length scale
-        below the shortest the basis resolves (``f * boundary_factor * S /
+        below the shortest the basis resolves (``f_ker * boundary_factor * Delta /
         n_basis``) raises an :class:`~binference.InputWarning`.
     mean : array_like (K,), optional
         Mean log-fractions (e.g. the log of reference fractions). Defaults to

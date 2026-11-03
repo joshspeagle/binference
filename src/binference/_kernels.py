@@ -42,7 +42,7 @@ def rmatvec(L, y: np.ndarray) -> np.ndarray:
 
 
 def possible(s: np.ndarray) -> bool:
-    """Whether every object's evidence ``s_i = L_i . rho`` is positive.
+    """Whether every object's evidence ``L_i . rho`` is positive.
 
     Evidences below :data:`MIN_EVIDENCE` count as zero; the one test used by the
     log-likelihood, EM and the KKT gap (it also keeps ``w / s`` finite).
@@ -56,7 +56,7 @@ def loglike(L, w: np.ndarray, rho: np.ndarray) -> float:
 
 
 def loglike_of_evidences(w: np.ndarray, s: np.ndarray) -> float:
-    """``sum_i w_i log s_i`` for the evidences ``s = L @ rho``: ``-inf`` if an object is
+    """``sum_i w_i log(L_i . rho)`` for the evidences ``s = L @ rho``: ``-inf`` if an object is
     impossible or the sum is not finite, as in every likelihood kernel."""
     ll = float(np.dot(w, np.log(s))) if possible(s) else -np.inf
     return ll if math.isfinite(ll) else -np.inf
@@ -205,12 +205,12 @@ def sample_counts(
     chunk: int | None = DEFAULT_CHUNK,
     unit_weights: bool | None = None,
 ) -> tuple[np.ndarray, np.ndarray | None]:
-    """Draw latent bin counts ``n_k = sum_i w_i 1[z_i = k]``.
+    """Draw latent bin counts ``n_k = sum_i w_i 1[k_i = k]``.
 
     For unit weights a label is drawn per object (and returned). Integer weights
     ``m_i`` (compressed duplicate rows) draw one ``Mult(m_i, r_i)`` per row and
     return ``labels=None``; for sparse ``L`` only over the row's nonzeros, so
-    the cost follows the nonzeros whatever K and the ``m_i`` (audit G-2).
+    the cost follows the nonzeros whatever K and the ``m_i``.
 
     Returns
     -------

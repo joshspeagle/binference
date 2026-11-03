@@ -363,7 +363,7 @@ def _psis_rows(log_weights: np.ndarray, block: int = 2**22) -> tuple[np.ndarray,
 
 def importance_ess(weights: Any) -> float:
     r"""Kish's effective sample size of importance weights,
-    :math:`(\sum_s w_s)^2 / \sum_s w_s^2` (normalised or not).
+    :math:`(\sum_s \omega_s)^2 / \sum_s \omega_s^2` (normalised or not).
 
     Parameters
     ----------

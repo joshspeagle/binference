@@ -298,7 +298,7 @@ class _IndividualMixin:
         self, idx: Any = None, n_draws: int | None = N_DRAWS, chunk: int = 4096
     ) -> tuple[np.ndarray, np.ndarray]:
         r"""Each object's posterior over bins under the population fitted without it,
-        :math:`P(z_i = k \mid D_{-i})`: leave-one-out, for calibration checks.
+        :math:`P(k_i = k \mid D_{-i})`: leave-one-out, for calibration checks.
 
         Pareto-smoothed importance sampling over the posterior draws (Vehtari, Gelman &
         Gabry 2017): draw :math:`s` has the weight :math:`p(d_i \mid \rho_s)^{-w_i}`
@@ -442,7 +442,7 @@ class _IndividualMixin:
     def assignment_probabilities(
         self, idx: Any = None, n_draws: int | None = N_DRAWS, chunk: int = 4096
     ) -> np.ndarray:
-        r"""Posterior probability that each object lies in each bin, :math:`P(z_i = k \mid D)`.
+        r"""Posterior probability that each object lies in each bin, :math:`P(k_i = k \mid D)`.
 
         Averages the per-object conditional posteriors
         :math:`r_{ik}(\rho)` over (up to ``n_draws``) population draws: the
@@ -469,8 +469,8 @@ class _IndividualMixin:
         """Joint draws of the bin labels of objects ``idx`` (all by default).
 
         For each of (up to ``n_draws``) population draws :math:`\\rho^{(s)}`, labels are
-        drawn from :math:`z_i \\sim \\mathrm{Cat}(r_i(\\rho^{(s)}))`; together these
-        are joint draws from :math:`p(\\rho, z \\mid D)`, exact given exact draws of
+        drawn from :math:`k_i \\sim \\mathrm{Cat}(r_i(\\rho^{(s)}))`; together these
+        are joint draws from :math:`p(\\rho, k \\mid D)`, exact given exact draws of
         :math:`\\rho` (approximate engines carry their approximation over). Returns an
         ``(n_draws, n_objects)`` integer array.
 
@@ -501,7 +501,7 @@ class _IndividualMixin:
 
         Unlike the population fractions (which include the shot noise of
         drawing ``N`` objects from a population), this is the distribution of
-        ``n_k = sum_i w_i 1[z_i = k]`` for *these* objects. With ``full=True`` the
+        ``n_k = sum_i w_i 1[k_i = k]`` for *these* objects. With ``full=True`` the
         objects the selection missed are added, drawn for each draw as
         :math:`\\mathrm{NegBin}(W, S\\cdot\\rho)` of them in bins
         :math:`\\propto \\rho\\circ(1 - S)`: the counts of the full sample.
@@ -570,7 +570,8 @@ class _IndividualMixin:
 
     @property
     def data_support(self) -> np.ndarray:
-        """Objects' worth of likelihood in each bin, :math:`\\sum_i w_i \\ell_{ik}` with each
+        """Objects' worth of likelihood in each bin,
+        :math:`\\sum_i w_i L_{ik} / \\sum_{k'} L_{ik'}` with each
         object's likelihood normalised over the bins: below about one, a bin's fraction
         is set by the prior."""
         # DECISIONS #41
@@ -649,7 +650,7 @@ class _IndividualMixin:
         * :meth:`Likelihoods.from_density` on 1-D bins: the density (divided by
           the interim prior for posteriors) on ``n_sub`` sub-points per bin;
         * :meth:`Likelihoods.from_samples`: the object's samples inside the bin,
-          resampled with their weights :math:`w_s / \pi_u(u_s)` (flat in ``u``
+          resampled with their weights :math:`\omega_s / \pi_u(u_s)` (flat in ``u``
           in a bin no sample reached, as the ``floor`` is);
         * ``loglike(z, i)``, if given, overrides these on 1-D bins: the
           log-likelihood of object ``i`` (an index into the likelihoods) at the
@@ -918,13 +919,13 @@ def _central(X: np.ndarray, level: float, axis: int = 0) -> np.ndarray:
     return np.quantile(X, [0.5 - level / 2, 0.5 + level / 2], axis=axis)
 
 
-#: the symbol of each quantity in labels and names (rates as in audit G-10)
+#: the symbol of each quantity in labels and names
 _SYMBOL = {"density": "density", "fractions": "rho", "rates": "lambda", "selected": "phi"}
 
 
 def _which_name(which: str) -> str:
     """``"fractions"``, ``"rates"``, ``"density"`` or ``"selected"``, singular spellings
-    accepted (O-12)."""
+    accepted."""
     name = {"fraction": "fractions", "rate": "rates"}.get(which, which)
     if name not in ("fractions", "rates", "density", "selected"):
         raise ValueError(
@@ -935,8 +936,7 @@ def _which_name(which: str) -> str:
 
 def _mixing(C: np.ndarray) -> dict[str, np.ndarray]:
     """Bulk and tail ESS and split R-hat of each column of draws ``(chain, draw, K)``,
-    read-only; none below ``MIXING_MIN_DRAWS`` per chain (split R-hat also for one chain,
-    audit O-7)."""
+    read-only; none below ``MIXING_MIN_DRAWS`` per chain (split R-hat also for one chain)."""
     if C.shape[1] < MIXING_MIN_DRAWS:
         return {}
     cols = range(C.shape[-1])
@@ -1414,7 +1414,7 @@ class PopulationResult(_IndividualMixin):
         """Attach likelihoods (or a model) to a loaded result to enable per-object methods.
 
         Bare likelihoods take the fit's selection; likelihoods or a model with another
-        selection, or on other bins, are refused (audit O-1, O-2).
+        selection, or on other bins, are refused.
 
         Parameters
         ----------

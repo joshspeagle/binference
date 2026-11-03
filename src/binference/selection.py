@@ -20,10 +20,10 @@ the mode to be stated explicitly:
     likelihood row is multiplied by :math:`S_k` *and* the normalisation is
     added.
 
-``Selection.combined(on_truth=C, on_measurement=T)``
-    Both at once, :math:`P(\text{obs} \mid z, d) = C(z)\,T(d)`: rows are
-    multiplied by :math:`C_k` only, and the normalisation uses
-    :math:`S_k`, the bin average of :math:`C(z)\,P(d \in A \mid z)`.
+``Selection.combined(on_truth=..., on_measurement=...)``
+    Both at once, :math:`P(\text{obs} \mid z, d) = S^{\rm truth}(z)\,S^{\rm meas}(d)`: rows are
+    multiplied by :math:`S^{\rm truth}_k` only, and the normalisation uses
+    :math:`S_k`, the bin average of :math:`S^{\rm truth}(z)\,P(d \in A \mid z)`.
 
 Values are detection probabilities in (0, 1] by default; ``scale="exposure"``
 allows any positive absolute values (rates), and ``scale="relative"`` declares
@@ -95,10 +95,10 @@ class Selection(SetOnce):
         :math:`S_k`, the probability that an object in bin *k* is selected.
     row : ndarray (K,) or None
         The factor applied to the likelihood columns (:math:`S_k` on the
-        truth, :math:`C_k` combined, ``None`` on the measurement).
+        truth, :math:`S^{\\rm truth}_k` combined, ``None`` on the measurement).
     basis : Basis or None
         Set when the values are per component of a :class:`~binference.Basis`
-        (:math:`\\phi_k`-weighted averages) rather than per bin.
+        (:math:`\\psi_k`-weighted averages) rather than per bin.
     injections : tuple or None
         For a selection measured by injections (:meth:`from_injections`), a named
         tuple ``(injected, recovered, prior, smooth)``: counts per bin, the Beta prior
@@ -142,12 +142,12 @@ class Selection(SetOnce):
     ) -> Selection:
         """A selection measured by injecting objects of known true value ``z``.
 
-        Counts the injections per bin, :math:`n_k`, and those recovered,
-        :math:`d_k`; with a :math:`\\mathrm{Beta}(a, b)` prior each :math:`S_k` has the
-        posterior :math:`\\mathrm{Beta}(a + d_k, b + n_k - d_k)` given the
-        injections alone. With ``smooth`` the :math:`S_k` are tied together by a
+        Counts the injections per bin, :math:`n^{\\rm inj}_k`, and those recovered,
+        :math:`n^{\\rm rec}_k`; with a :math:`\\mathrm{Beta}(a, b)` prior each :math:`S_k` has the
+        posterior :math:`\\mathrm{Beta}(a + n^{\\rm rec}_k, b + n^{\\rm inj}_k - n^{\\rm rec}_k)`
+        given the injections alone. With ``smooth`` the :math:`S_k` are tied together by a
         second-order random walk on :math:`y_k = \\mathrm{logit}\\,S_k`, the log density
-        gaining :math:`-\\sum_k (y_{k-1} - 2y_k + y_{k+1})^2 / 2\\tau^2`, which lends
+        gaining :math:`-\\sum_k (y_{k-1} - 2y_k + y_{k+1})^2 / 2\\tau_S^2`, which lends
         sparsely injected bins strength from their neighbours.
 
         A selection on the truth is uncertain: NUTS, MAP (``space="unconstrained"``),
@@ -172,7 +172,7 @@ class Selection(SetOnce):
         prior : (float, float)
             Beta prior :math:`(a, b)` of every :math:`S_k`, both positive.
         smooth : float, optional
-            Step scale :math:`\\tau` of the random walk, in logit per bin (1-D bins
+            Step scale :math:`\\tau_S` of the random walk, in logit per bin (1-D bins
             only); ``None`` (default) keeps the :math:`S_k` independent.
         """
         # DECISIONS #10, #30, #79, #80
@@ -319,7 +319,7 @@ class Selection(SetOnce):
         Parameters
         ----------
         on_truth : array_like (K,) or callable
-            :math:`C`, the detection probability given the true value.
+            :math:`S^{\\rm truth}`, the detection probability given the true value.
         on_measurement : array_like (K,) or callable
             :math:`P(d \\in A \\mid z)`, the probability that the measured data
             pass the cut given the true value.
@@ -601,7 +601,7 @@ def as_selection(selection: Any, mode: str | None, bins: Bins | Basis) -> Select
     A raw array is checked for steep changes between neighbouring bins; a
     :class:`Selection` or a callable is taken as already averaged within bins.
     With a :class:`~binference.Basis`, arrays and selections given per bin are
-    mapped to the components (:math:`\\phi_k`-weighted averages) and callables are
+    mapped to the components (:math:`\\psi_k`-weighted averages) and callables are
     averaged on the basis's quadrature cells.
 
     Parameters

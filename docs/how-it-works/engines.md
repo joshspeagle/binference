@@ -9,8 +9,7 @@ kernelspec:
 
 # Engines in detail
 
-What does each engine compute, and when are its draws exact? Every {term}`engine` works
-on the posterior of the {doc}`model <model>`. NUTS and Gibbs draw from it exactly, given
+Every {term}`engine` operates on the posterior of the {doc}`model <model>`. NUTS and Gibbs draw from it exactly, given
 enough iterations. Laplace and mean-field VB approximate it, and the bootstrap answers a
 different, frequentist question. {doc}`auto` describes how `method="auto"` chooses
 between them, and the {doc}`engines guide <../guides/engines>` how to call them.
@@ -132,9 +131,9 @@ mystnb:
       little. At 1 bin width it drifts slowly up and down over hundreds of iterations.
   figure:
     caption: >-
-      Gibbs traces of the slowest-mixing bin for likelihoods 0.1, 0.3 and 1 bin widths
-      wide, on 1,000 mock objects in ten bins on $[0,1]$: the first 400 of 4,000
-      iterations of one chain. Each label gives the
+      Gibbs traces of the slowest-mixing bin are shown for likelihoods 0.1, 0.3, and 1
+      bin widths wide on 1,000 mock objects in ten bins on $[0,1]$ (first 400 of 4,000
+      iterations of one chain). Each label gives the
       predicted autocorrelation time $(1+f)/(1-f)$, with $f$ at the most probable
       population, and the time measured on all 4,000 iterations. The prediction
       approximately predicts the slowest direction, not any one bin. A run of about 20

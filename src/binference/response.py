@@ -192,9 +192,9 @@ class Response(SetOnce):
         origin : str, optional
             Where the tallies come from, as :meth:`PopulationResult.summary` reports it.
         prior : float, optional
-            Concentration :math:`\\beta` of the Dirichlet prior on each cell of a column (the
+            Concentration :math:`\\alpha` of the Dirichlet prior on each cell of a column (the
             ``J`` measured bins and the lost share). Column :math:`k` has the posterior
-            :math:`\\mathrm{Dir}(\\beta + \\text{counts}_{\\cdot k},\\ \\beta + \\text{lost}_k)`.
+            :math:`\\mathrm{Dir}(\\alpha + \\text{counts}_{\\cdot k},\\ \\alpha + \\text{lost}_k)`.
             The default 1 is uniform; below 1, cells with no events give NUTS long tails.
         """
         # DECISIONS #81
