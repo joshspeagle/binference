@@ -528,7 +528,12 @@ def _describe(
             )
         alpha = alpha + t.slot_counts(n)
     share = alpha / t.node_totals(alpha)
-    flat = [None] * len(t.slot_child) if names is None else [b for node in names for b in node]
+    if names is None:
+        flat: list[Any] = [None] * len(t.slot_child)
+    else:
+        flat = []
+        for node in names:
+            flat.extend(node)
     bin_names = _bin_names(bins)
     given = "posterior given the counts" if counts is not None else "prior"
     lines = [f"{type(prior).__name__}: {given}, on {bins.K} bins"]
@@ -697,10 +702,13 @@ class DirichletTree(_TreePrior):
                 raise ValueError(f"tree: {leaf!r} is not one of the bins' labels.")
             return lookup[leaf]
 
-        nodes = [
-            [(kind, index(v) if kind == "leaf" else v) for kind, v in ch] for ch in self._nodes
-        ]
-        n = np.bincount([v for ch in nodes for kind, v in ch if kind == "leaf"], minlength=bins.K)
+        nodes = []
+        leaf_indices: list[int] = []
+        for ch in self._nodes:
+            resolved = [(kind, index(v) if kind == "leaf" else v) for kind, v in ch]
+            nodes.append(resolved)
+            leaf_indices.extend(v for kind, v in resolved if kind == "leaf")
+        n = np.bincount(leaf_indices, minlength=bins.K)
         for bad, what in ((n > 1, "appear more than once"), (n == 0, "are in no group")):
             if bad.any():
                 names = _bin_names(bins)

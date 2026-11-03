@@ -355,3 +355,35 @@ def test_the_exact_posterior_is_accurate_at_the_simplex_boundary(alpha):
     if alpha >= 0.5:  # at 0.2 the 5% quantile is 6e-9 and its tail mass is 22% off
         q05 = stats.beta.ppf(0.05, a[2], a.sum() - a[2])
         np.testing.assert_allclose(ex.weights[ex.points[:, 2] < q05].sum(), 0.05, atol=0.005)
+
+
+def test_counts_and_factors_refuse_non_integer_and_boolean_values():
+    from binference.samplers import NUTS, Gibbs, Laplace
+
+    bins = Bins.linear(0.0, 1.0, 4)
+    lk = Likelihoods(np.ones((6, 4)), bins)
+    model = binference.PopulationModel(lk)
+    assert Gibbs(model, n_chains=2.0, thin=2.0, chunk=4.0).thin == 2
+    assert P.LogisticGP(n_basis=4.0).bind(bins).n_active == 4
+    for bad in (0, 1.5, np.nan, np.inf, True):
+        with pytest.raises(ValueError, match="thin"):
+            Gibbs(model, thin=bad)
+        with pytest.raises(ValueError, match="n_chains"):
+            NUTS(model, n_chains=bad)
+        with pytest.raises(ValueError, match="n_jobs"):
+            NUTS(model, n_jobs=bad)
+        with pytest.raises(ValueError, match="n_proposals"):
+            Laplace(model, n_proposals=bad)
+        with pytest.raises(ValueError, match="n_basis"):
+            P.LogisticGP(n_basis=bad)
+        with pytest.raises(ValueError, match="n_objects"):
+            binference.simulate.prior_predictive(P.Dirichlet(1.0), bins, n_objects=bad)
+        with pytest.raises(ValueError, match="n_validation"):
+            mock_categorical(n_validation=bad)
+        with pytest.raises(ValueError, match="n_bins"):
+            binference.Response.from_labelled([0.1, 0.5, 0.9], [0, 1, 0], n_bins=bad)
+    res = Gibbs(model, n_chains=1, n_warmup=0, rng=0).run(2)
+    with pytest.raises(ValueError, match="n_hist"):
+        binference.plotting.plot_corner(res, n_hist=1.5)
+    with pytest.raises(ValueError, match="alpha"):
+        P.Dirichlet(True)

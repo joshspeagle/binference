@@ -29,11 +29,11 @@ import numpy as np
 from scipy import special
 
 from .._simplex import helmert_basis, softmax
-from .._utils import check_positive, warn
+from .._utils import check_positive, check_positive_integers, warn
 from ..bins import Bins
 from ..density import Density
 from ..warnings import InputWarning
-from .base import BoundPrior, PopulationPrior, _per_item
+from .base import BoundPrior, PopulationPrior
 from .hyper import Fixed, HalfNormal, Hyperprior, InverseGamma, LogNormal, as_hyperprior
 
 __all__ = ["LogisticGP", "LogisticNormal", "LogisticRandomWalk"]
@@ -564,9 +564,10 @@ class LogisticGP(PopulationPrior):
         if not boundary_factor > 1.0:
             raise ValueError("boundary_factor must exceed 1.")
         if n_basis is not None:
-            nb = np.asarray(n_basis)
-            if nb.ndim > 1 or nb.dtype.kind not in "iu" or np.any(nb < 1):
+            nb = np.atleast_1d(np.asarray(n_basis))
+            if nb.ndim > 1 or nb.size == 0:
                 raise ValueError("n_basis must be a positive integer or one per axis.")
+            check_positive_integers(n_basis, "n_basis", nb.size)
         self.kernel = kernel
         self.amplitude = as_hyperprior(
             HalfNormal(2.0) if amplitude is None else amplitude, "amplitude"
@@ -589,7 +590,7 @@ class LogisticGP(PopulationPrior):
         if self.n_basis is None:  # one per bin, at most _MAX_BASIS modes in all
             nb = [min(n, int(_MAX_BASIS ** (1 / D) + 1e-9)) for n in bins.shape]
         else:
-            nb = list(_per_item(self.n_basis, D, "n_basis (one per axis)"))
+            nb = list(check_positive_integers(self.n_basis, "n_basis", D))
         factors, omegas = [], []
         for d, u in enumerate(bins.u_edges):  # in the measure coordinate (audit P-1)
             lo, hi = float(u[0]), float(u[-1])

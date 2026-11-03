@@ -7,7 +7,13 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from .. import _kernels as kern
-from .._utils import RNGLike, as_generator, check_nonnegative, check_positive
+from .._utils import (
+    RNGLike,
+    as_generator,
+    check_nonnegative,
+    check_positive,
+    check_positive_integers,
+)
 from ..model import PopulationModel
 
 if TYPE_CHECKING:
@@ -112,7 +118,7 @@ class MarkovEngine(Engine):
         n_samples : int, optional
             Draws per chain after warm-up.
         """
-        for _ in self.sample(int(n_samples)):
+        for _ in self.sample(check_positive_integers(n_samples, "n_samples")[0]):
             pass
         return self.result
 

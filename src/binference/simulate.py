@@ -16,7 +16,7 @@ from typing import Any
 import numpy as np
 from scipy import special, stats
 
-from ._utils import RNGLike, as_generator, check_nonnegative
+from ._utils import RNGLike, as_generator, check_nonnegative, check_positive_integers
 from .bins import Bins
 from .density import Density
 from .likelihoods import Likelihoods, _interim_at_points, _log_interim
@@ -267,7 +267,8 @@ def mock_1d(
         P = lk.toarray() * Pi[None, :]  # row scales are irrelevant after normalising
         mock.posteriors = P / P.sum(axis=1, keepdims=True)
         mock.interim = Pi
-    if n_samples > 0:
+    if n_samples != 0:
+        n_samples = check_positive_integers(n_samples, "n_samples")[0]
         if interim is None:
             interim = Density.flat()
             mock.interim = interim.masses(bins)
@@ -292,6 +293,7 @@ def _gaussian_mock(
     # with the Selection that describes how they were selected (DECISIONS #48);
     # measured_keep thins on the bin of the measured value (the end bins extended
     # outward) and `selection` replaces the Selection attached to the likelihoods
+    n_objects = check_positive_integers(n_objects, "n_objects")[0]
     sel = None if on_truth is None else Selection(on_truth, "on_truth")
     if measured_range is not None:
         if len(measured_range) != 2:
@@ -451,9 +453,9 @@ def mock_categorical(
     """
     if not temperature > 0:
         raise ValueError(f"temperature must be positive; got {temperature}.")
-    if int(n_validation) < 1:
-        raise ValueError(f"n_validation must be at least 1; got {n_validation}.")
-    C = int(n_classes)
+    n_objects = check_positive_integers(n_objects, "n_objects")[0]
+    C = check_positive_integers(n_classes, "n_classes")[0]
+    n_validation = check_positive_integers(n_validation, "n_validation")[0]
     prev = _class_fractions(
         np.arange(1, C + 1) ** 2 if prevalence is None else prevalence, C, "prevalence"
     )
@@ -462,7 +464,7 @@ def mock_categorical(
     means = separation * np.arange(C)
     labels = gen.choice(C, size=n_objects, p=prev)
     x = means[labels] + gen.standard_normal(n_objects)
-    val_labels = gen.choice(C, size=int(n_validation), p=pi)
+    val_labels = gen.choice(C, size=n_validation, p=pi)
     val_x = means[val_labels] + gen.standard_normal(val_labels.size)
     logpost = -0.5 * (x[:, None] - means[None, :]) ** 2 / temperature + np.log(pi)[None, :]
     post = np.exp(logpost - special.logsumexp(logpost, axis=1, keepdims=True))
@@ -534,6 +536,9 @@ def mock_unfolding(
         Random number generator.
     """
     gen = as_generator(rng)
+    n_objects = check_positive_integers(n_objects, "n_objects")[0]
+    n_true = check_positive_integers(n_true, "n_true")[0]
+    n_reco = check_positive_integers(n_reco, "n_reco")[0]
     tb = Bins.linear(0.0, 1.0, n_true)
     re = np.linspace(-0.1, 1.1, n_reco + 1)
     density = lambda z: np.exp(-slope * np.asarray(z))  # noqa: E731
@@ -648,10 +653,7 @@ def prior_predictive(
             "n_objects must not be given for a rate prior: the number of objects is drawn "
             "from Poisson(S . lambda)."
         )
-    n = 200 if n_objects is None else n_objects
-    if not rates and (int(n) != n or n < 1):
-        raise ValueError(f"n_objects must be a positive integer; got {n_objects}.")
-    n = int(n)
+    n = 200 if n_objects is None else check_positive_integers(n_objects, "n_objects")[0]
     if not max_objects > 0:
         raise ValueError(f"max_objects must be positive; got {max_objects}.")
     sel = keep_truth = keep_measured = None
