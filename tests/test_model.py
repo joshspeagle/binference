@@ -183,10 +183,21 @@ def test_raw_array_and_bins_checks():
 
 
 @pytest.mark.parametrize(
-    "case", ["fractions", "rates", "selection", "logistic", "sparse", "joint"]
+    "case",
+    [
+        "fractions",
+        "rates",
+        "selection",
+        "logistic",
+        "sparse",
+        "joint",
+        "joint_smooth",
+        "joint_response",
+    ],
 )
 def test_many_points_take_the_log_density_of_one_point_at_a_time(lk6, case):
     from .test_injections import _problem
+    from .test_joint_response import _unfolding
 
     lk, prior, kw = lk6, None, {}
     if case == "rates":
@@ -200,8 +211,14 @@ def test_many_points_take_the_log_density_of_one_point_at_a_time(lk6, case):
     elif case == "joint":
         lk, sel = _problem()
         kw = {"selection": sel}
+    elif case == "joint_smooth":
+        lk, sel = _problem(smooth=0.5)
+        kw = {"selection": sel}
+    elif case == "joint_response":
+        lk = _unfolding()[0]
     m = PopulationModel(lk, prior, **kw)
     X = np.random.default_rng(3).normal(0.0, 1.0, (40, m.dim))
+    X[-1, 0] = np.nan  # impossible point must return -inf in both paths
     one = [m.log_density_unconstrained(x) for x in X]
     np.testing.assert_allclose(m._log_density_many(X), one, rtol=1e-10)
 

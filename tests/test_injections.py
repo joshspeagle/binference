@@ -69,12 +69,12 @@ def _has_xarray():
     return True
 
 
-def _problem(mode="on_truth", seed=0):
+def _problem(mode="on_truth", seed=0, smooth=None):
     rng = np.random.default_rng(seed)
     bins = Bins.linear(0, 1, 4)
     S = np.array([0.9, 0.7, 0.4, 0.2])
     mock = binference.simulate.mock_1d(300, bins, noise=0.1, rng=seed)
-    sel = Selection.from_injections(*_injections(S, bins, 40, rng), bins, mode)
+    sel = Selection.from_injections(*_injections(S, bins, 40, rng), bins, mode, smooth=smooth)
     return mock.likelihoods.with_selection(None), sel
 
 
