@@ -457,24 +457,45 @@ class PopulationModel:
     def _log_density_many(self, X: np.ndarray) -> np.ndarray:
         # log_density_unconstrained at each row of X (n, dim), without gradients: the
         # prior point by point, the likelihood of many points per pass over the objects
-        if self.joint:
-            return np.array([self.log_density_unconstrained(x) for x in X])
+        d = self.prior.dim
         V = np.zeros((len(X), self.K))
         lp = np.full(len(X), -np.inf)
         zero = np.zeros(self.K)
         for j, x in enumerate(X):  # the prior, point by point
-            eta, cache = self.prior.forward(x)
+            eta, cache = self.prior.forward(x[:d])
             value = self._value(eta)
             if np.isfinite(value.sum()):  # else a zero row: an impossible point
                 V[j] = value
-                lp[j] = self.prior.log_prior_and_grad(x, cache, value, zero)[0]
-        ll = self._log_likelihood_many(V) + self._ll_const
+                lp[j] = self.prior.log_prior_and_grad(x[:d], cache, value, zero)[0]
+                if self.selection_uncertain:
+                    lp[j] += _logit_density(x[d:], self.selection_spec.injections)[0]
+        if self.selection_uncertain:
+            u = V * self.selection_at(X)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                ll = (
+                    kern.loglike_many(self.likelihoods.values, self._w, u)
+                    - self.W * np.log(u.sum(axis=1))
+                    + self._ll_const
+                )
+        elif self.response is not None:
+            logP = self._response_logits(X)
+            J = self.response.measured_bins.K
+            R = np.swapaxes(np.exp(logP[:, :, :J]), -1, -2)
+            q = np.einsum("njk,nk->nj", R, V)[:, self._mb]
+            se = np.sum(R.sum(axis=1) * V, axis=1)
+            ok = np.all(q > 0, axis=1) & (se > 0)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                ll = np.where(ok, np.log(q) @ self._w - self.W * np.log(se), -np.inf)
+            lp += np.sum(self._alpha.T * logP, axis=(1, 2))
+        else:
+            ll = self._log_likelihood_many(V) + self._ll_const
         return np.where(np.isfinite(ll), ll + lp, -np.inf)
 
     def _log_likelihood_many(self, V: np.ndarray) -> np.ndarray:
         # log_likelihood(v, absolute=False) at each row of V (n, K), many per pass; for a
         # joint model, as there, at the selection's values or the response's posterior means
-        return kern.loglike_many(self._L, self._w, V) + self._selection_term(V)
+        with np.errstate(invalid="ignore"):
+            return kern.loglike_many(self._L, self._w, V) + self._selection_term(V)
 
     def _with_bound_prior(self, prior: BoundPrior) -> PopulationModel:
         """A shallow copy sharing the data but using another parametrisation of the prior."""
