@@ -114,7 +114,6 @@ def test_the_old_samplers_module_is_gone():
         importlib.import_module("binference.samplers")
 
 
-<<<<<<< HEAD
 class _Halves(binference.engines.base.Engine):
     def __init__(self, model, *, rng=None, progress=False, n=2):
         super().__init__(model, rng=rng, progress=progress)
@@ -136,7 +135,8 @@ def test_infer_refuses_a_class_that_is_not_an_engine():
     lk = binference.Likelihoods(np.ones((3, 2)), Bins.linear(0, 1, 2))
     with pytest.raises(ValueError, match="Engine subclass"):
         binference.infer(lk, method=dict)
-=======
+
+
 def test_a_raw_array_of_normalised_rows_warns_that_it_may_hold_posteriors():
     table = np.array([[0.2, 0.8], [0.5, 0.5]])
     with pytest.warns(binference.InputWarning, match="may be posteriors"):
@@ -155,4 +155,3 @@ def test_infer_checks_the_inputs_after_every_engine(method):
     lk = binference.Likelihoods.from_samples(rng.uniform(0, 1, (2000, 80)), bins, interim="flat")
     with pytest.warns(binference.InputWarning, match="Monte Carlo variance"):
         binference.infer(lk, method=method, rng=0)
->>>>>>> origin/main
