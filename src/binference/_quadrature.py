@@ -78,9 +78,13 @@ def bin_log_average(
 
     Each bin starts as one cell. A cell is estimated with 5 and 3 Gauss-Legendre
     points per axis; while their difference exceeds ``tol`` relative to the row's
-    largest bin average (in ``u``) or bin mass (in ``z``), it is split in half
-    along every axis, at most ``max_depth`` times, after which an
-    :class:`~binference.InputWarning` is raised. With ``n_sub`` a fixed
+    largest bin average (in ``u``) or bin mass (in ``z``) as then estimated, it is split
+    in half along every axis, at most ``max_depth`` times, after which an
+    :class:`~binference.InputWarning` is raised. The estimate is the sum over the current
+    cells, so it falls as well as rises, and a cell accepted earlier is split if it falls:
+    a narrow peak that a coarse cell read and its children miss leaves a low estimate,
+    against which the peak's tails are followed back up to it. Above a broad background
+    the tails do not stand out, so such a spike can still be lost. With ``n_sub`` a fixed
     ``n_sub``-point rule is used instead.
 
     The Gauss-Legendre points leave the outer 4.7% of a cell at each end unread, so
@@ -91,7 +95,8 @@ def bin_log_average(
     5-point estimates are all zero gives no scale for the error: where a check rule
     reads something there, its cells are split until they are below ``tol`` of their
     bin, and keep what the 5-point rule then reads, with an
-    :class:`~binference.InputWarning` where that is still nothing.
+    :class:`~binference.InputWarning` where that is still nothing. The same warning is
+    raised for a bin that a coarser cell read and that ends with nothing read.
 
     ``must_split(z_lo, z_hi, r)`` (per-row mode) marks cells, given by their
     bounds in ``z``, that must be split whatever the error estimate says: a
@@ -173,66 +178,81 @@ def bin_log_average(
         owner = np.tile(owner, rows)
         lo, hi = np.tile(lo, (rows, 1)), np.tile(hi, (rows, 1))
 
+    def marked(lo, hi, row):
+        # the cells that must_split says to split whatever the error estimate says
+        if must_split is None:
+            return np.zeros(lo.shape[0], dtype=bool)
+        z_lo = np.stack([inv(lo[:, d]) for d, inv in enumerate(inverse)], axis=-1)
+        z_hi = np.stack([inv(hi[:, d]) for d, inv in enumerate(inverse)], axis=-1)
+        return must_split(z_lo, z_hi, row)
+
     logfrac = np.zeros(owner.size)
     fine, *coarse = (integrate(rule, lo, hi, row) for rule in rules)
     N = fine.shape[0] if rows is None else rows
-    out = np.full((N, bins.K), -np.inf)
     if n_sub is not None:
         return fine if rows is None else fine.reshape(N, bins.K)
-    # errors are measured on averages (in u) or on masses (in z), relative to the
-    # row's largest; the reference grows as refinement resolves narrow peaks
+    logerr = _log_disagreement(fine, coarse)
+    # errors are measured on averages (in u) or on masses (in z), relative to the row's
+    # largest as now estimated. Every cell stays in play, so one accepted against an
+    # estimate that later falls, such as a coarse cell's reading of a narrow peak, reopens
     logvol = np.zeros(bins.K) if coordinate == "measure" else np.log(bins.volumes)
-    # finite, so that where a row's 5-point estimates are all zero a check rule that reads
-    # something still makes an error, rather than a NaN that would pass
-    unseen = np.finfo(float).min
-    rowmax = np.full(N, unseen)
+    log_tol = np.log(tol)
     corners = np.array(list(product((0.0, 0.5), repeat=nd)))
-    unconverged = np.zeros(bins.K, dtype=bool)
-    unread = np.zeros(bins.K, dtype=bool)  # bins where such a row stopped with nothing read
-    for depth in range(max_depth + 1):
-        shift = logfrac + logvol[owner]
+    cell_depth = np.zeros(owner.size, dtype=int)
+    forced = marked(lo, hi, row)
+    seen = np.zeros((N, bins.K), dtype=bool)
+    while True:
+        out = np.full((N, bins.K), -np.inf)
         if rows is None:
-            rowmax = np.maximum(rowmax, (fine + shift).max(axis=1))
+            np.logaddexp.at(out.T, owner, (fine + logfrac).T)
         else:
-            np.maximum.at(rowmax, row, fine + shift)
-        rowmax = np.maximum(rowmax, (out + logvol).max(axis=1))
-        scale = (rowmax[:, None] if rows is None else rowmax[row]) - logvol[owner]
-        with np.errstate(invalid="ignore", over="ignore"):  # the checks' largest disagreement
-            diff = np.nan_to_num(np.abs(np.exp(fine - scale) - np.exp(np.stack(coarse) - scale)))
-        blind = rowmax == unseen  # no scale for the error: stop below tol of the bin
+            np.logaddexp.at(out, (row, owner), fine + logfrac)
+        seen |= out > -np.inf
+        ref = (out + logvol).max(axis=1)
+        blind = ref == -np.inf  # no scale for the error: stop below tol of the bin
+        scale = (ref[:, None] if rows is None else ref[row]) - logvol[owner]
+        with np.errstate(invalid="ignore"):  # NaN: nothing read on either side, which passes
+            excess = logerr + logfrac - scale > log_tol
         stopped = None
         if blind.any():
-            small = logfrac < np.log(tol)
+            small = logfrac < log_tol
             mask = blind[:, None] & small if rows is None else blind[row] & small
-            stopped = (diff > 0).any(axis=0) & mask  # read only by a check rule
-            stopped = stopped.any(axis=0) if rows is None else stopped
-            diff[:, mask] = 0.0
-        err = np.exp(logfrac) * diff.max(axis=(0, 1) if rows is None else 0)
-        ok = err <= tol
-        if must_split is not None:
-            z_lo = np.stack([inv(lo[:, d]) for d, inv in enumerate(inverse)], axis=-1)
-            z_hi = np.stack([inv(hi[:, d]) for d, inv in enumerate(inverse)], axis=-1)
-            ok &= ~must_split(z_lo, z_hi, row)
-        if depth == max_depth:
-            unconverged[owner[~ok]] = True
-            ok[:] = True
-        if stopped is not None:
-            unread[owner[stopped & ok]] = True
-        if rows is None:
-            np.logaddexp.at(out.T, owner[ok], (fine[:, ok] + logfrac[ok]).T)
-        else:
-            np.logaddexp.at(out, (row[ok], owner[ok]), fine[ok] + logfrac[ok])
-        if ok.all():
+            stopped = logerr > -np.inf
+            stopped = (stopped & mask).any(axis=0) if rows is None else stopped & mask
+            excess = excess & ~mask
+        split = excess.any(axis=0) if rows is None else excess
+        split |= forced
+        deep = cell_depth >= max_depth
+        if not (split & ~deep).any():
             break
-        keep = ~ok
+        keep = split & ~deep
         half = 0.5 * (hi[keep] - lo[keep])
-        lo = (lo[keep][:, None, :] + 2 * half[:, None, :] * corners[None]).reshape(-1, nd)
-        hi = lo + np.repeat(half, len(corners), axis=0)
-        owner = np.repeat(owner[keep], len(corners))
-        logfrac = np.repeat(logfrac[keep], len(corners)) - nd * np.log(2.0)
+        kid_lo = (lo[keep][:, None, :] + 2 * half[:, None, :] * corners[None]).reshape(-1, nd)
+        kid_hi = kid_lo + np.repeat(half, len(corners), axis=0)
+        kid_owner = np.repeat(owner[keep], len(corners))
+        kid_row = None if row is None else np.repeat(row[keep], len(corners))
+        kid_fine, *kid_coarse = (integrate(rule, kid_lo, kid_hi, kid_row) for rule in rules)
+        stay = ~keep
+        lo, hi = np.concatenate([lo[stay], kid_lo]), np.concatenate([hi[stay], kid_hi])
+        owner = np.concatenate([owner[stay], kid_owner])
+        logfrac = np.concatenate(
+            [logfrac[stay], np.repeat(logfrac[keep], len(corners)) - nd * np.log(2.0)]
+        )
+        cell_depth = np.concatenate(
+            [cell_depth[stay], np.repeat(cell_depth[keep], len(corners)) + 1]
+        )
+        forced = np.concatenate([forced[stay], marked(kid_lo, kid_hi, kid_row)])
+        logerr = np.concatenate(
+            [logerr[..., stay], _log_disagreement(kid_fine, kid_coarse)], axis=-1
+        )
+        fine = np.concatenate([fine[..., stay], kid_fine], axis=-1)
         if row is not None:
-            row = np.repeat(row[keep], len(corners))
-        fine, *coarse = (integrate(rule, lo, hi, row) for rule in rules)
+            row = np.concatenate([row[stay], kid_row])
+    unconverged = np.zeros(bins.K, dtype=bool)
+    unconverged[owner[split]] = True
+    unread = (seen & ~(out > -np.inf)).any(axis=0)  # read at a coarser level, then lost
+    if stopped is not None:
+        unread[owner[stopped & ~split]] = True
     if unconverged.any():
         warn(
             f"Bin averages did not reach tol={tol:g} in {int(unconverged.sum())} bin(s) after "
@@ -247,6 +267,13 @@ def bin_log_average(
             InputWarning,
         )
     return out
+
+
+def _log_disagreement(fine: np.ndarray, coarse: list[np.ndarray]) -> np.ndarray:
+    # log of the largest |exp(fine) - exp(c)| over the check rules c
+    with np.errstate(divide="ignore", invalid="ignore"):
+        d = [np.maximum(fine, c) + np.log1p(-np.exp(-np.abs(fine - c))) for c in coarse]
+    return np.fmax.reduce(d, axis=0)  # NaN where a rule and fine both read nothing
 
 
 def _call(logf: Callable, z: np.ndarray, M: int) -> np.ndarray:
