@@ -17,25 +17,24 @@ from binference.engines import _curvature, nuts
 from binference.simulate import prior_predictive
 
 
-def largest_seen(H, floor=1e-6):
-    eig = _curvature.neg_hessian_eigen(H)
-    if eig is None or not eig[0].max() > 0:
-        return None
-    lam, U = eig
-    ok = lam > floor * lam.max()
-    lam = np.maximum(lam, lam[ok].min())
-    return (U / lam) @ U.T
+def clipped(floor):
+    """The rule before #185: eigenvalues clipped below at ``floor`` times the largest."""
 
-
-def largest_seen_1e2(H):
-    return largest_seen(H, 1e-2)
-
-
-def relative(floor):
     def f(H):
-        return _ORIG(H, floor)
+        eig = _curvature.neg_hessian_eigen(H)
+        if eig is None or not eig[0].max() > 0:
+            return None
+        lam, U = eig
+        lam = np.maximum(lam, floor * lam.max())
+        cov = (U / lam) @ U.T
+        return 0.5 * (cov + cov.T)
 
     return f
+
+
+def largest_seen(floor):
+    """The rule of #185 at another threshold."""
+    return lambda H: _curvature.covariance_from_hessian(H, floor)
 
 
 def capped(max_var):
@@ -45,18 +44,18 @@ def capped(max_var):
             return None
         lam, U = eig
         lam = np.maximum(lam, np.maximum(1e-6 * lam.max(), 1.0 / max_var))
-        return (U / lam) @ U.T
+        cov = (U / lam) @ U.T
+        return 0.5 * (cov + cov.T)
 
     return f
 
 
-_ORIG = _curvature.covariance_from_hessian
 VARIANTS = {
-    "main (rel 1e-6)": _ORIG,
-    "largest seen": largest_seen,
-    "rel 1e-4": relative(1e-4),
-    "rel 1e-2": relative(1e-2),
-    "largest seen 1e-2": largest_seen_1e2,
+    "clip 1e-6 (before)": clipped(1e-6),
+    "largest seen 1e-6 (shipped)": largest_seen(1e-6),
+    "clip 1e-4": clipped(1e-4),
+    "clip 1e-2": clipped(1e-2),
+    "largest seen 1e-2": largest_seen(1e-2),
     "cap var 25": capped(25.0),
     "cap var 100": capped(100.0),
 }
@@ -85,4 +84,4 @@ if __name__ == "__main__":
     for n in VARIANTS:
         t = np.array([r[1] for r in res if r[0] == n])
         e = np.array([r[2] for r in res if r[0] == n], dtype=float)
-        print(f"{n:20s} total {t.sum():7.1f} s  max {t.max():6.1f}  over 5 s {(t > 5).sum():2d}  min ESS {np.nanmin(e):.0f}")
+        print(f"{n:28s} total {t.sum():7.1f} s  max {t.max():6.1f}  over 5 s {(t > 5).sum():2d}  min ESS {np.nanmin(e):.0f}")
