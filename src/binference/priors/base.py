@@ -204,6 +204,22 @@ class BoundPrior:
         """
         raise NotImplementedError(f"{type(self.prior).__name__} has no closed-form density.")
 
+    def log_ratio_curvature(self, rho: np.ndarray, on: np.ndarray) -> np.ndarray | float:
+        """Minus the Hessian of the log density in log-ratio coordinates, beyond pseudo-counts.
+
+        A matrix ``A`` such that ``V.T @ A @ V`` is that Hessian for any basis ``V`` of the
+        log-ratios, on the bins ``on``. Priors with :attr:`pseudocounts`, or without
+        conjugate updates, add nothing here.
+
+        Parameters
+        ----------
+        rho : ndarray (n,)
+            Fractions of the bins ``on``, summing to one.
+        on : ndarray (K,) of bool
+            The bins in the support.
+        """
+        return 0.0
+
     def unbounded_density(self) -> bool:
         """Whether the density of the fractions (or rates) is unbounded at the boundary.
 

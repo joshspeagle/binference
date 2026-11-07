@@ -94,7 +94,14 @@ def _em_jacobian_radius(m, value, h=1e-6):
 @pytest.mark.parametrize("mode", [None, "on_truth", "on_measurement"])
 @pytest.mark.parametrize(
     "prior",
-    [P.Dirichlet(1.0), P.Dirichlet(50.0), P.GammaRates(1.0, 1e-9), P.GammaRates(200.0, 1.0)],
+    [
+        P.Dirichlet(1.0),
+        P.Dirichlet(50.0),
+        P.GammaRates(1.0, 1e-9),
+        P.GammaRates(200.0, 1.0),
+        P.GeneralizedDirichlet(50.0),
+        P.DirichletTree([[0, 1, 2], [3, 4, 5]], alpha=20.0),
+    ],
     ids=repr,
 )
 def test_missing_information_is_the_rate_of_em(mode, prior):
@@ -108,6 +115,28 @@ def test_missing_information_is_the_rate_of_em(mode, prior):
     mode_value = MAP(m, algorithm="em", max_iter=100000).run().value
     f = m.missing_information(mode_value, include_prior=True)
     np.testing.assert_allclose(f, _em_jacobian_radius(m, mode_value), atol=1e-4)
+
+
+@pytest.mark.parametrize(
+    "prior",
+    [
+        P.GeneralizedDirichlet(2.0),
+        P.PolyaTree(),
+        P.DirichletTree([[0, 1, 2], [3, 4, 5]], alpha=2.0),
+    ],
+    ids=repr,
+)
+def test_missing_information_with_a_tree_prior_is_finite_with_bins_at_zero(prior):
+    mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 6), rng=1)
+    m = PopulationModel(mock.likelihoods, prior)
+    value = np.array([0.0, 0.3, 0.2, 0.0, 0.3, 0.2])
+    assert 0.0 <= m.missing_information(value, include_prior=True) <= 1.0
+
+
+def test_missing_information_is_nan_where_small_concentrations_outweigh_the_data():
+    mock = binference.simulate.mock_1d(5, Bins.linear(0, 1, 20), rng=1)
+    m = PopulationModel(mock.likelihoods, P.GeneralizedDirichlet(0.1))
+    assert np.isnan(m.missing_information(np.full(20, 0.05), include_prior=True))
 
 
 def test_the_kkt_gap_is_infinite_where_an_object_is_impossible():

@@ -55,6 +55,8 @@ releases may break the API).
 - **Breaking:** `SBCResult.passed` requires both the chi-square and the ECDF test by
   default (`method="both"`), each at `alpha / (2 n_quantities)`. Pass
   `method="chisquare"` for the old behaviour.
+- A tree prior stores a thin branch membership as a sparse matrix: an EM step with a
+  `PolyaTree` on 1024 bins takes half the time, and small trees are unchanged.
 - **Breaking:** `binference.samplers` is renamed `binference.engines`, since it also holds
   MAP and VB, which do not sample. There is no alias, so `from binference.samplers import
   NUTS` becomes `from binference.engines import NUTS`; the API pages' URLs change with it.
@@ -151,6 +153,8 @@ releases may break the API).
 - NUTS's starting metric gives flat or negatively curved directions the largest variance
   seen, as documented, rather than 1e6 times the smallest. On `LogisticGP()` with 4 bins
   and 10 objects, 20 fits took 16.6 s in all against 114.1 s, with none over 5 s.
+- `missing_information(include_prior=True)` includes a tree prior's curvature, so MAP's EM
+  message states the right rate for `GeneralizedDirichlet` and the Dirichlet trees.
 - Docstrings, error messages, attribute comments on the API pages and this changelog no
   longer cite design records, which the site does not include.
 - The NUTS tree-depth hint of `check()` names long log tails only for priors that have

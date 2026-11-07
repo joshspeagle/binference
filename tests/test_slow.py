@@ -51,9 +51,9 @@ def _sbc(prior, fit, n_simulations, n_draws, rng, *, n_objects=40, noise=0.2, **
 @pytest.mark.filterwarnings(
     "ignore:In .* fits the smallest bulk ESS:binference.ConvergenceWarning"
 )
-def test_sbc_nuts(prior):
+def test_sbc_nuts(prior, seed):
     fit = _fit("nuts", prior=prior, n_chains=2, n_warmup=300, n_samples=300)
-    assert_uniform_ranks(_sbc(prior, fit, n_simulations=200, n_draws=99, rng=2026))
+    assert_uniform_ranks(_sbc(prior, fit, n_simulations=200, n_draws=99, rng=seed + 2026))
 
 
 # Gibbs at K = 4, N = 40 takes 0.14 s per fit with the Dirichlet prior, which affords 1000
@@ -83,7 +83,7 @@ def test_sbc_gibbs(prior, kw, n_simulations):
 @pytest.mark.filterwarnings(
     "ignore:In .* fits the smallest bulk ESS:binference.ConvergenceWarning"
 )
-def test_sbc_gibbs_rejects_posteriors_about_18_percent_too_narrow():
+def test_sbc_gibbs_rejects_posteriors_about_18_percent_too_narrow(seed):
     """Negative control: counting half the objects twice narrows the posteriors by about
     18% (sqrt(40/60) = 0.82). The Dirichlet Gibbs configuration rejects it with both tests
     already at 300 simulations: in 10 of 10 seeds, every smallest p-value below 4e-10
@@ -94,21 +94,21 @@ def test_sbc_gibbs_rejects_posteriors_about_18_percent_too_narrow():
     def fit_doubled(lk, rng):
         return fit(lk.with_weights(np.repeat([1, 2], lk.N // 2)), rng)
 
-    res = _sbc(prior, fit_doubled, 300, GIBBS_DRAWS, rng=2027)
+    res = _sbc(prior, fit_doubled, 300, GIBBS_DRAWS, rng=seed + 2027)
     for method, p in sbc_pvalues(res).items():
         assert np.any(p <= 1e-3 / p.size), (method, dict(zip(res.names, p, strict=True)))
 
 
 @pytest.mark.xfail(strict=True, reason="mean-field VB is over-confident (documented)")
-def test_sbc_fails_for_vb():
+def test_sbc_fails_for_vb(seed):
     sim = binference.simulate.prior_predictive(P.Dirichlet(1.0), BINS4, n_objects=80, noise=0.35)
     res = binference.validation.sbc(
-        sim, _fit("vb", n_samples=400), n_simulations=150, n_draws=99, rng=7
+        sim, _fit("vb", n_samples=400), n_simulations=150, n_draws=99, rng=seed + 7
     )
     assert_uniform_ranks(res)
 
 
-def test_coverage_gibbs():
+def test_coverage_gibbs(seed):
     # 1000 simulations: the 95% tolerance is +-0.028, so posteriors 15% too narrow (95%
     # coverage 0.904) fail in each quantity with probability 0.98 (0.79 with 300)
     sim = binference.simulate.prior_predictive(P.Dirichlet(1.0), BINS4, n_objects=60, noise=0.25)
@@ -118,7 +118,7 @@ def test_coverage_gibbs():
         n_simulations=1000,
         levels=(0.68, 0.95),
         functionals={"mean": lambda r: r @ BINS4.centers},
-        rng=99,
+        rng=seed + 99,
     )
     rates = cov.coverage_rates()
     se = cov.stderr()
@@ -199,10 +199,16 @@ def test_geweke_has_power_against_a_broken_kernel():
     assert np.max(np.abs(z_scores)) > 8.0, z_scores
 
 
-def test_gibbs_and_nuts_agree_on_larger_problem():
-    mock = binference.simulate.mock_1d(5000, Bins.linear(0, 3, 15), noise=(0.05, 0.2), rng=11)
-    g = binference.infer(mock.likelihoods, method="gibbs", rng=1, n_samples=4000, check=False)
-    n = binference.infer(mock.likelihoods, method="nuts", rng=2, n_samples=1000, check=False)
+def test_gibbs_and_nuts_agree_on_larger_problem(seed):
+    mock = binference.simulate.mock_1d(
+        5000, Bins.linear(0, 3, 15), noise=(0.05, 0.2), rng=seed + 11
+    )
+    g = binference.infer(
+        mock.likelihoods, method="gibbs", rng=seed + 1, n_samples=4000, check=False
+    )
+    n = binference.infer(
+        mock.likelihoods, method="nuts", rng=seed + 2, n_samples=1000, check=False
+    )
     assert_draws_agree(g.chains, n.chains)
 
 
@@ -230,14 +236,14 @@ def _assert_unit_variance(y):
     assert abs(v - 1) < 4 * np.sqrt(2 / y.size), v
 
 
-def test_recovery_with_interim_prior_posteriors():
+def test_recovery_with_interim_prior_posteriors(seed):
     """Posterior means vs true population over 80 mocks: whitened residuals have unit variance."""
     bins = Bins.linear(0, 3, 6)
     rho_true = binference.simulate.population(bins, "gaussian")
     ys = []
     for s in range(80):
         mock = binference.simulate.mock_1d(
-            800, bins, density=rho_true, interim="gaussian", rng=1000 + s
+            800, bins, density=rho_true, interim="gaussian", rng=seed + 1000 + s
         )
         lk = Likelihoods.from_table(mock.posteriors, bins, interim=mock.interim)
         res = binference.infer(lk, method="gibbs", rng=s, n_samples=500, check=False)
@@ -245,17 +251,17 @@ def test_recovery_with_interim_prior_posteriors():
     _assert_unit_variance(np.concatenate(ys))
 
 
-def test_interim_prior_regression():
+def test_interim_prior_regression(seed):
     """Feeding posteriors as likelihoods biases the population toward the interim prior."""
     bins = Bins.linear(0, 3, 6)
     rho_true = binference.simulate.population(bins, "bimodal")
     mock = binference.simulate.mock_1d(
-        20000, bins, density=rho_true, interim="gaussian", noise=(0.3, 0.6), rng=5
+        20000, bins, density=rho_true, interim="gaussian", noise=(0.3, 0.6), rng=seed + 5
     )
     lk_right = Likelihoods.from_table(mock.posteriors, bins, interim=mock.interim)
     lk_wrong = Likelihoods(mock.posteriors, bins)
-    right = binference.infer(lk_right, method="gibbs", rng=1, n_samples=500, check=False)
-    wrong = binference.infer(lk_wrong, method="gibbs", rng=2, n_samples=500, check=False)
+    right = binference.infer(lk_right, method="gibbs", rng=seed + 1, n_samples=500, check=False)
+    wrong = binference.infer(lk_wrong, method="gibbs", rng=seed + 2, n_samples=500, check=False)
     truth = mock.truth.rho
     assert np.all(np.abs(right.mean - truth) < 4 * right.std)
     assert np.max(np.abs(wrong.mean - truth) / wrong.std) > 8
@@ -265,34 +271,38 @@ def test_interim_prior_regression():
     assert pi @ wrong.mean > pi @ right.mean + 0.01
 
 
-def test_selection_recovery():
+def test_selection_recovery(seed):
     bins = Bins.linear(0, 3, 4)
     S = np.array([0.95, 0.6, 0.35, 0.15])
     rho_true = binference.simulate.population(bins, "gaussian")
     ys = []
     for s in range(100):
         mock = binference.simulate.mock_1d(
-            600, bins, density=rho_true, noise=(0.2, 0.5), selection=S, rng=2000 + s
+            600, bins, density=rho_true, noise=(0.2, 0.5), selection=S, rng=seed + 2000 + s
         )
         res = binference.infer(mock.likelihoods, method="gibbs", rng=s, n_samples=500, check=False)
         ys.append(_whitened_residuals(res, mock.truth.rho))
     _assert_unit_variance(np.concatenate(ys))
 
 
-def test_binning_bias_with_coarse_bins_is_real():
+def test_binning_bias_with_coarse_bins_is_real(seed):
     """A continuous population on coarse bins: the bias grows with N (documented pitfall)."""
     bins = Bins.linear(0, 3, 6)
-    mock = binference.simulate.mock_1d(20000, bins, density="bimodal", noise=(0.3, 0.6), rng=5)
-    res = binference.infer(mock.likelihoods, method="gibbs", rng=1, n_samples=500, check=False)
+    mock = binference.simulate.mock_1d(
+        20000, bins, density="bimodal", noise=(0.3, 0.6), rng=seed + 5
+    )
+    res = binference.infer(
+        mock.likelihoods, method="gibbs", rng=seed + 1, n_samples=500, check=False
+    )
     assert np.max(np.abs(res.mean - mock.truth.rho) / res.std) > 4
 
 
-def test_vb_underestimates_widths_vs_nuts():
-    mock = binference.simulate.mock_1d(3000, Bins.linear(0, 3, 15), noise=(0.2, 0.4), rng=3)
-    n = binference.infer(mock.likelihoods, method="nuts", rng=1, n_samples=600, check=False)
+def test_vb_underestimates_widths_vs_nuts(seed):
+    mock = binference.simulate.mock_1d(3000, Bins.linear(0, 3, 15), noise=(0.2, 0.4), rng=seed + 3)
+    n = binference.infer(mock.likelihoods, method="nuts", rng=seed + 1, n_samples=600, check=False)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", binference.ApproximationWarning)
-        v = binference.infer(mock.likelihoods, method="vb", rng=1)
+        v = binference.infer(mock.likelihoods, method="vb", rng=seed + 1)
     assert np.median(v.std / n.std) < 0.5
     # (the per-object PDFs are broad compared with the bins: most information is missing)
     model = PopulationModel(mock.likelihoods)
