@@ -20,9 +20,10 @@ MAX_ELEMENTS = 2**22
 #: How far inside a cell, as a fraction of its width, the check rule reads its ends: a jump
 #: closer to an edge goes unseen, and one exactly on an edge reads as the inside value.
 EDGE_INSET = 1e-9
-#: Share of a cell's largest point value that one of its children must read for that value
-#: to count as confirmed; below it, the cells around the point are refined until one does.
-CONFIRM_SHARE = 0.1
+#: Share of a cell's largest point value that a cell holding that point must read for it
+#: to count as confirmed; below it, those cells are refined until one does. A function
+#: continuous at the point gets there as the cells shrink.
+CONFIRM_SHARE = 0.9
 
 
 def _gauss(n: int) -> tuple[np.ndarray, np.ndarray]:
@@ -85,11 +86,13 @@ def bin_log_average(
     in half along every axis, at most ``max_depth`` times, after which an
     :class:`~binference.InputWarning` is raised. The estimate is the sum over the current
     cells, so it falls as well as rises, and a cell accepted earlier is split if it falls.
-    A point value that a cell reads and none of its children reads a :data:`CONFIRM_SHARE`
-    of is a feature narrower than the children's points: the cells holding that point are
-    refined until one confirms it, or to ``max_depth``, which also warns. A negligible
-    value, below ``tol`` of the row's reference at that cell's share, is left alone. With
-    ``n_sub`` a fixed ``n_sub``-point rule is used instead.
+    A cell's largest point value, over its rules, that none of its children reads a
+    :data:`CONFIRM_SHARE` of is a feature narrower than the children's points: the cells
+    holding that point are refined until one confirms it, or to ``max_depth``, which also
+    warns. A value that could give less than ``tol`` of the row's reference in its cell is
+    left alone. One value is followed per cell, so a second narrow feature that a point of
+    the same cell happened to read, like one no point reads, can go unseen. With ``n_sub``
+    a fixed ``n_sub``-point rule is used instead.
 
     The Gauss-Legendre points leave the outer 4.7% of a cell at each end unread, so
     a jump there goes unseen. With ``jumps`` each cell is also checked against
@@ -159,15 +162,17 @@ def bin_log_average(
             if first.shape[0] == 0:
                 raise ValueError("The function returned no rows.")
             size = max(1, MAX_ELEMENTS // (first.shape[0] * M))
-            parts = [first.reshape(-1, 1, M)]
-            parts += [
-                (v := _call(logf, z[1:][sl], M)).reshape(v.shape[0], -1, M)
-                for sl in chunk_slices(C - 1, size)
-            ]
-            avg = [special.logsumexp(v + rule.logw, axis=2) for v in parts]
-            peak = [v.max(axis=2) for v in parts]
-            node = [v.argmax(axis=2) for v in parts]
-            return (*(np.concatenate(x, axis=1) for x in (avg, peak, node)),)
+            parts = []
+            for sl in (None, *chunk_slices(C - 1, size)):  # None: the first cell, already read
+                v = first if sl is None else _call(logf, z[1:][sl], M)
+                v = v.reshape(v.shape[0], -1, M)
+                parts.append(
+                    (special.logsumexp(v + rule.logw, axis=2), v.max(axis=2), v.argmax(axis=2))
+                )
+            return tuple(np.concatenate(x, axis=1) for x in zip(*parts, strict=True))
+
+        def pick(a, r, c):
+            return a[r, c]
 
         row = None
     else:
@@ -183,6 +188,9 @@ def bin_log_average(
                 peak[sl], node[sl] = v.max(axis=1), v.argmax(axis=1)
             return avg, peak, node
 
+        def pick(a, r, c):
+            return a[c]
+
         K = bins.K
         row = np.repeat(np.arange(rows), K)
         owner = np.tile(owner, rows)
@@ -196,12 +204,25 @@ def bin_log_average(
         z_hi = np.stack([inv(hi[:, d]) for d, inv in enumerate(inverse)], axis=-1)
         return must_split(z_lo, z_hi, row)
 
+    # the nodes of every rule on the unit cube, as one list
+    units = np.concatenate([r.t[r.idx].T for r in rules])
+    offsets = np.cumsum([0, *(len(r.logw) for r in rules[:-1])])
+
+    def read(lo, hi, row):
+        # log averages of the first rule and of the others, and over every rule each cell's
+        # largest log value and its node in units
+        avg, peak, node = zip(*(integrate(r, lo, hi, row) for r in rules), strict=True)
+        peak = np.stack(peak)
+        best = peak.argmax(axis=0)[None]
+        node = np.stack([n + off for n, off in zip(node, offsets, strict=True)])
+        which = np.take_along_axis(node, best, axis=0)[0].astype(np.int32)
+        return avg[0], list(avg[1:]), np.take_along_axis(peak, best, axis=0)[0], which
+
     logfrac = np.zeros(owner.size)
-    fine, peak, node = integrate(rules[0], lo, hi, row)
+    fine, coarse, peak, node = read(lo, hi, row)
     N = fine.shape[0] if rows is None else rows
     if n_sub is not None:
         return fine if rows is None else fine.reshape(N, bins.K)
-    coarse = [integrate(rule, lo, hi, row)[0] for rule in rules[1:]]
     logerr = _log_disagreement(fine, coarse)
     # errors are measured on averages (in u) or on masses (in z), relative to the row's
     # largest as now estimated. Every cell stays in play, so one accepted against an
@@ -212,9 +233,11 @@ def bin_log_average(
     max_logfrac = -(max_depth - 0.5) * nd * np.log(2.0)  # finer than this, a cell is too deep
     forced = marked(lo, hi, row)
     # claims: point values read by a cell and not confirmed by its children, as (holding
-    # cell, row, point in the integration coordinate, log value)
-    c_cell = c_row = np.empty(0, dtype=int)
+    # cell, row, point in the integration coordinate, log value, identity). One point on a
+    # split has a copy in each child, and any copy's confirmation closes them all
+    c_cell = c_row = c_id = np.empty(0, dtype=int)
     c_point, c_peak = np.empty((0, nd)), np.empty(0)
+    next_id = 0
     unconverged = np.zeros(bins.K, dtype=bool)
     while True:
         out = np.full((N, bins.K), -np.inf)
@@ -237,6 +260,11 @@ def bin_log_average(
         split = excess.any(axis=0) if rows is None else excess
         split |= forced
         deep = logfrac < max_logfrac
+        # a claim whose whole cell would be below tol of the row is left alone
+        live = c_peak + logfrac[c_cell] >= pick(scale, c_row, c_cell) + log_tol
+        c_cell, c_row, c_id, c_point, c_peak = (
+            x[live] for x in (c_cell, c_row, c_id, c_point, c_peak)
+        )
         unconverged[owner[c_cell[deep[c_cell]]]] = True  # a claim that nothing confirmed
         split[c_cell] = True
         keep = split & ~deep
@@ -247,39 +275,33 @@ def bin_log_average(
         kid_hi = kid_lo + np.repeat(half, len(corners), axis=0)
         kid_owner = np.repeat(owner[keep], len(corners))
         kid_row = None if row is None else np.repeat(row[keep], len(corners))
-        kid_fine, kid_peak, kid_node = integrate(rules[0], kid_lo, kid_hi, kid_row)
-        kid_coarse = [integrate(rule, kid_lo, kid_hi, kid_row)[0] for rule in rules[1:]]
+        kid_fine, kid_coarse, kid_peak, kid_node = read(kid_lo, kid_hi, kid_row)
 
-        # what the families confirm: the largest value any child reads
+        # new claims: a value that no child of its cell reads a share of, unless negligible
         family = kid_peak.reshape(*kid_peak.shape[:-1], -1, len(corners)).max(axis=-1)
-        read = peak[..., keep]
-        unconfirmed = family < read + log_share
-        unconfirmed &= read + logfrac[keep] >= scale[..., keep] + log_tol
+        was = peak[..., keep]
+        unconfirmed = family < was + log_share
+        unconfirmed &= was + logfrac[keep] >= scale[..., keep] + log_tol
         if rows is None:
             new_row, new_family = np.nonzero(unconfirmed)
         else:
             new_family = np.flatnonzero(unconfirmed)
             new_row = row[keep][new_family]
-        found = node[..., keep][new_row, new_family] if rows is None else node[keep][new_family]
-        new_peak = read[new_row, new_family] if rows is None else read[new_family]
-        unit = rules[0].t[rules[0].idx[:, found]].T.reshape(-1, nd)
-        lo_keep, hi_keep = lo[keep], hi[keep]
-        new_point = lo_keep[new_family] + (hi_keep - lo_keep)[new_family] * unit
+        new_peak = pick(was, new_row, new_family)
+        found = units[pick(node[..., keep], new_row, new_family)]
+        lo_kept, width = lo[keep], hi[keep] - lo[keep]
+        new_point = lo_kept[new_family] + width[new_family] * found
+        new_id = next_id + np.arange(new_family.size)
+        next_id += new_family.size
 
-        rank = np.cumsum(keep) - 1
+        # existing claims move with their cells, which are always among those split
         held = keep[c_cell]
-        old_family, old_row, old_point, old_peak = (
-            rank[c_cell[held]],
-            c_row[held],
-            c_point[held],
-            c_peak[held],
-        )
-        at = family[old_row, old_family] if rows is None else family[old_family]
-        open_ = at < old_peak + log_share  # a claim its family has not confirmed goes on
-        claim_family = np.concatenate([old_family[open_], new_family])
-        c_row = np.concatenate([old_row[open_], new_row])
-        c_point = np.concatenate([old_point[open_], new_point])
-        c_peak = np.concatenate([old_peak[open_], new_peak])
+        ranks = np.cumsum(keep) - 1
+        claim_family = np.concatenate([ranks[c_cell[held]], new_family])
+        c_row = np.concatenate([c_row[held], new_row])
+        c_id = np.concatenate([c_id[held], new_id])
+        c_point = np.concatenate([c_point[held], new_point])
+        c_peak = np.concatenate([c_peak[held], new_peak])
 
         stay = ~keep
         n_stay = int(stay.sum())
@@ -298,14 +320,20 @@ def bin_log_average(
         if row is not None:
             row = np.concatenate([row[stay], kid_row])
 
-        # a claim passes to the children holding its point, both of them on the split
+        # each claim passes to the children holding its point, both of them on a split, and
+        # stays only while none of its copies reads the share
         holders = n_stay + len(corners) * claim_family[:, None] + np.arange(len(corners))
         inside = np.all(
             (lo[holders] <= c_point[:, None, :]) & (c_point[:, None, :] <= hi[holders]), axis=2
         )
         which, child = np.nonzero(inside)
-        c_cell = holders[which, child]
-        c_row, c_point, c_peak = c_row[which], c_point[which], c_peak[which]
+        c_cell, c_row, c_id = holders[which, child], c_row[which], c_id[which]
+        c_point, c_peak = c_point[which], c_peak[which]
+        done = pick(peak, c_row, c_cell) >= c_peak + log_share
+        live = ~np.isin(c_id, c_id[done])
+        c_cell, c_row, c_id, c_point, c_peak = (
+            x[live] for x in (c_cell, c_row, c_id, c_point, c_peak)
+        )
     unread = np.zeros(bins.K, dtype=bool)
     unconverged[owner[split]] = True
     if stopped is not None:

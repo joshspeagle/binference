@@ -98,3 +98,54 @@ def test_a_negligible_point_value_does_not_force_refinement():
 
     bin_log_average(logf, Bins.linear(0, 1, 1))
     assert sum(calls) == 8  # 5 and 3 points on the one cell
+
+
+def test_a_spike_only_a_check_rule_reads_is_followed():
+    # on the 3-point rule's first node, which the 5-point rule misses
+    def logf(z):
+        return np.logaddexp(norm.logpdf(z, 0.5 - 0.15**0.5, 1e-4), 0.0)[None]
+
+    assert np.exp(bin_log_average(logf, Bins.linear(0, 1, 1)))[0, 0] == pytest.approx(
+        2.0, abs=2e-3
+    )
+
+
+def test_a_background_above_the_share_does_not_confirm_a_tall_bump():
+    def logf(z):
+        return np.log(1 + 9 * np.exp(-0.5 * ((z - 0.5) / 0.006) ** 2))[None]
+
+    exact = 1 + 9 * 0.006 * (2 * np.pi) ** 0.5
+    assert np.exp(bin_log_average(logf, Bins.linear(0, 1, 1)))[0, 0] == pytest.approx(
+        exact, abs=2e-3
+    )
+
+
+def test_a_one_sided_feature_on_a_split_point_does_not_warn():
+    def logf(z):
+        with np.errstate(divide="ignore"):
+            return np.where(z >= 0.5, norm.logpdf(z, 0.5, 1e-2) + np.log(2.0), -np.inf)[None]
+
+    mass = np.exp(bin_log_average(logf, Bins.linear(0, 1, 1), jumps=True, max_depth=16))
+    assert mass[0, 0] == pytest.approx(1.0, abs=2e-3)
+
+
+def test_a_claim_that_turns_negligible_stops_without_a_warning():
+    def logf(z):
+        wide = norm.logpdf(z, 1.5, 0.1)
+        return np.logaddexp(wide, np.log(0.01) - 0.5 * ((z - 0.5) / 1e-7) ** 2)[None]
+
+    bin_log_average(logf, Bins.linear(0, 2, 2))  # warnings are errors
+
+
+def test_memory_stays_bounded_by_the_chunk_size(monkeypatch):
+    from binference import _quadrature
+
+    seen = []
+
+    def logf(z):
+        seen.append(z.shape[0])
+        return np.zeros((2, z.shape[0]))
+
+    monkeypatch.setattr(_quadrature, "MAX_ELEMENTS", 200)
+    bin_log_average(logf, Bins.linear(0, 1, 40), n_sub=4)
+    assert len(seen) > 2 and max(seen) * 2 <= 200
