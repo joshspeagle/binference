@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 import binference
-from binference import Bins
+from binference import Bins, Likelihoods
 from binference import inference as inf
 from binference import priors as P
 from binference.engines import NUTS
@@ -265,6 +265,69 @@ def test_tests_outside_this_file_name_the_engine_they_run():
                     assert named, f"{path.name}:{node.lineno} leaves the engine to auto"
 
 
+<<<<<<< HEAD
 def test_auto_checks_the_convergence_of_the_engine_it_ran():
     with pytest.warns(binference.ConvergenceWarning, match="R-hat|ESS"):
         binference.infer(_lk(0.3), method="auto", rng=0, n_samples=20, store_labels=True)
+=======
+def test_n_samples_under_auto_is_a_minimum_that_gibbs_extends_past():
+    res = binference.infer(_lk(0.3), rng=0, n_samples=50, check=False)
+    assert res.method == "gibbs"
+    assert res.chains.shape[1] > 50
+    assert np.min(res.diagnostics["ess_bulk"]) >= 400
+
+
+def test_n_samples_above_the_projected_length_is_kept():
+    auto = inf.Auto(binference.PopulationModel(_lk(0.3)), max_gibbs_draws=100_000)
+    plan = {key: n for key, _, n in auto.candidates(n_samples=50_000)}
+    assert plan["gibbs"] == 50_000
+
+
+def test_gibbs_gives_way_above_max_gibbs_draws_even_with_n_samples():
+    auto = inf.Auto(binference.PopulationModel(_lk(0.3)), max_gibbs_draws=10)
+    assert "gibbs" not in [key for key, _, _ in auto.candidates(n_samples=5)]
+
+
+def test_auto_takes_its_extension_and_probe_settings_as_arguments():
+    model = binference.PopulationModel(_lk(0.3))
+    with pytest.raises(ValueError, match="probe_draws"):
+        inf.Auto(model, probe_draws=0)
+    with pytest.raises(ValueError, match="extend_target"):
+        inf.Auto(model, extend_target=-1.0)
+    assert inf.Auto(model, probe_proposals=200).probe_proposals == 200
+
+
+def test_a_stored_label_run_keeps_the_length_asked_for():
+    res = binference.infer(
+        _lk(0.3), method="auto", n_samples=50, store_labels=True, rng=0, check=False
+    )
+    assert res.chains.shape[1] == 50
+
+
+def test_a_joint_run_too_short_for_an_ess_is_extended_rather_than_crashing():
+    rng = np.random.default_rng(1)
+    truth, measured = Bins.linear(0, 1, 3), Bins.linear(-0.2, 1.2, 8)
+    zt = rng.uniform(0, 1, 2000)
+    response = binference.Response.from_simulation(
+        zt, zt + rng.normal(0, 0.1, 2000), truth, measured
+    )
+    z = rng.uniform(0, 1, 400)
+    observed = np.clip(z + rng.normal(0, 0.1, 400), -0.19, 1.19)
+    lk = Likelihoods.from_binned(response, values=observed)
+    res = binference.infer(lk, rng=0, n_samples=3, method="auto", check=False)
+    assert res.chains.shape[1] > 3
+
+
+@pytest.mark.parametrize(
+    ("kw", "name"),
+    [
+        ({"probe_proposals": 0.5}, "probe_proposals"),
+        ({"probe_proposals": 3}, "probe_proposals"),
+        ({"probe_draws": 1.5}, "probe_draws"),
+        ({"max_gibbs_draws": 1.5}, "max_gibbs_draws"),
+    ],
+)
+def test_auto_refuses_counts_that_are_not_usable_integers(kw, name):
+    with pytest.raises(ValueError, match=name):
+        inf.Auto(binference.PopulationModel(_lk(0.3)), **kw)
+>>>>>>> origin/main

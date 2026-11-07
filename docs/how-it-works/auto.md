@@ -35,22 +35,22 @@ check. Engine options passed to `infer` rule out the engines that do not take th
    Laplace result when its {term}`Pareto k-hat` passes and its importance ESS reaches
    `target_ess`. A first pass with fewer proposals stops the trial early when it
    projects too small an ESS
-   ([defaults](../reference/defaults.md#automatic-engine-choice)).
+   ({class}`Auto's arguments <binference.inference.Auto>`).
 3. **NUTS** otherwise.
 
-Without `n_samples`, auto extends a Gibbs run until every bulk ESS reaches `target_ess`
+Auto extends a Gibbs run until every bulk ESS reaches `target_ess`
 and the run passes the $\hat R$ and ESS limits of
 {meth}`~binference.PopulationResult.check`. Each extension aims a little above
 `target_ess` and is bounded in size
-([defaults](../reference/defaults.md#automatic-engine-choice)). If the extensions would
+({class}`Auto's arguments <binference.inference.Auto>`). If the extensions would
 need more than `max_gibbs_draws` draws per chain, auto discards the run and tries the
 next engine. This catches a jointly inferred selection or response that mixes much more
 slowly than $f$ predicts. Gibbs may be the last candidate, because no other engine
 takes the options given. Auto then keeps it even if it did not mix, and the reason says
 so.
-Two kinds of run are never extended. An explicit `n_samples` fixes the length: auto
-then keeps Gibbs whatever length it would need. A run that stores labels
-(`store_labels`) keeps the length it was given.
+An explicit `n_samples` is a minimum: the first run is at least that long, and it is
+extended like any other, so a run that does not mix gives way all the same. A run that
+stores labels (`store_labels`) is never extended, and keeps the length it was given.
 
 Auto keeps Laplace even when its check fails in two cases. One is likelihoods with more
 than `nnz_limit` stored entries. The other is options that no later engine takes. Such a

@@ -9,17 +9,6 @@ explain behaviour, not as settings to change.
 
 <!-- defaults:start -->
 
-## Automatic engine choice
-
-| Name | Value | Module | What it controls |
-|---|---|---|---|
-| `EXTEND_TARGET` | `1.2` | `binference.inference` | An extension of a Gibbs run aims for this many times `target_ess`. |
-| `EXTEND_MAX_FACTOR` | `3` | `binference.inference` | One extension of a Gibbs run adds at most this many times the draws so far. |
-| `EXTEND_MIN_FACTOR` | `0.5` | `binference.inference` | One extension of a Gibbs run adds at least this many times the draws so far. |
-| `PROBE_PROPOSALS` | `1000` | `binference.inference` | Proposals of the first pass that can stop a Laplace trial early. |
-| `PROBE_DRAWS` | `500` | `binference.inference` | Draws of the first pass that can stop a Laplace trial early. |
-| `PROBE_ESS_SHARE` | `0.5` | `binference.inference` | A Laplace trial stops when its first pass projects an importance ESS below this share of `target_ess`. |
-
 ## Results and diagnostics
 
 | Name | Value | Module | What it controls |
@@ -82,6 +71,7 @@ explain behaviour, not as settings to change.
 | `FEW_SAMPLES_SHARE` | `0.1` | `binference.likelihoods` | `from_samples` warns when more than this share of the objects have fewer than `min_samples` effective samples. |
 | `REPRESENTATION_SHARE` | `0.5` | `binference.likelihoods` | A warning is raised when more than this share of posterior rows sum to one only under the other `representation`. |
 | `REPRESENTATION_RTOL` | `0.01` | `binference.likelihoods` | Relative tolerance within which a posterior row counts as summing to one. |
+| `NORMALISED_TOL` | `0.002` | `binference.model` | A raw array warns that it may hold posteriors when every row sums to 1 within this: wide enough for single precision and for values rounded to three decimals. |
 | `MIGRATION_ATOL` | `0.001` | `binference.response` | With `efficiency`, columns that sum to one within this are divided by their sum (a migration matrix off by rounding); a warning is raised for the others. |
 
 ## Selection
