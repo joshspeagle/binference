@@ -17,8 +17,8 @@ from .engines.base import Engine
 from .engines.laplace import PROPOSAL_FACTOR
 from .model import PopulationModel
 from .priors import PopulationPrior
-from .results import PointEstimate, PopulationResult, _report
-from .warnings import ApproximationWarning, BinferenceWarning, InputWarning
+from .results import PointEstimate, PopulationResult
+from .warnings import ApproximationWarning, BinferenceWarning
 
 __all__ = ["METHODS", "Auto", "infer"]
 
@@ -240,9 +240,9 @@ class Auto(Engine):
             else:
                 # stored labels keep the length asked for, which may be a memory limit
                 labels = key == "gibbs" and engine.label_index is not None
-                n = n_samples if labels and n_samples is not None else n_gibbs or n_samples
+                n = (n_samples or n_gibbs) if labels else (n_gibbs or n_samples)
                 result = engine.run() if n is None else engine.run(n)
-                if key == "gibbs" and engine.label_index is None:
+                if key == "gibbs" and not labels:
                     result, mixed = self._extend(engine, result)
                     if not mixed:
                         if not last:
@@ -266,10 +266,12 @@ class Auto(Engine):
         ``max_gibbs_draws`` draws per chain."""
         while True:
             d = result.diagnostics
-            ess = [np.ravel(v) for k, v in d.items() if k.startswith("ess_bulk")]
-            # chains too short for an ESS have no value yet; a constant chain has no finite one
-            ess = np.concatenate(ess) if ess else np.zeros(1)
-            ess = float(np.min(ess[np.isfinite(ess)], initial=np.inf))
+            all_ess = [np.ravel(v) for k, v in d.items() if k.startswith("ess_bulk")]
+            # chains too short for an ESS have none yet; a constant chain has no finite one
+            ess = 0.0
+            if all_ess:
+                joined = np.concatenate(all_ess)
+                ess = float(np.min(joined[np.isfinite(joined)], initial=np.inf))
             if ess >= self.target_ess and not result._mixing_problems():
                 return result, True
             done = result.chains.shape[1]
@@ -428,6 +430,5 @@ def infer(
     if check and METHODS[result.method].markov:
         result.check()
     elif check:  # convergence is the engine's own; the inputs are every engine's concern
-        inputs, hints = result._input_problems()
-        _report([(inputs, hints, InputWarning)], strict=False)
+        result._warn_inputs()
     return result

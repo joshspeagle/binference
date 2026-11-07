@@ -40,7 +40,6 @@ import copy
 from typing import Any
 
 import numpy as np
-import scipy.sparse as sp
 from scipy import linalg, special
 
 from . import _kernels as kern
@@ -103,9 +102,9 @@ class PopulationModel:
         bins: Bins | None = None,
     ) -> None:
         if not isinstance(likelihoods, Likelihoods):
-            raw = likelihoods if sp.issparse(likelihoods) else np.asarray(likelihoods, float)
-            likelihoods = Likelihoods(likelihoods, bins)
-            if np.allclose(np.asarray(raw.sum(axis=1)), 1.0, rtol=0.0, atol=NORMALISED_TOL):
+            raw = likelihoods
+            likelihoods = Likelihoods(raw, bins)
+            if np.allclose(np.sum(raw, axis=1), 1.0, rtol=0.0, atol=NORMALISED_TOL):
                 warn(
                     "Every row of the array sums to 1, so these may be posteriors, but an "
                     "array is read as likelihoods. Pass Likelihoods.from_table(values, bins, "

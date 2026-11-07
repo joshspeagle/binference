@@ -211,6 +211,32 @@ class _IndividualMixin:
 
         return plot_individual(self, i, **kwargs)
 
+    def _input_problems(self) -> tuple[list[str], list[str]]:
+        """The problems with the inputs, and hints: the sample noise at the fit, for every
+        engine."""
+        lk = self.model.likelihoods if self.model is not None else None
+        if lk is None or "sample_sum" not in lk.meta:
+            return [], []
+        # the population the objects are drawn from, after selection
+        rho = self._weight_draws().mean(axis=0)
+        if self.model.selection_row is not None:
+            rho = rho * self.model.selection_row
+        var, _ = lk.sample_variance(rho)
+        total = float(np.sum(lk.weights * var))
+        if total <= SAMPLE_VARIANCE_MAX:
+            return [], []
+        return (
+            [
+                f"likelihoods from samples carry Monte Carlo variance sum_i V_i = {total:.2g} "
+                f"> {SAMPLE_VARIANCE_MAX:g} at the fitted population"
+            ],
+            ["draw more samples per object, or use wider bins or floor="],
+        )
+
+    def _warn_inputs(self) -> None:
+        inputs, hints = self._input_problems()
+        _report([(inputs, hints, InputWarning)], strict=False)
+
     def _select_draws(self, n_draws: int | None, components: bool = False) -> np.ndarray:
         R = self._weight_draws() if components else self._rho_draws()
         return R[_draw_index(R.shape[0], n_draws)]
@@ -973,28 +999,6 @@ def _report(groups: list[tuple[list[str], list[str], type]], strict: bool) -> No
                 warn(f"Diagnostics: {text}.", category)
     if strict and texts:
         raise DiagnosticsError(f"Diagnostics failed: {'; '.join(texts)}")
-
-
-def _sample_noise_problem(result: Any) -> tuple[list[str], list[str]]:
-    # the Monte Carlo noise of likelihoods from samples at the fitted population, and a hint
-    lk = result.model.likelihoods if result.model is not None else None
-    if lk is None or "sample_sum" not in lk.meta:
-        return [], []
-    # the population the objects are drawn from, after selection
-    rho = result._weight_draws().mean(axis=0)
-    if result.model.selection_row is not None:
-        rho = rho * result.model.selection_row
-    var, _ = lk.sample_variance(rho)
-    total = float(np.sum(lk.weights * var))
-    if total <= SAMPLE_VARIANCE_MAX:
-        return [], []
-    return (
-        [
-            f"likelihoods from samples carry Monte Carlo variance sum_i V_i = {total:.2g} "
-            f"> {SAMPLE_VARIANCE_MAX:g} at the fitted population"
-        ],
-        ["draw more samples per object, or use wider bins or floor="],
-    )
 
 
 def _same_bins(a: Bins, b: Bins) -> bool:
@@ -1899,7 +1903,7 @@ class PopulationResult(_IndividualMixin):
         """The problems with the inputs, and hints: the part of :meth:`check` that applies
         to every engine."""
         lk = self.model.likelihoods if self.model is not None else None
-        inputs, input_hints = _sample_noise_problem(self)
+        inputs, input_hints = super()._input_problems()
         if lk is not None and support_min is not None:
             low = np.flatnonzero(self.data_support < support_min)
             if low.size:
@@ -2317,11 +2321,6 @@ class PointEstimate(_IndividualMixin):
         inputs, hints = self._input_problems()
         _report([(msgs, [], ConvergenceWarning), (inputs, hints, InputWarning)], strict)
         return msgs + inputs
-
-    def _input_problems(self) -> tuple[list[str], list[str]]:
-        """The problems with the inputs, and hints: the part of :meth:`check` that applies
-        to every engine."""
-        return _sample_noise_problem(self)
 
     def _weight_draws(self) -> np.ndarray:
         return self._fractions(self.value)[None, :]
