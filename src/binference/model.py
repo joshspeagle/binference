@@ -40,6 +40,7 @@ import copy
 from typing import Any
 
 import numpy as np
+import scipy.sparse as sp
 from scipy import linalg, special
 
 from . import _kernels as kern
@@ -52,6 +53,10 @@ from .priors.base import _TINY, BoundPrior
 from .priors.rates import _gamma_draw
 from .selection import Selection, _logit_density, as_selection
 from .warnings import InputWarning
+
+#: A raw array warns that it may hold posteriors when every row sums to 1 within this:
+#: wide enough for single precision and for values rounded to three decimals.
+NORMALISED_TOL = 2e-3
 
 __all__ = ["PopulationModel"]
 
@@ -98,9 +103,9 @@ class PopulationModel:
         bins: Bins | None = None,
     ) -> None:
         if not isinstance(likelihoods, Likelihoods):
-            raw = likelihoods if hasattr(likelihoods, "sum") else np.asarray(likelihoods)
+            raw = likelihoods if sp.issparse(likelihoods) else np.asarray(likelihoods, float)
             likelihoods = Likelihoods(likelihoods, bins)
-            if np.allclose(np.asarray(raw.sum(axis=1)), 1.0, rtol=0.0, atol=1e-10):
+            if np.allclose(np.asarray(raw.sum(axis=1)), 1.0, rtol=0.0, atol=NORMALISED_TOL):
                 warn(
                     "Every row of the array sums to 1, so these may be posteriors, but an "
                     "array is read as likelihoods. Pass Likelihoods.from_table(values, bins, "

@@ -70,6 +70,7 @@ explain behaviour, not as settings to change.
 | `FEW_SAMPLES_SHARE` | `0.1` | `binference.likelihoods` | `from_samples` warns when more than this share of the objects have fewer than `min_samples` effective samples. |
 | `REPRESENTATION_SHARE` | `0.5` | `binference.likelihoods` | A warning is raised when more than this share of posterior rows sum to one only under the other `representation`. |
 | `REPRESENTATION_RTOL` | `0.01` | `binference.likelihoods` | Relative tolerance within which a posterior row counts as summing to one. |
+| `NORMALISED_TOL` | `0.002` | `binference.model` | A raw array warns that it may hold posteriors when every row sums to 1 within this: wide enough for single precision and for values rounded to three decimals. |
 | `MIGRATION_ATOL` | `0.001` | `binference.response` | With `efficiency`, columns that sum to one within this are divided by their sum (a migration matrix off by rounding); a warning is raised for the others. |
 
 ## Selection

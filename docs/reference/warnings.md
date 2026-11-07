@@ -128,9 +128,17 @@ result may be biased.
 : **When.** `plot_population` draws a 2-D grid and gets `truth`, `stack` or `label`.
   **Fix.** Leave those arguments out for 2-D grids.
 
+`Every row of the array sums to 1, so these may be posteriors, ...`
+: **When.** `infer` or `PopulationModel` gets a raw array whose rows all sum to 1, within
+  `NORMALISED_TOL`.
+  **Cause.** The rows look like posteriors, and an array is read as likelihoods, which
+  would count the interim prior twice.
+  **Fix.** Pass `Likelihoods.from_table(values, bins, interim=...)`, or
+  `Likelihoods(values, bins)` if they are likelihoods.
+
 `Diagnostics: <problems>. Hint: <hints>.`
-: **When.** `result.check()` finds problems with the inputs. `infer` calls it after NUTS
-  and Gibbs. The problems are:
+: **When.** The input checks find problems. `infer` runs them after every engine, and
+  `result.check()` includes them. The problems are:
   - `likelihoods from samples carry Monte Carlo variance sum_i V_i = <x> > 1 at the fitted population`:
     the sample likelihoods are noisy enough to bias the fit. Draw more samples, widen
     the bins, or pass `floor=`.
@@ -172,8 +180,10 @@ just noisy.
 
 `Diagnostics: <problems>.` from a point estimate
 : **When.** `PointEstimate.check()` finds problems with a MAP estimate. The problems
-  are `the optimiser did not converge` and `KKT gap <g> > <kkt_max>: not at the optimum`.
-  **Fix.** Raise `max_iter` of `MAP`.
+  are `the optimiser did not converge`, `KKT gap <g> > <kkt_max>: not at the optimum`, and
+  the sample-noise message above, evaluated at the estimate. That sum reads higher at a
+  sparse optimum than at a posterior mean.
+  **Fix.** Raise `max_iter` of `MAP`; for sample noise, as above.
 
 `mix-SQP did not converge in <n> iterations; continuing with EM.`
 : **When.** mix-SQP stops before its tolerance. EM then continues from its last point.

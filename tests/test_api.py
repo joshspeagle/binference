@@ -120,6 +120,8 @@ def test_a_raw_array_of_normalised_rows_warns_that_it_may_hold_posteriors():
         PopulationModel(table, bins=Bins.linear(0, 1, 2))
     PopulationModel(binference.Likelihoods(table, Bins.linear(0, 1, 2)))  # stated: no warning
     PopulationModel(2.0 * table, bins=Bins.linear(0, 1, 2))
+    with pytest.warns(binference.InputWarning, match="may be posteriors"):
+        PopulationModel(np.round(table / 3 + 0.333, 3), bins=Bins.linear(0, 1, 2))
 
 
 @pytest.mark.parametrize("method", ["laplace", "vb", "bootstrap", "map"])

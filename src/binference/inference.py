@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 
+from . import diagnostics as diag
 from ._utils import RNGLike, check_positive, check_positive_integers, warn
 from .bins import Bins
 from .engines import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
@@ -114,12 +115,16 @@ class Auto(Engine):
             raise ValueError(f"gibbs_max_missing must be in [0, 1); got {gibbs_max_missing}.")
         self.gibbs_max_missing = float(gibbs_max_missing)
         self.nnz_limit = float(check_positive(nnz_limit, "nnz_limit"))
-        self.max_gibbs_draws = int(check_positive(max_gibbs_draws, "max_gibbs_draws"))
+        self.max_gibbs_draws = check_positive_integers(max_gibbs_draws, "max_gibbs_draws")[0]
         self.extend_target = float(check_positive(extend_target, "extend_target"))
         self.extend_max_factor = float(check_positive(extend_max_factor, "extend_max_factor"))
         self.extend_min_factor = float(check_positive(extend_min_factor, "extend_min_factor"))
-        self.probe_proposals = int(check_positive(probe_proposals, "probe_proposals"))
-        self.probe_draws = int(check_positive(probe_draws, "probe_draws"))
+        self.probe_proposals = check_positive_integers(probe_proposals, "probe_proposals")[0]
+        if self.probe_proposals < diag.PSIS_MIN_WEIGHTS:
+            raise ValueError(
+                f"probe_proposals must be at least {diag.PSIS_MIN_WEIGHTS}; got {probe_proposals}."
+            )
+        self.probe_draws = check_positive_integers(probe_draws, "probe_draws")[0]
         self.probe_ess_share = float(check_positive(probe_ess_share, "probe_ess_share"))
         self.engine_kwargs = engine_kwargs
         self._rng_arg = rng
@@ -207,7 +212,7 @@ class Auto(Engine):
         Parameters
         ----------
         n_samples : int, optional
-            Draws per chain; ``None`` lets auto set the run length. Laplace returns as
+            Least draws per chain; ``None`` lets auto set the run length. Laplace returns as
             many in total as NUTS's default four chains would (4000 by default).
         """
         if n_samples is not None:
@@ -233,9 +238,10 @@ class Auto(Engine):
                         ApproximationWarning,
                     )
             else:
-                n = n_gibbs or n_samples
+                # stored labels keep the length asked for, which may be a memory limit
+                labels = key == "gibbs" and engine.label_index is not None
+                n = n_samples if labels and n_samples is not None else n_gibbs or n_samples
                 result = engine.run() if n is None else engine.run(n)
-                # stored labels grow with the run: their length stays as asked
                 if key == "gibbs" and engine.label_index is None:
                     result, mixed = self._extend(engine, result)
                     if not mixed:
@@ -260,8 +266,10 @@ class Auto(Engine):
         ``max_gibbs_draws`` draws per chain."""
         while True:
             d = result.diagnostics
-            ess = np.concatenate([np.ravel(v) for k, v in d.items() if k.startswith("ess_bulk")])
-            ess = float(np.min(ess[np.isfinite(ess)], initial=np.inf))  # constant: no ESS
+            ess = [np.ravel(v) for k, v in d.items() if k.startswith("ess_bulk")]
+            # chains too short for an ESS have no value yet; a constant chain has no finite one
+            ess = np.concatenate(ess) if ess else np.zeros(1)
+            ess = float(np.min(ess[np.isfinite(ess)], initial=np.inf))
             if ess >= self.target_ess and not result._mixing_problems():
                 return result, True
             done = result.chains.shape[1]
@@ -373,8 +381,8 @@ def infer(
         Show progress bars.
     check : bool
         Warn about problems after the fit: convergence for NUTS and Gibbs, and the inputs
-        (Monte Carlo noise of sample likelihoods, binned counts the response does not
-        describe) for every engine.
+        for every engine: the Monte Carlo noise of sample likelihoods and, for results
+        with draws, binned counts the response does not describe.
     **engine_kwargs
         Passed to the engine (e.g. ``n_chains``, ``n_warmup``, ``target_accept``
         for NUTS; see :mod:`binference.engines`).

@@ -77,7 +77,8 @@ message, its cause and its fix are on the {doc}`warnings page
 `result.approximate` set, and its summary says so.
 
 A point estimate has its own check. `est.check()` warns when the optimiser did not
-converge, or when the {term}`KKT gap` per object exceeds `kkt_max`:
+converge, when the {term}`KKT gap` per object exceeds `kkt_max`, or when sample
+likelihoods are too noisy:
 
 ```python
 est = binference.infer(mock.likelihoods, method="map")

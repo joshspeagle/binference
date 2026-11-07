@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 import binference
-from binference import Bins
+from binference import Bins, Likelihoods
 from binference import inference as inf
 from binference import priors as P
 from binference.engines import NUTS
@@ -290,3 +290,38 @@ def test_auto_takes_its_extension_and_probe_settings_as_arguments():
     with pytest.raises(ValueError, match="extend_target"):
         inf.Auto(model, extend_target=-1.0)
     assert inf.Auto(model, probe_proposals=200).probe_proposals == 200
+
+
+def test_a_stored_label_run_keeps_the_length_asked_for():
+    res = binference.infer(
+        _lk(0.3), method="auto", n_samples=50, store_labels=True, rng=0, check=False
+    )
+    assert res.chains.shape[1] == 50
+
+
+def test_a_joint_run_too_short_for_an_ess_is_extended_rather_than_crashing():
+    rng = np.random.default_rng(1)
+    truth, measured = Bins.linear(0, 1, 3), Bins.linear(-0.2, 1.2, 8)
+    zt = rng.uniform(0, 1, 2000)
+    response = binference.Response.from_simulation(
+        zt, zt + rng.normal(0, 0.1, 2000), truth, measured
+    )
+    z = rng.uniform(0, 1, 400)
+    observed = np.clip(z + rng.normal(0, 0.1, 400), -0.19, 1.19)
+    lk = Likelihoods.from_binned(response, values=observed)
+    res = binference.infer(lk, rng=0, n_samples=3, method="auto", check=False)
+    assert res.chains.shape[1] > 3
+
+
+@pytest.mark.parametrize(
+    ("kw", "name"),
+    [
+        ({"probe_proposals": 0.5}, "probe_proposals"),
+        ({"probe_proposals": 3}, "probe_proposals"),
+        ({"probe_draws": 1.5}, "probe_draws"),
+        ({"max_gibbs_draws": 1.5}, "max_gibbs_draws"),
+    ],
+)
+def test_auto_refuses_counts_that_are_not_usable_integers(kw, name):
+    with pytest.raises(ValueError, match=name):
+        inf.Auto(binference.PopulationModel(_lk(0.3)), **kw)
