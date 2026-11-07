@@ -36,6 +36,8 @@ releases may break the API).
 
 ### Changed
 
+- When `check()` reports a low E-BFMI for `LogisticGP` on a grid, its hint suggests
+  `n_basis=10`.
 - **Breaking:** `Likelihoods.basis` and the `basis` of a result are never `None`. Plain bins
   are the identity basis `Basis(bins)` (order 0, resolution 1), which categories now also
   take, so test `basis.is_identity` where `basis is None` was tested. An explicit

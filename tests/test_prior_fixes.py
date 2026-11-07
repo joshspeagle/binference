@@ -237,3 +237,23 @@ def test_recentring_a_gp_from_centred_coordinates_stays_finite():
     x = np.concatenate([np.exp(log_s) * np.random.default_rng(2).normal(size=b.n_active), u])
     y = c.recentre(x, np.ones(b.n_active))  # warnings are errors here
     assert np.all(np.isfinite(y))
+
+
+def test_a_low_e_bfmi_for_a_gp_on_a_grid_suggests_a_smaller_basis(monkeypatch):
+    from binference import results
+
+    bins = Bins.grid(np.linspace(0, 1, 4), np.linspace(0, 1, 4))
+    lk = binference.simulate.mock_2d(200, bins, rng=0).likelihoods
+    res = binference.infer(
+        lk,
+        P.LogisticGP(),
+        method="nuts",
+        n_chains=2,
+        n_warmup=30,
+        n_samples=30,
+        rng=0,
+        check=False,
+    )
+    monkeypatch.setattr(results, "EBFMI_MIN", 100.0)  # any E-BFMI is low
+    with pytest.warns(binference.ConvergenceWarning, match="n_basis=10"):
+        res.check()
