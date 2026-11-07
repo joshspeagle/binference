@@ -502,3 +502,18 @@ Append-only. One entry per working session (or per step within a long session).
   A clean install from PyPI imports 0.1.0 and runs the README example.
 - The GitHub release was missed (a manual step) and must be made by hand for 0.1.0;
   #148 makes the workflow create it from now on (DECISIONS #124).
+
+## 2026-11-07: the run to 0.2.0
+
+- Josh ruled on the open design questions before the run (DECISIONS #125): release 0.2.0, every open issue but #77 (the 1.0 gate) and #61, and the architecture decisions of briefing 1.3.
+- #148 (PR #149): the release workflow creates the GitHub release (DECISIONS #124).
+- #200 (PR #205): `binference.samplers` is `binference.engines`.
+- #179, #206 (PR #207): adaptive bin averages measure errors against the current estimate and follow point values a cell's children do not confirm (DECISIONS #126). Josh asked for #206 before the release.
+- #185 (PR #209): NUTS's starting metric gives flat directions the largest variance seen (DECISIONS #127); the benchmark's 17 logistic cells are unchanged.
+- #88, #103 item 1 (PR #208): `n_samples` under auto is a minimum, auto's settings are arguments, every fit's inputs are checked, normalised raw arrays warn (DECISIONS #128).
+- #86, #201, #202, #203 (PR #210): draws accessors, engine classes in `infer`, a required order on grids, both SBC tests by default (DECISIONS #129).
+- #183, #188 (PR #211): tree priors' closed-form curvature, sparse membership where thin (DECISIONS #130).
+- #83 (PR #212): the seed sweep reaches the engine tests; CI enforces 90% coverage (DECISIONS #131).
+- #129, #103 item 2 (PR #213): `LogisticGP` is calibrated by SBC on bins and grids; Josh kept its default basis after review showed a cap changes the prior on fine grids (DECISIONS #132, #222).
+- #93 (PR #214): plain bins are the identity basis (DECISIONS #133).
+- Deferred work filed as issues #215 to #222 and #204; #2 and #3 folded into #220; #4 and #8 closed.

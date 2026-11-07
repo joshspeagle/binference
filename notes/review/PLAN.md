@@ -1,6 +1,6 @@
 # Walkthrough plan
 
-**Current position:** the walkthrough continues in the teardown artifact (DECISIONS #106, issue #150), now at overview depth over the whole map; the walkthrough and deep dive follow Josh's requests in the order of the phases below. Its findings are fixed in waves of issues and pull requests, and the artifact's ledger holds each one's status: every wave has landed (packaging and CI, the NUTS hint, plots, engine inputs, inputs and selection, results and diagnostics, the model and bins, the priors, the engines, the tests, and the docs and records, #152 to #178). The landing (Phases A–C), the docs phase (#99) and the 0.1.0 release (tag `v0.1.0`, 2026-10-29) are complete. Open from the teardown: #179 (a peak lost between quadrature cells), #182 (one integer check for every count), #183 (tree priors' curvature in the missing information, deferred), #185 (NUTS's metric after a flat curvature direction), #188 (a sparse tree membership). Still open from before: #124 (notation symbols in docstrings and pages), #129 (SBC for `LogisticGP`) and step 1.3's architecture decisions, deferred until the relevant code has been read.
+**Current position:** 0.2.0 is released from `main` (#223): every issue open before the run is closed or filed as `deferred`, and #77 (golden-value tests) is the remaining gate for 1.0. The walkthrough continues in the teardown artifact (DECISIONS #106) at Josh's request; the open research questions are in #221 and `QUESTIONS.md`.
 
 ## How each step works
 
