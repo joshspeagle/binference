@@ -75,6 +75,7 @@ explain behaviour, not as settings to change.
 | `SPARSE_FILL` | `0.1` | `binference._kernels` | Likelihoods are stored sparse below this share of non-zero entries. |
 | `MAX_ELEMENTS` | `4194304` | `binference._quadrature` | Most function values a quadrature evaluates in one call. |
 | `EDGE_INSET` | `1e-09` | `binference._quadrature` | How far inside a cell, as a fraction of its width, the check rule reads its ends: a jump closer to an edge goes unseen, and one exactly on an edge reads as the inside value. |
+| `CONFIRM_SHARE` | `0.9` | `binference._quadrature` | Share of a cell's largest point value that a cell holding that point must read for it to count as confirmed; below it, those cells are refined until one does. A function continuous at the point gets there as the cells shrink. |
 | `DEFAULT_OVERSAMPLE` | `{1: 8, 2: 4}` | `binference.basis` | Quadrature cells per order-1 component and axis when `oversample` is `None`, by dimension (2 above two dimensions; order 0 takes 1). |
 | `OUTSIDE_THRESHOLD` | `0.9` | `binference.likelihoods` | An object with more than this share of its likelihood outside the bins is mostly outside. |
 | `OUTSIDE_SHARE` | `0.1` | `binference.likelihoods` | A warning is raised when more than this share of the objects are mostly outside the bins. |
