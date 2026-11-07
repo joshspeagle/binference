@@ -35,25 +35,25 @@ def dirichlet_moments(a):
 
 # --------------------------------------------------------------------- NUTS
 @pytest.mark.parametrize("method", ["nuts", "gibbs"])
-def test_bin_without_likelihood_support_is_not_frozen(method):
+def test_bin_without_likelihood_support_is_not_frozen(method, seed):
     """A bin no object can be in keeps its prior-driven mass alpha_k / (A + N) (frankenz F11)."""
     rng = np.random.default_rng(3)
     N, K = 300, 5
     L = rng.random((N, K)) + 0.1
     L[:, -1] = 0.0
     lk = Likelihoods(L, Bins.linear(0, 1, K))
-    res = binference.infer(lk, method=method, rng=1, n_samples=1000, check=False)
+    res = binference.infer(lk, method=method, rng=seed + 1, n_samples=1000, check=False)
     exact_mean = 1.0 / (K + N)  # rho_K | D ~ Beta(1, K - 1 + N) under Dir(1)
     assert np.all(res.samples[:, -1] > 0)
     assert res.mean[-1] == pytest.approx(exact_mean, rel=0.15)
 
 
-def test_nuts_matches_exact(k3_problem):
+def test_nuts_matches_exact(k3_problem, seed):
     mock, exact = k3_problem
     res = binference.infer(
         mock.likelihoods,
         method="nuts",
-        rng=1,
+        rng=seed + 1,
         n_chains=2,
         n_warmup=400,
         n_samples=1500,
@@ -67,14 +67,14 @@ def test_nuts_matches_exact(k3_problem):
 
 
 @pytest.mark.parametrize("metric", ["diag", "dense"])
-def test_nuts_onehot_is_conjugate(onehot, metric):
+def test_nuts_onehot_is_conjugate(onehot, metric, seed):
     lk, counts = onehot
     alpha = np.array([1.0, 2.0, 0.5, 1.5])
     res = binference.infer(
         lk,
         P.Dirichlet(alpha),
         method="nuts",
-        rng=2,
+        rng=seed + 2,
         n_chains=2,
         n_warmup=300,
         n_samples=1500,
@@ -85,15 +85,15 @@ def test_nuts_onehot_is_conjugate(onehot, metric):
     assert_matches_reference(res, mean, sd)
 
 
-def test_nuts_reproducible_resumable_and_generator(onehot):
+def test_nuts_reproducible_resumable_and_generator(onehot, seed):
     lk, _ = onehot
     m = PopulationModel(lk)
-    a = NUTS(m, n_chains=2, n_warmup=50, rng=11).run(30)
-    b = NUTS(m, n_chains=2, n_warmup=50, rng=11).run(30)
+    a = NUTS(m, n_chains=2, n_warmup=50, rng=seed + 11).run(30)
+    b = NUTS(m, n_chains=2, n_warmup=50, rng=seed + 11).run(30)
     np.testing.assert_array_equal(a.samples, b.samples)
-    c = NUTS(m, n_chains=2, n_warmup=50, rng=12).run(30)
+    c = NUTS(m, n_chains=2, n_warmup=50, rng=seed + 12).run(30)
     assert not np.array_equal(a.samples, c.samples)
-    eng = NUTS(m, n_chains=2, n_warmup=50, rng=3)
+    eng = NUTS(m, n_chains=2, n_warmup=50, rng=seed + 3)
     eng.run(20)
     res = eng.run(15)
     assert res.chains.shape == (2, 35, 4)
@@ -106,19 +106,19 @@ def test_nuts_reproducible_resumable_and_generator(onehot):
 
 
 @pytest.mark.parametrize("engine", [NUTS, Gibbs])
-def test_resuming_is_bitwise_identical_to_one_long_run(engine, onehot):
+def test_resuming_is_bitwise_identical_to_one_long_run(engine, onehot, seed):
     m = PopulationModel(onehot[0])
-    e1 = engine(m, n_chains=2, n_warmup=30, rng=4)
+    e1 = engine(m, n_chains=2, n_warmup=30, rng=seed + 4)
     e1.run(20)
     split = e1.run(15)
-    whole = engine(m, n_chains=2, n_warmup=30, rng=4).run(35)
+    whole = engine(m, n_chains=2, n_warmup=30, rng=seed + 4).run(35)
     np.testing.assert_array_equal(split.chains, whole.chains)
 
 
-def test_parallel_chains_match_serial(onehot):
+def test_parallel_chains_match_serial(onehot, seed):
     m = PopulationModel(onehot[0], P.LogisticRandomWalk(order=1))
-    serial = NUTS(m, n_chains=2, n_warmup=40, rng=5).run(15)
-    eng = NUTS(m, n_chains=2, n_warmup=40, rng=5, n_jobs=2)
+    serial = NUTS(m, n_chains=2, n_warmup=40, rng=seed + 5).run(15)
+    eng = NUTS(m, n_chains=2, n_warmup=40, rng=seed + 5, n_jobs=2)
     parallel = eng.run(15)
     np.testing.assert_array_equal(serial.chains, parallel.chains)
     np.testing.assert_array_equal(serial.info["n_leapfrog"], parallel.info["n_leapfrog"])
@@ -147,10 +147,10 @@ def test_hessian_helpers():
     assert covariance_from_hessian(np.full((2, 2), np.nan)) is None
 
 
-def test_nuts_reparametrises_logistic_priors_without_touching_the_model():
-    mock = binference.simulate.mock_1d(5000, Bins.linear(0, 3, 8), noise=(0.05, 0.1), rng=2)
+def test_nuts_reparametrises_logistic_priors_without_touching_the_model(seed):
+    mock = binference.simulate.mock_1d(5000, Bins.linear(0, 3, 8), noise=(0.05, 0.1), rng=seed + 2)
     m = PopulationModel(mock.likelihoods, P.LogisticRandomWalk(order=1))
-    eng = NUTS(m, n_chains=2, n_warmup=150, rng=1)
+    eng = NUTS(m, n_chains=2, n_warmup=150, rng=seed + 1)
     assert eng.metric == "dense" and eng.target_accept == 0.9
     res = eng.run(40)
     assert np.all(m.prior.gamma == 1.0)  # the user's model keeps its parametrisation
@@ -164,7 +164,7 @@ def test_nuts_reparametrises_logistic_priors_without_touching_the_model():
         [m.log_density_unconstrained(x) for x in res.x[0, -5:]],
         rtol=1e-10,
     )
-    plain = NUTS(m, n_chains=2, n_warmup=60, rng=1, reparametrize=False, metric="diag")
+    plain = NUTS(m, n_chains=2, n_warmup=60, rng=seed + 1, reparametrize=False, metric="diag")
     assert plain.metric == "diag" and plain.run(5).model.prior is m.prior
     dirichlet = NUTS(PopulationModel(mock.likelihoods), n_chains=1)
     assert dirichlet.metric == "diag" and dirichlet.target_accept == 0.8
@@ -192,41 +192,41 @@ def test_nuts_validation():
         _ = NUTS(m).result
 
 
-def test_nuts_backs_off_a_jitter_that_leaves_the_support_from_init_as_from_the_mode():
+def test_nuts_backs_off_a_jitter_that_leaves_the_support_from_init_as_from_the_mode(seed):
     # this model's density is zero beyond |x| of about 700, so jitter 1e4 leaves it
-    nuts = NUTS(PopulationModel(np.eye(2)), init=[0.5, 0.5], jitter=1e4, n_chains=4, rng=0)
+    nuts = NUTS(PopulationModel(np.eye(2)), init=[0.5, 0.5], jitter=1e4, n_chains=4, rng=seed)
     starts = nuts._initial_points()
     assert np.all(np.abs(starts) < 700)
 
 
-def test_nuts_chains_start_at_a_given_init_jittered_only_when_it_is_one_point(k3_problem):
+def test_nuts_chains_start_at_a_given_init_jittered_only_when_it_is_one_point(k3_problem, seed):
     m = PopulationModel(k3_problem[0].likelihoods)  # its mode is near (1.3, -0.4)
     starts = np.array([[2.0, -2.0], [-2.0, 2.0]])
-    eng = NUTS(m, n_chains=2, n_warmup=0, init_x=starts, rng=0)
+    eng = NUTS(m, n_chains=2, n_warmup=0, init_x=starts, rng=seed)
     eng.warmup()
     np.testing.assert_array_equal([c.x for c in eng._chains], starts)
     # init is fractions, as for the other engines: the same point, converted
     v = m.to_value(starts[0])
-    eng = NUTS(m, n_chains=2, n_warmup=0, init=v, jitter=0.0, rng=0)
+    eng = NUTS(m, n_chains=2, n_warmup=0, init=v, jitter=0.0, rng=seed)
     eng.warmup()
     np.testing.assert_allclose([c.x for c in eng._chains], [starts[0]] * 2, atol=1e-12)
     rates = PopulationModel(k3_problem[0].likelihoods, P.GammaRates(1.0, 1e-3))
     lam = np.array([30.0, 70.0, 5.0])  # rates above 1, whose logs are positive too
     x = NUTS(rates, n_chains=1, init=lam, jitter=0.0)._initial_points()[0]
     np.testing.assert_allclose(rates.to_value(x), lam)
-    eng = NUTS(m, n_chains=2, n_warmup=0, init_x=starts[0], jitter=0.1, rng=0)
+    eng = NUTS(m, n_chains=2, n_warmup=0, init_x=starts[0], jitter=0.1, rng=seed)
     eng.warmup()
     x = np.array([c.x for c in eng._chains])
     assert np.all(np.abs(x - starts[0]) < 0.6) and not np.allclose(x[0], x[1])
 
 
-def test_nuts_with_a_logistic_prior_matches_a_long_run():
-    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 8), rng=4)
+def test_nuts_with_a_logistic_prior_matches_a_long_run(seed):
+    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 8), rng=4)  # the reference's data
     res = binference.infer(
         mock.likelihoods,
         P.LogisticRandomWalk(order=2),
         method="nuts",
-        rng=1,
+        rng=seed + 1,
         n_chains=2,
         n_warmup=200,
         n_samples=200,
@@ -234,9 +234,9 @@ def test_nuts_with_a_logistic_prior_matches_a_long_run():
     )
     assert res.samples.shape == (400, 8)
     assert "scale" in res.info["hyperparameters"]
-    # Reference: the same call with rng=99, 4 chains x 10000 draws after 1000 warm-up
+    # Reference: the same call with rng=seed + 99, 4 chains x 10000 draws after 1000 warm-up
     # (ESS > 46000 per bin, R-hat < 1.0002), so its own MC error is negligible here;
-    # infer(mock.likelihoods, P.LogisticRandomWalk(order=2), rng=99, n_chains=4,
+    # infer(mock.likelihoods, P.LogisticRandomWalk(order=2), rng=seed + 99, n_chains=4,
     #       n_warmup=1000, n_samples=10000) -> .mean, .std, rounded to 6 digits
     mean = [0.028023, 0.261029, 0.163405, 0.175175, 0.270258, 0.091127, 0.009948, 0.001036]
     sd = [0.013765, 0.031731, 0.030073, 0.028615, 0.031246, 0.020168, 0.005868, 0.00146]
@@ -246,38 +246,40 @@ def test_nuts_with_a_logistic_prior_matches_a_long_run():
 
 
 # -------------------------------------------------------------------- Gibbs
-def test_gibbs_matches_exact(k3_problem):
+def test_gibbs_matches_exact(k3_problem, seed):
     mock, exact = k3_problem
     res = binference.infer(
-        mock.likelihoods, method="gibbs", rng=3, n_samples=3000, n_warmup=200, check=False
+        mock.likelihoods, method="gibbs", rng=seed + 3, n_samples=3000, n_warmup=200, check=False
     )
     assert_matches_reference(res, exact.mean, exact.std)
 
 
-def test_gibbs_keeps_the_last_draw_of_every_thinning_block_of_each_chain(k3_problem):
+def test_gibbs_keeps_the_last_draw_of_every_thinning_block_of_each_chain(k3_problem, seed):
     m = PopulationModel(k3_problem[0].likelihoods)
-    thinned = Gibbs(m, n_chains=2, n_warmup=20, thin=3, rng=4).run(10)
-    every = Gibbs(m, n_chains=2, n_warmup=20, rng=4).run(30)
+    thinned = Gibbs(m, n_chains=2, n_warmup=20, thin=3, rng=seed + 4).run(10)
+    every = Gibbs(m, n_chains=2, n_warmup=20, rng=seed + 4).run(30)
     np.testing.assert_array_equal(thinned.chains, every.chains[:, 2::3])
 
 
-def test_gibbs_onehot_is_conjugate(onehot):
+def test_gibbs_onehot_is_conjugate(onehot, seed):
     lk, counts = onehot
-    res = binference.infer(lk, method="gibbs", rng=4, n_samples=3000, n_warmup=10, check=False)
+    res = binference.infer(
+        lk, method="gibbs", rng=seed + 4, n_samples=3000, n_warmup=10, check=False
+    )
     mean, sd = dirichlet_moments(1.0 + counts)
     assert_matches_reference(res, mean, sd)
 
 
-def test_gibbs_selection_matches_exact(k3_selection_problem):
+def test_gibbs_selection_matches_exact(k3_selection_problem, seed):
     mock, exact = k3_selection_problem
     res = binference.infer(
-        mock.likelihoods, method="gibbs", rng=5, n_samples=3000, n_warmup=200, check=False
+        mock.likelihoods, method="gibbs", rng=seed + 5, n_samples=3000, n_warmup=200, check=False
     )
     assert_matches_reference(res, exact.mean, exact.std)
     nuts = binference.infer(
         mock.likelihoods,
         method="nuts",
-        rng=5,
+        rng=seed + 5,
         n_chains=2,
         n_warmup=300,
         n_samples=1500,
@@ -287,7 +289,7 @@ def test_gibbs_selection_matches_exact(k3_selection_problem):
 
 
 @pytest.mark.parametrize("mode", ["on_truth", "on_measurement"])
-def test_fraction_selection_only_depends_on_ratios(k3_selection_problem, mode):
+def test_fraction_selection_only_depends_on_ratios(k3_selection_problem, mode, seed):
     """S and 3 S (values above one) give the same posterior for fractions."""
     mock, _ = k3_selection_problem
     lk = mock.likelihoods.with_selection(None)
@@ -296,27 +298,27 @@ def test_fraction_selection_only_depends_on_ratios(k3_selection_problem, mode):
     for scale in (1.0, 3.0):
         m = PopulationModel(lk, selection=Selection(scale * S, mode, scale="relative"))
         est = MAP(m).run()
-        gibbs = Gibbs(m, n_chains=2, n_warmup=200, rng=3).run(1500)
+        gibbs = Gibbs(m, n_chains=2, n_warmup=200, rng=seed + 3).run(1500)
         fits[scale] = (est.rho, gibbs)
         assert np.all(gibbs.samples > 0)
     np.testing.assert_allclose(fits[3.0][0], fits[1.0][0], rtol=1e-6)
     np.testing.assert_allclose(fits[3.0][1].samples, fits[1.0][1].samples, rtol=1e-12)
     exact_m = PopulationModel(lk, selection=S, selection_mode=mode)
-    nuts = NUTS(exact_m, n_chains=2, n_warmup=300, rng=4).run(800)
+    nuts = NUTS(exact_m, n_chains=2, n_warmup=300, rng=seed + 4).run(800)
     assert_draws_agree(fits[3.0][1].chains, nuts.chains)
 
 
-def test_gibbs_rates_agree_with_nuts(k3_selection_problem):
+def test_gibbs_rates_agree_with_nuts(k3_selection_problem, seed):
     mock, _ = k3_selection_problem
     prior = P.GammaRates(1.0, 1e-3)
     g = binference.infer(
-        mock.likelihoods, prior, method="gibbs", rng=6, n_samples=3000, check=False
+        mock.likelihoods, prior, method="gibbs", rng=seed + 6, n_samples=3000, check=False
     )
     n = binference.infer(
         mock.likelihoods,
         prior,
         method="nuts",
-        rng=6,
+        rng=seed + 6,
         n_chains=2,
         n_warmup=300,
         n_samples=1500,
@@ -328,16 +330,16 @@ def test_gibbs_rates_agree_with_nuts(k3_selection_problem):
 
 
 @pytest.mark.parametrize("prior", [P.GeneralizedDirichlet(2.0), P.PolyaTree(1.0)], ids=repr)
-def test_gibbs_tree_priors_agree_with_nuts(prior):
-    mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 4), noise=(0.2, 0.6), rng=9)
+def test_gibbs_tree_priors_agree_with_nuts(prior, seed):
+    mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 4), noise=(0.2, 0.6), rng=seed + 9)
     g = binference.infer(
-        mock.likelihoods, prior, method="gibbs", rng=7, n_samples=3000, check=False
+        mock.likelihoods, prior, method="gibbs", rng=seed + 7, n_samples=3000, check=False
     )
     n = binference.infer(
         mock.likelihoods,
         prior,
         method="nuts",
-        rng=7,
+        rng=seed + 7,
         n_chains=2,
         n_warmup=300,
         n_samples=1500,
@@ -346,7 +348,7 @@ def test_gibbs_tree_priors_agree_with_nuts(prior):
     assert_draws_agree(g.chains, n.chains)
 
 
-def test_gibbs_validation_and_labels(onehot):
+def test_gibbs_validation_and_labels(onehot, seed):
     lk, _ = onehot
     with pytest.raises(ValueError, match="conjugate"):
         Gibbs(PopulationModel(lk, P.LogisticNormal()))
@@ -354,23 +356,23 @@ def test_gibbs_validation_and_labels(onehot):
         half = lk.with_weights(np.full(lk.N, 0.5), fractional_weights=True)
     with pytest.raises(ValueError, match="integer"):
         Gibbs(PopulationModel(half))
-    g = Gibbs(PopulationModel(lk), n_chains=2, n_warmup=5, store_labels=[0, 3], rng=1)
+    g = Gibbs(PopulationModel(lk), n_chains=2, n_warmup=5, store_labels=[0, 3], rng=seed + 1)
     res = g.run(50)
     assert res.labels.shape == (2, 50, 2)
     np.testing.assert_array_equal(res.label_index, [0, 3])
-    a = Gibbs(PopulationModel(lk), n_warmup=5, rng=2).run(10)
-    b = Gibbs(PopulationModel(lk), n_warmup=5, rng=2).run(10)
+    a = Gibbs(PopulationModel(lk), n_warmup=5, rng=seed + 2).run(10)
+    b = Gibbs(PopulationModel(lk), n_warmup=5, rng=seed + 2).run(10)
     np.testing.assert_array_equal(a.samples, b.samples)
 
 
-def test_gibbs_integer_weights_compressed(rng):
+def test_gibbs_integer_weights_compressed(rng, seed):
     L = np.array([[1.0, 0.5, 0.1], [0.2, 1.0, 0.3], [0.1, 0.4, 1.0]])
     rows = rng.integers(0, 3, size=300)
     lk_full = Likelihoods(L[rows])
     lk_comp = lk_full.compress()
     assert lk_comp.N == 3
-    a = binference.infer(lk_full, method="gibbs", rng=1, n_samples=4000, check=False)
-    b = binference.infer(lk_comp, method="gibbs", rng=1, n_samples=4000, check=False)
+    a = binference.infer(lk_full, method="gibbs", rng=seed + 1, n_samples=4000, check=False)
+    b = binference.infer(lk_comp, method="gibbs", rng=seed + 1, n_samples=4000, check=False)
     assert_draws_agree(b.chains, a.chains)
 
 
@@ -410,10 +412,10 @@ def test_map_mle_matches_scipy(k3_problem):
     np.testing.assert_allclose(est.rho, r_ref / r_ref.sum(), atol=1e-5)
 
 
-def test_map_squarem_faster_than_em():
+def test_map_squarem_faster_than_em(seed):
     # 300 objects keep plain EM to ~11000 iterations (~0.3 s) and SQUAREM still needs
     # ~40 times fewer
-    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 15), noise=(0.3, 0.6), rng=1)
+    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 15), noise=(0.3, 0.6), rng=seed + 1)
     m = PopulationModel(mock.likelihoods)
     fast = MAP(m, algorithm="em", accelerate=True).run()
     with warnings.catch_warnings():
@@ -426,8 +428,8 @@ def test_map_squarem_faster_than_em():
 
 @pytest.mark.parametrize("alpha", [1.0, 2.5])
 @pytest.mark.parametrize("sparse", [False, True])
-def test_mixsqp_matches_em_and_is_certified(alpha, sparse):
-    mock = binference.simulate.mock_1d(1500, Bins.linear(0, 3, 20), noise=(0.2, 0.5), rng=3)
+def test_mixsqp_matches_em_and_is_certified(alpha, sparse, seed):
+    mock = binference.simulate.mock_1d(1500, Bins.linear(0, 3, 20), noise=(0.2, 0.5), rng=seed + 3)
     lk = mock.likelihoods.to_sparse(1e-8) if sparse else mock.likelihoods
     m = PopulationModel(lk, P.Dirichlet(alpha))
     sqp = MAP(m).run()
@@ -449,8 +451,8 @@ def test_mixsqp_matches_em_and_is_certified(alpha, sparse):
     )
 
 
-def test_mixsqp_on_tall_dense_inputs_and_fallbacks():
-    mock = binference.simulate.mock_1d(6000, Bins.linear(0, 3, 30), noise=(0.1, 0.3), rng=4)
+def test_mixsqp_on_tall_dense_inputs_and_fallbacks(seed):
+    mock = binference.simulate.mock_1d(6000, Bins.linear(0, 3, 30), noise=(0.1, 0.3), rng=seed + 4)
     m = PopulationModel(mock.likelihoods)  # tall and dense
     est = MAP(m).run()
     assert est.info["algorithm"] == "mixsqp" and est.kkt_gap <= GAP
@@ -468,16 +470,16 @@ def test_mixsqp_on_tall_dense_inputs_and_fallbacks():
         MAP(m, algorithm="newton")
 
 
-def test_mixsqp_stops_at_the_round_off_floor():
+def test_mixsqp_stops_at_the_round_off_floor(seed):
     # the KKT gap of this optimum cannot be pushed much below 1e-8 in floating point
-    mock = binference.simulate.mock_1d(800, Bins.linear(0, 3, 15), rng=6)
+    mock = binference.simulate.mock_1d(800, Bins.linear(0, 3, 15), rng=seed + 6)
     est = MAP(PopulationModel(mock.likelihoods)).run()  # warnings are errors here
     assert est.converged and est.n_iter < 50 and est.kkt_gap <= GAP
 
 
 @pytest.mark.parametrize("mode", ["on_truth", "on_measurement"])
-def test_mixsqp_with_selection_solves_for_observed_fractions(mode):
-    mock = binference.simulate.mock_1d(3000, Bins.linear(0, 3, 20), noise=(0.1, 0.3), rng=2)
+def test_mixsqp_with_selection_solves_for_observed_fractions(mode, seed):
+    mock = binference.simulate.mock_1d(3000, Bins.linear(0, 3, 20), noise=(0.1, 0.3), rng=seed + 2)
     S = np.linspace(0.2, 1.0, 20) ** 2
     m = PopulationModel(mock.likelihoods, selection=Selection(3.0 * S, mode, scale="relative"))
     sqp = MAP(m).run()
@@ -508,8 +510,8 @@ def test_map_with_prior_and_selection(k3_selection_problem):
     assert est.kkt_gap <= GAP
 
 
-def test_map_tree_prior_matches_grid():
-    mock = binference.simulate.mock_1d(150, Bins.linear(0, 3, 3), noise=(0.3, 0.8), rng=2)
+def test_map_tree_prior_matches_grid(seed):
+    mock = binference.simulate.mock_1d(150, Bins.linear(0, 3, 3), noise=(0.3, 0.8), rng=seed + 2)
     m = PopulationModel(mock.likelihoods, P.GeneralizedDirichlet([3.0, 2.0], [4.0, 2.5]))
     est = MAP(m).run()
     ex = binference.validation.exact_posterior(m, n_grid=600)  # mode from the nodes
@@ -517,8 +519,8 @@ def test_map_tree_prior_matches_grid():
     np.testing.assert_allclose(est.rho, best, atol=3e-3)
 
 
-def test_map_unconstrained_and_logistic():
-    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 8), rng=3)
+def test_map_unconstrained_and_logistic(seed):
+    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 8), rng=seed + 3)
     est = binference.infer(mock.likelihoods, P.LogisticRandomWalk(order=2), method="map")
     assert est.info["space"] == "unconstrained"
     assert est.info["grad_norm"] < 1e-3 * mock.likelihoods.W
@@ -531,33 +533,33 @@ def test_map_unconstrained_and_logistic():
 
 
 # ------------------------------------------------------------------ Laplace
-def test_laplace_with_importance(k3_problem):
+def test_laplace_with_importance(k3_problem, seed):
     mock, exact = k3_problem
-    res = binference.infer(mock.likelihoods, method="laplace", rng=4, n_samples=4000)
+    res = binference.infer(mock.likelihoods, method="laplace", rng=seed + 4, n_samples=4000)
     assert "k_hat" in res.info
     assert_matches_reference(res, exact.mean, exact.std)
 
 
-def test_a_widened_gaussian_laplace_proposal_recovers_the_exact_posterior(onehot):
+def test_a_widened_gaussian_laplace_proposal_recovers_the_exact_posterior(onehot, seed):
     # one-hot likelihoods: the posterior is Dirichlet(1 + counts), close to Gaussian in
     # log-ratio coordinates
     lk, counts = onehot
     m = PopulationModel(lk)
-    res = Laplace(m, df=None, inflate=1.5, rng=0).run(4000)
+    res = Laplace(m, df=None, inflate=1.5, rng=seed).run(4000)
     assert not res.approximate  # k-hat passed
     # a wrong sign of log q narrows the draws by about a quarter
     assert_matches_reference(res, *dirichlet_moments(1.0 + counts))
     # without importance the draws are the proposals, which inflate widens
     with pytest.warns(ApproximationWarning):
-        raw = Laplace(m, inflate=1.5, importance=False, rng=0).run(8000)
+        raw = Laplace(m, inflate=1.5, importance=False, rng=seed).run(8000)
     ratio = raw.x[0].std(axis=0) / (1.5 * np.sqrt(np.diag(raw.info["cov"])))
     np.testing.assert_allclose(ratio, 1.0, atol=5 / np.sqrt(2 * 8000))
 
 
-def test_laplace_uncorrected_is_flagged(k3_problem):
+def test_laplace_uncorrected_is_flagged(k3_problem, seed):
     mock, _ = k3_problem
     with pytest.warns(ApproximationWarning):
-        res = Laplace(PopulationModel(mock.likelihoods), importance=False, rng=1).run(500)
+        res = Laplace(PopulationModel(mock.likelihoods), importance=False, rng=seed + 1).run(500)
     assert res.approximate
 
 
@@ -582,43 +584,48 @@ def test_laplace_clips_negative_curvature_to_a_wide_positive_variance(k3_problem
 
 
 # ----------------------------------------------------------------------- VB
-def test_vb_exact_for_onehot_and_overconfident_otherwise(onehot, k3_problem):
+def test_vb_exact_for_onehot_and_overconfident_otherwise(onehot, k3_problem, seed):
     lk, counts = onehot
     with pytest.warns(ApproximationWarning):
-        res = MeanFieldVB(PopulationModel(lk), rng=1).run(20000)
+        res = MeanFieldVB(PopulationModel(lk), rng=seed + 1).run(20000)
     assert_matches_reference(res, *dirichlet_moments(1.0 + counts))
     mock, exact = k3_problem
     with pytest.warns(ApproximationWarning):
-        vb = MeanFieldVB(PopulationModel(mock.likelihoods), rng=1).run(4000)
+        vb = MeanFieldVB(PopulationModel(mock.likelihoods), rng=seed + 1).run(4000)
     assert vb.approximate
     assert np.all(vb.std < 0.8 * exact.std)
     with pytest.raises(ValueError, match="conjugate"):
         MeanFieldVB(PopulationModel(lk, P.LogisticNormal()))
 
 
-def test_vb_means_with_a_selection_are_close_to_the_exact_posterior(k3_selection_problem):
+def test_vb_means_with_a_selection_are_close_to_the_exact_posterior(k3_selection_problem, seed):
     mock, exact = k3_selection_problem
     with pytest.warns(ApproximationWarning):
-        vb = MeanFieldVB(PopulationModel(mock.likelihoods), rng=1).run(4000)
+        vb = MeanFieldVB(PopulationModel(mock.likelihoods), rng=seed + 1).run(4000)
     # VB's means carry a bias of a few 1e-3 here (the plug-in of the missed objects and
     # the mean-field factorisation; measured 0.003); its Monte Carlo error is 0.025 /
     # sqrt(4000) = 4e-4. Ignoring the selection moves the means by 0.2.
     np.testing.assert_allclose(vb.mean, exact.mean, atol=0.01)
 
 
-def test_vb_rates_with_a_selection_match_gibbs():
+def test_vb_rates_with_a_selection_match_gibbs(seed):
     # likelihoods much narrower than the bins: the mean-field factorisation is nearly
     # exact (exact for one-hot likelihoods); the plug-in of the missed objects adds a bias
     # of at most 0.5% of the rate (three seeds), allowed for at 1% beside the MC error
     bins = Bins([0.0, 1.0, 2.0, 3.0])
     S = np.array([0.9, 0.5, 0.25])
     mock = binference.simulate.mock_1d(
-        250, bins, density=np.array([0.4, 0.35, 0.25]), noise=(0.05, 0.2), selection=S, rng=777
+        250,
+        bins,
+        density=np.array([0.4, 0.35, 0.25]),
+        noise=(0.05, 0.2),
+        selection=S,
+        rng=seed + 777,
     )
     m = PopulationModel(mock.likelihoods, P.GammaRates(1.0, 1e-3))
     with pytest.warns(ApproximationWarning):
-        vb = MeanFieldVB(m, rng=1).run(4000)
-    g = Gibbs(m, n_warmup=200, rng=6).run(2000)
+        vb = MeanFieldVB(m, rng=seed + 1).run(4000)
+    g = Gibbs(m, n_warmup=200, rng=seed + 6).run(2000)
     R = g.rates.reshape(g.n_chains, -1, 3)
     se = np.hypot(
         [binference.diagnostics.mcse(R[:, :, k]) for k in range(3)],
@@ -628,34 +635,34 @@ def test_vb_rates_with_a_selection_match_gibbs():
 
 
 # ---------------------------------------------------------------- Bootstrap
-def test_bootstrap(k3_problem):
+def test_bootstrap(k3_problem, seed):
     mock, _ = k3_problem
     with pytest.warns(ApproximationWarning):
-        res = Bootstrap(PopulationModel(mock.likelihoods), rng=1).run(60)
+        res = Bootstrap(PopulationModel(mock.likelihoods), rng=seed + 1).run(60)
     assert res.samples.shape == (60, 3) and res.approximate
     # At large N the bootstrap sd matches the posterior sd. With B = 200 replicates the
     # sd has relative MC error ~ 1/sqrt(2B) = 5% (ratios 0.91-1.10 over 8 seeds), so
     # |log ratio| < 0.2 is 4 sigma and catches a factor sqrt(2) either way (0.35).
     big = binference.simulate.mock_1d(
-        2000, mock.bins, density=np.array([0.5, 0.15, 0.35]), noise=(0.3, 1.2), rng=12345
+        2000, mock.bins, density=np.array([0.5, 0.15, 0.35]), noise=(0.3, 1.2), rng=seed + 12345
     )
     ref = binference.validation.exact_posterior(big.likelihoods)
     with pytest.warns(ApproximationWarning):
-        boot = Bootstrap(PopulationModel(big.likelihoods), rng=1).run(200)
+        boot = Bootstrap(PopulationModel(big.likelihoods), rng=seed + 1).run(200)
     assert np.all(np.abs(np.log(boot.std / ref.std)) < 0.2)
     with pytest.warns(ApproximationWarning):
-        bb = Bootstrap(PopulationModel(mock.likelihoods), scheme="bayesian", rng=1).run(20)
+        bb = Bootstrap(PopulationModel(mock.likelihoods), scheme="bayesian", rng=seed + 1).run(20)
     assert bb.info["scheme"] == "bayesian" and bb.info["n_not_converged"] == 0
     with pytest.raises(ValueError):
         Bootstrap(PopulationModel(mock.likelihoods), scheme="parametric")
 
 
-def test_bootstrap_of_a_logistic_prior_refits_each_reweighted_catalogue():
+def test_bootstrap_of_a_logistic_prior_refits_each_reweighted_catalogue(seed):
     # a smooth prior has no EM update: each replicate is a weighted L-BFGS fit
-    mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 6), noise=(0.1, 0.3), rng=9)
+    mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 6), noise=(0.1, 0.3), rng=seed + 9)
     m = PopulationModel(mock.likelihoods, P.LogisticRandomWalk())
     with pytest.warns(ApproximationWarning):
-        res = Bootstrap(m, rng=1).run(20)
+        res = Bootstrap(m, rng=seed + 1).run(20)
     X = res.samples
     assert X.shape == (20, 6) and np.all(np.isfinite(X)) and res.info["n_not_converged"] == 0
     np.testing.assert_allclose(X.sum(1), 1.0)
