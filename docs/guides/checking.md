@@ -26,8 +26,9 @@ result = binference.infer(mock.likelihoods, method="nuts", rng=1)
 
 ## Diagnostics
 
-`binference.infer` checks every NUTS and Gibbs result and warns about any problem. Call
-`result.check()` yourself for other engines, or to change the limits:
+`binference.infer` checks every NUTS and Gibbs result and warns about any problem, and
+checks the inputs of every fit. Call `result.check()` yourself for the rest of the
+checks on other engines, or to change the limits:
 
 ```python
 d = result.diagnostics                     # rhat, ess_bulk, ess_tail, n_divergent, ...

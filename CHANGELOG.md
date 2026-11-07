@@ -32,6 +32,11 @@ releases may break the API).
 
 ### Changed
 
+- `infer` checks the inputs of every fit, not only NUTS and Gibbs: the Monte Carlo noise
+  of sample likelihoods for every engine and, where the result has draws, binned counts
+  the response does not describe. `PointEstimate.check` includes the noise check.
+- A raw array whose rows all sum to 1 raises an `InputWarning`, since it may hold
+  posteriors, which an array is not read as.
 - **Breaking:** an explicit `n_samples` under `method="auto"` is a minimum. A Gibbs run may
   be extended past it until it mixes, and Gibbs is left out when it would need more than
   `max_gibbs_draws`; before, `n_samples` fixed the length and kept Gibbs at any projected

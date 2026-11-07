@@ -16,8 +16,8 @@ from .engines.base import Engine
 from .engines.laplace import PROPOSAL_FACTOR
 from .model import PopulationModel
 from .priors import PopulationPrior
-from .results import PointEstimate, PopulationResult
-from .warnings import ApproximationWarning, BinferenceWarning
+from .results import PointEstimate, PopulationResult, _report
+from .warnings import ApproximationWarning, BinferenceWarning, InputWarning
 
 __all__ = ["METHODS", "Auto", "infer"]
 
@@ -372,7 +372,9 @@ def infer(
     progress : bool
         Show progress bars.
     check : bool
-        Warn about convergence problems after sampling (NUTS, Gibbs).
+        Warn about problems after the fit: convergence for NUTS and Gibbs, and the inputs
+        (Monte Carlo noise of sample likelihoods, binned counts the response does not
+        describe) for every engine.
     **engine_kwargs
         Passed to the engine (e.g. ``n_chains``, ``n_warmup``, ``target_accept``
         for NUTS; see :mod:`binference.engines`).
@@ -417,4 +419,7 @@ def infer(
         result = engine.run(int(n_samples))
     if check and METHODS[result.method].markov:
         result.check()
+    elif check:  # convergence is the engine's own; the inputs are every engine's concern
+        inputs, hints = result._input_problems()
+        _report([(inputs, hints, InputWarning)], strict=False)
     return result

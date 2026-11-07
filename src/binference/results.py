@@ -975,6 +975,28 @@ def _report(groups: list[tuple[list[str], list[str], type]], strict: bool) -> No
         raise DiagnosticsError(f"Diagnostics failed: {'; '.join(texts)}")
 
 
+def _sample_noise_problem(result: Any) -> tuple[list[str], list[str]]:
+    # the Monte Carlo noise of likelihoods from samples at the fitted population, and a hint
+    lk = result.model.likelihoods if result.model is not None else None
+    if lk is None or "sample_sum" not in lk.meta:
+        return [], []
+    # the population the objects are drawn from, after selection
+    rho = result._weight_draws().mean(axis=0)
+    if result.model.selection_row is not None:
+        rho = rho * result.model.selection_row
+    var, _ = lk.sample_variance(rho)
+    total = float(np.sum(lk.weights * var))
+    if total <= SAMPLE_VARIANCE_MAX:
+        return [], []
+    return (
+        [
+            f"likelihoods from samples carry Monte Carlo variance sum_i V_i = {total:.2g} "
+            f"> {SAMPLE_VARIANCE_MAX:g} at the fitted population"
+        ],
+        ["draw more samples per object, or use wider bins or floor="],
+    )
+
+
 def _same_bins(a: Bins, b: Bins) -> bool:
     # equal bins up to the identity of their measures, which do not survive save and load
     # (a transform axis loads as a table)
@@ -1864,21 +1886,20 @@ class PopulationResult(_IndividualMixin):
                     "(e.g. concentrations below one); method='gibbs' samples such "
                     "conjugate priors efficiently"
                 )
+        inputs, input_hints = self._input_problems(predictive_p_min, predictive_draws, support_min)
+        _report([(msgs, hints, ConvergenceWarning), (inputs, input_hints, InputWarning)], strict)
+        return msgs + inputs
+
+    def _input_problems(
+        self,
+        predictive_p_min: float = 1e-3,
+        predictive_draws: int = 200,
+        support_min: float | None = None,
+    ) -> tuple[list[str], list[str]]:
+        """The problems with the inputs, and hints: the part of :meth:`check` that applies
+        to every engine."""
         lk = self.model.likelihoods if self.model is not None else None
-        inputs, input_hints = [], []
-        if lk is not None and "sample_sum" in lk.meta:
-            # the population the objects are drawn from, after selection
-            rho = self._weight_draws().mean(axis=0)
-            if self.model.selection_row is not None:
-                rho = rho * self.model.selection_row
-            var, _ = lk.sample_variance(rho)
-            total = float(np.sum(lk.weights * var))
-            if total > SAMPLE_VARIANCE_MAX:
-                inputs.append(
-                    f"likelihoods from samples carry Monte Carlo variance sum_i V_i = {total:.2g} "
-                    f"> {SAMPLE_VARIANCE_MAX:g} at the fitted population"
-                )
-                input_hints.append("draw more samples per object, or use wider bins or floor=")
+        inputs, input_hints = _sample_noise_problem(self)
         if lk is not None and support_min is not None:
             low = np.flatnonzero(self.data_support < support_min)
             if low.size:
@@ -1899,8 +1920,7 @@ class PopulationResult(_IndividualMixin):
                     "distribution of a class differs between the validation and the target set "
                     "(label shift violated)"
                 )
-        _report([(msgs, hints, ConvergenceWarning), (inputs, input_hints, InputWarning)], strict)
-        return msgs + inputs
+        return inputs, input_hints
 
     def _predictive_pvalue(self, lk: Any, n_draws: int) -> float | None:
         # label-shift check of binned inputs (DECISIONS #68); needs J > K
@@ -2271,8 +2291,9 @@ class PointEstimate(_IndividualMixin):
         return model.from_value(self.value)
 
     def check(self, kkt_max: float = 1e-4, strict: bool = False) -> list[str]:
-        """Warn (or raise with ``strict=True``) when the optimiser did not converge or the
-        KKT gap (per object; see :meth:`PopulationModel.kkt_gap`) exceeds ``kkt_max``.
+        """Warn (or raise with ``strict=True``) when the optimiser did not converge, when the
+        KKT gap (per object; see :meth:`PopulationModel.kkt_gap`) exceeds ``kkt_max``, or
+        when sample likelihoods carry too much Monte Carlo noise.
 
         Estimates found by L-BFGS in unconstrained coordinates have no KKT gap (NaN); for
         them the check is ``converged`` (see ``tol`` of :class:`~binference.engines.MAP`).
@@ -2293,8 +2314,14 @@ class PointEstimate(_IndividualMixin):
             msgs.append("the optimiser did not converge")
         if self.kkt_gap > kkt_max:  # inf (an impossible object) fails; NaN passes
             msgs.append(f"KKT gap {self.kkt_gap:.1e} > {kkt_max:.0e}: not at the optimum")
-        _report([(msgs, [], ConvergenceWarning)], strict)
-        return msgs
+        inputs, hints = self._input_problems()
+        _report([(msgs, [], ConvergenceWarning), (inputs, hints, InputWarning)], strict)
+        return msgs + inputs
+
+    def _input_problems(self) -> tuple[list[str], list[str]]:
+        """The problems with the inputs, and hints: the part of :meth:`check` that applies
+        to every engine."""
+        return _sample_noise_problem(self)
 
     def _weight_draws(self) -> np.ndarray:
         return self._fractions(self.value)[None, :]
