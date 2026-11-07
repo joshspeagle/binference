@@ -737,7 +737,8 @@ class GeneralizedDirichlet(_TreePrior):
         Dirichlet-equivalent ``b_k = (K - k) * a`` for scalar ``a``.
     order : sequence of int, optional
         Permutation of the bins defining the stick-breaking order; bin order by default on
-        1-D bins, and required on a grid of two or more dimensions.
+        1-D bins, and required on a grid of two or more dimensions. An order fits one
+        number of bins, so ``binning_bias`` at a finer resolution needs its own ``prior=``.
     """
 
     describe = _TreePrior.describe  # documented on this class's API page

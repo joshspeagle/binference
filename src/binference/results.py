@@ -18,6 +18,7 @@ from ._utils import (
     RNGLike,
     as_generator,
     check_nonnegative,
+    check_positive_integers,
     chunk_slices,
     frozen,
     is_integer_array,
@@ -241,6 +242,8 @@ class _IndividualMixin:
         -------
         (n_draws, K) array
         """
+        if n_draws is not None:
+            n_draws = check_positive_integers(n_draws, "n_draws")[0]
         S = self._joint_selection(n_draws)
         if S is None:
             raise ValueError(
@@ -262,6 +265,8 @@ class _IndividualMixin:
         (n_draws, J, K) array
             The probability of measured bin ``j`` given true bin ``k``.
         """
+        if n_draws is not None:
+            n_draws = check_positive_integers(n_draws, "n_draws")[0]
         R = self._response_rows(n_draws)
         if R is None:
             raise ValueError("This fit inferred no response; only a tallied response is.")
@@ -2083,7 +2088,7 @@ class PopulationResult(_IndividualMixin):
                 "(selection.fixed()) to the likelihoods build returns."
             )
         same = key == self.method
-        if key in METHODS and METHODS[key].markov:  # draws per chain, as the fit had them
+        if METHODS[key].markov:  # draws per chain, as the fit had them
             engine_kwargs.setdefault("n_chains", self.n_chains)
             for name in ("n_warmup", "thin") if same and key == "gibbs" else ():
                 if name in self.info:

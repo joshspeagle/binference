@@ -309,6 +309,8 @@ def test_selection_draws_are_the_flattened_chains_and_refuse_a_fit_without_them(
         res.selection_draws(), res.info["selection_draws"].reshape(-1, lk.K)
     )
     assert res.selection_draws(10).shape == (10, lk.K)
+    with pytest.raises(ValueError, match="n_draws"):
+        res.selection_draws(1.5)
     plain = binference.infer(lk, method="gibbs", n_samples=20, n_warmup=5, rng=0, check=False)
     with pytest.raises(ValueError, match="no selection"):
         plain.selection_draws()

@@ -263,3 +263,8 @@ def test_tests_outside_this_file_name_the_engine_they_run():
                 if getattr(f, "attr", getattr(f, "id", None)) == "infer":
                     named = any(k.arg in ("method", None) for k in node.keywords)
                     assert named, f"{path.name}:{node.lineno} leaves the engine to auto"
+
+
+def test_auto_checks_the_convergence_of_the_engine_it_ran():
+    with pytest.warns(binference.ConvergenceWarning, match="R-hat|ESS"):
+        binference.infer(_lk(0.3), method="auto", rng=0, n_samples=20, store_labels=True)

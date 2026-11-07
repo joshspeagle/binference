@@ -412,6 +412,7 @@ def infer(
         raise ValueError(f"n_samples does not apply to method={key!r}.")
     else:
         result = engine.run(int(n_samples))
-    if check and engine.markov:
+    # by the result's engine: auto is not Markov, whichever engine it ran
+    if check and METHODS.get(result.method, engine).markov:
         result.check()
     return result

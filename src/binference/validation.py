@@ -292,18 +292,21 @@ class SBCResult:
         Parameters
         ----------
         alpha : float, optional
-            Significance level, Bonferroni-corrected over the quantities.
+            Significance level, Bonferroni-corrected over the quantities and the tests.
         n_bins : int, optional
             Histogram bins of the chi-square test, as for :meth:`pvalues`.
         method : {"both", "chisquare", "ecdf"}, optional
             Require both tests, or one: the chi-square test of the rank histogram or the
             ECDF test of the ranks.
         """
+        if method not in ("both", "chisquare", "ecdf"):
+            raise ValueError(f'method must be "both", "chisquare" or "ecdf"; got {method!r}.')
         if method != "both":
             p = self.pvalues(n_bins, method=method)
-        else:
-            p = np.concatenate([self.pvalues(n_bins), self.pvalues(method="ecdf")])
-        return bool(np.all(p > alpha / p.size))
+            return bool(np.all(p > alpha / p.size))
+        p = self.pvalues(n_bins)
+        level = alpha / (2 * p.size)
+        return bool(np.all(p > level) and np.all(self.pvalues(method="ecdf") > level))
 
     def plot(self, **kwargs: Any) -> Figure:
         """Plot the rank histograms (see :func:`binference.plotting.plot_sbc`).
