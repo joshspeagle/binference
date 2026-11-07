@@ -1,8 +1,8 @@
 """Tests for population priors (spec 5)."""
 
 import numpy as np
-import scipy.sparse as sp
 import pytest
+import scipy.sparse as sp
 from scipy import integrate, stats
 
 from binference import Bins
