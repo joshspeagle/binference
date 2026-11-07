@@ -26,8 +26,9 @@ result = binference.infer(mock.likelihoods, method="nuts", rng=1)
 
 ## Diagnostics
 
-`binference.infer` checks every NUTS and Gibbs result and warns about any problem. Call
-`result.check()` yourself for other engines, or to change the limits:
+`binference.infer` checks every NUTS and Gibbs result and warns about any problem, and
+checks the inputs of every fit. Call `result.check()` yourself for the rest of the
+checks on other engines, or to change the limits:
 
 ```python
 d = result.diagnostics                     # rhat, ess_bulk, ess_tail, n_divergent, ...
@@ -76,7 +77,8 @@ message, its cause and its fix are on the {doc}`warnings page
 `result.approximate` set, and its summary says so.
 
 A point estimate has its own check. `est.check()` warns when the optimiser did not
-converge, or when the {term}`KKT gap` per object exceeds `kkt_max`:
+converge, when the {term}`KKT gap` per object exceeds `kkt_max`, or when sample
+likelihoods are too noisy:
 
 ```python
 est = binference.infer(mock.likelihoods, method="map")

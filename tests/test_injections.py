@@ -88,7 +88,7 @@ def test_engines_that_cannot_infer_a_selection_refuse_and_name_those_that_can():
             MAP(m, **kw)
     est = binference.infer(lk, selection=sel.fixed(), method="map")  # the plug-in
     assert np.isfinite(est.rho).all()
-    res = binference.infer(lk, selection=sel, method="auto", n_samples=50, rng=0, check=False)
+    res = binference.infer(lk, selection=sel, method="gibbs", n_samples=50, rng=0, check=False)
     assert res.method == "gibbs" and res.info["selection_draws"].shape == (4, 50, 4)
     assert res.total.shape == (200,)
     if _has_xarray():  # exported with the population

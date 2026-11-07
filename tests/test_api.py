@@ -112,3 +112,23 @@ def test_selection_through_infer():
 def test_the_old_samplers_module_is_gone():
     with pytest.raises(ModuleNotFoundError):
         importlib.import_module("binference.samplers")
+
+
+def test_a_raw_array_of_normalised_rows_warns_that_it_may_hold_posteriors():
+    table = np.array([[0.2, 0.8], [0.5, 0.5]])
+    with pytest.warns(binference.InputWarning, match="may be posteriors"):
+        PopulationModel(table, bins=Bins.linear(0, 1, 2))
+    PopulationModel(binference.Likelihoods(table, Bins.linear(0, 1, 2)))  # stated: no warning
+    PopulationModel(2.0 * table, bins=Bins.linear(0, 1, 2))
+    with pytest.warns(binference.InputWarning, match="may be posteriors"):
+        PopulationModel(np.round(table / 3 + 0.333, 3), bins=Bins.linear(0, 1, 2))
+
+
+@pytest.mark.parametrize("method", ["laplace", "vb", "bootstrap", "map"])
+@pytest.mark.filterwarnings("ignore::binference.ApproximationWarning")
+def test_infer_checks_the_inputs_after_every_engine(method):
+    rng = np.random.default_rng(0)
+    bins = Bins.linear(0, 1, 4)
+    lk = binference.Likelihoods.from_samples(rng.uniform(0, 1, (2000, 80)), bins, interim="flat")
+    with pytest.warns(binference.InputWarning, match="Monte Carlo variance"):
+        binference.infer(lk, method=method, rng=0)
