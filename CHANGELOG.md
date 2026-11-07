@@ -9,6 +9,8 @@ releases may break the API).
 
 ### Added
 
+- The Release workflow also creates the GitHub release, with the version's CHANGELOG
+  section as notes and the wheel and sdist attached.
 - `describe(bins, counts=None)` on `Dirichlet` and the tree priors draws the tree as
   text: each branch's concentration, mean share and mean mass, or the posterior given
   counts.

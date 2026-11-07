@@ -492,3 +492,13 @@ Append-only. One entry per working session (or per step within a long session).
 - #178: the 0.1.0 changelog's original list uses the released names and defaults; settled questions closed; the landscape page notes the old name; benchmark figures allowed when dated; the brand files the site uses named; the normal CDF's source credited; public docstrings, rendered comments and error messages no longer cite decisions, which a test enforces (DECISIONS #121).
 - #190: `NUTS(init=)` reads fractions or rates like every engine, unconstrained starts move to `init_x`, and auto loses its NUTS special case (DECISIONS #122; Josh's choice).
 - #192: CI no longer runs on a weekly schedule; the slow suite and the link check run by hand, and the slow suite also on pull requests labelled `slow` (DECISIONS #123; Josh's choice).
+
+## 2026-10-29: binference 0.1.0 on PyPI
+
+- #147 merged at Josh's call while its docs build was still running (every other job had
+  passed); `main`'s full CI then passed on the merge commit.
+- The first `v0.1.0` run stopped at the CI check because the tag was pushed before CI on
+  `main` had finished; nothing was uploaded. Re-run once CI was green, it published 0.1.0.
+  A clean install from PyPI imports 0.1.0 and runs the README example.
+- The GitHub release was missed (a manual step) and must be made by hand for 0.1.0;
+  #148 makes the workflow create it from now on (DECISIONS #124).
