@@ -736,7 +736,8 @@ class GeneralizedDirichlet(_TreePrior):
         Second Beta parameter of each stick. ``None`` gives the
         Dirichlet-equivalent ``b_k = (K - k) * a`` for scalar ``a``.
     order : sequence of int, optional
-        Permutation of the bins defining the stick-breaking order.
+        Permutation of the bins defining the stick-breaking order; bin order by default on
+        1-D bins, and required on a grid of two or more dimensions.
     """
 
     describe = _TreePrior.describe  # documented on this class's API page
@@ -763,6 +764,11 @@ class GeneralizedDirichlet(_TreePrior):
 
     def _structure(self, bins: Bins) -> _TreeStructure:
         K = bins.K
+        if self.order is None and bins.ndim > 1:
+            raise ValueError(
+                "GeneralizedDirichlet on a grid needs order=, a permutation of the bins: "
+                "its stick breaks in that order, and a grid has no natural one."
+            )
         order = np.arange(K) if self.order is None else np.asarray(self.order, dtype=int)
         if order.size != K:
             raise ValueError(f"order must be a permutation of 0..K-1 with K={K}.")

@@ -227,6 +227,46 @@ class _IndividualMixin:
         S = self._inferred_selection()
         return None if S is None else _flat_draws(S, 1, n_draws)
 
+    def selection_draws(self, n_draws: int | None = None) -> np.ndarray:
+        """Posterior draws of a selection inferred with the population.
+
+        For a tallied response these are its efficiencies, the sums over measured bins.
+
+        Parameters
+        ----------
+        n_draws : int, optional
+            Number of draws, thinned as the population's; ``None`` returns all of them.
+
+        Returns
+        -------
+        (n_draws, K) array
+        """
+        S = self._joint_selection(n_draws)
+        if S is None:
+            raise ValueError(
+                "This fit inferred no selection; only Selection.from_injections "
+                "or a tallied response are inferred with the population."
+            )
+        return S
+
+    def response_draws(self, n_draws: int | None = None) -> np.ndarray:
+        """Posterior draws of a tallied response inferred with the population.
+
+        Parameters
+        ----------
+        n_draws : int, optional
+            Number of draws, thinned as the population's; ``None`` returns all of them.
+
+        Returns
+        -------
+        (n_draws, J, K) array
+            The probability of measured bin ``j`` given true bin ``k``.
+        """
+        R = self._response_rows(n_draws)
+        if R is None:
+            raise ValueError("This fit inferred no response; only a tallied response is.")
+        return R
+
     def _response_rows(self, n_draws: int | None) -> np.ndarray | None:
         """An inferred response's draws ``(n_draws, J, K)``, thinned as the population."""
         Rd = self.info.get("response_draws")
@@ -2043,7 +2083,7 @@ class PopulationResult(_IndividualMixin):
                 "(selection.fixed()) to the likelihoods build returns."
             )
         same = key == self.method
-        if METHODS[key].markov:  # draws per chain, as the fit had them
+        if key in METHODS and METHODS[key].markov:  # draws per chain, as the fit had them
             engine_kwargs.setdefault("n_chains", self.n_chains)
             for name in ("n_warmup", "thin") if same and key == "gibbs" else ():
                 if name in self.info:

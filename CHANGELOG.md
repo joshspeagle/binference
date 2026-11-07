@@ -9,6 +9,10 @@ releases may break the API).
 
 ### Added
 
+- `PopulationResult.selection_draws()` and `response_draws()` return the posterior draws of
+  a jointly inferred selection, `(n_draws, K)`, or tallied response, `(n_draws, J, K)`.
+- `infer(method=)` also takes an `Engine` subclass, so a user-written engine runs through
+  `infer` with the same `rng`, `progress` and options as a named one.
 - The Release workflow also creates the GitHub release, with the version's CHANGELOG
   section as notes and the wheel and sdist attached.
 - `describe(bins, counts=None)` on `Dirichlet` and the tree priors draws the tree as
@@ -32,6 +36,11 @@ releases may break the API).
 
 ### Changed
 
+- **Breaking:** `GeneralizedDirichlet` on a grid of two or more dimensions needs `order`.
+  Its stick used to break in row-major order, which depends on how the grid is flattened.
+- **Breaking:** `SBCResult.passed` requires both the chi-square and the ECDF test by
+  default (`method="both"`), each at `alpha / (2 n_quantities)`. Pass
+  `method="chisquare"` for the old behaviour.
 - **Breaking:** `binference.samplers` is renamed `binference.engines`, since it also holds
   MAP and VB, which do not sample. There is no alias, so `from binference.samplers import
   NUTS` becomes `from binference.engines import NUTS`; the API pages' URLs change with it.

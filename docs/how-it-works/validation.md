@@ -66,7 +66,7 @@ Two tests check the ranks of each quantity for uniformity:
   counts; when its Bonferroni bound, $n_{\rm draw}$ times the statistic, is below
   $10^{-12}$, that bound is returned instead. This test is the more sensitive to bias.
 
-`SBCResult.passed` applies a Bonferroni correction over the quantities.
+`SBCResult.passed` applies a Bonferroni correction over the quantities and the tests.
 
 ### Coverage
 

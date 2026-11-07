@@ -317,7 +317,7 @@ def infer(
     bins: Bins | None = None,
     selection: Any = None,
     selection_mode: str | None = None,
-    method: str = "auto",
+    method: str | type[Engine] = "auto",
     n_samples: int | None = None,
     rng: RNGLike = None,
     progress: bool = False,
@@ -343,8 +343,10 @@ def infer(
     selection_mode : {"on_measurement", "on_truth"}, optional
         Required with an array or callable ``selection`` (see
         :class:`~binference.selection.Selection`).
-    method : {"auto", "nuts", "gibbs", "map", "em", "laplace", "vb", "bootstrap"}
-        Inference engine. ``"auto"`` (default) picks Gibbs, Laplace or NUTS from
+    method : str or Engine subclass
+        Inference engine: ``"auto"``, ``"nuts"``, ``"gibbs"``, ``"map"``, ``"em"``,
+        ``"laplace"``, ``"vb"`` or ``"bootstrap"``, or a class of your own.
+        ``"auto"`` (default) picks Gibbs, Laplace or NUTS from
         rules set by a benchmark of the engines (:class:`Auto`); its
         options ``target_ess``, ``gibbs_max_missing``, ``max_gibbs_draws`` and
         ``nnz_limit`` go in ``engine_kwargs``, and the choice and its reason are in
@@ -391,18 +393,25 @@ def infer(
         model = PopulationModel(
             likelihoods, prior, selection=selection, selection_mode=selection_mode, bins=bins
         )
-    key = str(method).lower()
-    if key not in METHODS:
-        raise ValueError(f"Unknown method {method!r}; choose from {sorted(METHODS)}.")
+    if isinstance(method, type) and issubclass(method, Engine):
+        key, make = method.__name__, method
+    else:
+        key = str(method).lower()
+        if key not in METHODS:
+            raise ValueError(
+                f"Unknown method {method!r}; choose from {sorted(METHODS)} or pass an Engine "
+                "subclass."
+            )
+        make = METHODS[key]
     if key == "em" and not model.joint:  # MAP by EM itself, not mix-SQP (audit O-17)
         engine_kwargs.setdefault("algorithm", "em")
-    engine = METHODS[key](model, rng=rng, progress=progress, **engine_kwargs)
+    engine = make(model, rng=rng, progress=progress, **engine_kwargs)
     if n_samples is None:
         result = engine.run()
     elif isinstance(engine, MAP):
         raise ValueError(f"n_samples does not apply to method={key!r}.")
     else:
         result = engine.run(int(n_samples))
-    if check and METHODS[result.method].markov:
+    if check and engine.markov:
         result.check()
     return result

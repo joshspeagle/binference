@@ -156,6 +156,21 @@ print(lap.approximate, round(lap.info["k_hat"], 2))
   (`scheme="bayesian"`), and refits the MAP. A compressed row of weight 5 is resampled
   as five objects. Its draws describe an estimator, not a posterior.
 
+## Use your own engine
+
+An engine is a subclass of {class}`binference.engines.base.Engine`: it takes the model,
+`rng`, `progress` and its own options, and `run(n_samples)` returns a
+{class}`~binference.PopulationResult` or {class}`~binference.PointEstimate`. Pass the class
+as `method`:
+
+```python
+binference.infer(lk, method=MyEngine, my_option=3, rng=1)
+```
+
+Set `markov = True` on a class whose draws are Markov chains, so that `infer` checks their
+convergence, and `joint = True` if it infers a selection or response with the population.
+Auto does not try it.
+
 ## Use the scikit-learn interface
 
 {class}`~binference.PopulationEstimator` wraps the same machinery with the

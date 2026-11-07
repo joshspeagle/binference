@@ -387,3 +387,11 @@ def test_counts_and_factors_refuse_non_integer_and_boolean_values():
         binference.plotting.plot_corner(res, n_hist=1.5)
     with pytest.raises(ValueError, match="alpha"):
         P.Dirichlet(True)
+
+
+def test_passed_by_default_requires_both_tests_each_corrected_for_the_other():
+    ranks = np.tile(np.arange(100), (5, 1)).T[: 400 % 100 or 100]
+    res = binference.validation.SBCResult(ranks=ranks, names=list("abcde"), n_draws=99)
+    p = np.concatenate([res.pvalues(), res.pvalues(method="ecdf")])
+    assert res.passed(alpha=0.9) == bool(np.all(p > 0.9 / p.size))
+    assert res.passed(method="chisquare", alpha=0.9) == bool(np.all(res.pvalues() > 0.9 / 5))
