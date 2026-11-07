@@ -97,7 +97,7 @@ class Basis:
         self.resolution = check_positive_integers(resolution, "resolution", bins.ndim)
         self._grid_masses: sp.csr_array | None = None
         self._shares: sp.csr_array | None = None
-        if self.order == 0 and self.oversample == 1 and max(self.resolution) == 1:
+        if self.is_plain:
             self.components = self.grid = bins
             self.grid_to_bins = frozen(np.arange(bins.K))
             self.matrix = self._grid_masses = _shared(sp.eye_array(bins.K, format="csr"))
@@ -122,6 +122,12 @@ class Basis:
     def C(self) -> int:
         """Number of components."""
         return self.components.K
+
+    @property
+    def is_plain(self) -> bool:
+        """True for the plain bins themselves: the identity with no finer quadrature cells
+        (order 0, resolution 1, oversample 1)."""
+        return self.order == 0 and self.oversample == 1 and max(self.resolution) == 1
 
     @property
     def is_identity(self) -> bool:

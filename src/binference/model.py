@@ -167,7 +167,7 @@ class PopulationModel:
                 "The efficiency of a response inferred from its tallies is the selection; "
                 "to set another, build the likelihoods from response.fixed()."
             )
-        if "measured_bin" not in likelihoods.meta or not likelihoods.basis.is_identity:
+        if "measured_bin" not in likelihoods.meta or not likelihoods.basis.is_plain:
             raise ValueError(
                 "An inferred response needs the rows Likelihoods.from_binned builds, one per "
                 "measured bin (not compressed or moved onto a Basis); or use response.fixed()."

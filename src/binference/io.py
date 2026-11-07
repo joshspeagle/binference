@@ -133,7 +133,7 @@ def result_to_dict(result: PopulationResult) -> dict[str, Any]:
     if dropped:
         meta["info_dropped"] = dropped
     out: dict[str, Any] = {"draws": result._draws}
-    if result.basis != Basis(result.bins):  # the draws per bin follow from the component draws
+    if not result.basis.is_plain:  # the draws per bin follow from the component draws
         meta["basis"] = _basis_meta(result.basis)
         out["component_draws"] = result.component_draws
     if result.selection is not None:  # per-object methods need it again (audit O-1)

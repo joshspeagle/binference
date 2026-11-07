@@ -300,6 +300,8 @@ class Selection(SetOnce):
         _check_values(np.ones(2), scale, "selection")  # the scale, before any quadrature
         basis = as_basis(bins)
         values = _bin_average(function, basis.grid, tol=tol, max_depth=max_depth)[0]
+        if basis.is_plain:
+            return cls(values, mode, scale=scale)
         return _on_basis(cls(values, mode, scale=scale), basis, basis.grid_masses)
 
     @classmethod

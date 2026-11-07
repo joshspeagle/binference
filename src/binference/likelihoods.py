@@ -300,7 +300,7 @@ def _accepts_basis(within_bins: bool, exact: Callable[[dict], bool] | None = Non
         def constructor(cls, *args: Any, **kwargs: Any) -> Likelihoods:
             bound = sig.bind(cls, *args, **kwargs)
             basis = bound.arguments.get("bins")
-            if isinstance(basis, Basis) and basis == Basis(basis.bins):
+            if isinstance(basis, Basis) and basis.is_plain:
                 basis = bound.arguments["bins"] = basis.bins
             if not isinstance(basis, Basis):
                 return f(*bound.args, **bound.kwargs)
@@ -555,7 +555,7 @@ class Likelihoods:
         store = "sparse" if self.is_sparse else "dense"
         extra = "" if self._selection is None else f", selection={self._selection.mode!r}"
         w = "" if np.all(self._weights == 1) else f", W={self.W:g}"
-        where = f"bins={self.bins!r}" if self._basis.is_identity else f"basis={self._basis!r}"
+        where = f"bins={self.bins!r}" if self._basis.is_plain else f"basis={self._basis!r}"
         return f"Likelihoods(N={self.N}, K={self.K}, {store}{w}{extra}, {where})"
 
     def __getitem__(self, idx: Any) -> Likelihoods:
@@ -651,8 +651,10 @@ class Likelihoods:
         """
         if not isinstance(basis, Basis):
             raise TypeError("basis must be a binference.Basis instance.")
-        if self._basis != Basis(self._basis.bins):
+        if not self._basis.is_plain:
             raise ValueError("These likelihoods are already on a basis.")
+        if basis.is_plain and self.bins == basis.bins:
+            return self  # plain bins are already their own identity basis
         if self.bins == basis.bins:
             M = basis.matrix
         elif self.bins == basis.grid:

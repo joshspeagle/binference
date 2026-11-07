@@ -311,12 +311,7 @@ class _IndividualMixin:
             if isinstance(likelihoods, Likelihoods)
             else Likelihoods(likelihoods, basis)
         )
-        same = (
-            lk.basis.is_identity and _same_bins(lk.bins, model.bins)
-            if basis.is_identity
-            else lk.basis == basis
-        )
-        if lk.K != model.K or not same:
+        if lk.K != model.K or not _same_space(lk.basis, basis):
             raise ValueError("New likelihoods must use the same bins (and basis) as the fit.")
         return lk
 
@@ -1017,6 +1012,13 @@ def _same_bins(a: Bins, b: Bins) -> bool:
     )
 
 
+def _same_space(a: Basis, b: Basis) -> bool:
+    # plain bins compare as bins, any other basis by its layout
+    if a.is_plain and b.is_plain:
+        return _same_bins(a.bins, b.bins)
+    return _same_layout(a, b)
+
+
 def _same_layout(a: Basis, b: Basis) -> bool:
     # equal bases up to the identity of their measures, which do not survive save and load
     return (a.order, a.resolution, a.oversample, a.K, a.C) == (
@@ -1457,11 +1459,11 @@ class PopulationResult(_IndividualMixin):
             m = PopulationModel(lk, selection=sel)
         if m.selection_spec != saved:
             raise ValueError("The likelihoods (or model) carry another selection than this fit.")
-        if self.basis.is_identity and m.likelihoods.basis.is_identity:
-            if not _same_bins(m.bins, self.bins):
-                raise ValueError(f"The likelihoods are on other bins ({m.bins}) than this result.")
-        elif not _same_layout(m.likelihoods.basis, self.basis):
-            raise ValueError("The likelihoods use a different basis than this result.")
+        if not _same_space(m.likelihoods.basis, self.basis):
+            raise ValueError(
+                f"The likelihoods are on other bins or another basis ({m.likelihoods.basis}) "
+                "than this result."
+            )
         # bare likelihoods get the default prior; a model counts as the fit's with its prior
         self._fit_model = isinstance(m, PopulationModel) and (
             self.prior_key is None or m.prior_spec._fingerprint() == self.prior_key
@@ -2078,7 +2080,7 @@ class PopulationResult(_IndividualMixin):
         from .inference import METHODS, infer
 
         model = self._fit_model_only("binning_bias")
-        if not self.basis.is_identity or self.bins.is_categorical:
+        if not self.basis.is_plain or self.bins.is_categorical:
             raise ValueError("binning_bias compares a fit on grid bins with a basis over them.")
         key = str(self.method if method is None else method).lower()
         if key not in ("auto", "nuts", "gibbs", "laplace", "vb", "bootstrap"):

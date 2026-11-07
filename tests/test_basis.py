@@ -479,3 +479,35 @@ def test_new_likelihoods_of_a_plain_fit_must_be_on_its_bins():
         res.predict_proba(Likelihoods(np.ones((2, 6)), Bins.linear(0, 6, 6)))
     with pytest.raises(ValueError, match="same bins"):
         res.predict_proba(Likelihoods(np.ones((2, 6)), Basis(bins, order=1)))
+
+
+def _plain_and_oversampled():
+    bins = Bins.linear(0.0, 1.0, 4)
+    values = np.random.default_rng(0).uniform(0.1, 1.0, (50, 4))
+    return bins, Likelihoods(values, bins), Likelihoods(values, Basis(bins, oversample=2))
+
+
+def test_an_explicit_plain_basis_on_plain_likelihoods_changes_nothing():
+    bins, plain, _ = _plain_and_oversampled()
+    assert plain.on_basis(Basis(bins)) is plain
+
+
+def test_a_fit_and_likelihoods_on_different_quadrature_cells_do_not_mix():
+    _, plain, oversampled = _plain_and_oversampled()
+    res = binference.infer(
+        oversampled, method="gibbs", n_samples=20, n_warmup=5, rng=0, check=False
+    )
+    with pytest.raises(ValueError, match="other bins or another basis"):
+        res.attach(plain)
+    with pytest.raises(ValueError, match="same bins"):
+        res.predict_proba(plain)
+    assert "basis=" in repr(oversampled)
+
+
+def test_binning_bias_refuses_a_fit_on_finer_quadrature_cells():
+    _, _, oversampled = _plain_and_oversampled()
+    res = binference.infer(
+        oversampled, method="gibbs", n_samples=50, n_warmup=10, rng=0, check=False
+    )
+    with pytest.raises(ValueError, match="binning_bias"):
+        res.binning_bias(order=1)
