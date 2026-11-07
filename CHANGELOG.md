@@ -9,6 +9,10 @@ releases may break the API).
 
 ### Added
 
+- `PopulationResult.selection_draws()` and `response_draws()` return the posterior draws of
+  a jointly inferred selection, `(n_draws, K)`, or tallied response, `(n_draws, J, K)`.
+- `infer(method=)` also takes an `Engine` subclass, so a user-written engine runs through
+  `infer` with the same `rng`, `progress` and options as a named one.
 - The Release workflow also creates the GitHub release, with the version's CHANGELOG
   section as notes and the wheel and sdist attached.
 - `describe(bins, counts=None)` on `Dirichlet` and the tree priors draws the tree as
@@ -32,6 +36,23 @@ releases may break the API).
 
 ### Changed
 
+- `infer` checks the inputs of every fit, not only NUTS and Gibbs: the Monte Carlo noise
+  of sample likelihoods for every engine and, where the result has draws, binned counts
+  the response does not describe. `PointEstimate.check` includes the noise check.
+- A raw array whose rows all sum to 1 raises an `InputWarning`, since it may hold
+  posteriors, which an array is not read as.
+- **Breaking:** an explicit `n_samples` under `method="auto"` is a minimum. A Gibbs run may
+  be extended past it until it mixes, and Gibbs is left out when it would need more than
+  `max_gibbs_draws`; before, `n_samples` fixed the length and kept Gibbs at any projected
+  length, so passing it for speed gave a fit that did not mix.
+- `Auto` takes its extension and probe settings as arguments, `extend_target`,
+  `extend_max_factor`, `extend_min_factor`, `probe_proposals`, `probe_draws` and
+  `probe_ess_share`, at the values of the constants they replace.
+- **Breaking:** `GeneralizedDirichlet` on a grid of two or more dimensions needs `order`.
+  Its stick used to break in row-major order, which depends on how the grid is flattened.
+- **Breaking:** `SBCResult.passed` requires both the chi-square and the ECDF test by
+  default (`method="both"`), each at `alpha / (2 n_quantities)`. Pass
+  `method="chisquare"` for the old behaviour.
 - A tree prior stores a thin branch membership as a sparse matrix: an EM step with a
   `PolyaTree` on 1024 bins takes half the time, and small trees are unchanged.
 - **Breaking:** `binference.samplers` is renamed `binference.engines`, since it also holds
@@ -118,6 +139,18 @@ releases may break the API).
 
 ### Fixed
 
+- Adaptive bin averages no longer lose a narrow feature that a coarse cell read. On one bin
+  a Gaussian with σ = 1e-3 centred on the split point read as nothing, with no warning,
+  and half of one above a flat background read 0.5 against 1. A point value that a cell
+  reads and its children do not is now followed until a cell confirms it or `max_depth`
+  warns. Errors are measured against the row's current estimate rather than the largest
+  value ever read, so an overshooting first reading no longer loosens `tol` (σ = 1e-2
+  read 1.032). This affects `from_density`, `Density.masses`, selection functions and
+  2-D likelihoods, and a box narrow compared with its bin can now warn at the default
+  `max_depth`, since its error is judged against its own bin's average.
+- NUTS's starting metric gives flat or negatively curved directions the largest variance
+  seen, as documented, rather than 1e6 times the smallest. On `LogisticGP()` with 4 bins
+  and 10 objects, 20 fits took 16.6 s in all against 114.1 s, with none over 5 s.
 - `missing_information(include_prior=True)` includes a tree prior's curvature, so MAP's EM
   message states the right rate for `GeneralizedDirichlet` and the Dirichlet trees.
 - Docstrings, error messages, attribute comments on the API pages and this changelog no

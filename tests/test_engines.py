@@ -144,6 +144,10 @@ def test_hessian_helpers():
     cov = covariance_from_hessian(np.diag([-1.0, 0.5]))
     assert np.all(np.linalg.eigvalsh(cov) > 0)
     assert covariance_from_hessian(np.diag([1.0, 2.0])) is None
+    # a flat or negatively curved direction gets the largest variance seen, not 1e6 of them
+    for flat in (0.5, 0.0, -1e-9):
+        cov = covariance_from_hessian(np.diag([-4.0, -1.0, flat]))
+        np.testing.assert_allclose(np.diag(cov), [0.25, 1.0, 1.0])
     assert covariance_from_hessian(np.full((2, 2), np.nan)) is None
 
 
@@ -183,7 +187,7 @@ def test_nuts_validation():
     with pytest.raises(ValueError, match="init_x"):
         NUTS(m, init_x=np.zeros(5))  # its shape when the engine is made
     with pytest.raises(ValueError, match="zero posterior density"):  # its density when run
-        NUTS(PopulationModel(np.eye(2)), init_x=[1e3]).run(1)
+        NUTS(PopulationModel(Likelihoods(np.eye(2))), init_x=[1e3]).run(1)
     with pytest.raises(ValueError, match="fractions or rates of shape"):
         NUTS(m, init=np.full(m.dim, 0.2))  # a point in unconstrained coordinates
     with pytest.raises(ValueError, match="not both"):
@@ -194,7 +198,9 @@ def test_nuts_validation():
 
 def test_nuts_backs_off_a_jitter_that_leaves_the_support_from_init_as_from_the_mode():
     # this model's density is zero beyond |x| of about 700, so jitter 1e4 leaves it
-    nuts = NUTS(PopulationModel(np.eye(2)), init=[0.5, 0.5], jitter=1e4, n_chains=4, rng=0)
+    nuts = NUTS(
+        PopulationModel(Likelihoods(np.eye(2))), init=[0.5, 0.5], jitter=1e4, n_chains=4, rng=0
+    )
     starts = nuts._initial_points()
     assert np.all(np.abs(starts) < 700)
 

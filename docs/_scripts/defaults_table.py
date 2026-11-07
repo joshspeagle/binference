@@ -26,13 +26,18 @@ START, END = "<!-- defaults:start -->", "<!-- defaults:end -->"
 
 #: (section title, module prefixes), in page order; every listed module must match one
 GROUPS = [
-    ("Automatic engine choice", ("binference.inference",)),
     ("Results and diagnostics", ("binference.results", "binference.diagnostics")),
     ("Engines", ("binference.engines",)),
     ("Priors", ("binference.priors",)),
     (
         "Inputs",
-        ("binference.likelihoods", "binference._", "binference.basis", "binference.response"),
+        (
+            "binference.likelihoods",
+            "binference.model",
+            "binference._",
+            "binference.basis",
+            "binference.response",
+        ),
     ),
     ("Selection", ("binference.selection",)),
     ("Validation", ("binference.validation",)),

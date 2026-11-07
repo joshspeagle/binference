@@ -281,23 +281,32 @@ class SBCResult:
         return np.array([stats.chisquare(h, f_exp=e).pvalue for h in H])
 
     def passed(
-        self, alpha: float = 0.01, n_bins: int | None = None, *, method: str = "chisquare"
+        self, alpha: float = 0.01, n_bins: int | None = None, *, method: str = "both"
     ) -> bool:
         """True if no quantity rejects uniformity at Bonferroni-corrected level ``alpha``.
 
-        Each p-value from :meth:`pvalues` must lie above ``alpha / n_quantities``.
+        Each p-value from :meth:`pvalues` must lie above ``alpha`` over the number of tests:
+        ``n_quantities``, or twice that with ``method="both"``. Neither test dominates: the
+        chi-square is the more sensitive to errors in width, the ECDF test to bias.
 
         Parameters
         ----------
         alpha : float, optional
-            Significance level, Bonferroni-corrected over the quantities.
+            Significance level, Bonferroni-corrected over the quantities and the tests.
         n_bins : int, optional
-            Histogram bins for ``method="chisquare"``, as for :meth:`pvalues`.
-        method : {"chisquare", "ecdf"}, optional
-            Chi-square test of the rank histogram or ECDF test of the ranks.
+            Histogram bins of the chi-square test, as for :meth:`pvalues`.
+        method : {"both", "chisquare", "ecdf"}, optional
+            Require both tests, or one: the chi-square test of the rank histogram or the
+            ECDF test of the ranks.
         """
-        p = self.pvalues(n_bins, method=method)
-        return bool(np.all(p > alpha / p.size))
+        if method not in ("both", "chisquare", "ecdf"):
+            raise ValueError(f'method must be "both", "chisquare" or "ecdf"; got {method!r}.')
+        if method != "both":
+            p = self.pvalues(n_bins, method=method)
+            return bool(np.all(p > alpha / p.size))
+        p = self.pvalues(n_bins)
+        level = alpha / (2 * p.size)
+        return bool(np.all(p > level) and np.all(self.pvalues(method="ecdf") > level))
 
     def plot(self, **kwargs: Any) -> Figure:
         """Plot the rank histograms (see :func:`binference.plotting.plot_sbc`).

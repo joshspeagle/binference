@@ -603,3 +603,10 @@ def test_a_sparse_tree_gives_the_values_of_its_dense_membership_on_batched_input
 
 def test_a_small_tree_stays_dense():
     assert isinstance(P.PolyaTree().bind(Bins.linear(0, 1, 8)).tree.slot_mem, np.ndarray)
+
+
+def test_a_generalized_dirichlet_on_a_grid_needs_an_order():
+    grid = Bins.grid(np.linspace(0, 1, 3), np.linspace(0, 1, 3))
+    with pytest.raises(ValueError, match="order="):
+        P.GeneralizedDirichlet().bind(grid)
+    assert P.GeneralizedDirichlet(order=[3, 1, 0, 2]).bind(grid).dim == 3

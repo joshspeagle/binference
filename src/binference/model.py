@@ -44,13 +44,18 @@ from scipy import linalg, special
 
 from . import _kernels as kern
 from ._simplex import helmert_basis, log_softmax, softmax
-from ._utils import RNGLike, as_generator, check_nonnegative, chunk_slices
+from ._utils import RNGLike, as_generator, check_nonnegative, chunk_slices, warn
 from .bins import Bins
 from .likelihoods import Likelihoods, _scale_columns
 from .priors import Dirichlet, PopulationPrior
 from .priors.base import _TINY, BoundPrior
 from .priors.rates import _gamma_draw
 from .selection import Selection, _logit_density, as_selection
+from .warnings import InputWarning
+
+#: A raw array warns that it may hold posteriors when every row sums to 1 within this:
+#: wide enough for single precision and for values rounded to three decimals.
+NORMALISED_TOL = 2e-3
 
 __all__ = ["PopulationModel"]
 
@@ -97,7 +102,16 @@ class PopulationModel:
         bins: Bins | None = None,
     ) -> None:
         if not isinstance(likelihoods, Likelihoods):
-            likelihoods = Likelihoods(likelihoods, bins)
+            raw = likelihoods
+            likelihoods = Likelihoods(raw, bins)
+            if np.allclose(np.sum(raw, axis=1), 1.0, rtol=0.0, atol=NORMALISED_TOL):
+                warn(
+                    "Every row of the array sums to 1, so these may be posteriors, but an "
+                    "array is read as likelihoods. Pass Likelihoods.from_table(values, bins, "
+                    "interim=...) for posteriors, or Likelihoods(values, bins) if they are "
+                    "likelihoods.",
+                    InputWarning,
+                )
         elif bins is not None and bins != likelihoods.bins:
             raise ValueError("bins differ from the bins attached to the likelihoods.")
         self.likelihoods = likelihoods

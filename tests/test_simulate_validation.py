@@ -387,3 +387,23 @@ def test_counts_and_factors_refuse_non_integer_and_boolean_values():
         binference.plotting.plot_corner(res, n_hist=1.5)
     with pytest.raises(ValueError, match="alpha"):
         P.Dirichlet(True)
+
+
+def test_passed_by_default_requires_both_tests_each_corrected_for_the_other(monkeypatch):
+    ranks = np.tile(np.arange(100), (5, 1)).T
+    res = binference.validation.SBCResult(ranks=ranks, names=list("abcde"), n_draws=99)
+    values = {"chisquare": np.full(5, 0.5), "ecdf": np.full(5, 0.5)}
+    monkeypatch.setattr(
+        binference.validation.SBCResult,
+        "pvalues",
+        lambda self, n_bins=None, *, method="chisquare": values[method],
+    )
+    assert res.passed(alpha=0.01)
+    values["ecdf"] = np.full(5, 0.0015)  # between alpha / 10 and alpha / 5
+    assert res.passed(alpha=0.01) and not res.passed(alpha=0.01, method="ecdf")
+    values["ecdf"] = np.full(5, 0.0005)  # below alpha / 10: one test is enough to fail
+    assert not res.passed(alpha=0.01) and res.passed(alpha=0.01, method="chisquare")
+    values["ecdf"], values["chisquare"] = values["chisquare"], values["ecdf"]
+    assert not res.passed(alpha=0.01)
+    with pytest.raises(ValueError, match='"both"'):
+        res.passed(method="ks")

@@ -10,8 +10,8 @@ likely class. Eleven principles follow from that aim.
 
 1. **Correct by construction.** The table and density constructors ask whether you
    pass a likelihood or a posterior, and posteriors and samples need their
-   {term}`interim prior`. Only a plain array is read as likelihoods without asking
-   ({doc}`../guides/inputs/index`).
+   {term}`interim prior`. Only a plain array is read as likelihoods without asking, and
+   it warns when every row sums to 1, as posteriors do ({doc}`../guides/inputs/index`).
 2. **Easy things in one line, hard things possible.** `binference.infer` covers the
    common case. The model and {term}`engine` objects beneath it are public, and so are
    the log densities and gradients that external samplers need.
@@ -19,9 +19,9 @@ likely class. Eleven principles follow from that aim.
    exact draws, or importance-corrected draws that passed their check. Any other
    result is flagged {term}`approximate` (`result.approximate`;
    {doc}`../guides/engines`).
-4. **Self-validating.** `infer` checks every Gibbs and NUTS fit for convergence. For
-   other results, including point estimates, call `check()`
-   ({doc}`../guides/checking`).
+4. **Self-validating.** `infer` checks every fit's inputs, and every Gibbs and NUTS fit
+   for convergence. For the convergence of other results, including point estimates,
+   call `check()` ({doc}`../guides/checking`).
 5. **A light core.** The core needs only NumPy, SciPy and threadpoolctl; plotting and
    export are optional extras ({doc}`install`).
 6. **One way to read a result.** Every engine that draws returns a

@@ -9,17 +9,6 @@ explain behaviour, not as settings to change.
 
 <!-- defaults:start -->
 
-## Automatic engine choice
-
-| Name | Value | Module | What it controls |
-|---|---|---|---|
-| `EXTEND_TARGET` | `1.2` | `binference.inference` | An extension of a Gibbs run aims for this many times `target_ess`. |
-| `EXTEND_MAX_FACTOR` | `3` | `binference.inference` | One extension of a Gibbs run adds at most this many times the draws so far. |
-| `EXTEND_MIN_FACTOR` | `0.5` | `binference.inference` | One extension of a Gibbs run adds at least this many times the draws so far. |
-| `PROBE_PROPOSALS` | `1000` | `binference.inference` | Proposals of the first pass that can stop a Laplace trial early. |
-| `PROBE_DRAWS` | `500` | `binference.inference` | Draws of the first pass that can stop a Laplace trial early. |
-| `PROBE_ESS_SHARE` | `0.5` | `binference.inference` | A Laplace trial stops when its first pass projects an importance ESS below this share of `target_ess`. |
-
 ## Results and diagnostics
 
 | Name | Value | Module | What it controls |
@@ -75,12 +64,14 @@ explain behaviour, not as settings to change.
 | `SPARSE_FILL` | `0.1` | `binference._kernels` | Likelihoods are stored sparse below this share of non-zero entries. |
 | `MAX_ELEMENTS` | `4194304` | `binference._quadrature` | Most function values a quadrature evaluates in one call. |
 | `EDGE_INSET` | `1e-09` | `binference._quadrature` | How far inside a cell, as a fraction of its width, the check rule reads its ends: a jump closer to an edge goes unseen, and one exactly on an edge reads as the inside value. |
+| `CONFIRM_SHARE` | `0.9` | `binference._quadrature` | Share of a cell's largest point value that a cell holding that point must read for it to count as confirmed; below it, those cells are refined until one does. A function continuous at the point gets there as the cells shrink. |
 | `DEFAULT_OVERSAMPLE` | `{1: 8, 2: 4}` | `binference.basis` | Quadrature cells per order-1 component and axis when `oversample` is `None`, by dimension (2 above two dimensions; order 0 takes 1). |
 | `OUTSIDE_THRESHOLD` | `0.9` | `binference.likelihoods` | An object with more than this share of its likelihood outside the bins is mostly outside. |
 | `OUTSIDE_SHARE` | `0.1` | `binference.likelihoods` | A warning is raised when more than this share of the objects are mostly outside the bins. |
 | `FEW_SAMPLES_SHARE` | `0.1` | `binference.likelihoods` | `from_samples` warns when more than this share of the objects have fewer than `min_samples` effective samples. |
 | `REPRESENTATION_SHARE` | `0.5` | `binference.likelihoods` | A warning is raised when more than this share of posterior rows sum to one only under the other `representation`. |
 | `REPRESENTATION_RTOL` | `0.01` | `binference.likelihoods` | Relative tolerance within which a posterior row counts as summing to one. |
+| `NORMALISED_TOL` | `0.002` | `binference.model` | A raw array warns that it may hold posteriors when every row sums to 1 within this: wide enough for single precision and for values rounded to three decimals. |
 | `MIGRATION_ATOL` | `0.001` | `binference.response` | With `efficiency`, columns that sum to one within this are divided by their sum (a migration matrix off by rounding); a warning is raised for the others. |
 
 ## Selection
