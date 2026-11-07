@@ -74,7 +74,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.13", "3.14"]
         include:
-          - { os: ubuntu-latest, python-version: "3.13", cov: "--cov=binference --cov-report=term-missing" }
+          - { os: ubuntu-latest, python-version: "3.13", cov: "--cov=binference --cov-report=term-missing --cov-fail-under=90" }
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
