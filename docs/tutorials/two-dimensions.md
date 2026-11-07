@@ -75,15 +75,15 @@ the population is in each direction. This is the largest fit in the tutorials, s
 random streams as a serial run.
 
 ```{code-cell} python
-result = binference.infer(lk, binference.priors.LogisticGP(n_basis=10), rng=1, n_samples=300,
+result = binference.infer(lk, binference.priors.LogisticGP(), rng=1, n_samples=300,
                           n_warmup=300, n_jobs=-1)
 print(result)
 print({k: np.quantile(v, [0.16, 0.5, 0.84]).round(2)
        for k, v in result.info["hyperparameters"].items()})
 ```
 
-Ten sines per axis (`n_basis=10`) keep the fit small; the default, one sine per bin,
-would give 144 modes.
+On a grid the default is at most ten sines per axis, which keeps the fit small: one sine
+per bin would give 144 modes here.
 
 ```{code-cell} python
 ---

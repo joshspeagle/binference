@@ -204,10 +204,11 @@ def test_centred_gp_gradients_agree_with_the_density_where_scales_underflow():
         np.testing.assert_allclose(g[i], fd, rtol=1e-5)
 
 
-def test_the_default_gp_basis_has_one_sine_per_bin_up_to_1024_modes():
+def test_the_default_gp_basis_has_one_sine_per_bin_up_to_its_limits():
     assert P.LogisticGP().bind(Bins.linear(0, 1, 12)).n_active == 12
-    grid = Bins.grid(np.linspace(0, 1, 41), np.linspace(0, 1, 11))
-    assert P.LogisticGP().bind(grid).n_active == 32 * 10  # 32 per axis in 2-D
+    assert P.LogisticGP().bind(Bins.linear(0, 1, 2000)).n_active == 1024
+    grid = Bins.grid(np.linspace(0, 1, 41), np.linspace(0, 1, 9))
+    assert P.LogisticGP().bind(grid).n_active == 10 * 8  # at most 10 per axis on a grid
 
 
 def test_the_wider_gp_box_keeps_the_edges_free_at_long_length_scales():
