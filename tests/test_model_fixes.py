@@ -94,7 +94,14 @@ def _em_jacobian_radius(m, value, h=1e-6):
 @pytest.mark.parametrize("mode", [None, "on_truth", "on_measurement"])
 @pytest.mark.parametrize(
     "prior",
-    [P.Dirichlet(1.0), P.Dirichlet(50.0), P.GammaRates(1.0, 1e-9), P.GammaRates(200.0, 1.0)],
+    [
+        P.Dirichlet(1.0),
+        P.Dirichlet(50.0),
+        P.GammaRates(1.0, 1e-9),
+        P.GammaRates(200.0, 1.0),
+        P.GeneralizedDirichlet(50.0),
+        P.DirichletTree([[0, 1, 2], [3, 4, 5]], alpha=20.0),
+    ],
     ids=repr,
 )
 def test_missing_information_is_the_rate_of_em(mode, prior):

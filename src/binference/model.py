@@ -784,6 +784,31 @@ class PopulationModel:
         total_gap = abs(float(v[pos] @ G[pos])) / float(self._S @ v)
         return max(float(np.max(G / self._S)), total_gap)
 
+    def _prior_curvature(
+        self, rho: np.ndarray, on: np.ndarray, V: np.ndarray, h: float = 1e-3
+    ) -> np.ndarray:
+        """Minus the Hessian of the log prior in isometric log-ratios ``x``, at the fractions
+        ``rho`` of the bins ``on``, by central differences: ``(n, n)`` for ``n = on.sum() - 1``.
+        """
+
+        def log_prior(x: np.ndarray) -> np.ndarray:
+            value = np.zeros((*x.shape[:-1], on.size))
+            value[..., on] = softmax(x @ V.T + np.log(rho))
+            return self.prior.log_density(value)
+
+        n = V.shape[1]
+        E = h * np.eye(n)
+        at = log_prior(np.zeros(n))
+        H = np.empty((n, n))
+        for i in range(n):
+            plus = log_prior(E[i] + E[i:])  # i with itself and every later axis
+            minus = log_prior(-E[i] - E[i:])
+            cross = log_prior(np.stack([E[i] - e for e in E[i:]]))
+            flip = log_prior(np.stack([e - E[i] for e in E[i:]]))
+            H[i, i:] = H[i:, i] = (plus + minus - cross - flip) / (4 * h * h)
+        H[np.diag_indices(n)] = (log_prior(2 * E) + log_prior(-2 * E) - 2 * at) / (4 * h * h)
+        return -H
+
     def missing_information(
         self,
         value: np.ndarray,
@@ -813,7 +838,8 @@ class PopulationModel:
             reproducible.
         include_prior : bool, optional
             Add the pseudo-counts of a Dirichlet or ``GammaRates`` prior, as the MAP EM
-            does; other priors add none. NaN where concentrations or shapes
+            does, or a tree prior's curvature, by finite differences at about :math:`K^2`
+            density evaluations; other priors add none. NaN where concentrations or shapes
             below one outweigh the data.
         chunk : int, optional
             Objects processed per block, which bounds memory.
@@ -837,8 +863,10 @@ class PopulationModel:
             nhat += w[sl] @ R
             RwR += (R * w[sl, None]).T @ R
         Im = np.diag(nhat) - RwR
-        # the prior's pseudo-counts join the complete data, as in the MAP EM
+        # the prior's pseudo-counts join the complete data, as in the MAP EM; a tree prior
+        # has none, and adds its curvature in the coordinates of the EM map instead
         a = self.prior.pseudocounts if include_prior else None
+        curved = include_prior and a is None and self.prior.conjugate
         a = 0.0 if a is None else a[on]
         if self.kind == "rates":  # Poisson thinning imputes nothing
             n_complete = nhat + a
@@ -860,6 +888,11 @@ class PopulationModel:
             I_obs = self.W * (np.diag(phi) - np.outer(phi, phi)) - Im + extra * C
             V = helmert_basis(rho.size)
             I_c, I_obs = V.T @ I_c @ V, V.T @ I_obs @ V
+            if curved:
+                curvature = self._prior_curvature(rho, on, V)
+                if not np.all(np.isfinite(curvature)):
+                    return np.nan
+                I_c, I_obs = I_c + curvature, I_obs + curvature
         I_c = 0.5 * (I_c + I_c.T) + 1e-12 * np.trace(I_c) / len(I_c) * np.eye(len(I_c))
         I_obs = 0.5 * (I_obs + I_obs.T)
         lam = linalg.eigh(I_obs, I_c, eigvals_only=True)

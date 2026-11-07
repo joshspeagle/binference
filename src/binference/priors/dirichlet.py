@@ -17,6 +17,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
+import scipy.sparse as sp
 from scipy import special
 
 from .._simplex import helmert_basis, log_softmax, softmax
@@ -292,14 +293,14 @@ class _TreeStructure:
             else:
                 slot_mem[s] = node_mem[idx]
         self.node_mem = node_mem
-        self.slot_mem = slot_mem
+        self.slot_mem = sp.csr_array(slot_mem)
         # each branch's exponent on the simplex: its alpha less the bins below it
         self.slot_exponent = self.slot_alpha - slot_mem.sum(axis=1)
         A_node = np.add.reduceat(self.slot_alpha, self.node_start[:-1])
         self.leaf_coef = self.slot_alpha[leaf_slot] - 1.0  # (K,)
         nr = np.arange(1, C)
         self.node_coef = self.slot_alpha[parent_slot_of_node[nr]] - A_node[nr]  # (C-1,)
-        self.nonroot_mem = node_mem[1:]
+        self.nonroot_mem = sp.csr_array(node_mem[1:])
         self.const = float(
             np.sum(special.gammaln(A_node)) - np.sum(special.gammaln(self.slot_alpha))
         )

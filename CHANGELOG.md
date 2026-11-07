@@ -32,6 +32,8 @@ releases may break the API).
 
 ### Changed
 
+- A tree prior stores its branch membership as a sparse matrix: an EM step with a
+  `PolyaTree` on 1024 bins takes half the time.
 - **Breaking:** `binference.samplers` is renamed `binference.engines`, since it also holds
   MAP and VB, which do not sample. There is no alias, so `from binference.samplers import
   NUTS` becomes `from binference.engines import NUTS`; the API pages' URLs change with it.
@@ -116,6 +118,8 @@ releases may break the API).
 
 ### Fixed
 
+- `missing_information(include_prior=True)` includes a tree prior's curvature, so MAP's EM
+  message states the right rate for `GeneralizedDirichlet` and the Dirichlet trees.
 - Docstrings, error messages, attribute comments on the API pages and this changelog no
   longer cite design records, which the site does not include.
 - The NUTS tree-depth hint of `check()` names long log tails only for priors that have

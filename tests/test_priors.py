@@ -518,8 +518,9 @@ def test_a_generalized_dirichlet_is_described_as_its_chain_of_splits():
 def test_named_groups_bind_to_the_tree_their_nested_lists_give():
     named = P.DirichletTree(GROUPS, alpha=2.0).bind(GALAXIES).tree
     nested = P.DirichletTree([[0, 1], [[2, 3], 4]], alpha=2.0).bind(GALAXIES).tree
-    for attr in ("node_start", "slot_alpha", "slot_mem", "node_mem"):
+    for attr in ("node_start", "slot_alpha", "node_mem"):
         np.testing.assert_array_equal(getattr(named, attr), getattr(nested, attr))
+    np.testing.assert_array_equal(named.slot_mem.toarray(), nested.slot_mem.toarray())
 
 
 def test_an_alpha_mapping_sets_exactly_the_branches_it_names():
