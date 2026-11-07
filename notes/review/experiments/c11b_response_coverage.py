@@ -14,7 +14,7 @@ import numpy as np
 
 import binference
 from binference import Likelihoods, Response
-from binference.samplers import Gibbs
+from binference.engines import Gibbs
 
 rng = np.random.default_rng(0)
 mu, rho = np.array([0.0, 1.0, 2.0]), np.array([0.2, 0.3, 0.5])

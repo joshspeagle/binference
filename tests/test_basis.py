@@ -9,7 +9,7 @@ from scipy import integrate, stats
 import binference
 from binference import Basis, Bins, Likelihoods, PopulationModel, PopulationResult
 from binference import priors as P
-from binference.samplers import MAP
+from binference.engines import MAP
 
 
 def _hats(bins, z):

@@ -25,7 +25,7 @@ check. Engine options passed to `infer` rule out the engines that do not take th
      not conjugate, so auto then tries Laplace and NUTS.
    - The [missing information](point-estimates.md#missing-information) $f$ at the most
      probable population is at most `gibbs_max_missing`. Auto computes that population
-     first, with {class}`~binference.samplers.MAP`.
+     first, with {class}`~binference.engines.MAP`.
 
    In the second case Gibbs runs
    $\lceil n_{\rm ESS}\,(1+f)/(1-f)/n_{\rm chains}\rceil$ draws per chain, and at least

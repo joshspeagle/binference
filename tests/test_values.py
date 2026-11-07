@@ -109,7 +109,7 @@ def test_only_inputs_without_within_bin_information_warn():
 
 
 def test_workers_get_no_within_bin_data_and_unpicklable_data_pickle_as_empty():
-    from binference.samplers.nuts import _worker_model
+    from binference.engines.nuts import _worker_model
 
     # NUTS sends the model to its workers: a lambda density must not stop that
     lk = Likelihoods.from_density(lambda z: np.ones((2, z.size)), BINS, kind="likelihood")
@@ -167,7 +167,7 @@ def test_samples_with_zero_weights_leave_the_other_objects_and_bins_intact():
     )  # object 0 has neither effective samples nor mass inside the bins
     assert np.all(np.isfinite(lk.meta["within"].data[-1]))
     prior = binference.priors.Dirichlet(5.0)  # keeps every bin in the population
-    est = binference.samplers.MAP(binference.PopulationModel(lk, prior=prior)).run()
+    est = binference.engines.MAP(binference.PopulationModel(lk, prior=prior)).run()
     vals = est.sample_values(idx=np.ones(N_COPY, int), rng=1)[0]
     mid = vals[(vals >= 0.4) & (vals < 0.6)]
     assert mid.size > 20 and np.unique(mid).size == mid.size

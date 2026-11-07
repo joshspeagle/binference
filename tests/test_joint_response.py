@@ -7,8 +7,8 @@ import pytest
 
 import binference
 from binference import Bins, Likelihoods, Response
+from binference.engines import MAP, Gibbs, MeanFieldVB
 from binference.results import _draws_rng
-from binference.samplers import MAP, Gibbs, MeanFieldVB
 from binference.validation import SBCResult
 
 from .conftest import assert_draws_agree, assert_uniform_ranks
@@ -131,7 +131,7 @@ def test_the_predictive_check_with_response_draws_leaves_out_the_tallies_covaria
 def test_nuts_agrees_with_joint_gibbs_on_population_and_response():
     lk, _ = _unfolding()
     m = binference.PopulationModel(lk)
-    fits = [binference.samplers.NUTS(m, rng=1).run(1500), Gibbs(m, rng=1).run(5000)]
+    fits = [binference.engines.NUTS(m, rng=1).run(1500), Gibbs(m, rng=1).run(5000)]
     # the fractions and each truth bin's efficiency, the response summed over measured bins
     draws = [np.concatenate([r.chains, r.info["response_draws"].sum(-2)], -1) for r in fits]
     assert_draws_agree(*draws, z=4)

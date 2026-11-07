@@ -31,7 +31,7 @@ class Engine:
 
     Engines are configured at construction and executed with :meth:`run`,
     which returns a :class:`~binference.PopulationResult` (or a
-    :class:`~binference.PointEstimate` for :class:`~binference.samplers.MAP`).
+    :class:`~binference.PointEstimate` for :class:`~binference.engines.MAP`).
     Construction checks the options and draws no random numbers, so ``method="auto"``
     makes an engine to check its options and makes it again to run it.
 

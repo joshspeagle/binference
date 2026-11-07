@@ -55,11 +55,11 @@ Order is a proposal: Josh may jump around. Rough default levels in brackets.
 - 3.5 Default prior choice (α = 1 vs 1/K) and prior guidance.
 
 ### Phase 4. Inference engines [L3]
-- 4.1 NUTS core: multinomial NUTS, U-turn criteria, dual averaging, windowed adaptation: `samplers/_nuts_core.py`.
-- 4.2 NUTS engine: initialisation, geometry adaptation and the centring rule, metric choice, resuming, parallel chains: `samplers/nuts.py`. **Josh wants to know exactly what is implemented and how much control users have over arguments and hidden constants; and to explore alternate coordinates, sampling strategies and other tricks for the complex priors (with 3.1).**
-- 4.3 Gibbs and data augmentation (incl. selection via negative-binomial augmentation): `samplers/gibbs.py`, `samplers/base.py`.
-- 4.4 Point estimates: EM/SQUAREM, mix-SQP, L-BFGS, the KKT gap: `samplers/optimize.py`.
-- 4.5 Approximations: Laplace + PSIS, mean-field VB, bootstrap: `samplers/laplace.py`, `vb.py`, `bootstrap.py`.
+- 4.1 NUTS core: multinomial NUTS, U-turn criteria, dual averaging, windowed adaptation: `engines/_nuts_core.py`.
+- 4.2 NUTS engine: initialisation, geometry adaptation and the centring rule, metric choice, resuming, parallel chains: `engines/nuts.py`. **Josh wants to know exactly what is implemented and how much control users have over arguments and hidden constants; and to explore alternate coordinates, sampling strategies and other tricks for the complex priors (with 3.1).**
+- 4.3 Gibbs and data augmentation (incl. selection via negative-binomial augmentation): `engines/gibbs.py`, `engines/base.py`.
+- 4.4 Point estimates: EM/SQUAREM, mix-SQP, L-BFGS, the KKT gap: `engines/optimize.py`.
+- 4.5 Approximations: Laplace + PSIS, mean-field VB, bootstrap: `engines/laplace.py`, `vb.py`, `bootstrap.py`.
 - 4.6 Choosing a method; `method="auto"`; the evidence behind the defaults (spec §6.9–6.10). **Build the benchmark matrix (prior family × data regime × engine) that sets the adaptive defaults (DECISIONS #14).**
 
 ### Phase 5. Outputs and diagnostics [L2]

@@ -6,7 +6,7 @@ from scipy import stats
 
 import binference
 from binference import Bins, Likelihoods, PopulationModel, Selection
-from binference.samplers import Gibbs
+from binference.engines import Gibbs
 
 
 def _model(selection=None, n=300):
@@ -44,7 +44,7 @@ def test_totals_are_reproducible_and_independent_across_draws():
     np.testing.assert_array_equal(
         wrapped.total, binference.PopulationResult.from_samples(m, res.samples).total
     )
-    vb = binference.samplers.MeanFieldVB(m, rng=0)
+    vb = binference.engines.MeanFieldVB(m, rng=0)
     with pytest.warns(binference.ApproximationWarning):
         a, b = vb.run(200), vb.run(200)
     g = lambda r: r.total * r.samples.sum(axis=1)  # noqa: E731  Gamma(W, 1) variates

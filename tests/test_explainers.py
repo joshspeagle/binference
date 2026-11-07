@@ -10,7 +10,7 @@ import pytest
 from scipy import stats
 
 import binference
-from binference.samplers import Gibbs
+from binference.engines import Gibbs
 
 DOCS = Path(__file__).parents[1] / "docs"
 SCRIPT = DOCS / "_scripts" / "explainers.mjs"

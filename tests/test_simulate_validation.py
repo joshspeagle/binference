@@ -358,7 +358,7 @@ def test_the_exact_posterior_is_accurate_at_the_simplex_boundary(alpha):
 
 
 def test_counts_and_factors_refuse_non_integer_and_boolean_values():
-    from binference.samplers import NUTS, Gibbs, Laplace
+    from binference.engines import NUTS, Gibbs, Laplace
 
     bins = Bins.linear(0.0, 1.0, 4)
     lk = Likelihoods(np.ones((6, 4)), bins)

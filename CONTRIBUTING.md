@@ -60,7 +60,7 @@ pytest --cov=binference         # coverage report
   returns the log prior and its gradient (`log_prior_and_grad`). Conjugate
   priors also implement `posterior_sample`, `map_from_counts` and the `vb_*`
   hooks, and so work with Gibbs, EM and VB.
-* **Engines** subclass `binference.samplers.base.Engine`. They take a
+* **Engines** subclass `binference.engines.base.Engine`. They take a
   `PopulationModel` and return a `PopulationResult` (draws) or a
   `PointEstimate`. Register user-facing engines in `binference.inference.METHODS`.
 * **Likelihood constructors** are `Likelihoods.from_*` class methods that
