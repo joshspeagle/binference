@@ -33,21 +33,6 @@ METHODS = {
     "bootstrap": Bootstrap,
 }
 
-#: An extension of a Gibbs run aims for this many times ``target_ess``.
-EXTEND_TARGET = 1.2
-#: One extension of a Gibbs run adds at most this many times the draws so far.
-EXTEND_MAX_FACTOR = 3
-#: One extension of a Gibbs run adds at least this many times the draws so far.
-EXTEND_MIN_FACTOR = 0.5
-#: Proposals of the first pass that can stop a Laplace trial early.
-PROBE_PROPOSALS = 1000
-#: Draws of the first pass that can stop a Laplace trial early.
-PROBE_DRAWS = 500
-#: A Laplace trial stops when its first pass projects an importance ESS below this share of
-#: ``target_ess``.
-PROBE_ESS_SHARE = 0.5
-
-
 #: (key, class) of the engines auto may run, in the order it tries them; each is made
 #: from ``METHODS[key]``, and takes the options of the class
 _CANDIDATES = (("gibbs", Gibbs), ("laplace", Laplace), ("nuts", NUTS))
@@ -86,6 +71,16 @@ class Auto(Engine):
     max_gibbs_draws : int
         Most draws per chain a Gibbs run may be extended to before it gives way to the
         next candidate.
+    extend_target : float
+        An extension of a Gibbs run aims for this many times ``target_ess``.
+    extend_max_factor, extend_min_factor : float
+        One extension of a Gibbs run adds at most and at least these many times the draws
+        so far.
+    probe_proposals, probe_draws : int
+        Proposals and draws of the first pass that can stop a Laplace trial early.
+    probe_ess_share : float
+        A Laplace trial stops when its first pass projects an importance ESS below this
+        share of ``target_ess``.
     rng, progress
         As for every engine.
     **engine_kwargs
@@ -103,6 +98,12 @@ class Auto(Engine):
         gibbs_max_missing: float = 0.98,
         nnz_limit: float = 2e7,
         max_gibbs_draws: int = 25_000,
+        extend_target: float = 1.2,
+        extend_max_factor: float = 3.0,
+        extend_min_factor: float = 0.5,
+        probe_proposals: int = 1000,
+        probe_draws: int = 500,
+        probe_ess_share: float = 0.5,
         rng: RNGLike = None,
         progress: bool = False,
         **engine_kwargs: Any,
@@ -114,6 +115,12 @@ class Auto(Engine):
         self.gibbs_max_missing = float(gibbs_max_missing)
         self.nnz_limit = float(check_positive(nnz_limit, "nnz_limit"))
         self.max_gibbs_draws = int(check_positive(max_gibbs_draws, "max_gibbs_draws"))
+        self.extend_target = float(check_positive(extend_target, "extend_target"))
+        self.extend_max_factor = float(check_positive(extend_max_factor, "extend_max_factor"))
+        self.extend_min_factor = float(check_positive(extend_min_factor, "extend_min_factor"))
+        self.probe_proposals = int(check_positive(probe_proposals, "probe_proposals"))
+        self.probe_draws = int(check_positive(probe_draws, "probe_draws"))
+        self.probe_ess_share = float(check_positive(probe_ess_share, "probe_ess_share"))
         self.engine_kwargs = engine_kwargs
         self._rng_arg = rng
         self._map: tuple[Any, float] | None = None  # the MAP and its missing information
@@ -146,7 +153,7 @@ class Auto(Engine):
         Parameters
         ----------
         n_samples : int, optional
-            Draws per chain of the runs; ``None`` uses the engines' own lengths.
+            Least draws per chain of the runs; ``None`` uses the engines' own lengths.
         """
         return self._plan(n_samples)[0]
 
@@ -173,7 +180,8 @@ class Auto(Engine):
                         _default_draws(Gibbs),
                         ceil(self.target_ess * (1 + f) / (1 - f) / chains),
                     )
-                    if n_samples is not None or n <= self.max_gibbs_draws:
+                    if n <= self.max_gibbs_draws:
+                        n = n if n_samples is None else max(n, n_samples)
                         out.append(("gibbs", f"conjugate prior, missing information {f:.2f}", n))
                     else:
                         left_out.append(
@@ -225,10 +233,10 @@ class Auto(Engine):
                         ApproximationWarning,
                     )
             else:
-                n = n_gibbs if n_samples is None else n_samples
+                n = n_gibbs or n_samples
                 result = engine.run() if n is None else engine.run(n)
                 # stored labels grow with the run: their length stays as asked
-                if key == "gibbs" and n_samples is None and engine.label_index is None:
+                if key == "gibbs" and engine.label_index is None:
                     result, mixed = self._extend(engine, result)
                     if not mixed:
                         if not last:
@@ -259,12 +267,15 @@ class Auto(Engine):
             done = result.chains.shape[1]
             need = ceil(
                 done
-                * max(EXTEND_TARGET * self.target_ess / max(ess, 1.0) - 1.0, EXTEND_MIN_FACTOR)
+                * max(
+                    self.extend_target * self.target_ess / max(ess, 1.0) - 1.0,
+                    self.extend_min_factor,
+                )
             )
             if done + need > self.max_gibbs_draws:
                 return result, False
             # bounded, so a poor first projection costs less
-            result = engine.run(min(need, EXTEND_MAX_FACTOR * done))
+            result = engine.run(min(need, ceil(self.extend_max_factor * done)))
 
     def _passed(self, res: PopulationResult) -> bool:
         """Whether Laplace draws pass auto's check: Pareto k-hat and importance ESS."""
@@ -274,9 +285,9 @@ class Auto(Engine):
         """Laplace's result when it is kept (its warnings re-emitted), else None.
 
         Laplace is only tried with no engine options, so it has its default
-        ``PROPOSAL_FACTOR * n`` proposals. A first pass of ``PROBE_PROPOSALS`` of them
+        ``PROPOSAL_FACTOR * n`` proposals. A first pass of ``probe_proposals`` of them
         stops the trial early when the importance ESS it projects for the full run is
-        below ``PROBE_ESS_SHARE`` of ``target_ess``.
+        below ``probe_ess_share`` of ``target_ess``.
         """
         failed = None, "the Laplace importance check failed"
         big = self.model.likelihoods.nnz > self.nnz_limit  # kept whatever its check
@@ -284,14 +295,14 @@ class Auto(Engine):
             warnings.simplefilter("always")
             try:
                 proposals = PROPOSAL_FACTOR * n
-                if not big and proposals > PROBE_PROPOSALS:
+                if not big and proposals > self.probe_proposals:
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        engine.n_proposals = PROBE_PROPOSALS
-                        probe = engine.run(PROBE_DRAWS)
+                        engine.n_proposals = self.probe_proposals
+                        probe = engine.run(self.probe_draws)
                         engine.n_proposals = None
-                    projected = probe.info["ess_importance"] * proposals / PROBE_PROPOSALS
-                    if projected < PROBE_ESS_SHARE * self.target_ess:
+                    projected = probe.info["ess_importance"] * proposals / self.probe_proposals
+                    if projected < self.probe_ess_share * self.target_ess:
                         return failed
                 res = engine.run(n)
             except (ValueError, FloatingPointError, np.linalg.LinAlgError):
@@ -346,15 +357,16 @@ def infer(
     method : {"auto", "nuts", "gibbs", "map", "em", "laplace", "vb", "bootstrap"}
         Inference engine. ``"auto"`` (default) picks Gibbs, Laplace or NUTS from
         rules set by a benchmark of the engines (:class:`Auto`); its
-        options ``target_ess``, ``gibbs_max_missing``, ``max_gibbs_draws`` and
-        ``nnz_limit`` go in ``engine_kwargs``, and the choice and its reason are in
+        options (:class:`Auto`) go in ``engine_kwargs``, and the choice and its reason are in
         ``result.info["auto_method"]`` and ``result.info["auto_reason"]``.
         ``"nuts"`` samples the exact posterior with any prior; ``"em"`` is MAP by
         EM on the simplex (``algorithm="em"``) rather than mix-SQP; it needs a
         conjugate prior, and a jointly inferred selection or response runs L-BFGS.
     n_samples : int, optional
         Draws per chain (NUTS, Gibbs, and ``"auto"``) or in total (Laplace, VB,
-        bootstrap). Under ``"auto"`` it fixes the run length (see :class:`Auto`).
+        bootstrap). Under ``"auto"`` it is a minimum: a Gibbs run may be extended past it
+        until it mixes, and Gibbs still gives way when it would need more than
+        ``max_gibbs_draws`` (see :class:`Auto`).
     rng : int, numpy.random.Generator, or None
         Random number generator or seed (SPEC 7).
     progress : bool

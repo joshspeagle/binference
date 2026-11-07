@@ -9,17 +9,6 @@ explain behaviour, not as settings to change.
 
 <!-- defaults:start -->
 
-## Automatic engine choice
-
-| Name | Value | Module | What it controls |
-|---|---|---|---|
-| `EXTEND_TARGET` | `1.2` | `binference.inference` | An extension of a Gibbs run aims for this many times `target_ess`. |
-| `EXTEND_MAX_FACTOR` | `3` | `binference.inference` | One extension of a Gibbs run adds at most this many times the draws so far. |
-| `EXTEND_MIN_FACTOR` | `0.5` | `binference.inference` | One extension of a Gibbs run adds at least this many times the draws so far. |
-| `PROBE_PROPOSALS` | `1000` | `binference.inference` | Proposals of the first pass that can stop a Laplace trial early. |
-| `PROBE_DRAWS` | `500` | `binference.inference` | Draws of the first pass that can stop a Laplace trial early. |
-| `PROBE_ESS_SHARE` | `0.5` | `binference.inference` | A Laplace trial stops when its first pass projects an importance ESS below this share of `target_ess`. |
-
 ## Results and diagnostics
 
 | Name | Value | Module | What it controls |

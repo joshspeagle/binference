@@ -57,8 +57,8 @@ options.
   `n_jobs` leave only NUTS, and `n_warmup` leaves Gibbs or NUTS. Options that no
   candidate takes raise an error before any fit, as does a value that a candidate
   refuses.
-- **An explicit `n_samples`** fixes the length of a Gibbs run, so check the result;
-  `infer` does by default.
+- **An explicit `n_samples`** is a minimum: a Gibbs run may be extended past it until it
+  mixes, so it does not make an unmixed fit faster.
 
 {class}`~binference.PopulationEstimator` uses `method="auto"` too.
 

@@ -32,6 +32,13 @@ releases may break the API).
 
 ### Changed
 
+- **Breaking:** an explicit `n_samples` under `method="auto"` is a minimum. A Gibbs run may
+  be extended past it until it mixes, and Gibbs is left out when it would need more than
+  `max_gibbs_draws`; before, `n_samples` fixed the length and kept Gibbs at any projected
+  length, so passing it for speed gave a fit that did not mix.
+- `Auto` takes its extension and probe settings as arguments, `extend_target`,
+  `extend_max_factor`, `extend_min_factor`, `probe_proposals`, `probe_draws` and
+  `probe_ess_share`, at the values of the constants they replace.
 - **Breaking:** `binference.samplers` is renamed `binference.engines`, since it also holds
   MAP and VB, which do not sample. There is no alias, so `from binference.samplers import
   NUTS` becomes `from binference.engines import NUTS`; the API pages' URLs change with it.

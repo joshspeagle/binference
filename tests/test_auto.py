@@ -263,3 +263,30 @@ def test_tests_outside_this_file_name_the_engine_they_run():
                 if getattr(f, "attr", getattr(f, "id", None)) == "infer":
                     named = any(k.arg in ("method", None) for k in node.keywords)
                     assert named, f"{path.name}:{node.lineno} leaves the engine to auto"
+
+
+def test_n_samples_under_auto_is_a_minimum_that_gibbs_extends_past():
+    res = binference.infer(_lk(0.3), rng=0, n_samples=50, check=False)
+    assert res.method == "gibbs"
+    assert res.chains.shape[1] > 50
+    assert np.min(res.diagnostics["ess_bulk"]) >= 400
+
+
+def test_n_samples_above_the_projected_length_is_kept():
+    auto = inf.Auto(binference.PopulationModel(_lk(0.3)), max_gibbs_draws=100_000)
+    plan = {key: n for key, _, n in auto.candidates(n_samples=50_000)}
+    assert plan["gibbs"] == 50_000
+
+
+def test_gibbs_gives_way_above_max_gibbs_draws_even_with_n_samples():
+    auto = inf.Auto(binference.PopulationModel(_lk(0.3)), max_gibbs_draws=10)
+    assert "gibbs" not in [key for key, _, _ in auto.candidates(n_samples=5)]
+
+
+def test_auto_takes_its_extension_and_probe_settings_as_arguments():
+    model = binference.PopulationModel(_lk(0.3))
+    with pytest.raises(ValueError, match="probe_draws"):
+        inf.Auto(model, probe_draws=0)
+    with pytest.raises(ValueError, match="extend_target"):
+        inf.Auto(model, extend_target=-1.0)
+    assert inf.Auto(model, probe_proposals=200).probe_proposals == 200
