@@ -8,7 +8,7 @@ import pytest
 import binference
 from binference import Bins, ConvergenceWarning, PopulationModel, Selection
 from binference import priors as P
-from binference.samplers import MAP
+from binference.engines import MAP
 
 GAP = 1e3 * 1e-8  # MAP's guarantee: tol = 1e-8, or 1e3 * tol once round-off stops it
 
@@ -100,7 +100,7 @@ def test_map_checks_its_init_and_em_moves_a_zero_in_it():
 
 
 def test_a_failed_quadratic_subproblem_hands_mixsqp_over_to_em(monkeypatch):
-    from binference.samplers import optimize
+    from binference.engines import optimize
 
     def fail(*args, **kwargs):
         raise RuntimeError("Maximum number of iterations reached.")

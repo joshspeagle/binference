@@ -10,7 +10,7 @@ import binference
 from binference import Bins
 from binference import inference as inf
 from binference import priors as P
-from binference.samplers import NUTS
+from binference.engines import NUTS
 
 from .test_injections import _problem
 
@@ -115,7 +115,7 @@ def test_engine_options_rule_out_the_engines_that_do_not_take_them(short_nuts):
 
 
 def test_a_hopeless_laplace_trial_stops_after_its_first_thousand_proposals(monkeypatch):
-    from binference.samplers import Laplace
+    from binference.engines import Laplace
 
     calls = []
     run = Laplace.run
@@ -130,7 +130,7 @@ def test_a_hopeless_laplace_trial_stops_after_its_first_thousand_proposals(monke
 
 @pytest.mark.filterwarnings("ignore::binference.ApproximationWarning")
 def test_laplace_finds_its_mode_once_per_engine(monkeypatch):
-    from binference.samplers import Laplace
+    from binference.engines import Laplace
 
     engine = Laplace(binference.PopulationModel(_lk(1.0)), rng=0)
     first = engine.run(100)
@@ -194,7 +194,7 @@ def test_laplace_draws_as_many_as_four_chains_would():
 
 
 def test_laplace_mode_and_covariance_are_copies_and_follow_the_step():
-    from binference.samplers import Laplace
+    from binference.engines import Laplace
 
     engine = Laplace(binference.PopulationModel(_lk(1.0), P.PolyaTree()), rng=0)
     _, cov, _ = engine.mode_and_covariance()

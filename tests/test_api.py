@@ -13,7 +13,7 @@ def test_namespace():
     for name in binference.__all__:
         assert hasattr(binference, name), name
     assert isinstance(binference.__version__, str)
-    assert binference.samplers.NUTS and binference.priors.Dirichlet and binference.Selection
+    assert binference.engines.NUTS and binference.priors.Dirichlet and binference.Selection
 
 
 def test_citation_file_version_matches_package():

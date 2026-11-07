@@ -9,7 +9,7 @@ import scipy.sparse as sp
 import binference
 from binference import Bins, Likelihoods, PopulationModel
 from binference import _kernels as kern
-from binference.samplers import MAP, Bootstrap, Gibbs
+from binference.engines import MAP, Bootstrap, Gibbs
 
 
 def test_weighted_label_counts_on_sparse_likelihoods_stay_sparse_and_correct():

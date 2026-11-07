@@ -606,7 +606,7 @@ class _IndividualMixin:
             Finite-difference step of the Hessians.
         """
         # DECISIONS #41
-        from .samplers._curvature import fd_hessian_diag
+        from .engines._curvature import fd_hessian_diag
 
         model = self._require_model()
         x = self._center_x()
@@ -1396,7 +1396,7 @@ class PopulationResult(_IndividualMixin):
 
     @property
     def best(self) -> PointEstimate:
-        """The best fit: :class:`~binference.samplers.MAP` with its defaults, which is the
+        """The best fit: :class:`~binference.engines.MAP` with its defaults, which is the
         mode of :math:`\\rho` on the simplex for conjugate priors whose density is bounded
         there (e.g. Dirichlet concentrations of at least one), and the mode in the
         unconstrained coordinates otherwise, and always with a jointly inferred selection
@@ -1405,7 +1405,7 @@ class PopulationResult(_IndividualMixin):
         After :func:`load`, it needs the fit's prior: attach a model, not bare likelihoods."""
         # DECISIONS #15, #35, #51
         if "best" not in self._cache:
-            from .samplers import MAP
+            from .engines import MAP
 
             self._cache["best"] = MAP(self._fit_model_only("The best fit")).run()
         return self._cache["best"]
@@ -1852,7 +1852,7 @@ class PopulationResult(_IndividualMixin):
                 f"{100 * d['max_depth_fraction']:.0f}% of NUTS iterations hit the maximum tree "
                 "depth"
             )
-            from .samplers import Gibbs  # the engines import this module
+            from .engines import Gibbs  # the engines import this module
 
             if (
                 self.model is not None
@@ -2275,7 +2275,7 @@ class PointEstimate(_IndividualMixin):
         KKT gap (per object; see :meth:`PopulationModel.kkt_gap`) exceeds ``kkt_max``.
 
         Estimates found by L-BFGS in unconstrained coordinates have no KKT gap (NaN); for
-        them the check is ``converged`` (see ``tol`` of :class:`~binference.samplers.MAP`).
+        them the check is ``converged`` (see ``tol`` of :class:`~binference.engines.MAP`).
 
         The default is ten times the round-off floor at which MAP stops.
         Returns the messages (empty if the estimate looks fine).
@@ -2307,7 +2307,7 @@ class PointEstimate(_IndividualMixin):
     def laplace(
         self, n_samples: int = 4000, rng: RNGLike = None, **kwargs: Any
     ) -> PopulationResult:
-        """Laplace approximation around the mode (see :class:`binference.samplers.Laplace`).
+        """Laplace approximation around the mode (see :class:`binference.engines.Laplace`).
 
         Parameters
         ----------
@@ -2316,9 +2316,9 @@ class PointEstimate(_IndividualMixin):
         rng : int, Generator or None
             Random number generator.
         **kwargs
-            Options of :class:`~binference.samplers.Laplace`.
+            Options of :class:`~binference.engines.Laplace`.
         """
-        from .samplers import Laplace
+        from .engines import Laplace
 
         return Laplace(self._require_model(), rng=rng, **kwargs).run(n_samples)
 

@@ -10,7 +10,7 @@ from scipy import special
 
 import binference
 from binference import Bins, Likelihoods, PopulationResult, Selection
-from binference.samplers import MAP, NUTS, Gibbs, Laplace, MeanFieldVB
+from binference.engines import MAP, NUTS, Gibbs, Laplace, MeanFieldVB
 from binference.selection import S_FLOOR, _logit_density
 from binference.validation import SBCResult
 
@@ -262,7 +262,7 @@ def test_nuts_centres_a_logistic_prior_beside_an_inferred_selection(monkeypatch)
     # partial centring acts on the prior's block; draws come back non-centred with logit S
     lk, sel = _problem()
     m = binference.PopulationModel(lk, binference.priors.LogisticRandomWalk(), selection=sel)
-    monkeypatch.setattr(binference.samplers.nuts, "_GEOMETRY_ITER", 5)
+    monkeypatch.setattr(binference.engines.nuts, "_GEOMETRY_ITER", 5)
     eng = NUTS(m, n_chains=2, n_warmup=60, rng=0, reparametrize=True)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", binference.ConvergenceWarning)

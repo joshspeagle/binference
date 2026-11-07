@@ -81,7 +81,7 @@ Pass `method=` to choose yourself:
 ## NUTS
 
 {term}`NUTS` {cite:p}`hoffman2014` takes the numbers of chains, {term}`warm-up` and
-draws in its signature ({class}`~binference.samplers.NUTS`). `binference.infer` checks
+draws in its signature ({class}`~binference.engines.NUTS`). `binference.infer` checks
 its diagnostics and warns about any problem ({doc}`checking`). `n_jobs=-1` runs the
 chains in parallel ({doc}`performance`). If NUTS reports divergences, see
 [diagnostics](checking.md#diagnostics).
@@ -90,7 +90,7 @@ Use the engine class directly to resume a run, stream draws, or inspect
 adaptation:
 
 ```python
-from binference.samplers import NUTS
+from binference.engines import NUTS
 
 model = binference.PopulationModel(lk)
 engine = NUTS(model, n_chains=2, n_warmup=400, rng=2)
@@ -123,7 +123,7 @@ engine's output.
 ## Point estimates
 
 `method="map"` returns a {class}`~binference.PointEstimate`. Three solvers share the
-work: {term}`mix-SQP`, EM and {term}`L-BFGS`. {class}`~binference.samplers.MAP` gives the
+work: {term}`mix-SQP`, EM and {term}`L-BFGS`. {class}`~binference.engines.MAP` gives the
 routing, and [point estimates](../how-it-works/point-estimates.md)
 explains it.
 
@@ -134,7 +134,7 @@ explains it.
   ([two modes](../how-it-works/point-estimates.md#two-coordinate-systems-two-modes)).
 - **The convergence check** is the {term}`KKT gap`, `est.kkt_gap`, which should be
   about zero. `MAP(tol=...)` bounds it. For L-BFGS, which reports a gradient instead,
-  see {class}`~binference.samplers.MAP`.
+  see {class}`~binference.engines.MAP`.
 - **`est.log_posterior`** is always the density of the fractions or rates,
   `model.log_posterior(est.value)`. L-BFGS also stores the density in its own
   coordinates as `est.info["log_density_unconstrained"]`.
