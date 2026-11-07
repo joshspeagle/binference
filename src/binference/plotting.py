@@ -104,7 +104,7 @@ def _overlay(result: Any, values: Any, which: str, total: float) -> np.ndarray:
     v = np.asarray(values, dtype=float)
     v = v / v.sum()
     if which == "selected":
-        if result.basis is None or result.basis.is_identity:
+        if result.basis.is_identity:
             return result._selected_of(v[None, :]).mean(axis=0)
         if result.selection is not None or result._inferred_selection() is not None:
             raise ValueError(
@@ -200,8 +200,8 @@ def plot_population(
     if truth is not None:
         truth = _overlay(result, _sized(truth, bins.K, "truth", "one per bin"), which, total)
     if stack is not None:
-        n = bins.K if result.basis is None else result.basis.C
-        stack = result._to_bins(_sized(stack, n, "stack", "as Likelihoods.stack returns"))
+        stack = _sized(stack, result.basis.C, "stack", "as Likelihoods.stack returns")
+        stack = result._to_bins(stack)
         # a selected population already: not reweighted again
         stack = _overlay(result, stack, "fractions" if which == "selected" else which, total)
     med = np.median(X, axis=0)

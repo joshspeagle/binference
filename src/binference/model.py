@@ -122,7 +122,7 @@ class PopulationModel:
         if selection is None and selection_mode is None:
             sel = likelihoods.selection
         else:
-            sel = as_selection(selection, selection_mode, likelihoods.basis or likelihoods.bins)
+            sel = as_selection(selection, selection_mode, likelihoods.basis)
         if sel is not None and sel.injections is not None:
             if sel.mode != "on_truth":
                 raise ValueError(
@@ -167,7 +167,7 @@ class PopulationModel:
                 "The efficiency of a response inferred from its tallies is the selection; "
                 "to set another, build the likelihoods from response.fixed()."
             )
-        if "measured_bin" not in likelihoods.meta or likelihoods.basis is not None:
+        if "measured_bin" not in likelihoods.meta or not likelihoods.basis.is_identity:
             raise ValueError(
                 "An inferred response needs the rows Likelihoods.from_binned builds, one per "
                 "measured bin (not compressed or moved onto a Basis); or use response.fixed()."

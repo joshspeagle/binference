@@ -361,9 +361,9 @@ def _fits(
 
 
 def _names(res: PopulationResult) -> list[str]:
-    """Names of the model's parameters: the component weights ``w`` with a
-    :class:`~binference.Basis` (as the prior draws them), else fractions or rates."""
-    symbol = "w" if res.basis is not None else _SYMBOL[res.kind]
+    """Names of the model's parameters: the component weights ``w`` on a
+    :class:`~binference.Basis` (as the prior draws them), fractions or rates on the bins."""
+    symbol = _SYMBOL[res.kind] if res.basis.is_identity else "w"
     return [f"{symbol}[{k}]" for k in range(res.component_draws.shape[-1])]
 
 

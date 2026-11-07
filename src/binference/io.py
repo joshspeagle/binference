@@ -81,7 +81,7 @@ def _selection_parts(sel: Selection) -> tuple[dict[str, Any], dict[str, np.ndarr
     return meta, arrays
 
 
-def _selection_from_parts(meta: dict[str, Any], arrays: Any, basis: Basis | None) -> Selection:
+def _selection_from_parts(meta: dict[str, Any], arrays: Any, basis: Basis) -> Selection:
     row = np.asarray(arrays["selection_row"]) if meta["row"] == "array" else meta["row"]
     inj = meta.get("injections")
     if inj is not None:
@@ -133,7 +133,7 @@ def result_to_dict(result: PopulationResult) -> dict[str, Any]:
     if dropped:
         meta["info_dropped"] = dropped
     out: dict[str, Any] = {"draws": result._draws}
-    if result.basis is not None:  # the draws per bin follow from the component draws
+    if result.basis != Basis(result.bins):  # the draws per bin follow from the component draws
         meta["basis"] = _basis_meta(result.basis)
         out["component_draws"] = result.component_draws
     if result.selection is not None:  # per-object methods need it again (audit O-1)
@@ -206,13 +206,13 @@ def load_result(path: str) -> PopulationResult:
                 hyper[key[6:]] = np.array(data[key])
         if hyper:
             info["hyperparameters"] = hyper
-        basis = Basis(bins, **meta["basis"]) if "basis" in meta else None
+        basis = Basis(bins, **meta.get("basis", {}))  # none in the file: the identity
         selection = (
             _selection_from_parts(meta["selection"], data, basis) if "selection" in meta else None
         )
         return PopulationResult(
             None,
-            np.array(data["component_draws" if basis is not None else "draws"]),
+            np.array(data["component_draws" if "basis" in meta else "draws"]),
             method=meta["method"],
             kind=meta["kind"],
             bins=bins,

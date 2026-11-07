@@ -84,6 +84,9 @@ How each input meets the components:
 - **A selection** given as a function is averaged with each component as the weight.
   An array per bin is mapped with $A$.
 
+Plain bins, categories included, are the identity basis `Basis(bins)`, whose components
+are the bins, so `lk.basis` and `res.basis` are always a `Basis`.
+
 The priors see the components: `lk.bins` is `basis.components`. A resolution above one
 therefore needs a {term}`smoothness prior`. Components narrower than the measurement
 errors are not identified one by one. With a flat Dirichlet, the fit then oscillates
