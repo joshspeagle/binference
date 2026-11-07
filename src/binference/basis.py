@@ -15,6 +15,7 @@ on its cell (the histogram; at ``resolution=1`` exactly the plain bins);
 the range edges, so the components form a partition of unity and the density
 has no steps at bin edges. Grids use tensor products; order 1 needs an
 unmasked grid, and on masked grids flat components cover the active cells.
+Plain bins, categories included, are the identity basis (order 0, resolution 1).
 """
 # DECISIONS #4, #5, #76
 
@@ -41,7 +42,7 @@ class Basis:
     Parameters
     ----------
     bins : Bins
-        The reporting bins (a grid, not categories).
+        The reporting bins. Categories take only the identity basis (the defaults).
     order : {0, 1}
         B-spline order of the components: 0 flat in ``u`` on each cell, 1
         linear (hats). See the module documentation.
@@ -81,8 +82,6 @@ class Basis:
     ) -> None:
         if not isinstance(bins, Bins):
             raise TypeError("bins must be a binference.Bins instance.")
-        if bins.is_categorical:
-            raise ValueError("A basis needs a grid; categories have no within-bin shape.")
         if order not in (0, 1):
             raise ValueError(f"order must be 0 (flat) or 1 (linear); got {order!r}.")
         if order == 1 and bins.is_masked:
@@ -96,13 +95,23 @@ class Basis:
         self.order = int(order)
         self.oversample = check_positive_integers(oversample, "oversample")[0]
         self.resolution = check_positive_integers(resolution, "resolution", bins.ndim)
+        self._grid_masses: sp.csr_array | None = None
+        self._shares: sp.csr_array | None = None
+        if self.is_plain:
+            self.components = self.grid = bins
+            self.grid_to_bins = frozen(np.arange(bins.K))
+            self.matrix = self._grid_masses = _shared(sp.eye_array(bins.K, format="csr"))
+            return
+        if bins.is_categorical:
+            raise ValueError(
+                "A basis other than the identity needs a grid; categories have no within-bin "
+                "shape."
+            )
         self.components, _ = bins.refine(self.resolution)
         fine = tuple(r * self.oversample for r in self.resolution)
         self.grid, grid_to_bins = bins.refine(fine)
         self.grid_to_bins = frozen(grid_to_bins)
         self.matrix = self.masses(bins)
-        self._grid_masses: sp.csr_array | None = None
-        self._shares: sp.csr_array | None = None
 
     @property
     def K(self) -> int:
@@ -113,6 +122,12 @@ class Basis:
     def C(self) -> int:
         """Number of components."""
         return self.components.K
+
+    @property
+    def is_plain(self) -> bool:
+        """True for the plain bins themselves: the identity with no finer quadrature cells
+        (order 0, resolution 1, oversample 1)."""
+        return self.order == 0 and self.oversample == 1 and max(self.resolution) == 1
 
     @property
     def is_identity(self) -> bool:
@@ -173,9 +188,7 @@ class Basis:
         M = sp.csr_array(M)[grid.cells][:, self.components.cells]
         tot = np.asarray(M.sum(axis=0)).ravel()  # below one where a hat crosses a mask
         M.data /= tot[M.indices]
-        for a in (M.data, M.indices, M.indptr):  # shared by every object on this basis
-            frozen(a)
-        return M
+        return _shared(M)
 
     def support(self, k: Any) -> tuple[np.ndarray, np.ndarray]:
         """``(lo, hi)`` in ``u`` of the supports of components ``k``, each ``(n, ndim)``.
@@ -250,6 +263,18 @@ class Basis:
     def __repr__(self) -> str:
         res = self.resolution[0] if len(set(self.resolution)) == 1 else self.resolution
         return f"Basis(order={self.order}, resolution={res}, K={self.K}, C={self.C})"
+
+
+def as_basis(bins: Bins | Basis) -> Basis:
+    """``bins`` as a basis: plain bins are the identity basis over themselves."""
+    return bins if isinstance(bins, Basis) else Basis(bins)
+
+
+def _shared(M: sp.csr_array) -> sp.csr_array:
+    # read-only: shared by every object on this basis
+    for a in (M.data, M.indices, M.indptr):
+        frozen(a)
+    return M
 
 
 def _axis_masses(u_grid: np.ndarray, u_comp: np.ndarray, order: int) -> sp.csr_array:

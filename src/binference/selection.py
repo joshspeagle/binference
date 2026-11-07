@@ -42,7 +42,7 @@ from scipy import special
 
 from ._quadrature import bin_log_average
 from ._utils import SetOnce, as_generator, check_positive, frozen, warn
-from .basis import Basis
+from .basis import Basis, as_basis
 from .bins import Bins
 from .density import _log_nonneg
 from .priors.logistic import _rw_precision
@@ -98,7 +98,8 @@ class Selection(SetOnce):
         truth, :math:`S^{\\rm truth}_k` combined, ``None`` on the measurement).
     basis : Basis or None
         Set when the values are per component of a :class:`~binference.Basis`
-        (:math:`\\psi_k`-weighted averages) rather than per bin.
+        (:math:`\\psi_k`-weighted averages) rather than per bin; ``None`` on an identity
+        basis, whose components are the bins.
     injections : tuple or None
         For a selection measured by injections (:meth:`from_injections`), a named
         tuple ``(injected, recovered, prior, smooth)``: counts per bin, the Beta prior
@@ -297,11 +298,11 @@ class Selection(SetOnce):
         # DECISIONS #10, #47, #76
         _check_mode(mode)
         _check_values(np.ones(2), scale, "selection")  # the scale, before any quadrature
-        quad = {"tol": tol, "max_depth": max_depth}
-        if isinstance(bins, Basis):
-            sel = cls.from_function(function, bins.grid, mode, scale=scale, **quad)
-            return _on_basis(sel, bins, bins.grid_masses)
-        return cls(_bin_average(function, bins, **quad)[0], mode, scale=scale)
+        basis = as_basis(bins)
+        values = _bin_average(function, basis.grid, tol=tol, max_depth=max_depth)[0]
+        if basis.is_plain:
+            return cls(values, mode, scale=scale)
+        return _on_basis(cls(values, mode, scale=scale), basis, basis.grid_masses)
 
     @classmethod
     def combined(
@@ -491,7 +492,7 @@ def _rebuild(
         else frozen(np.array(row, dtype=float))
     )
     out.scale = scale
-    out.basis = basis
+    out.basis = None if basis is None or basis.is_identity else basis
     out.injections = (
         None
         if injections is None
@@ -595,14 +596,14 @@ def _warn_if_steep(values: np.ndarray, bins: Bins) -> None:
         )
 
 
-def as_selection(selection: Any, mode: str | None, bins: Bins | Basis) -> Selection | None:
+def as_selection(selection: Any, mode: str | None, basis: Basis) -> Selection | None:
     """Normalise user input: ``None``, a :class:`Selection`, a callable or an array plus mode.
 
     A raw array is checked for steep changes between neighbouring bins; a
     :class:`Selection` or a callable is taken as already averaged within bins.
-    With a :class:`~binference.Basis`, arrays and selections given per bin are
-    mapped to the components (:math:`\\psi_k`-weighted averages) and callables are
-    averaged on the basis's quadrature cells.
+    Arrays and selections given per bin are mapped to the basis's components
+    (:math:`\\psi_k`-weighted averages) and callables are averaged on its
+    quadrature cells.
 
     Parameters
     ----------
@@ -610,15 +611,13 @@ def as_selection(selection: Any, mode: str | None, bins: Bins | Basis) -> Select
         The selection as the user gave it.
     mode : str or None
         ``selection_mode``, required with a callable or an array.
-    bins : Bins or Basis
-        Bins of the model.
+    basis : Basis
+        Basis of the model.
     """
     if selection is None:
         if mode is not None:
             raise ValueError("selection_mode was given without a selection function.")
         return None
-    basis = bins if isinstance(bins, Basis) else None
-    report = bins if basis is None else basis.bins
     if isinstance(selection, Selection):
         if mode is not None and mode != selection.mode:
             raise ValueError("selection_mode conflicts with the mode of the Selection object.")
@@ -630,11 +629,11 @@ def as_selection(selection: Any, mode: str | None, bins: Bins | Basis) -> Select
     elif mode is None:
         raise ValueError(_HELP)
     elif callable(selection):
-        return Selection.from_function(selection, bins, mode)
+        return Selection.from_function(selection, basis, mode)
     else:
         sel = Selection(selection, mode)
-        if sel.K == report.K:
-            _warn_if_steep(sel.values, report)
-    if sel.K != report.K:
-        raise ValueError(f"selection must have length K={report.K}; got {sel.K}.")
-    return sel if basis is None else _on_basis(sel, basis, basis.matrix)
+        if sel.K == basis.K:
+            _warn_if_steep(sel.values, basis.bins)
+    if sel.K != basis.K:
+        raise ValueError(f"selection must have length K={basis.K}; got {sel.K}.")
+    return sel if basis.is_identity else _on_basis(sel, basis, basis.matrix)

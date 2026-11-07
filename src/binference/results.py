@@ -25,6 +25,7 @@ from ._utils import (
     read_only,
     warn,
 )
+from .basis import Basis
 from .bins import Bins, _bin_labels
 from .measure import Measure
 from .warnings import ConvergenceWarning, DiagnosticsError, InputWarning
@@ -35,7 +36,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
 
-    from .basis import Basis
     from .likelihoods import Likelihoods
     from .model import PopulationModel
     from .selection import Selection
@@ -152,7 +152,7 @@ class _IndividualMixin:
     """
 
     model: PopulationModel | None
-    basis: Basis | None
+    basis: Basis
     bins: Bins
     kind: str
     method: str
@@ -279,11 +279,11 @@ class _IndividualMixin:
 
     def _to_bins(self, P: np.ndarray) -> np.ndarray:
         """Per-component values ``(..., C)`` summed into the bins ``(..., K)``."""
-        return P if self.basis is None else self.basis.to_bins(P)
+        return P if self.basis.is_identity else self.basis.to_bins(P)
 
     def _labels_to_bins(self, labels: np.ndarray, gen: np.random.Generator) -> np.ndarray:
         """Component labels as bin labels, each drawn from its component's shares."""
-        if self.basis is None or self.basis.is_identity:
+        if self.basis.is_identity:
             return labels
         S = self.basis.shares  # rows sum to one: invert their cumulative sums
         cum = np.cumsum(S.data)
@@ -295,7 +295,7 @@ class _IndividualMixin:
 
     def _counts_to_bins(self, counts: np.ndarray, gen: np.random.Generator) -> np.ndarray:
         """Integer counts per component as counts per bin, shared multinomially."""
-        if self.basis is None or self.basis.is_identity:
+        if self.basis.is_identity:
             return counts
         S = self.basis.shares
         n = kern._multinomial_csr(S, np.round(counts).astype(np.int64), np.ones(self.bins.K), gen)
@@ -309,13 +309,9 @@ class _IndividualMixin:
         lk = (
             likelihoods
             if isinstance(likelihoods, Likelihoods)
-            else Likelihoods(likelihoods, basis or model.bins)
+            else Likelihoods(likelihoods, basis)
         )
-        if (
-            lk.K != model.K
-            or lk.basis != basis
-            or (basis is None and not _same_bins(lk.bins, model.bins))
-        ):
+        if lk.K != model.K or not _same_space(lk.basis, basis):
             raise ValueError("New likelihoods must use the same bins (and basis) as the fit.")
         return lk
 
@@ -731,7 +727,7 @@ class _IndividualMixin:
         rows = np.atleast_1d(np.arange(model.N)[slice(None) if idx is None else idx])
         labels = self._component_labels(rows, n_draws, gen)
         basis = model.likelihoods.basis
-        hat = basis is not None and basis.order == 1
+        hat = basis.order == 1
         objects = np.broadcast_to(rows, labels.shape)
         out = np.empty((*labels.shape, bins.ndim))
         todo = np.ones(labels.shape, dtype=bool)
@@ -1016,10 +1012,15 @@ def _same_bins(a: Bins, b: Bins) -> bool:
     )
 
 
-def _same_layout(a: Basis | None, b: Basis | None) -> bool:
+def _same_space(a: Basis, b: Basis) -> bool:
+    # plain bins compare as bins, any other basis by its layout
+    if a.is_plain and b.is_plain:
+        return _same_bins(a.bins, b.bins)
+    return _same_layout(a, b)
+
+
+def _same_layout(a: Basis, b: Basis) -> bool:
     # equal bases up to the identity of their measures, which do not survive save and load
-    if a is None or b is None:
-        return a is b
     return (a.order, a.resolution, a.oversample, a.K, a.C) == (
         b.order,
         b.resolution,
@@ -1048,7 +1049,8 @@ def _value_drawer(model, loglike, n_sub: int, n_sweeps: int) -> tuple[Callable, 
     kind, *data = within.data
     row = np.asarray(meta["value_row"])
     if kind == "samples":
-        direct = model.likelihoods.basis is None  # labels are the bins the samples are in
+        # labels are the bins the samples are in
+        direct = model.likelihoods.basis.is_identity and data[0] == model.K
         return partial(_draw_samples, measures, flat, direct, row, *data), True
     if kind == "dists":  # one family's parameters are packed once, not per call
         from .likelihoods import _rows_logpdf
@@ -1306,24 +1308,19 @@ class PopulationResult(_IndividualMixin):
         self.model = model
         if basis is None and model is not None:
             basis = model.likelihoods.basis
-        #: the :class:`~binference.Basis` of the model's components, or ``None``
+        elif basis is None:
+            basis = Basis(Bins.categories(d.shape[-1]) if bins is None else bins)
+        #: the :class:`~binference.Basis` of the model's components; plain bins are the
+        #: identity basis
         self.basis = basis
-        self._params = d  # the model's columns: component weights with a basis
-        self._draws = frozen(self._to_bins(d))  # per bin (the same array without a basis)
+        self._params = d  # the model's columns: component weights on a basis
+        self._draws = frozen(self._to_bins(d))  # per bin (the same array on the identity)
         self.kind = kind = kind or (model.kind if model is not None else "fractions")
         if kind == "rates":
             total = self._draws.sum(axis=-1)
         # for fractions, drawn on first use (see total)
         self._total = None if total is None else read_only(np.reshape(total, d.shape[:2]))
-        self.bins = (
-            bins
-            if bins is not None
-            else basis.bins
-            if basis is not None
-            else model.bins
-            if model is not None
-            else Bins.categories(d.shape[-1])
-        )
+        self.bins = basis.bins if bins is None else bins
         self.x = read_only(x, None)
         # DECISIONS #15
         #: log posterior density of each draw in the unconstrained coordinates
@@ -1454,7 +1451,7 @@ class PopulationResult(_IndividualMixin):
 
         m, saved = likelihoods_or_model, self.selection
         if not isinstance(m, PopulationModel):
-            lk = m if isinstance(m, Likelihoods) else Likelihoods(m, self.basis or self.bins)
+            lk = m if isinstance(m, Likelihoods) else Likelihoods(m, self.basis)
             sel = None if lk.selection is not None else saved
             if sel is not None and sel.basis is not None and _same_layout(lk.basis, sel.basis):
                 # the same layout; its measure did not survive saving
@@ -1462,10 +1459,11 @@ class PopulationResult(_IndividualMixin):
             m = PopulationModel(lk, selection=sel)
         if m.selection_spec != saved:
             raise ValueError("The likelihoods (or model) carry another selection than this fit.")
-        if not _same_layout(m.likelihoods.basis, self.basis):
-            raise ValueError("The likelihoods use a different basis than this result.")
-        if self.basis is None and not _same_bins(m.bins, self.bins):
-            raise ValueError(f"The likelihoods are on other bins ({m.bins}) than this result.")
+        if not _same_space(m.likelihoods.basis, self.basis):
+            raise ValueError(
+                f"The likelihoods are on other bins or another basis ({m.likelihoods.basis}) "
+                "than this result."
+            )
         # bare likelihoods get the default prior; a model counts as the fit's with its prior
         self._fit_model = isinstance(m, PopulationModel) and (
             self.prior_key is None or m.prior_spec._fingerprint() == self.prior_key
@@ -2085,11 +2083,10 @@ class PopulationResult(_IndividualMixin):
             Options for the reference fit's engine.
         """
         # DECISIONS #6, #20, #86
-        from .basis import Basis
         from .inference import METHODS, infer
 
         model = self._fit_model_only("binning_bias")
-        if self.basis is not None or self.bins.is_categorical:
+        if not self.basis.is_plain or self.bins.is_categorical:
             raise ValueError("binning_bias compares a fit on grid bins with a basis over them.")
         key = str(self.method if method is None else method).lower()
         if key not in ("auto", "nuts", "gibbs", "laplace", "vb", "bootstrap"):
@@ -2286,14 +2283,9 @@ class PointEstimate(_IndividualMixin):
         self.info = _read_only_info(info)
         self._cache: dict[str, Any] = {}
         self.kind = model.kind if model is not None else "fractions"
-        self.basis = model.likelihoods.basis if model is not None else None
-        self.bins = (
-            self.basis.bins
-            if self.basis is not None
-            else model.bins
-            if model is not None
-            else Bins.categories(self.value.size)
-        )
+        K = self.value.size
+        self.basis = model.likelihoods.basis if model is not None else Basis(Bins.categories(K))
+        self.bins = self.basis.bins
 
     @property
     def rho(self) -> np.ndarray:

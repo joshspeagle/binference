@@ -23,7 +23,7 @@ from ._utils import (
     read_only,
     warn,
 )
-from .basis import Basis
+from .basis import Basis, as_basis
 from .bins import Bins
 from .density import (
     Density,
@@ -289,7 +289,8 @@ def _accepts_basis(within_bins: bool, exact: Callable[[dict], bool] | None = Non
     information within bins, on its reporting bins otherwise, and the result
     is moved onto the components with :meth:`Likelihoods.on_basis`; when
     ``exact(arguments)`` holds, the constructor receives the basis itself and
-    returns likelihoods of the components. The selection is attached last.
+    returns likelihoods of the components. The selection is attached last. An
+    identity basis with no finer quadrature cells is its plain bins.
     """
 
     def wrap(f: Callable) -> Callable:
@@ -299,8 +300,10 @@ def _accepts_basis(within_bins: bool, exact: Callable[[dict], bool] | None = Non
         def constructor(cls, *args: Any, **kwargs: Any) -> Likelihoods:
             bound = sig.bind(cls, *args, **kwargs)
             basis = bound.arguments.get("bins")
+            if isinstance(basis, Basis) and basis.is_plain:
+                basis = bound.arguments["bins"] = basis.bins
             if not isinstance(basis, Basis):
-                return f(cls, *args, **kwargs)
+                return f(*bound.args, **bound.kwargs)
             sel = bound.arguments.pop("selection", None)
             mode = bound.arguments.pop("selection_mode", None)
             direct = exact is not None and exact(bound.arguments)
@@ -411,28 +414,25 @@ class Likelihoods:
         else:
             norm, log_scale = _normalise_linear(values)
         N, K = norm.shape
-        basis = bins if isinstance(bins, Basis) else None
-        bins = Bins.categories(K) if bins is None else bins if basis is None else basis.bins
-        if not isinstance(bins, Bins):
+        bins = Bins.categories(K) if bins is None else bins
+        if not isinstance(bins, Bins | Basis):
             raise TypeError("bins must be a binference.Bins or Basis instance.")
-        if bins.K != K:
-            raise ValueError(f"values have K={K} columns but bins have K={bins.K}.")
+        basis = as_basis(bins)
+        if basis.K != K:
+            raise ValueError(f"values have K={K} columns but bins have K={basis.K}.")
         if representation == "mass":
-            vol = np.asarray(bins.volumes, dtype=float)
+            vol = np.asarray(basis.bins.volumes, dtype=float)
             norm = _scale_columns(norm, 1.0 / vol)
             norm, extra = _normalise_linear(norm)
             log_scale = log_scale + extra
         weights = _check_weights(weights, N, fractional_weights)
-        if basis is not None:
+        if not basis.is_identity:
             norm, log_scale = _project_values(norm, log_scale, basis.matrix)
-            bins = basis.components
-        sel = as_selection(selection, selection_mode, bins if basis is None else basis)
-        self._init_from_parts(norm, log_scale, bins, weights, sel, meta, drop_empty, basis)
+        sel = as_selection(selection, selection_mode, basis)
+        self._init_from_parts(norm, log_scale, basis, weights, sel, meta, drop_empty)
 
     # ------------------------------------------------------------- internals
-    def _init_from_parts(
-        self, norm, log_scale, bins, weights, selection, meta, drop_empty=False, basis=None
-    ):
+    def _init_from_parts(self, norm, log_scale, basis, weights, selection, meta, drop_empty=False):
         empty = ~np.isfinite(log_scale)
         if np.any(empty):
             bad = np.flatnonzero(empty)
@@ -451,7 +451,6 @@ class Likelihoods:
             raise ValueError("Likelihoods need at least one object.")
         self._values = frozen(norm)
         self._log_scale = read_only(log_scale)
-        self._bins = bins
         self._weights = read_only(weights)
         if selection is not None and not isinstance(selection, Selection):
             raise TypeError("internal error: selection must be a Selection object")
@@ -470,11 +469,10 @@ class Likelihoods:
         parts = {
             "norm": self._values,
             "log_scale": self._log_scale,
-            "bins": self._bins,
+            "basis": self._basis,
             "weights": self._weights,
             "selection": self._selection,
             "meta": self.meta,
-            "basis": self._basis,
         }
         obj = Likelihoods.__new__(Likelihoods)
         obj._init_from_parts(**{**parts, **changes})
@@ -492,18 +490,18 @@ class Likelihoods:
         return self._log_scale
 
     @property
-    def basis(self) -> Basis | None:
-        """The :class:`~binference.Basis` whose components the columns are, or ``None``.
+    def basis(self) -> Basis:
+        """The :class:`~binference.Basis` whose components the columns are.
 
-        With a basis, :attr:`bins` are its components and ``basis.bins`` the
-        reporting bins.
+        :attr:`bins` are its components and ``basis.bins`` the reporting bins. Plain
+        bins are the identity basis, for which the two are the same.
         """
         return self._basis
 
     @property
     def bins(self) -> Bins:
         """The :class:`~binference.Bins` the likelihoods are defined over."""
-        return self._bins
+        return self._basis.components
 
     @property
     def weights(self) -> np.ndarray:
@@ -557,7 +555,7 @@ class Likelihoods:
         store = "sparse" if self.is_sparse else "dense"
         extra = "" if self._selection is None else f", selection={self._selection.mode!r}"
         w = "" if np.all(self._weights == 1) else f", W={self.W:g}"
-        where = f"bins={self._bins!r}" if self._basis is None else f"basis={self._basis!r}"
+        where = f"bins={self.bins!r}" if self._basis.is_plain else f"basis={self._basis!r}"
         return f"Likelihoods(N={self.N}, K={self.K}, {store}{w}{extra}, {where})"
 
     def __getitem__(self, idx: Any) -> Likelihoods:
@@ -632,7 +630,7 @@ class Likelihoods:
             Whether the new selection acts on the measurement or on the truth; required
             with an array or callable ``selection``.
         """
-        sel = as_selection(selection, selection_mode, self._basis or self._bins)
+        sel = as_selection(selection, selection_mode, self._basis)
         return self._copy(selection=sel)
 
     def on_basis(self, basis: Basis) -> Likelihoods:
@@ -653,11 +651,13 @@ class Likelihoods:
         """
         if not isinstance(basis, Basis):
             raise TypeError("basis must be a binference.Basis instance.")
-        if self._basis is not None:
+        if not self._basis.is_plain:
             raise ValueError("These likelihoods are already on a basis.")
-        if self._bins == basis.bins:
+        if basis.is_plain and self.bins == basis.bins:
+            return self  # plain bins are already their own identity basis
+        if self.bins == basis.bins:
             M = basis.matrix
-        elif self._bins == basis.grid:
+        elif self.bins == basis.grid:
             M = basis.grid_masses
         else:
             raise ValueError("The basis must be built on these likelihoods' bins.")
@@ -667,10 +667,9 @@ class Likelihoods:
         return self._copy(
             norm=norm,
             log_scale=log_scale,
-            bins=basis.components,
+            basis=basis,
             selection=sel,
             meta=meta,
-            basis=basis,
         )
 
     def compress(self, decimals: int | None = None) -> Likelihoods:
@@ -742,9 +741,9 @@ class Likelihoods:
         if interim is None:
             Pi = self.meta.get("interim_prior_masses")
             if Pi is None:
-                Pi = Density.flat().masses(self._bins)
+                Pi = Density.flat().masses(self.bins)
         else:
-            Pi = _interim_masses(interim, self._bins, interim_representation)
+            Pi = _interim_masses(interim, self.bins, interim_representation)
         P = _scale_columns(self._values, Pi)
         tot = np.asarray(P.sum(axis=1)).ravel()
         if np.any(tot <= 0):
@@ -1072,10 +1071,9 @@ class Likelihoods:
         a = np.asarray(rho, dtype=float).ravel()
         if a.shape != (self.K,):
             raise ValueError(f"rho must have length K={self.K}.")
-        if self._basis is not None:  # back to the cells the samples were binned on
-            b = self._basis
-            on_grid = self.meta["sample_sum"].shape[1] == b.grid.K
-            a = (b.grid_masses if on_grid else b.matrix) @ a
+        b = self._basis  # back to the cells the samples were binned on
+        on_grid = self.meta["sample_sum"].shape[1] == b.grid.K
+        a = (b.grid_masses if on_grid else b.matrix) @ a
         m = np.asarray(self.meta["sample_sum"] @ a).ravel()
         q = np.asarray(self.meta["sample_sq"] @ a**2).ravel()
         est = (
@@ -1154,11 +1152,8 @@ class Likelihoods:
             Accept non-integer weights, which give a pseudo-likelihood.
         """
         # DECISIONS #25, #76
-        basis = bins if isinstance(bins, Basis) else None
-        if basis is not None:  # evaluated on its quadrature cells, returned per component
-            bins = basis.components
-        if not isinstance(bins, Bins):
-            raise TypeError("bins must be a binference.Bins instance.")
+        basis = as_basis(bins)  # evaluated on its quadrature cells, returned per component
+        bins, grid = basis.components, basis.grid
         if bins.is_categorical:
             raise ValueError("from_gaussian needs ordered (grid) bins.")
         if (sigma is None) == (cov is None):
@@ -1221,8 +1216,7 @@ class Likelihoods:
         # summed over the axes of each active bin; with a basis the averages on the
         # quadrature cells are projected onto the axis's component factors
         logL = log_mass = 0.0
-        grid = bins if basis is None else basis.grid
-        factors = None if basis is None else basis.axis_masses(grid)
+        factors = None if grid is bins else basis.axis_masses(grid)
         for d, (e, m, j, mu_d, sig_d) in enumerate(
             zip(grid.edges, grid.measures, bins.cell_index, mu.T, sig.T, strict=True)
         ):

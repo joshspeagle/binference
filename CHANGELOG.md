@@ -38,6 +38,12 @@ releases may break the API).
 
 - When `check()` reports a low E-BFMI for `LogisticGP` on a grid, its hint suggests
   `n_basis=10`.
+- **Breaking:** `Likelihoods.basis` and the `basis` of a result are never `None`. Plain bins
+  are the identity basis `Basis(bins)` (order 0, resolution 1), which categories now also
+  take, so test `basis.is_identity` where `basis is None` was tested. An explicit
+  `Basis(bins)` now behaves as its plain bins, except that `Selection.from_injections`
+  still refuses any `Basis`. Saved files keep their layout and files from 0.1.0 still load:
+  a file without basis metadata is on the identity basis.
 - `infer` checks the inputs of every fit, not only NUTS and Gibbs: the Monte Carlo noise
   of sample likelihoods for every engine and, where the result has draws, binned counts
   the response does not describe. `PointEstimate.check` includes the noise check.
