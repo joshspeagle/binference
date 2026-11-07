@@ -7,7 +7,7 @@ import pytest
 
 import binference
 from binference import Bins, Likelihoods
-from binference.samplers import Gibbs
+from binference.engines import Gibbs
 
 BINS = Bins.linear(0, 1, 8)
 N = 5_000

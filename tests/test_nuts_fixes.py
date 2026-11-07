@@ -8,9 +8,9 @@ import pytest
 import binference
 from binference import Bins, PopulationModel
 from binference import priors as P
-from binference.samplers import NUTS, Laplace
-from binference.samplers._nuts_core import _MAX_ENERGY_ERROR, Metric, _leaf, adaptation_windows
-from binference.samplers.nuts import _Chain
+from binference.engines import NUTS, Laplace
+from binference.engines._nuts_core import _MAX_ENERGY_ERROR, Metric, _leaf, adaptation_windows
+from binference.engines.nuts import _Chain
 
 
 def _gp_model(n=3000, K=12, seed=2):
@@ -145,7 +145,7 @@ def test_step_size_adaptation_reaches_the_target_acceptance_on_a_standard_gaussi
 
 
 def test_above_the_dense_limit_the_warm_up_curvature_is_taken_at_one_chain(monkeypatch):
-    from binference.samplers import nuts
+    from binference.engines import nuts
 
     calls = []
     for name in ("fd_hessian_diag", "fd_hessian"):

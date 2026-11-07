@@ -9,8 +9,8 @@ import binference
 from binference import Bins, ConvergenceWarning, Likelihoods, PopulationModel, Selection
 from binference import priors as P
 from binference._simplex import helmert_basis, softmax
-from binference.samplers import MAP, Bootstrap
-from binference.samplers.base import em_update
+from binference.engines import MAP, Bootstrap
+from binference.engines.base import em_update
 
 
 def _one_object_bin(n=40, K=5, seed=0):
@@ -129,7 +129,7 @@ def test_the_rates_kkt_gap_does_not_depend_on_the_units_of_the_exposure():
 
 
 def test_the_rates_start_is_the_observed_composition_over_the_exposure():
-    from binference.samplers.base import interior_start
+    from binference.engines.base import interior_start
 
     # broad likelihoods, so the composition must be fitted on the columns of L over S: for
     # seeds 0-19 of this mock the start's log posterior is 0.2-2.2 below the mode's (26-47

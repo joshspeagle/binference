@@ -5,8 +5,8 @@ import pytest
 
 import binference
 from binference import Bins, Likelihoods, PopulationResult, Selection
+from binference.engines import Gibbs
 from binference.priors import Dirichlet, PolyaTree
-from binference.samplers import Gibbs
 
 
 def _fit_with_selection():

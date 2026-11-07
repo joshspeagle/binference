@@ -11,7 +11,7 @@ from scipy import stats
 import binference
 from binference import Bins, Likelihoods, PopulationModel, PopulationResult, Response, Selection
 from binference import priors as P
-from binference.samplers import MAP, NUTS, Bootstrap
+from binference.engines import MAP, NUTS, Bootstrap
 from binference.warnings import ApproximationWarning, InputWarning
 
 
@@ -324,7 +324,7 @@ def test_parallel_chain_workers_share_blas_threads():
 
     from threadpoolctl import threadpool_info, threadpool_limits
 
-    from binference.samplers.nuts import _init_worker, _worker_threads
+    from binference.engines.nuts import _init_worker, _worker_threads
 
     with ProcessPoolExecutor(1, initializer=_init_worker, initargs=(None, 1)) as ex:
         info = ex.submit(threadpool_info).result()

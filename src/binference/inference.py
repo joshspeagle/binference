@@ -11,12 +11,12 @@ import numpy as np
 
 from ._utils import RNGLike, check_positive, check_positive_integers, warn
 from .bins import Bins
+from .engines import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
+from .engines.base import Engine
+from .engines.laplace import PROPOSAL_FACTOR
 from .model import PopulationModel
 from .priors import PopulationPrior
 from .results import PointEstimate, PopulationResult
-from .samplers import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
-from .samplers.base import Engine
-from .samplers.laplace import PROPOSAL_FACTOR
 from .warnings import ApproximationWarning, BinferenceWarning
 
 __all__ = ["METHODS", "Auto", "infer"]
@@ -363,7 +363,7 @@ def infer(
         Warn about convergence problems after sampling (NUTS, Gibbs).
     **engine_kwargs
         Passed to the engine (e.g. ``n_chains``, ``n_warmup``, ``target_accept``
-        for NUTS; see :mod:`binference.samplers`).
+        for NUTS; see :mod:`binference.engines`).
 
     Returns
     -------

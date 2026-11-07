@@ -28,7 +28,7 @@ START, END = "<!-- defaults:start -->", "<!-- defaults:end -->"
 GROUPS = [
     ("Automatic engine choice", ("binference.inference",)),
     ("Results and diagnostics", ("binference.results", "binference.diagnostics")),
-    ("Engines", ("binference.samplers",)),
+    ("Engines", ("binference.engines",)),
     ("Priors", ("binference.priors",)),
     (
         "Inputs",

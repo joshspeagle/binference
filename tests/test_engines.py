@@ -10,7 +10,7 @@ import binference
 from binference import Bins, Likelihoods, PopulationModel, Selection
 from binference import _kernels as kern
 from binference import priors as P
-from binference.samplers import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
+from binference.engines import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
 from binference.warnings import ApproximationWarning, InputWarning
 
 from .conftest import assert_draws_agree, assert_matches_reference
@@ -128,7 +128,7 @@ def test_parallel_chains_match_serial(onehot):
 
 
 def test_hessian_helpers():
-    from binference.samplers._curvature import covariance_from_hessian, fd_hessian
+    from binference.engines._curvature import covariance_from_hessian, fd_hessian
 
     A = np.array([[2.0, 0.5, 0.0], [0.5, 1.0, 0.2], [0.0, 0.2, 3.0]])
 
@@ -562,7 +562,7 @@ def test_laplace_uncorrected_is_flagged(k3_problem):
 
 
 def test_laplace_clips_negative_curvature_to_a_wide_positive_variance(k3_problem, monkeypatch):
-    from binference.samplers import laplace
+    from binference.engines import laplace
 
     real = laplace.fd_hessian
 

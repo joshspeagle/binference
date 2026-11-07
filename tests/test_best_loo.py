@@ -7,7 +7,7 @@ import pytest
 import binference
 from binference import Bins, Likelihoods, Selection
 from binference.diagnostics import ess, psis
-from binference.samplers import MAP, Gibbs
+from binference.engines import MAP, Gibbs
 
 BINS = Bins.linear(0, 1, 5)
 

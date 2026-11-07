@@ -148,7 +148,7 @@ import numpy as np
 import binference
 from binference import Bins, PopulationModel
 from binference.diagnostics import autocorr_time
-from binference.samplers import MAP, Gibbs
+from binference.engines import MAP, Gibbs
 
 INK2 = plt.rcParams["xtick.color"]
 K, N = 10, 1000

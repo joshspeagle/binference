@@ -22,12 +22,12 @@ Main entry points
   classifier's scores on a labelled validation set).
 * :func:`infer` -- one-call inference (``method="auto"`` by default: Gibbs, Laplace or NUTS).
 * :mod:`binference.priors` -- Dirichlet family, smoothness priors, rates.
-* :mod:`binference.samplers` -- inference engines.
+* :mod:`binference.engines` -- inference engines.
 * :class:`PopulationResult` -- draws, summaries, per-object outputs, plots.
 * :mod:`binference.simulate` and :mod:`binference.validation` -- mocks, SBC, coverage.
 """
 
-from . import diagnostics, priors, samplers, simulate, validation
+from . import diagnostics, engines, priors, simulate, validation
 
 # not in __all__, so that a star import leaves the standard io alone
 from . import io as io
@@ -72,9 +72,9 @@ __all__ = [
     "Summary",
     "__version__",
     "diagnostics",
+    "engines",
     "infer",
     "priors",
-    "samplers",
     "simulate",
     "validation",
 ]

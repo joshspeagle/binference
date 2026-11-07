@@ -129,8 +129,8 @@ Which objects enter the sample, given their true or measured values; pass a
 control, generator-style sampling or resuming a run.
 
 ```{eval-rst}
-.. py:module:: binference.samplers
-.. currentmodule:: binference.samplers
+.. py:module:: binference.engines
+.. currentmodule:: binference.engines
 
 .. autosummary::
    :toctree: generated

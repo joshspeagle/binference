@@ -104,7 +104,7 @@ The other cases maximise the density in {term}`unconstrained coordinates` with
 - Priors that are not conjugate, such as the logistic family.
 - A selection or response inferred with the population.
 
-{class}`~binference.samplers.MAP` lists which solver each case uses. `est.info["algorithm"]` and
+{class}`~binference.engines.MAP` lists which solver each case uses. `est.info["algorithm"]` and
 `est.info["space"]` record the choice.
 
 ## The certificate
@@ -140,7 +140,7 @@ $|\lambda\cdot\nabla_\lambda\log p|/(S\cdot\lambda)$, so it does not depend on t
 of the exposure.
 
 `MAP(tol=)` bounds the KKT gap for EM and mix-SQP; for mix-SQP the gap is that of its
-transformed problem. {class}`~binference.samplers.MAP` states the bound for L-BFGS and
+transformed problem. {class}`~binference.engines.MAP` states the bound for L-BFGS and
 for runs stopped by round-off.
 
 ## Two coordinate systems, two modes
@@ -187,7 +187,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import binference
-from binference.samplers import MAP
+from binference.engines import MAP
 
 INK2 = plt.rcParams["xtick.color"]
 
