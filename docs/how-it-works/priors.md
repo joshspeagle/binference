@@ -134,7 +134,7 @@ unchanged, so the constant mode is dropped wherever the basis contains it.
   - The prior on $\eta$ is stationary in the measure coordinate, such as $\log z$ on logarithmic
     bins. Grids of several dimensions use products of the per-axis sines.
   - The amplitude and one length scale per axis are inferred. By default there are
-    $n_{\rm basis}$ sines per axis, one per bin up to the limits in the
+    $n_{\rm basis}$ sines per axis, one per bin up to a total in the
     [defaults](../reference/defaults.md#priors).
   - $n_{\rm basis}$ sines resolve length scales down to $f_{\rm ker}\,c_{\rm box}\Delta/n_{\rm basis}$,
     with a resolution factor $f_{\rm ker}$ per kernel from the

@@ -499,10 +499,8 @@ _KERNELS = {
     "matern32": (1.5, 2.2),
     "matern12": (0.5, 8.5),
 }
-#: Most basis functions of :class:`LogisticGP` on 1-D bins when ``n_basis`` is ``None``.
+#: Most basis functions of :class:`LogisticGP` in all when ``n_basis`` is ``None``.
 _MAX_BASIS = 1024
-#: Most basis functions of :class:`LogisticGP` per axis on a grid when ``n_basis`` is ``None``.
-_MAX_BASIS_PER_AXIS = 10
 
 
 class LogisticGP(PopulationPrior):
@@ -541,9 +539,10 @@ class LogisticGP(PopulationPrior):
         a density flat in the measure coordinate: the GP acts on the
         log-density.
     n_basis : int or sequence, optional
-        Basis functions per axis. Default: one per bin, up to 1024 on 1-D bins and 10 per
-        axis on a grid, where more leave NUTS exploring poorly; increase it for shorter
-        length scales, which also lowers the default length-scale prior.
+        Basis functions per axis. Default: one per bin, up to a total of 1024
+        (``min(K_d, floor(1024 ** (1 / D)))``: up to 1024 on 1-D grids, 32 per
+        axis on 2-D grids); increase it for shorter length scales, which also
+        lowers the default length-scale prior.
     boundary_factor : float
         Ratio of the approximation box to the grid half-width. With the default
         3, the centred covariance is within 4% of the exact kernel's for length
@@ -588,9 +587,8 @@ class LogisticGP(PopulationPrior):
     def bind(self, bins: Bins) -> _BoundGP:
         _require_full_grid(bins)
         D = bins.ndim
-        if self.n_basis is None:  # one per bin, up to a limit
-            limit = _MAX_BASIS if D == 1 else _MAX_BASIS_PER_AXIS
-            nb = [min(n, limit) for n in bins.shape]
+        if self.n_basis is None:  # one per bin, at most _MAX_BASIS modes in all
+            nb = [min(n, int(_MAX_BASIS ** (1 / D) + 1e-9)) for n in bins.shape]
         else:
             nb = list(check_positive_integers(self.n_basis, "n_basis", D))
         factors, omegas = [], []

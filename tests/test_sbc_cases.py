@@ -95,22 +95,11 @@ def test_sbc_ranks_are_uniform(case):
 def _grid_simulator(prior, bins, n_objects, noise):
     # as prior_predictive, which takes 1-D bins: objects uniform within cells, Gaussian errors
     bound = prior.bind(bins)
-    x_edges, y_edges = bins.edges
 
     def simulate(rng):
         truth = bound.sample(1, rng)[0]
-        cell = rng.choice(bins.K, size=n_objects, p=truth / truth.sum())
-        i, j = (index[cell] for index in bins.cell_index)
-        u = rng.uniform(size=(n_objects, 2))
-        z = np.column_stack(
-            [
-                x_edges[i] + u[:, 0] * np.diff(x_edges)[i],
-                y_edges[j] + u[:, 1] * np.diff(y_edges)[j],
-            ]
-        )
-        return Likelihoods.from_gaussian(
-            z + noise * rng.standard_normal(z.shape), noise, bins
-        ), truth
+        mock = binference.simulate.mock_2d(n_objects, bins, density=truth, noise=noise, rng=rng)
+        return mock.likelihoods, truth
 
     return simulate
 
@@ -120,7 +109,7 @@ def _grid_simulator(prior, bins, n_objects, noise):
 @pytest.mark.filterwarnings(
     "ignore:In .* fits the smallest bulk ESS:binference.ConvergenceWarning"
 )
-def test_sbc_of_the_gp_on_a_two_dimensional_grid():
+def test_the_gp_with_inferred_hyperparameters_is_calibrated_on_a_grid():
     prior = P.LogisticGP()
     bins = Bins.grid(np.linspace(0, 1, 7), np.linspace(0, 1, 7))
     fit = _fit("nuts", prior=prior, n_chains=2, n_warmup=400, n_samples=300)

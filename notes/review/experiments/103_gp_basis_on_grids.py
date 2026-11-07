@@ -1,5 +1,6 @@
 """Issue #103 item 2: LogisticGP's default basis on 2-D grids against 10 sines per axis.
-Mock with 3000 objects, four chains of 300 warm-up plus 300 draws, one BLAS thread."""
+Mock with 3000 objects, two chains of 300 warm-up plus 300 draws. Run with
+OPENBLAS_NUM_THREADS=1; argument: number of worker processes."""
 import multiprocessing as mp, sys, time, warnings
 import numpy as np
 import binference

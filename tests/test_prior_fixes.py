@@ -204,11 +204,10 @@ def test_centred_gp_gradients_agree_with_the_density_where_scales_underflow():
         np.testing.assert_allclose(g[i], fd, rtol=1e-5)
 
 
-def test_the_default_gp_basis_has_one_sine_per_bin_up_to_its_limits():
+def test_the_default_gp_basis_has_one_sine_per_bin_up_to_1024_modes():
     assert P.LogisticGP().bind(Bins.linear(0, 1, 12)).n_active == 12
-    assert P.LogisticGP().bind(Bins.linear(0, 1, 2000)).n_active == 1024
-    grid = Bins.grid(np.linspace(0, 1, 41), np.linspace(0, 1, 9))
-    assert P.LogisticGP().bind(grid).n_active == 10 * 8  # at most 10 per axis on a grid
+    grid = Bins.grid(np.linspace(0, 1, 41), np.linspace(0, 1, 11))
+    assert P.LogisticGP().bind(grid).n_active == 32 * 10  # 32 per axis in 2-D
 
 
 def test_the_wider_gp_box_keeps_the_edges_free_at_long_length_scales():
@@ -238,3 +237,23 @@ def test_recentring_a_gp_from_centred_coordinates_stays_finite():
     x = np.concatenate([np.exp(log_s) * np.random.default_rng(2).normal(size=b.n_active), u])
     y = c.recentre(x, np.ones(b.n_active))  # warnings are errors here
     assert np.all(np.isfinite(y))
+
+
+def test_a_low_e_bfmi_for_a_gp_on_a_grid_suggests_a_smaller_basis(monkeypatch):
+    from binference import results
+
+    bins = Bins.grid(np.linspace(0, 1, 4), np.linspace(0, 1, 4))
+    lk = binference.simulate.mock_2d(200, bins, rng=0).likelihoods
+    res = binference.infer(
+        lk,
+        P.LogisticGP(),
+        method="nuts",
+        n_chains=2,
+        n_warmup=30,
+        n_samples=30,
+        rng=0,
+        check=False,
+    )
+    monkeypatch.setattr(results, "EBFMI_MIN", 100.0)  # any E-BFMI is low
+    with pytest.warns(binference.ConvergenceWarning, match="n_basis=10"):
+        res.check()

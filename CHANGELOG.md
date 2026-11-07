@@ -36,10 +36,8 @@ releases may break the API).
 
 ### Changed
 
-- **Breaking:** `LogisticGP` on a grid defaults to at most 10 sines per axis, not one per bin.
-  On a 16 x 16 grid the smallest E-BFMI over three fits rises from 0.14 to 0.38 and a fit
-  takes 28 s against 199 s; grids of up to 10 bins per axis are unchanged. Pass `n_basis=` for
-  the old basis.
+- When `check()` reports a low E-BFMI for `LogisticGP` on a grid, its hint suggests
+  `n_basis=10`.
 - `infer` checks the inputs of every fit, not only NUTS and Gibbs: the Monte Carlo noise
   of sample likelihoods for every engine and, where the result has draws, binned counts
   the response does not describe. `PointEstimate.check` includes the noise check.

@@ -1,4 +1,7 @@
-"""SBC of LogisticGP with inferred amplitude and length scale. args: case n_sim workers"""
+"""SBC of LogisticGP with inferred amplitude and length scale.
+
+Arguments: case n_simulations workers output_directory. Run with OPENBLAS_NUM_THREADS=1.
+"""
 import sys, time, warnings, multiprocessing as mp, numpy as np
 import binference
 from binference import Bins, priors as P
