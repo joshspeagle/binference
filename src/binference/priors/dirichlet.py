@@ -20,6 +20,7 @@ import numpy as np
 import scipy.sparse as sp
 from scipy import special
 
+from .. import _kernels as kern
 from .._simplex import helmert_basis, log_softmax, softmax
 from .._utils import check_nonnegative, check_positive
 from ..bins import Bins, _bin_labels
@@ -243,6 +244,18 @@ class _BoundDirichlet(_SimplexBound):
 # ----------------------------------------------------------------------------
 # Dirichlet-tree family
 # ----------------------------------------------------------------------------
+def _sparse_if_thin(membership: np.ndarray) -> np.ndarray | sp.csr_array:
+    # a 0/1 membership matrix, sparse where that is faster: a Polya tree on many bins, not a
+    # small tree or a stick, whose products with it are in tight loops
+    thin = np.count_nonzero(membership) < kern.SPARSE_FILL * membership.size
+    return sp.csr_array(membership) if thin else membership
+
+
+def _times(x: np.ndarray, membership: Any) -> np.ndarray:
+    # (..., n) @ (n, m) as (..., m), since a sparse product takes at most two axes
+    return (x.reshape(-1, x.shape[-1]) @ membership).reshape(*x.shape[:-1], membership.shape[1])
+
+
 class _TreeStructure:
     """Flattened representation of a Dirichlet-tree over ``K`` leaves.
 
@@ -293,14 +306,14 @@ class _TreeStructure:
             else:
                 slot_mem[s] = node_mem[idx]
         self.node_mem = node_mem
-        self.slot_mem = sp.csr_array(slot_mem)
+        self.slot_mem = _sparse_if_thin(slot_mem)
         # each branch's exponent on the simplex: its alpha less the bins below it
         self.slot_exponent = self.slot_alpha - slot_mem.sum(axis=1)
         A_node = np.add.reduceat(self.slot_alpha, self.node_start[:-1])
         self.leaf_coef = self.slot_alpha[leaf_slot] - 1.0  # (K,)
         nr = np.arange(1, C)
         self.node_coef = self.slot_alpha[parent_slot_of_node[nr]] - A_node[nr]  # (C-1,)
-        self.nonroot_mem = sp.csr_array(node_mem[1:])
+        self.nonroot_mem = _sparse_if_thin(node_mem[1:])
         self.const = float(
             np.sum(special.gammaln(A_node)) - np.sum(special.gammaln(self.slot_alpha))
         )
@@ -309,8 +322,8 @@ class _TreeStructure:
     def compose(self, theta: np.ndarray) -> np.ndarray:
         """Leaf probabilities from branch probabilities (last axis = slots)."""
         lt = np.log(np.maximum(theta, _TINY))
-        rho = np.exp(lt @ self.slot_mem)
-        zero = (theta <= 0).astype(float) @ self.slot_mem > 0
+        rho = np.exp(_times(lt, self.slot_mem))
+        zero = _times((theta <= 0).astype(float), self.slot_mem) > 0
         if np.any(zero):
             rho = np.where(zero, 0.0, rho)
         return rho
@@ -338,6 +351,23 @@ class _BoundTree(_SimplexBound):
         self._a1 = tree.leaf_coef + 1.0
         self._sum_a1 = float(self._a1.sum())
         self._sum_d = float(tree.node_coef.sum())
+
+    def log_ratio_curvature(self, rho, on):
+        # log p is sum_k c_k log rho_k + sum_c d_c log rho_c over leaves and non-root nodes,
+        # so with C the covariance of a bin drawn from rho, and C_c the same within node c,
+        # minus its Hessian in the log-ratios is (sum c + sum d) C - sum_c d_c C_c
+        t = self.tree
+        C = np.diag(rho) - np.outer(rho, rho)
+        total = float(t.leaf_coef[on].sum())
+        A = np.zeros_like(C)
+        for member, d in zip(t.node_mem[1:] > 0, t.node_coef, strict=True):
+            inside = member[on]
+            if d == 0 or not inside.any():
+                continue
+            total += d
+            r = rho[inside] / rho[inside].sum()
+            A[np.ix_(inside, inside)] -= d * (np.diag(r) - np.outer(r, r))
+        return A + total * C
 
     def _lp_eta(self, rho, log_rho):
         t = self.tree
@@ -387,7 +417,7 @@ class _BoundTree(_SimplexBound):
     def log_density(self, value):
         t = self.tree
         r = np.asarray(value, dtype=float)
-        rc = r @ t.nonroot_mem.T
+        rc = _times(r, t.nonroot_mem.T)
         leaf = np.sum(special.xlogy(t.leaf_coef, r), axis=-1)
         node = np.sum(special.xlogy(t.node_coef, rc), axis=-1)
         return leaf + node + t.const

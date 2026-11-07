@@ -1,6 +1,7 @@
 """Tests for population priors (spec 5)."""
 
 import numpy as np
+import scipy.sparse as sp
 import pytest
 from scipy import integrate, stats
 
@@ -518,9 +519,8 @@ def test_a_generalized_dirichlet_is_described_as_its_chain_of_splits():
 def test_named_groups_bind_to_the_tree_their_nested_lists_give():
     named = P.DirichletTree(GROUPS, alpha=2.0).bind(GALAXIES).tree
     nested = P.DirichletTree([[0, 1], [[2, 3], 4]], alpha=2.0).bind(GALAXIES).tree
-    for attr in ("node_start", "slot_alpha", "node_mem"):
+    for attr in ("node_start", "slot_alpha", "slot_mem", "node_mem"):
         np.testing.assert_array_equal(getattr(named, attr), getattr(nested, attr))
-    np.testing.assert_array_equal(named.slot_mem.toarray(), nested.slot_mem.toarray())
 
 
 def test_an_alpha_mapping_sets_exactly_the_branches_it_names():
@@ -584,3 +584,22 @@ def test_a_dict_of_one_group_inside_a_list_names_that_group():
 def test_a_group_name_used_twice_is_refused():
     with pytest.raises(ValueError, match="group name 'g' is used twice"):
         P.DirichletTree({"g": [0, 1], "h": {"g": [2, 3], "i": [4]}})
+
+
+def test_a_sparse_tree_gives_the_values_of_its_dense_membership_on_batched_inputs():
+    bound = P.PolyaTree().bind(Bins.linear(0, 1, 256))
+    tree = bound.tree
+    assert sp.issparse(tree.slot_mem) and sp.issparse(tree.nonroot_mem)
+    rho = np.random.default_rng(0).dirichlet(np.ones(256), (2, 3))
+    density = bound.log_density(rho)
+    assert density.shape == (2, 3)
+    flat = np.array([bound.log_density(r) for r in rho.reshape(-1, 256)])
+    np.testing.assert_allclose(density.ravel(), flat, rtol=1e-12)
+    dense = rho @ tree.nonroot_mem.toarray().T
+    np.testing.assert_allclose(
+        rho.reshape(-1, 256) @ tree.nonroot_mem.T, dense.reshape(6, -1), rtol=1e-12
+    )
+
+
+def test_a_small_tree_stays_dense():
+    assert isinstance(P.PolyaTree().bind(Bins.linear(0, 1, 8)).tree.slot_mem, np.ndarray)

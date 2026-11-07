@@ -32,8 +32,8 @@ releases may break the API).
 
 ### Changed
 
-- A tree prior stores its branch membership as a sparse matrix: an EM step with a
-  `PolyaTree` on 1024 bins takes half the time.
+- A tree prior stores a thin branch membership as a sparse matrix: an EM step with a
+  `PolyaTree` on 1024 bins takes half the time, and small trees are unchanged.
 - **Breaking:** `binference.samplers` is renamed `binference.engines`, since it also holds
   MAP and VB, which do not sample. There is no alias, so `from binference.samplers import
   NUTS` becomes `from binference.engines import NUTS`; the API pages' URLs change with it.
