@@ -1,5 +1,6 @@
 """Tests for the high-level API: infer(), PopulationEstimator, namespace (spec 8)."""
 
+import importlib
 from pathlib import Path
 
 import numpy as np
@@ -106,3 +107,8 @@ def test_selection_through_infer():
         method="map",
     )
     np.testing.assert_allclose(a.rho, b.rho, atol=1e-8)
+
+
+def test_the_old_samplers_module_is_gone():
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("binference.samplers")
