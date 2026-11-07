@@ -1906,10 +1906,16 @@ class PopulationResult(_IndividualMixin):
             )
         if "ebfmi" in d and np.nanmin(d["ebfmi"]) < EBFMI_MIN:
             msgs.append(f"E-BFMI = {np.nanmin(d['ebfmi']):.2f} < {EBFMI_MIN:g} in some chain")
-            hints.append(
+            hint = (
                 "NUTS explores the energy distribution poorly (heavy tails or a funnel); "
                 "a longer warm-up or another prior may help"
             )
+            from .priors import LogisticGP  # the priors import this module
+
+            prior = self.model.prior.prior if self.model is not None else None
+            if isinstance(prior, LogisticGP) and self.bins.ndim > 1:
+                hint += "; on a grid, LogisticGP(n_basis=10) samples more easily"
+            hints.append(hint)
         if d.get("converged") is False:
             msgs.append("the optimiser did not converge")
         threshold = d.get("k_hat_threshold", diag.K_HAT_MAX)

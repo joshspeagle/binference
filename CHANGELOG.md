@@ -36,6 +36,8 @@ releases may break the API).
 
 ### Changed
 
+- When `check()` reports a low E-BFMI for `LogisticGP` on a grid, its hint suggests
+  `n_basis=10`.
 - `infer` checks the inputs of every fit, not only NUTS and Gibbs: the Monte Carlo noise
   of sample likelihoods for every engine and, where the result has draws, binned counts
   the response does not describe. `PointEstimate.check` includes the noise check.

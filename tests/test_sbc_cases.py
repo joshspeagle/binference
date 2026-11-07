@@ -8,6 +8,8 @@
   warning is an error under the test settings), so the
   thinned draws are effectively independent and autocorrelation cannot pass for
   miscalibration.
+* The Gaussian-process prior with inferred amplitude and length scale, on 1-D bins and on
+  a 6 x 6 grid.
 * The logistic-normal and Gaussian-process priors with their default hyperpriors:
   NUTS on flat likelihoods, whose posterior is the prior, against the prior's own draws.
 * Geweke "getting it right" tests of the Gibbs conditionals of the generalised
@@ -36,11 +38,19 @@ CASES = {
     "nuts-randomwalk2-inferred-scale": (
         P.LogisticRandomWalk(order=2),
         "nuts",
-        # a short warmup leaves some near-flat populations at a step size of 0.002 and
-        # an ESS of 6; 500 warmup iterations keep every fit's ESS above 19
+        # the smallest ESS over the fits is 19.9 at 300 warm-up iterations and 38 at 500
         {"n_chains": 2, "n_warmup": 500, "n_samples": 150},
         {},
         50,
+        19,
+    ),
+    # inferred amplitude and length scale; each fit takes a few seconds
+    "nuts-gp-inferred-hyperparameters": (
+        P.LogisticGP(),
+        "nuts",
+        {"n_chains": 2, "n_warmup": 400, "n_samples": 300},
+        {},
+        200,
         19,
     ),
     "gibbs-selection-on-truth": (
@@ -80,6 +90,32 @@ def test_sbc_ranks_are_uniform(case):
     res = _sbc(prior, _fit(method, prior=prior, **kw), n_simulations, n_draws, 2026, **sim)
     # at least 10 expected ranks per histogram bin
     assert_uniform_ranks(res, n_bins=10 if n_simulations >= 150 else 5)
+
+
+def _grid_simulator(prior, bins, n_objects, noise):
+    # as prior_predictive, which takes 1-D bins: objects uniform within cells, Gaussian errors
+    bound = prior.bind(bins)
+
+    def simulate(rng):
+        truth = bound.sample(1, rng)[0]
+        mock = binference.simulate.mock_2d(n_objects, bins, density=truth, noise=noise, rng=rng)
+        return mock.likelihoods, truth
+
+    return simulate
+
+
+# hard for NUTS at this size (smallest ESS about 15, some divergences), and low ESS
+# over-disperses the ranks, which only makes the uniformity test stricter
+@pytest.mark.filterwarnings(
+    "ignore:In .* fits the smallest bulk ESS:binference.ConvergenceWarning"
+)
+def test_the_gp_with_inferred_hyperparameters_is_calibrated_on_a_grid():
+    prior = P.LogisticGP()
+    bins = Bins.grid(np.linspace(0, 1, 7), np.linspace(0, 1, 7))
+    fit = _fit("nuts", prior=prior, n_chains=2, n_warmup=400, n_samples=300)
+    simulate = _grid_simulator(prior, bins, 300, 0.05)
+    res = binference.validation.sbc(simulate, fit, n_simulations=100, n_draws=19, rng=2026)
+    assert_uniform_ranks(res, n_bins=5)
 
 
 @pytest.mark.parametrize("prior", [P.LogisticGP(), P.LogisticNormal()], ids=["gp", "normal"])
