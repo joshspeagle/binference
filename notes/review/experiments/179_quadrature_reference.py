@@ -1,5 +1,5 @@
 """Issue #179: run with PYTHONPATH at each checkout to compare the quadrature before and after."""
-import sys, time, warnings, numpy as np
+import time, warnings, numpy as np
 from scipy.stats import norm
 import binference as b
 from binference._quadrature import bin_log_average as q
@@ -33,8 +33,6 @@ mu=rng.uniform(0,1,N); s=10**rng.uniform(-2.5,-.5,N)
 for K in (4,10,25):
     bins=b.Bins.linear(0,1,K); e=bins.edges[0] if hasattr(bins.edges,'__len__') and np.ndim(bins.edges[0])>0 else bins.edges
     ex=np.diff(norm.cdf((np.asarray(e)[None]-mu[:,None])/s[:,None]),axis=1)
-    for name,fn in [("all",lambda: q(C0:=C(lambda z:norm.logpdf(z[None],mu[:,None],s[:,None])),bins)),]:
-        pass
     c=C(lambda z:norm.logpdf(z[None],mu[:,None],s[:,None])); t=time.time()
     r=q(c,bins); dt=time.time()-t
     m=np.exp(r)/K
@@ -46,7 +44,6 @@ for K in (4,10,25):
     print(f"K={K} shared: evals {c.n} t {dt:.2f} worst {rel.max():.2e} med {np.median(rel):.1e} | per-row: evals {c2.n} t {dt2:.2f} worst {rel2.max():.2e} med {np.median(rel2):.1e}")
 print("--- 2D grid")
 bins=b.Bins.grid(np.linspace(0,1,9),np.linspace(0,1,9)); m0=rng.uniform(.1,.9,(300,2)); sx=10**rng.uniform(-1.7,-.7,300)
-ex=None
 c=C(lambda z:norm.logpdf(z[...,0][None],m0[:,0,None],sx[:,None])+norm.logpdf(z[...,1][None],m0[:,1,None],sx[:,None])); t=time.time(); r=q(c,bins)
 ee=np.linspace(0,1,9); px=np.diff(norm.cdf((ee[None]-m0[:,0,None])/sx[:,None]),axis=1); py=np.diff(norm.cdf((ee[None]-m0[:,1,None])/sx[:,None]),axis=1)
 ex=np.einsum('ni,nj->nij',px,py).reshape(300,-1); rel=np.abs(np.exp(r)/64-ex).max(1)/ex.max(1)

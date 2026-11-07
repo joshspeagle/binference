@@ -1,4 +1,4 @@
-"""Adaptive bin averages keep what a coarse cell read (issue #179)."""
+"""Adaptive bin averages keep what a coarse cell read."""
 
 import numpy as np
 import pytest
@@ -19,7 +19,7 @@ def test_a_peak_on_the_split_point_keeps_its_mass_to_tol(sigma):
 
 
 def test_a_peak_in_the_middle_of_a_bin_stays_in_that_bin():
-    mass = 1.0 * np.exp(bin_log_average(_gaussian(1e-3), Bins.linear(0, 2, 2)))
+    mass = np.exp(bin_log_average(_gaussian(1e-3), Bins.linear(0, 2, 2)))
     assert mass[0, 0] == pytest.approx(1.0, abs=1e-3)
     assert mass[0, 1] < 1e-3
 
@@ -45,9 +45,56 @@ def test_a_peak_too_narrow_for_max_depth_warns():
         bin_log_average(_gaussian(1e-7), Bins.linear(0, 1, 1))
 
 
-def test_a_box_that_only_the_coarse_cell_read_warns():
+def _spike_on(background):
+    return lambda z: np.logaddexp(np.log(0.5) + norm.logpdf(z, 0.5, 1e-3), background(z))[None]
+
+
+def test_a_spike_above_a_broad_background_keeps_its_mass():
+    logf = _spike_on(lambda z: np.full_like(z, np.log(0.5)))
+    assert np.exp(bin_log_average(logf, Bins.linear(0, 1, 1)))[0, 0] == pytest.approx(
+        1.0, abs=2e-3
+    )
+
+
+def test_a_spike_stays_in_its_bin_when_another_bin_sets_the_row_scale():
+    logf = _spike_on(lambda z: norm.logpdf(z, 1.5, 0.03))
+    mass = np.exp(bin_log_average(logf, Bins.linear(0, 2, 2)))[0]
+    np.testing.assert_allclose(mass, [0.5, 1.0], atol=2e-3)
+
+
+def test_a_spike_whose_tails_underflow_to_zero_is_still_found():
+    def logf(z):
+        with np.errstate(divide="ignore"):
+            return np.log(norm.pdf(z, 0.5, 1e-4))[None]
+
+    assert np.exp(bin_log_average(logf, Bins.linear(0, 1, 1)))[0, 0] == pytest.approx(
+        1.0, abs=1e-3
+    )
+
+
+def test_a_box_that_only_the_coarse_cell_read_is_found():
     def logf(z):
         return np.where(np.abs(z - 0.5) < 1e-3, np.log(500.0), -np.inf)[None]
 
-    with pytest.warns(InputWarning, match="read zero"):
-        bin_log_average(logf, Bins.linear(0, 1, 1))
+    assert np.exp(bin_log_average(logf, Bins.linear(0, 1, 1)))[0, 0] > 0.9
+
+
+def test_a_spike_on_a_two_dimensional_grid_keeps_its_mass():
+    def logf(z):
+        spike = norm.logpdf(z, 0.5, 1e-2).sum(axis=-1)
+        return np.logaddexp(np.log(0.5) + spike, np.log(0.5))[None]
+
+    bins = Bins.grid(np.array([0.0, 1.0]), np.array([0.0, 1.0]))
+    assert np.exp(bin_log_average(logf, bins))[0, 0] == pytest.approx(1.0, abs=2e-3)
+
+
+def test_a_negligible_point_value_does_not_force_refinement():
+    calls = []
+
+    def logf(z):
+        calls.append(np.size(z))
+        spike = np.where(np.abs(z - 0.5) < 1e-3, np.log(1e-9), -np.inf)
+        return np.logaddexp(spike, 0.0)[None]
+
+    bin_log_average(logf, Bins.linear(0, 1, 1))
+    assert sum(calls) == 8  # 5 and 3 points on the one cell

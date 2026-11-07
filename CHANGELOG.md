@@ -113,12 +113,15 @@ releases may break the API).
 
 ### Fixed
 
-- Adaptive bin averages no longer lose a narrow peak that a coarse cell read. On one bin
-  a Gaussian with σ = 1e-3 centred on the split point read as nothing, with no warning; it
-  now reads 1 to `tol`, and a peak too narrow for `max_depth` warns. Errors are measured
-  against the row's current estimate rather than the largest value ever read, so an
-  overshooting first reading no longer loosens `tol` (σ = 1e-2 read 1.032). This
-  affects `from_density`, `Density.masses`, selection functions and 2-D likelihoods.
+- Adaptive bin averages no longer lose a narrow feature that a coarse cell read. On one bin
+  a Gaussian with σ = 1e-3 centred on the split point read as nothing, with no warning,
+  and half of one above a flat background read 0.5 against 1. A point value that a cell
+  reads and its children do not is now followed until a cell confirms it or `max_depth`
+  warns. Errors are measured against the row's current estimate rather than the largest
+  value ever read, so an overshooting first reading no longer loosens `tol` (σ = 1e-2
+  read 1.032). This affects `from_density`, `Density.masses`, selection functions and
+  2-D likelihoods, and a box narrow compared with its bin can now warn at the default
+  `max_depth`, since its error is judged against its own bin's average.
 - Docstrings, error messages, attribute comments on the API pages and this changelog no
   longer cite design records, which the site does not include.
 - The NUTS tree-depth hint of `check()` names long log tails only for priors that have
