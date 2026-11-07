@@ -125,6 +125,9 @@ releases may break the API).
   read 1.032). This affects `from_density`, `Density.masses`, selection functions and
   2-D likelihoods, and a box narrow compared with its bin can now warn at the default
   `max_depth`, since its error is judged against its own bin's average.
+- NUTS's starting metric gives flat or negatively curved directions the largest variance
+  seen, as documented, rather than 1e6 times the smallest. On `LogisticGP()` with 4 bins
+  and 10 objects, 20 fits took 16.6 s in all against 114.1 s, with none over 5 s.
 - Docstrings, error messages, attribute comments on the API pages and this changelog no
   longer cite design records, which the site does not include.
 - The NUTS tree-depth hint of `check()` names long log tails only for priors that have
