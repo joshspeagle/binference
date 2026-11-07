@@ -198,7 +198,7 @@ total from such data, check its calibration on simulations
 ({doc}`validating-an-analysis`).
 
 The joint fit also returns posterior draws of the detection probability,
-`info["selection_draws"]`. The catalogue informs only the ratios between bins, so the
+`selection_draws()`. The catalogue informs only the ratios between bins, so the
 level comes from the injections:
 
 ```{code-cell} python
@@ -213,7 +213,7 @@ mystnb:
       intervals follow it; in the lightest bins they are long, and the joint fit's
       circles lie close to the injections' squares.
 ---
-S_draws = fits["joint"].info["selection_draws"].reshape(-1, bins.K)
+S_draws = fits["joint"].selection_draws()
 S_lo, S_hi = np.quantile(S_draws, [0.05, 0.95], axis=0)
 beta = stats.beta(a_prior + recovered, b_prior + injected - recovered)
 fine = np.linspace(np.log(m_lo), np.log(m_hi), 400)

@@ -57,8 +57,8 @@ options.
   `n_jobs` leave only NUTS, and `n_warmup` leaves Gibbs or NUTS. Options that no
   candidate takes raise an error before any fit, as does a value that a candidate
   refuses.
-- **An explicit `n_samples`** fixes the length of a Gibbs run, so check the result;
-  `infer` does by default.
+- **An explicit `n_samples`** is a minimum: a Gibbs run may be extended past it until it
+  mixes, so it does not make an unmixed fit faster.
 
 {class}`~binference.PopulationEstimator` uses `method="auto"` too.
 
@@ -155,6 +155,18 @@ print(lap.approximate, round(lap.info["k_hat"], 2))
 - **`"bootstrap"`** resamples objects (`scheme="nonparametric"`) or reweights them
   (`scheme="bayesian"`), and refits the MAP. A compressed row of weight 5 is resampled
   as five objects. Its draws describe an estimator, not a posterior.
+
+## Use your own engine
+
+An engine is a subclass of {class}`binference.engines.base.Engine`: it takes the model,
+`rng`, `progress` and its own options, and `run(n_samples=None)` returns a
+{class}`~binference.PopulationResult` or {class}`~binference.PointEstimate`. Pass the class
+as `method`, as in `binference.infer(lk, method=MyEngine, my_option=3, rng=1)`.
+
+Set `markov = True` on a class whose draws are Markov chains, so that `infer` checks their
+convergence, and `joint = True` if it infers a selection or response with the population.
+Auto does not try it. Called by hand, `result.check()` reads the draws of any engine outside
+`binference.inference.METHODS` as chains, and `binning_bias` needs a named `method=`.
 
 ## Use the scikit-learn interface
 

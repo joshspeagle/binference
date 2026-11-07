@@ -583,3 +583,10 @@ def test_a_dict_of_one_group_inside_a_list_names_that_group():
 def test_a_group_name_used_twice_is_refused():
     with pytest.raises(ValueError, match="group name 'g' is used twice"):
         P.DirichletTree({"g": [0, 1], "h": {"g": [2, 3], "i": [4]}})
+
+
+def test_a_generalized_dirichlet_on_a_grid_needs_an_order():
+    grid = Bins.grid(np.linspace(0, 1, 3), np.linspace(0, 1, 3))
+    with pytest.raises(ValueError, match="order="):
+        P.GeneralizedDirichlet().bind(grid)
+    assert P.GeneralizedDirichlet(order=[3, 1, 0, 2]).bind(grid).dim == 3

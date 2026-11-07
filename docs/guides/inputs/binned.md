@@ -55,7 +55,7 @@ open-ended score bins, the columns have no lost share.
 
 - **Gibbs**, **NUTS**, **Laplace** and `MAP(space="unconstrained")` infer the
   response with $\rho$. `method="auto"` chooses Gibbs for a conjugate prior.
-- **The draws** are in `result.info["response_draws"]`, of shape
+- **The draws** are in `result.response_draws()`, of shape
   `(chain, draw, J, K)`. The total and the per-object methods use them draw by draw.
 - **A fixed response.** `response.fixed()` takes the tallied matrix as known. VB and
   the bootstrap need that. A `Response(matrix)` is always fixed.

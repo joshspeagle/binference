@@ -26,8 +26,9 @@ result = binference.infer(mock.likelihoods, method="nuts", rng=1)
 
 ## Diagnostics
 
-`binference.infer` checks every NUTS and Gibbs result and warns about any problem. Call
-`result.check()` yourself for other engines, or to change the limits:
+`binference.infer` checks every NUTS and Gibbs result and warns about any problem, and
+checks the inputs of every fit. Call `result.check()` yourself for the rest of the
+checks on other engines, or to change the limits:
 
 ```python
 d = result.diagnostics                     # rhat, ess_bulk, ess_tail, n_divergent, ...
@@ -76,7 +77,8 @@ message, its cause and its fix are on the {doc}`warnings page
 `result.approximate` set, and its summary says so.
 
 A point estimate has its own check. `est.check()` warns when the optimiser did not
-converge, or when the {term}`KKT gap` per object exceeds `kkt_max`:
+converge, when the {term}`KKT gap` per object exceeds `kkt_max`, or when sample
+likelihoods are too noisy:
 
 ```python
 est = binference.infer(mock.likelihoods, method="map")
@@ -222,10 +224,10 @@ fig = result.plot()
   in production.
 - **`log_likelihood`.** Besides each bin, SBC ranks the joint log-likelihood of the true
   population. Pass `log_likelihood=False` to leave it out.
-- **Tests.** `result.pvalues()` and `result.passed()` test each quantity's ranks with
-  a chi-square on their histogram. `method="ecdf"` uses the ECDF test of
-  {cite:t}`sailynoja2022` instead. To require both, call
-  `result.passed(method="chisquare")` and `result.passed(method="ecdf")`.
+- **Tests.** `result.pvalues()` tests each quantity's ranks with a chi-square on their
+  histogram, and `method="ecdf"` uses the ECDF test of {cite:t}`sailynoja2022` instead.
+  `result.passed()` requires both, since neither dominates; pass `method="chisquare"` or
+  `"ecdf"` for one.
 - **Size.** A real check needs a few hundred simulations and roughly
   independent draws: keep `n_draws` below the effective sample size.
 
