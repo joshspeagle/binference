@@ -265,6 +265,11 @@ def test_tests_outside_this_file_name_the_engine_they_run():
                     assert named, f"{path.name}:{node.lineno} leaves the engine to auto"
 
 
+def test_auto_checks_the_convergence_of_the_engine_it_ran():
+    with pytest.warns(binference.ConvergenceWarning, match="R-hat|ESS"):
+        binference.infer(_lk(0.3), method="auto", rng=0, n_samples=20, store_labels=True)
+
+
 def test_n_samples_under_auto_is_a_minimum_that_gibbs_extends_past():
     res = binference.infer(_lk(0.3), rng=0, n_samples=50, check=False)
     assert res.method == "gibbs"

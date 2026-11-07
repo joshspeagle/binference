@@ -224,10 +224,10 @@ fig = result.plot()
   in production.
 - **`log_likelihood`.** Besides each bin, SBC ranks the joint log-likelihood of the true
   population. Pass `log_likelihood=False` to leave it out.
-- **Tests.** `result.pvalues()` and `result.passed()` test each quantity's ranks with
-  a chi-square on their histogram. `method="ecdf"` uses the ECDF test of
-  {cite:t}`sailynoja2022` instead. To require both, call
-  `result.passed(method="chisquare")` and `result.passed(method="ecdf")`.
+- **Tests.** `result.pvalues()` tests each quantity's ranks with a chi-square on their
+  histogram, and `method="ecdf"` uses the ECDF test of {cite:t}`sailynoja2022` instead.
+  `result.passed()` requires both, since neither dominates; pass `method="chisquare"` or
+  `"ecdf"` for one.
 - **Size.** A real check needs a few hundred simulations and roughly
   independent draws: keep `n_draws` below the effective sample size.
 

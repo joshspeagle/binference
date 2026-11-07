@@ -114,6 +114,29 @@ def test_the_old_samplers_module_is_gone():
         importlib.import_module("binference.samplers")
 
 
+class _Halves(binference.engines.base.Engine):
+    def __init__(self, model, *, rng=None, progress=False, n=2):
+        super().__init__(model, rng=rng, progress=progress)
+        self.n = n
+
+    def run(self, n_samples=None):
+        value = np.full(self.model.K, 1.0 / self.model.K)
+        return binference.PointEstimate(self.model, value, method="halves")
+
+
+def test_infer_runs_an_engine_class_with_its_options():
+    lk = binference.Likelihoods(np.ones((3, 2)), Bins.linear(0, 1, 2))
+    assert binference.infer(lk, method=_Halves, n=3, rng=0).method == "halves"
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        binference.infer(lk, method=_Halves, nope=1)
+
+
+def test_infer_refuses_a_class_that_is_not_an_engine():
+    lk = binference.Likelihoods(np.ones((3, 2)), Bins.linear(0, 1, 2))
+    with pytest.raises(ValueError, match="Engine subclass"):
+        binference.infer(lk, method=dict)
+
+
 def test_a_raw_array_of_normalised_rows_warns_that_it_may_hold_posteriors():
     table = np.array([[0.2, 0.8], [0.5, 0.5]])
     with pytest.warns(binference.InputWarning, match="may be posteriors"):

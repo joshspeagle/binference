@@ -194,7 +194,7 @@ objects count as detections in their bins, and the objects it missed as
 non-detections. The catalogue informs only the ratios between the $S_k$: its
 likelihood does not change when all of them are scaled together. Their level, and with
 it the total, comes from the injections. The draws of $S$ are in
-`result.info["selection_draws"]`, and the total and the per-object methods use them
+`result.selection_draws()`, an `(n_draws, K)` array, and the total and the per-object methods use them
 draw by draw.
 
 ```python
@@ -203,7 +203,7 @@ z_inj = rng.uniform(0.0, 3.0, 600)
 recovered = rng.random(600) < S[bins.index(z_inj)]     # the mock's S
 measured = binference.Selection.from_injections(z_inj, recovered, bins, "on_truth")
 joint = binference.infer(lk, selection=measured, method="nuts", n_samples=300, n_warmup=300, rng=1)
-print(joint.mean.round(3), joint.info["selection_draws"].mean(axis=(0, 1)).round(2))
+print(joint.mean.round(3), joint.selection_draws().mean(axis=0).round(2))
 ```
 
 Gibbs, NUTS, Laplace and `MAP(space="unconstrained")` infer it; VB and the bootstrap do
@@ -227,7 +227,7 @@ edges. A sharp edge needs independent bins or a larger $\tau_S$.
 ```python
 smooth = binference.Selection.from_injections(z_inj, recovered, bins, "on_truth", smooth=0.3)
 fit = binference.infer(lk, selection=smooth, method="laplace", n_samples=300, rng=1)
-print(fit.mean.round(3), fit.info["selection_draws"].mean(axis=(0, 1)).round(2))
+print(fit.mean.round(3), fit.selection_draws().mean(axis=0).round(2))
 ```
 
 ## Totals and rates

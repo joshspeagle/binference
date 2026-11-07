@@ -18,6 +18,7 @@ from ._utils import (
     RNGLike,
     as_generator,
     check_nonnegative,
+    check_positive_integers,
     chunk_slices,
     frozen,
     is_integer_array,
@@ -1760,6 +1761,50 @@ class PopulationResult(_IndividualMixin):
                 return None
             self._cache.pop("diagnostics", None)
         return self.info.get("missing_information")
+
+    def selection_draws(self, n_draws: int | None = None) -> np.ndarray:
+        """Posterior draws of a selection inferred with the population.
+
+        For a tallied response these are its efficiencies, the sums over measured bins.
+
+        Parameters
+        ----------
+        n_draws : int, optional
+            Number of draws, thinned as the population's; ``None`` returns all of them.
+
+        Returns
+        -------
+        (n_draws, K) array
+        """
+        if n_draws is not None:
+            n_draws = check_positive_integers(n_draws, "n_draws")[0]
+        S = self._joint_selection(n_draws)
+        if S is None:
+            raise ValueError(
+                "This fit inferred no selection; only Selection.from_injections "
+                "or a tallied response are inferred with the population."
+            )
+        return S
+
+    def response_draws(self, n_draws: int | None = None) -> np.ndarray:
+        """Posterior draws of a tallied response inferred with the population.
+
+        Parameters
+        ----------
+        n_draws : int, optional
+            Number of draws, thinned as the population's; ``None`` returns all of them.
+
+        Returns
+        -------
+        (n_draws, J, K) array
+            The probability of measured bin ``j`` given true bin ``k``.
+        """
+        if n_draws is not None:
+            n_draws = check_positive_integers(n_draws, "n_draws")[0]
+        R = self._response_rows(n_draws)
+        if R is None:
+            raise ValueError("This fit inferred no response; only a tallied response is.")
+        return R
 
     def _mixing_problems(
         self, rhat_max: float = RHAT_MAX, ess_min: float = ESS_MIN_PER_CHAIN
