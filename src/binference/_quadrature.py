@@ -228,9 +228,9 @@ def bin_log_average(
     # largest as now estimated. Every cell stays in play, so one accepted against an
     # estimate that later falls, such as a coarse cell's reading of a narrow peak, reopens
     logvol = np.zeros(bins.K) if coordinate == "measure" else np.log(bins.volumes)
-    log_tol, log_share = np.log(tol), np.log(CONFIRM_SHARE)
+    log_tol, log_share, log_kids = np.log(tol), np.log(CONFIRM_SHARE), nd * np.log(2.0)
     corners = np.array(list(product((0.0, 0.5), repeat=nd)))
-    max_logfrac = -(max_depth - 0.5) * nd * np.log(2.0)  # finer than this, a cell is too deep
+    max_logfrac = -(max_depth - 0.5) * log_kids  # finer than this, a cell is too deep
     forced = marked(lo, hi, row)
     # claims: point values read by a cell and not confirmed by its children, as (holding
     # cell, row, point in the integration coordinate, log value, identity). One point on a
@@ -270,9 +270,9 @@ def bin_log_average(
         keep = split & ~deep
         if not keep.any():
             break
-        half = 0.5 * (hi[keep] - lo[keep])
-        kid_lo = (lo[keep][:, None, :] + 2 * half[:, None, :] * corners[None]).reshape(-1, nd)
-        kid_hi = kid_lo + np.repeat(half, len(corners), axis=0)
+        lo_kept, width = lo[keep], hi[keep] - lo[keep]
+        kid_lo = (lo_kept[:, None, :] + width[:, None, :] * corners[None]).reshape(-1, nd)
+        kid_hi = kid_lo + np.repeat(0.5 * width, len(corners), axis=0)
         kid_owner = np.repeat(owner[keep], len(corners))
         kid_row = None if row is None else np.repeat(row[keep], len(corners))
         kid_fine, kid_coarse, kid_peak, kid_node = read(kid_lo, kid_hi, kid_row)
@@ -281,7 +281,6 @@ def bin_log_average(
         family = kid_peak.reshape(*kid_peak.shape[:-1], -1, len(corners)).max(axis=-1)
         was = peak[..., keep]
         unconfirmed = family < was + log_share
-        unconfirmed &= was + logfrac[keep] >= scale[..., keep] + log_tol
         if rows is None:
             new_row, new_family = np.nonzero(unconfirmed)
         else:
@@ -289,7 +288,6 @@ def bin_log_average(
             new_row = row[keep][new_family]
         new_peak = pick(was, new_row, new_family)
         found = units[pick(node[..., keep], new_row, new_family)]
-        lo_kept, width = lo[keep], hi[keep] - lo[keep]
         new_point = lo_kept[new_family] + width[new_family] * found
         new_id = next_id + np.arange(new_family.size)
         next_id += new_family.size
@@ -308,7 +306,7 @@ def bin_log_average(
         lo, hi = np.concatenate([lo[stay], kid_lo]), np.concatenate([hi[stay], kid_hi])
         owner = np.concatenate([owner[stay], kid_owner])
         logfrac = np.concatenate(
-            [logfrac[stay], np.repeat(logfrac[keep], len(corners)) - nd * np.log(2.0)]
+            [logfrac[stay], np.repeat(logfrac[keep], len(corners)) - log_kids]
         )
         forced = np.concatenate([forced[stay], marked(kid_lo, kid_hi, kid_row)])
         logerr = np.concatenate(
