@@ -208,9 +208,9 @@ print(joint.mean.round(3), joint.info["selection_draws"].mean(axis=(0, 1)).round
 
 Gibbs, NUTS, Laplace and `MAP(space="unconstrained")` infer it; VB and the bootstrap do
 not ([theory](../how-it-works/model.md#selection-effects)). For those, or to ignore the
-uncertainty, `measured.at_mean()` gives a fixed selection at its mean values. For a
-selection on the measurement, pass `Selection.from_injections(...).at_mean()`, a fixed
-selection; binference infers only a selection on the truth.
+uncertainty, `measured.fixed()` gives a fixed selection at its `values`, the posterior
+means. For a selection on the measurement, pass `Selection.from_injections(...).fixed()`,
+a fixed selection; binference infers only a selection on the truth.
 
 ### Few injections per bin
 

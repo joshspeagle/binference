@@ -35,7 +35,7 @@ def test_infer_accepts_arrays_likelihoods_models(small_1d):
     c = binference.infer(m, method="map")
     np.testing.assert_allclose(c.rho, b.rho, atol=1e-8)
     with pytest.raises(ValueError):
-        binference.infer(m, prior=binference.priors.Dirichlet(2.0))
+        binference.infer(m, prior=binference.priors.Dirichlet(2.0), method="map")
 
 
 def test_infer_methods_and_errors(small_1d):

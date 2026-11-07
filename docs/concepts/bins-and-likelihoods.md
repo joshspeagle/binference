@@ -9,7 +9,7 @@ kernelspec:
 
 # Bins and likelihoods
 
-*What does binference need to know about each object, and why does it work with bins?*
+*binference represents every measurement type as an $N \times K$ table of bin-averaged likelihoods.*
 
 ```{code-cell} python
 :tags: [remove-cell]
@@ -97,11 +97,11 @@ mystnb:
   figure:
     name: fig-mass-density
     caption: |
-      One object's likelihood, Gaussian with mean 1 and standard deviation 0.35. It is
-      shown as bin averages (density, solid) and bin integrals (mass, dotted), each
-      scaled to a peak of one. Top: unequal bins on a linear axis. Bottom: ten log-spaced bins
-      from 0.1 to 10 on a logarithmic axis. The density follows the likelihood; the
-      mass peaks in a wide bin.
+      One object's Gaussian likelihood (mean 1, standard deviation 0.35) is shown as
+      bin averages (density, solid) and bin integrals (mass, dotted), each scaled to a
+      peak of one. The top panel uses unequal bins on a linear axis, and the bottom
+      panel uses ten log-spaced bins from 0.1 to 10 on a logarithmic axis. The density
+      follows the likelihood, whereas the mass peaks in a wide bin.
   image:
     alt: |
       Two stacked panels of steps. In the top panel the solid density steps peak in

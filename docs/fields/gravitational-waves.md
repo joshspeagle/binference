@@ -43,7 +43,7 @@ covered about $8\times10^4$ bins in four dimensions in a 2026 example.
 | gravitational-wave term | binference |
 |---|---|
 | PE samples and the PE prior | `Likelihoods.from_samples(samples, bins, interim=...)`, ragged and weighted |
-| detection probability, measured by injections | `Selection.from_injections(..., mode="on_measurement").at_mean()`, a fixed selection on the measurement |
+| detection probability, measured by injections | `Selection.from_injections(..., mode="on_measurement").fixed()`, a fixed selection on the measurement |
 | merger rate; $VT$ | `result.rates`, `result.total`, `priors.GammaRates`; `scale="exposure"` |
 | ICAR prior on binned rates | `LogisticRandomWalk(order=1)` on a grid |
 | binned Gaussian process | `LogisticGP`, one length scale per axis |

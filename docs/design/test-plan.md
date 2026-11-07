@@ -6,19 +6,21 @@ This plan turns the requirements in [`spec.md`](spec.md) into tests. It has thre
 2. Every inference engine is shown to target the right posterior, using exact references, invariances, cross-engine agreement and simulation-based calibration.
 3. The docs and tutorials stay executable.
 
-The plan was written before the code. It was brought up to date with the suite on 2026-10-26 (issue #79, audit T-12): file names are those in `tests/`, and items that were planned but have no test are marked **Not implemented**.
+The plan was written before the code. It was brought up to date with the suite on 2026-10-26 (issue #79, audit T-12) and on 2026-10-31 (issue #177): file names are those in `tests/`, and items that were planned but have no test are marked **Not implemented**.
 
 ## 1. Principles
 
-- **Deterministic.** Every random test uses a fixed seed passed through `rng`. Tests that rely on statistical tolerances use a seed that passes, plus tolerances wide enough that the false-failure probability is small for any seed. `BINFERENCE_TEST_SEEDS=0,1,2 pytest` loops over seeds in the tests that take the `seed` or `rng` fixture (`tests/conftest.py`), in the same spirit as dynesty. Most engine-against-exact tests fix their own seeds, so the sweep does not reach them; their tolerances were checked by hand over 12 seeds (audit T-12).
+- **Deterministic.** Every random test uses a fixed seed passed through `rng`. Tests that rely on statistical tolerances use a seed that passes, plus tolerances wide enough that the false-failure probability is small for any seed. `BINFERENCE_TEST_SEEDS=0,1,2 pytest` loops over seeds in the tests that take the `seed` or `rng` fixture (`tests/conftest.py`), in the same spirit as dynesty. Most engine-against-exact tests fix their own seeds, so the sweep does not reach them; their tolerances were checked by hand over 12 seeds (audit T-12). The comparisons that use `assert_matches_reference` or `assert_draws_agree` were checked again over engine seeds 0–11 (DECISIONS #118).
 - **Tolerances scale with Monte Carlo error.** Compare against references with
 
   $$|\hat\theta - \theta_\text{ref}| \le z\cdot \mathrm{MCSE}(\hat\theta) + \epsilon_\text{abs}, \qquad z = 4 \text{ to } 5.$$
 
-  Standard deviations use a relative tolerance derived from the effective sample size (ESS); `tests/conftest.py` has `sd_mcse` for it.
+  Standard deviations use the same form, with the MCSE of an s.d. from `sd_mcse`. `assert_matches_reference` (against an exact reference) and `assert_draws_agree` (two runs) in `tests/conftest.py` apply both.
 - **Two tiers.**
-  - Default `pytest` runs fast tests: unit, exactness on small problems, and API tests (`pyproject.toml` adds `-m "not slow"`). They take about 90 s on one core.
-  - `pytest -m slow` runs the statistical validation: SBC, coverage, larger cross-engine comparisons, the Geweke tests and the benchmark-matrix references (§2.11). It takes about 20 minutes on one thread. CI runs it weekly, by hand, or on a pull request labelled `slow`.
+  - Default `pytest` runs fast tests: unit, exactness on small problems, and API tests (`pyproject.toml` adds `-m "not slow"`).
+  - `pytest -m slow` runs the statistical validation: SBC, coverage, larger cross-engine comparisons, the Geweke tests and the benchmark-matrix references (§2.11). CI runs it weekly, by hand, or on a pull request labelled `slow`.
+  - The {doc}`contributing guide <../contributing>` gives the run time of each tier.
+- **Engines are named.** Outside `tests/test_auto.py`, every `infer` call passes `method=`, so a reference fit cannot run the engine it is compared with; a test in `test_auto.py` checks this (DECISIONS #118).
 - **Warnings are errors.** `pyproject.toml` sets `filterwarnings = ["error", ...]`, so every warning fails a test unless the test expects it with `pytest.warns` or filters it.
 - **References.** Module docstrings cite the spec sections, requirement IDs (`R-…`), decisions (`DECISIONS #n` in `notes/review/DECISIONS.md`) and audit findings their tests cover. Test names are sentences of behaviour.
 
@@ -303,9 +305,9 @@ More result tests are in `tests/test_results_audit.py`, `tests/test_results_outp
 ### 2.12 Docs, examples and packaging
 
 - `docs/tutorials/*.md` (MyST notebooks) are executed in the docs CI job (`myst-nb`, `nb_execution_mode="cache"`, fail on error). Each tutorial should run in under 2 minutes. Numbers that the prose quotes or compares are checked by hidden `assert` cells (tagged `remove-cell`).
-- The code of `README.md`, `docs/start/install.md` and the guides runs in CI with `docs/_scripts/run_snippets.py`, which also runs tutorials locally.
+- The code of `README.md`, `docs/index.md`, `docs/start/install.md` and the guides runs in CI with `docs/_scripts/run_snippets.py`. It runs only fenced `python` blocks.
 - `python -m build` produces sdist and wheel; `twine check` passes, and the wheel is installed in a clean virtualenv and imported (CI job `dist`).
-- **Not implemented:** numpydoc validation as a lint step.
+- Every parameter of the public API is documented: `docs/conf.py` turns on numpydoc's PR01 check, and the `-W` docs build fails on its warnings (DECISIONS #99).
 
 ### 2.13 Performance benchmarks (non-gating)
 
@@ -319,6 +321,7 @@ The spec's §10 targets (NUTS ESS/s, Gibbs iterations/s, MAP and Laplace times) 
 
 | File | What it covers |
 |---|---|
+| `test_api_docs.py` | every public name appears exactly once in the API reference pages (DECISIONS #99) |
 | `test_auto.py` | `method="auto"`: one test per rule, its options and its records (DECISIONS #88) |
 | `test_basis.py` | the mixture basis and internal resolution (DECISIONS #4, #5, #47, #76) |
 | `test_benchmark_matrix.py` | the benchmark matrix script runs end to end in its quick mode |
@@ -328,6 +331,7 @@ The spec's §10 targets (NUTS ESS/s, Gibbs iterations/s, MAP and Laplace times) 
 | `test_correlated.py` | correlated Gaussian likelihoods (DECISIONS #2, #25, #66) |
 | `test_density.py` | `Density`, interim priors and explicit stacking (DECISIONS #11, #24, #26) |
 | `test_derived_rates.py` | totals and rates derived from fraction draws (DECISIONS #9, #78) |
+| `test_explainers.py` | the docs' explainers reproduce binference's numbers; needs Node.js (DECISIONS #102) |
 | `test_gibbs_fixes.py` | Gibbs, bootstrap and validation fixes (audit G-1–G-12, DECISIONS #75) |
 | `test_hygiene.py` | `Likelihoods` validation, storage and `compress` (DECISIONS #1) |
 | `test_injections.py` | selections from injections inferred with the population (DECISIONS #10, #30, #79, #80) |

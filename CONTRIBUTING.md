@@ -40,6 +40,10 @@ pytest --cov=binference         # coverage report
   * $L_{ik}$ for bin-averaged likelihoods;
   * $\rho$ for fractions and $\lambda$ for rates;
   * $\pi$ for interim priors and $r_{ik}$ for responsibilities.
+* In public signatures, `value` is fractions or rates, `eta` logits or log-rates and `x` the
+  unconstrained coordinates. Public densities without a qualifier (`log_prior`,
+  `log_likelihood`, `log_posterior`) are in `value`; `log_density_unconstrained` is in `x`
+  ([coordinates](docs/how-it-works/priors.md#coordinates)).
 * Randomness goes through a `rng` argument accepting a seed or
   `numpy.random.Generator` (SPEC 7), never the global NumPy state.
 * User-facing problems raise `ValueError`/`TypeError` with a message that says
@@ -70,7 +74,7 @@ pip install -e ".[docs]"
 sphinx-build -W --keep-going -b html docs docs/_build/html
 # the code of the README, installation page and guides
 python docs/_scripts/run_snippets.py README.md docs/index.md docs/start/install.md docs/guides/*.md docs/guides/inputs/*.md
-# external links and the bibliography's DOIs (CI runs these weekly)
+# external links and the bibliography's DOIs (CI runs these when started by hand)
 BINFERENCE_DOCS_EXECUTE=off sphinx-build -b linkcheck docs docs/_build/linkcheck
 python docs/_scripts/check_dois.py
 ```

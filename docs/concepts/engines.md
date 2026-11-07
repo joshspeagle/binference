@@ -9,8 +9,7 @@ kernelspec:
 
 # Engines
 
-*binference offers several engines. What does each one compute, and when is its answer
-exact?*
+*binference provides exact Markov chain samplers, fast posterior approximations, point estimators, and bootstrap resampling for the population posterior.*
 
 ```{code-cell} python
 :tags: [remove-cell]
@@ -98,12 +97,11 @@ mystnb:
   figure:
     name: fig-engines
     caption: |
-      One posterior of a population on three bins, in unconstrained coordinates $x$.
-      It comes from 40 mock objects with measurement errors between 0.4 and 0.8.
-      Top: 1,000 draws each from NUTS and Gibbs, two chains each. Bottom: the NUTS
-      draws and the 95% ellipses of the Laplace Gaussian and of mean-field VB. The
-      diamond is the mode in $x$, where the Laplace Gaussian is centred. The star is
-      the MAP on the simplex.
+      A population posterior on three bins is shown in unconstrained coordinates $x$ for
+      40 mock objects with measurement errors between 0.4 and 0.8. The top panel shows
+      1,000 draws each from NUTS and Gibbs across two chains. The bottom panel compares
+      the NUTS draws with the 95% ellipses of the Laplace Gaussian (centred at the mode
+      diamond in $x$) and of mean-field VB, alongside the simplex MAP (star).
   image:
     alt: |
       Two scatter plots with the same axes. In the top panel, indigo dots from NUTS

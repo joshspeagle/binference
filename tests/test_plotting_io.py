@@ -63,6 +63,57 @@ def test_corner_trace_individual_sbc(res1d):
     plt.close("all")
 
 
+def test_plot_individual_shows_the_own_likelihood_per_bin_on_a_basis():
+    # flat components at resolution 2 sum back to the bins: the flat-prior posterior per bin
+    bins = Bins.linear(0, 3, 6)
+    mock = binference.simulate.mock_1d(50, bins, rng=0)
+    d, s = mock.measurements["mean"], mock.measurements["sigma"]
+    lk = binference.Likelihoods.from_gaussian(d, s, binference.Basis(bins, resolution=2))
+    est = binference.PointEstimate(binference.PopulationModel(lk), np.full(12, 1 / 12))
+    own = est.plot_individual(1).get_lines()[0].get_ydata()[:-1] * bins.volumes
+    plain = mock.likelihoods.toarray()[1] * bins.volumes
+    np.testing.assert_allclose(own, plain / plain.sum(), rtol=1e-12)
+    plt.close("all")
+
+
+@pytest.mark.parametrize("shape", [{"order": 1}, {"resolution": 2}])
+def test_a_stack_over_a_basis_is_drawn_per_bin(shape):
+    # Likelihoods.stack weighs the components: as many as the bins for hats, twice as many
+    bins = Bins.linear(0, 3, 6)
+    mock = binference.simulate.mock_1d(50, bins, rng=0)
+    basis = binference.Basis(bins, **shape)
+    d, s = mock.measurements["mean"], mock.measurements["sigma"]
+    lk = binference.Likelihoods.from_gaussian(d, s, basis)
+    est = binference.PointEstimate(binference.PopulationModel(lk), np.full(basis.C, 1 / basis.C))
+    stack = lk.stack()
+    drawn = est.plot(which="fractions", stack=stack).get_lines()[-1].get_ydata()[:-1]
+    np.testing.assert_allclose(drawn, basis.to_bins(stack), rtol=1e-12)
+    with pytest.raises(ValueError, match=rf"stack must have shape \({basis.C},\)"):
+        est.plot(stack=stack[:-1])
+    with pytest.raises(ValueError, match=r"truth must have shape \(6,\)"):
+        est.plot(truth=np.ones(5))
+    plt.close("all")
+
+
+def test_plot_refuses_a_credible_level_outside_zero_and_one(res1d):
+    # 1.5 failed in np.quantile naming no argument, and 0 drew an empty band
+    for levels in ((1.5,), (0.0, 0.68)):
+        with pytest.raises(ValueError, match="levels must be in"):
+            res1d.plot(levels=levels)
+
+
+def test_the_sbc_plot_always_shows_the_joint_log_likelihood():
+    names = ["a", "b", "c", "loglike"]
+    ranks = np.random.default_rng(1).integers(0, 20, (30, 4))
+    sbc = binference.validation.SBCResult(ranks, 19, names)
+    shown = [a for a in sbc.plot(max_panels=2).axes if a.get_visible()]
+    assert [a.get_title() for a in shown] == ["a", "loglike"]
+    with pytest.raises(ValueError, match="max_panels"):
+        sbc.plot(max_panels=0)
+    np.testing.assert_array_equal(shown[-1].containers[0].datavalues, sbc.histogram()[-1])
+    plt.close("all")
+
+
 def test_plots_take_population_and_sample_colours_from_the_style_cycle(res1d, small_1d):
     from matplotlib.colors import same_color
 
@@ -92,6 +143,23 @@ def test_sample_color_and_color_override_the_style(res1d, small_1d):
     assert same_color(ax.get_lines()[0].get_color(), "#abcdef")
     with pytest.raises(ValueError, match="sample_color"):
         res1d.plot(sample_color="not a colour")
+    plt.close("all")
+
+
+def test_a_list_of_colours_is_for_the_bars_of_categories_only(res1d):
+    from matplotlib.colors import same_color
+
+    with pytest.raises(ValueError, match="color must be a matplotlib colour or None"):
+        res1d.plot(color=["red", "blue"])
+    cats = PopulationResult(
+        None, np.full((5, 3), 1 / 3), method="external", bins=Bins.categories(3)
+    )
+    with pytest.raises(ValueError, match="a list of 3 of them"):
+        cats.plot(color=["red", "green"])
+    rgb = ["red", "lime", "blue"]
+    for colors in (rgb, np.eye(3)):  # names, or rows as from a colormap
+        ax = cats.plot(color=colors)
+        assert same_color([bar.get_facecolor()[:3] for bar in ax.patches], rgb)
     plt.close("all")
 
 
@@ -126,6 +194,14 @@ def test_save_load_categories_and_rates(tmp_path):
     back = PopulationResult.load(path)
     assert back.bins.is_categorical and back.bins.labels == ("class_0", "class_1", "class_2")
     np.testing.assert_allclose(back.rates, r.rates)
+
+
+def test_boolean_category_labels_reload_as_booleans():
+    from binference.io import _bins_from_parts, _bins_to_parts
+
+    bins = Bins.categories([False, True])  # as Response.from_labelled builds for boolean labels
+    labels = _bins_from_parts(*_bins_to_parts(bins)).labels
+    assert labels == (False, True) and all(type(lab) is bool for lab in labels)
 
 
 def test_to_datatree(res1d):

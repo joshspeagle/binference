@@ -16,21 +16,23 @@ Gradient-based engines work in the unconstrained coordinates of the prior
 log-rates for rates); the log-likelihood gradient with respect to the softmax
 logits (or log-rates) is
 
-.. math:: \partial\ell/\partial\eta_k = \hat n_k - W\rho_k S_k/(S\cdot\rho)
-          \quad\text{or}\quad \hat n_k - S_k\lambda_k,
+.. math:: \partial\log p(D\mid\rho)/\partial\eta_k = \hat n_k - W\rho_k S_k/(S\cdot\rho)
+          \quad\text{or}\quad
+          \partial\log p(D\mid\lambda)/\partial\eta_k = \hat n_k - S_k\lambda_k,
 
 with expected counts :math:`\hat n_k = \rho_k \sum_i w_i L_{ik}/(L_i\cdot\rho)`.
 
 A selection on the truth measured by injections is inferred with the population: the
 unconstrained coordinates gain :math:`y = \mathrm{logit}\,S` after the prior's, the
-likelihood uses that :math:`S`, and :math:`\partial\ell/\partial y_k =
-(1 - S_k)\,\partial\ell/\partial\eta_k` (DECISIONS #80). A response tallied from events
-(binned measurements) is inferred the same way: the coordinates gain the isometric
-log-ratios of each column of :math:`R` with its lost share, under their Dirichlet
-posterior given the tallies, and the likelihood is
+likelihood uses that :math:`S`, and :math:`\partial\log p(D\mid\rho)/\partial y_k =
+(1 - S_k)\,\partial\log p(D\mid\rho)/\partial\eta_k`. A response
+tallied from events (binned measurements) is inferred the same way: the coordinates
+gain the isometric log-ratios of each column of :math:`R` with its lost share, under
+their Dirichlet posterior given the tallies, and the likelihood is
 :math:`\sum_j c_j\log(R_{j\cdot}\cdot\rho) - W\log(\epsilon\cdot\rho)` with
-:math:`\epsilon` the column sums (DECISIONS #28, #81).
+:math:`\epsilon` the column sums.
 """
+# DECISIONS #80, #28, #81
 
 from __future__ import annotations
 
@@ -76,7 +78,7 @@ class PopulationModel:
         depending on their true bin; likelihood rows are multiplied by ``S_k``
         as well. :meth:`Selection.combined` gives both at once.
     bins : Bins, optional
-        Bins for a raw array of likelihoods; ignored otherwise.
+        Bins for a raw array of likelihoods; otherwise it must equal the likelihoods' bins.
 
     Notes
     -----
@@ -113,19 +115,17 @@ class PopulationModel:
                     "Only a selection on the truth is inferred from injections: on the "
                     "measurement the likelihoods' cut already fixes S, and with S free the "
                     "catalogue would add only missed objects, driving S to zero. Pass "
-                    "selection.at_mean() as a fixed selection, or mode='on_truth' for a "
+                    "selection.fixed() as a fixed selection, or mode='on_truth' for a "
                     "completeness."
                 )
             if self.prior.kind == "rates":
                 raise ValueError(
                     "A selection from injections is inferred jointly for fractions only; for "
-                    "rates pass selection.at_mean() or a fixed exposure."
+                    "rates pass selection.fixed() or a fixed exposure."
                 )
         if sel is not None and sel.scale == "relative" and self.prior.kind == "rates":
-            raise ValueError(
-                "Rates need an absolute selection (exposures); this one is relative "
-                "(DECISIONS #46)."
-            )
+            # DECISIONS #46
+            raise ValueError("Rates need an absolute selection (exposures); this one is relative.")
         resp = likelihoods.meta.get("response")
         #: a response tallied from events, inferred with the population (or ``None``)
         self.response = resp if resp is not None and resp.uncertain else None
@@ -181,7 +181,8 @@ class PopulationModel:
         r""":math:`S` of the Poisson law of the number of objects, :math:`W \sim
         \mathrm{Poisson}(\Lambda\,S\cdot\rho)`: detection probabilities or exposures
         (ones without a selection); ``None`` for a relative selection, which
-        leaves the total unidentified (DECISIONS #46)."""
+        leaves the total unidentified."""
+        # DECISIONS #46
         sel = self.selection_spec
         return None if sel is not None and sel.scale == "relative" else self._S
 
@@ -193,7 +194,8 @@ class PopulationModel:
     @property
     def joint(self) -> bool:
         """Whether a selection from injections or a tallied response is inferred with the
-        population, as extra unconstrained coordinates (DECISIONS #80, #81)."""
+        population, as extra unconstrained coordinates."""
+        # DECISIONS #80, #81
         return self.selection_uncertain or self.response is not None
 
     @property
@@ -367,7 +369,8 @@ class PopulationModel:
     def _rows(self, value: np.ndarray, S: np.ndarray | None = None):
         """The likelihood rows and the column weights for ``value``: the model's rows
         (selection on the truth applied) and ``value``, or, given a value ``S`` of an
-        inferred selection, the bare rows and :math:`\\rho\\circ S` (DECISIONS #79, #80)."""
+        inferred selection, the bare rows and :math:`\\rho\\circ S`."""
+        # DECISIONS #79, #80
         if S is None:
             return self._L, value
         return self.likelihoods.values, value * S
@@ -377,8 +380,8 @@ class PopulationModel:
     ) -> tuple[float, np.ndarray]:
         L, v = self._rows(value, S)
         ll, nhat, _ = kern.loglike_and_counts(L, self._w, v)
-        if not np.isfinite(ll):
-            return -np.inf, np.zeros_like(value)
+        if ll == -np.inf:
+            return ll, np.zeros_like(value)
         ll += self._selection_term(value, S)
         S = self._S if S is None else S
         # gradient in the logits (or log-rates) of ll, selection term included
@@ -400,7 +403,7 @@ class PopulationModel:
 
         This is the density of ``x`` (the prior's isometric log-ratios, whitened
         fields or log-rates), so it includes the Jacobian of the map from ``x``
-        to the fractions or rates (DECISIONS #15); its mode differs from that of
+        to the fractions or rates; its mode differs from that of
         :meth:`log_posterior`. With an inferred selection ``x`` ends with
         :math:`\\mathrm{logit}\\,S`, and with an inferred response with the log-ratios of
         its columns; their densities given the injections or tallies are included.
@@ -411,6 +414,7 @@ class PopulationModel:
         x : ndarray (dim,)
             Unconstrained point.
         """
+        # DECISIONS #15
         x = np.asarray(x, dtype=float)
         d = self.prior.dim
         eta, cache = self.prior.forward(x[:d])
@@ -453,25 +457,45 @@ class PopulationModel:
     def _log_density_many(self, X: np.ndarray) -> np.ndarray:
         # log_density_unconstrained at each row of X (n, dim), without gradients: the
         # prior point by point, the likelihood of many points per pass over the objects
-        if self.joint:
-            return np.array([self.log_density_unconstrained(x) for x in X])
+        d = self.prior.dim
         V = np.zeros((len(X), self.K))
         lp = np.full(len(X), -np.inf)
         zero = np.zeros(self.K)
         for j, x in enumerate(X):  # the prior, point by point
-            eta, cache = self.prior.forward(x)
+            eta, cache = self.prior.forward(x[:d])
             value = self._value(eta)
             if np.isfinite(value.sum()):  # else a zero row: an impossible point
                 V[j] = value
-                lp[j] = self.prior.log_prior_and_grad(x, cache, value, zero)[0]
-        ll = self._log_likelihood_many(V) + self._ll_const
+                lp[j] = self.prior.log_prior_and_grad(x[:d], cache, value, zero)[0]
+                if self.selection_uncertain:
+                    lp[j] += _logit_density(x[d:], self.selection_spec.injections)[0]
+        if self.selection_uncertain:
+            u = V * self.selection_at(X)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                ll = (
+                    kern.loglike_many(self.likelihoods.values, self._w, u)
+                    - self.W * np.log(u.sum(axis=1))
+                    + self._ll_const
+                )
+        elif self.response is not None:
+            logP = self._response_logits(X)
+            J = self.response.measured_bins.K
+            R = np.swapaxes(np.exp(logP[:, :, :J]), -1, -2)
+            q = np.einsum("njk,nk->nj", R, V)[:, self._mb]
+            se = np.sum(R.sum(axis=1) * V, axis=1)
+            ok = np.all(q > 0, axis=1) & (se > 0)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                ll = np.where(ok, np.log(q) @ self._w - self.W * np.log(se), -np.inf)
+            lp += np.sum(self._alpha.T * logP, axis=(1, 2))
+        else:
+            ll = self._log_likelihood_many(V) + self._ll_const
         return np.where(np.isfinite(ll), ll + lp, -np.inf)
 
     def _log_likelihood_many(self, V: np.ndarray) -> np.ndarray:
-        # log_likelihood(v, absolute=False) at each row of V (n, K), many per pass
-        if self.joint:
-            return np.array([self.log_likelihood(v, absolute=False) for v in V])
-        return kern.loglike_many(self._L, self._w, V) + self._selection_term(V)
+        # log_likelihood(v, absolute=False) at each row of V (n, K), many per pass; for a
+        # joint model, as there, at the selection's values or the response's posterior means
+        with np.errstate(invalid="ignore"):
+            return kern.loglike_many(self._L, self._w, V) + self._selection_term(V)
 
     def _with_bound_prior(self, prior: BoundPrior) -> PopulationModel:
         """A shallow copy sharing the data but using another parametrisation of the prior."""
@@ -498,8 +522,9 @@ class PopulationModel:
 
         Adds :math:`W\rho_k(1 - S_k)/(S\cdot\rho)`, with :math:`S` rescaled to a
         maximum of one, which leaves the posterior unchanged; used by EM, VB and
-        the interior start (DECISIONS #57).
+        the interior start.
         """
+        # DECISIONS #57
         if self.selection is None or self.kind == "rates":  # Poisson thinning imputes nothing
             return nhat
         S = self._detect
@@ -606,7 +631,9 @@ class PopulationModel:
             Value of an inferred response; ``None`` uses the rows of the likelihoods
             (its posterior means).
         """
-        v = np.asarray(value, dtype=float)
+        v = self._population(value)
+        if not v.any():
+            raise ValueError("value must not be all zero.")
         if response is not None:
             if self.response is None:
                 raise ValueError("response applies only to a response inferred from tallies.")
@@ -626,15 +653,13 @@ class PopulationModel:
                 raise ValueError(f"S must have shape ({self.K},) with values in (0, 1].")
         L, u = self._rows(v, S)
         ll = kern.loglike(L, self._w, u)
-        if not np.isfinite(ll):
-            return -np.inf
         return ll + self._selection_term(v, S) + (self._ll_const if absolute else 0.0)
 
     def log_prior(self, value: np.ndarray) -> float:
         """Prior log-density of fractions (on the simplex) or rates, where defined.
 
         A density in the fractions (or rates) themselves, without the Jacobian of
-        any reparametrisation (DECISIONS #15). On the boundary it is -inf where
+        any reparametrisation. On the boundary it is -inf where
         the density is zero, +inf where it is unbounded and NaN where it is
         undefined (a Polya tree); NaN for priors without a closed-form density
         (logistic priors).
@@ -644,6 +669,7 @@ class PopulationModel:
         value : ndarray (K,)
             Fractions or rates.
         """
+        # DECISIONS #15
         if not self.prior.has_density:
             return np.nan
         with np.errstate(invalid="ignore"):
@@ -655,25 +681,42 @@ class PopulationModel:
         A density in the fractions or rates themselves, without the Jacobian of
         the unconstrained coordinates, so its mode is the MAP estimate on the
         simplex (``MAP(space="simplex")``); compare
-        :meth:`log_density_unconstrained` (DECISIONS #15).
+        :meth:`log_density_unconstrained`.
 
         Parameters
         ----------
         value : ndarray (K,)
             Fractions or rates.
         """
+        # DECISIONS #15
         return self.log_likelihood(value) + self.log_prior(value)
 
     def expected_counts(self, value: np.ndarray) -> np.ndarray:
         r"""Expected latent counts :math:`\hat n_k = \sum_i w_i r_{ik}`.
 
+        Raises where an object has zero likelihood, whose responsibilities are undefined.
+
         Parameters
         ----------
         value : ndarray (K,)
             Fractions or rates.
         """
-        _, nhat, _ = kern.loglike_and_counts(self._L, self._w, np.asarray(value, float))
+        ll, nhat, s = kern.loglike_and_counts(self._L, self._w, self._population(value))
+        if ll == -np.inf:  # an impossible object, or a sum that overflows
+            bad = np.flatnonzero(~(s > kern.MIN_EVIDENCE))
+            why = f"gives {bad.size} object(s) zero likelihood (first: {bad[:5].tolist()})"
+            raise ValueError(
+                f"value {why if bad.size else 'overflows the likelihood'}, so the expected "
+                "counts are undefined."
+            )
         return nhat
+
+    def _population(self, value: Any) -> np.ndarray:
+        """``value`` checked: finite, non-negative fractions or rates of shape ``(K,)``."""
+        v = check_nonnegative(value, "value")
+        if v.shape != (self.K,):
+            raise ValueError(f"value must have shape ({self.K},); got {v.shape}.")
+        return v
 
     def responsibilities(self, value: np.ndarray, idx: Any = None) -> np.ndarray:
         r"""Per-object posteriors over bins given the population: :math:`r_{ik}`.
@@ -699,16 +742,6 @@ class PopulationModel:
         """
         return self.prior.sample(int(n), as_generator(rng))
 
-    def prior_transform(self, u: np.ndarray) -> np.ndarray:
-        """Unit-hypercube transform to prior draws (for nested samplers).
-
-        Parameters
-        ----------
-        u : ndarray (..., dim)
-            Points in the unit hypercube.
-        """
-        return self.prior.prior_transform(np.asarray(u, dtype=float))
-
     # -------------------------------------------------------- diagnostics
     def kkt_gap(self, value: np.ndarray, include_prior: bool = True) -> float:
         r"""Violation of the first-order optimality conditions at ``value``.
@@ -716,43 +749,40 @@ class PopulationModel:
         Zero (to numerical precision) at the maximum-likelihood / MAP estimate
         on the simplex (or the positive orthant for rates), and infinite where
         an object has zero likelihood. For fractions it is normalised by the
-        total weight; for rates it is the larger of :math:`\max_k G_k/S_k` and
-        :math:`|\lambda\cdot G|/(S\cdot\lambda)` for the gradient :math:`G`
-        in :math:`\lambda`, so it does not depend on the exposure's units
-        (DECISIONS #56, #71). Self-consistency of the
+        total weight; for rates it is the larger of
+        :math:`\max_k S_k^{-1}\,\partial\log p/\partial\lambda_k` and
+        :math:`|\lambda\cdot\nabla_\lambda\log p|/(S\cdot\lambda)`, so it does not
+        depend on the exposure's units. Self-consistency of the
         EM fixed point is necessary but not sufficient for optimality; this
-        certificate checks the rest.
+        certificate checks the rest. With a tree prior the conditions are checked on each
+        node's branch probabilities, where they keep their precision as a group of bins
+        empties.
 
         Parameters
         ----------
         value : ndarray (K,)
             Fractions or rates.
         include_prior : bool, optional
-            Include the prior's pseudo-counts in the optimality conditions.
+            Add the gradient of the prior's log density, for priors with a closed-form
+            density (none for the logistic priors).
         """
+        # DECISIONS #56, #71
         v = np.asarray(value, dtype=float)
         s = kern.matvec(self._L, v)
         if not kern.possible(s):
             return np.inf  # an object is impossible here (audit M-3)
         G = kern.rmatvec(self._L, self._w / s)
+        if self.kind == "fractions":
+            if self.selection is not None:
+                G = G - self.W * self.selection / float(self.selection @ v)
+            return max(0.0, self.prior._kkt_violation(v, G, self.W, include_prior))
+        G = self.prior._kkt_gradient(v, G - self._S, include_prior)
         pos = v > 0
-        if self.kind == "rates":
-            G = G - self._S
-        elif self.selection is not None:
-            G = G - self.W * self.selection / float(self.selection @ v)
-        if include_prior and self.prior.has_density:
-            # at a zero, the gradient at _TINY (as in the MAP objective): -b for rates of
-            # shape one, hugely negative where the density is unbounded there (no violation),
-            # hugely positive where it vanishes (DECISIONS #71)
-            G = G + self.prior.grad_log_density(np.maximum(v, _TINY))
-        mu = float(v[pos] @ G[pos])
-        if self.kind == "rates":
-            # G <= 0 everywhere and lambda . G = 0 (the total), relative to the exposure so
-            # free of its units (audit M-4); one-sided like the fractions' test, so a rate
-            # EM drives towards zero is not a violation (audit M-6)
-            total_gap = abs(mu) / float(self._S @ v)
-            return max(float(np.max(G / self._S)), total_gap)
-        return max(0.0, float(np.max(G - mu))) / max(self.W, 1.0)
+        # G <= 0 everywhere and lambda . G = 0 (the total), relative to the exposure so
+        # free of its units (audit M-4); one-sided like the fractions' test, so a rate
+        # EM drives towards zero is not a violation (audit M-6)
+        total_gap = abs(float(v[pos] @ G[pos])) / float(self._S @ v)
+        return max(float(np.max(G / self._S)), total_gap)
 
     def missing_information(
         self,
@@ -769,11 +799,8 @@ class PopulationModel:
         and the lag-one autocorrelation of the slowest mode of the Gibbs sampler
         (integrated autocorrelation time roughly ``(1 + f) / (1 - f)``). With a
         selection function the missed objects count as missing data, as EM and
-        Gibbs impute them; ``include_prior`` adds a Dirichlet prior's term, as in
-        the MAP EM (audit M-2; other priors add none; NaN where a prior with
-        concentrations below one outweighs the data). Computed on the support
-        of ``value`` and on a random subset of at most ``max_objects`` objects, ``chunk``
-        objects at a time.
+        Gibbs impute them. Computed on the support of ``value`` and on a random
+        subset of at most ``max_objects`` objects, ``chunk`` objects at a time.
 
         Parameters
         ----------
@@ -785,7 +812,9 @@ class PopulationModel:
             Random number generator for the subset; the default ``0`` makes it
             reproducible.
         include_prior : bool, optional
-            Add a Dirichlet prior's term, as the MAP EM does.
+            Add the pseudo-counts of a Dirichlet or ``GammaRates`` prior, as the MAP EM
+            does; other priors add none. NaN where concentrations or shapes
+            below one outweigh the data.
         chunk : int, optional
             Objects processed per block, which bounds memory.
         """
@@ -808,15 +837,19 @@ class PopulationModel:
             nhat += w[sl] @ R
             RwR += (R * w[sl, None]).T @ R
         Im = np.diag(nhat) - RwR
+        # the prior's pseudo-counts join the complete data, as in the MAP EM
+        a = self.prior.pseudocounts if include_prior else None
+        a = 0.0 if a is None else a[on]
         if self.kind == "rates":  # Poisson thinning imputes nothing
-            I_c = np.diag(nhat)
+            n_complete = nhat + a
+            if np.any(n_complete < 0):  # shapes below one outweigh the data
+                return np.nan
+            I_c = np.diag(n_complete)
             I_obs = I_c - Im
         else:
             rho = v[on] / v[on].sum()
             C = np.diag(rho) - np.outer(rho, rho)
-            # a Dirichlet prior adds (A - K) to the complete-data count, as in the MAP EM
-            a = self.prior.pseudocounts if include_prior else None
-            extra = 0.0 if a is None else float(np.sum(a[on]))
+            extra = float(np.sum(a))  # the total pseudo-count (A - K for a Dirichlet)
             # complete data: the observed objects and, with selection, the imputed missed ones
             S = np.ones(on.sum()) if self.selection is None else self._detect[on]
             phi = S * rho / float(S @ rho)

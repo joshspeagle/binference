@@ -9,11 +9,9 @@ kernelspec:
 
 # Point estimates
 
-How does binference find the single most probable population, and how does it know it
-has found it? A {term}`point estimate` maximises the posterior {eq}`eq-P` of the
+A {term}`point estimate` maximises the posterior {eq}`eq-P` of the
 {doc}`model <model>`. Three solvers share the work: EM, mix-SQP and L-BFGS. Each
-estimate carries a certificate of optimality. The answer also depends on the coordinates
-the posterior is written in, as the last section shows.
+estimate carries a certificate of optimality, and the location of the mode depends on the coordinate system in which the posterior density is written.
 
 ## EM is iterated stacking
 
@@ -65,8 +63,8 @@ remaining error {cite:p}`dempster1977`.
   objects in all.
 - $f$ is computed on the support of $\rho$. A fraction at zero is an active constraint,
   not missing information.
-- With `include_prior=True`, a Dirichlet prior's pseudo-counts enter $I_c$ and
-  $I_{\rm obs}$, as they do in EM.
+- With `include_prior=True`, the pseudo-counts of a Dirichlet or `GammaRates` prior
+  enter $I_c$ and $I_{\rm obs}$, as they do in EM.
 
 The same number sets the speed of the Gibbs sampler
 ([Gibbs](engines.md#gibbs-sampling), explainer {ref}`explainer-v14`) and the choices of
@@ -102,7 +100,7 @@ The other cases maximise the density in {term}`unconstrained coordinates` with
 {term}`L-BFGS`:
 
 - Priors whose density is unbounded at the edge of the simplex, such as concentrations
-  below one or a Pólya tree. Their mode on the simplex can be exactly zero.
+  below one or the default Pólya tree. Their mode on the simplex can be exactly zero.
 - Priors that are not conjugate, such as the logistic family.
 - A selection or response inferred with the population.
 
@@ -125,11 +123,15 @@ $$
 \frac{\max\big(0,\ \max_k\partial_k-\hat\rho\cdot\partial\big)}{\max(W,1)},
 $$
 
-for every estimate from EM or mix-SQP (`PointEstimate.kkt_gap`). With a flat prior and
-no selection, $\partial_k=Wg_k$ and $\hat\rho\cdot\partial=W$, so the gap is
+for every estimate from EM or mix-SQP (`PointEstimate.kkt_gap`). With a flat Dirichlet
+prior and no selection, $\partial_k=Wg_k$ and $\hat\rho\cdot\partial=W$, so the gap is
 $\max_kg_k-1$. It is infinite where an object has zero
-likelihood. A fixed point of EM is necessary for optimality but not sufficient; the gap
-checks the rest.
+likelihood. With a tree prior the same conditions are checked on each node's branch
+probabilities, and each node's largest violation is divided by the counts it holds, the
+data's and the prior's. In the fractions, the tree's terms of order $1/\rho_k$ cancel only
+to round-off once a group of bins empties; in the branch probabilities a branch of exponent
+zero adds exactly zero. A fixed point of EM is necessary for optimality but not sufficient;
+the gap checks the rest.
 
 For rates the conditions are $\partial\log p/\partial\lambda_k\le0$, with equality
 where $\hat\lambda_k>0$. The gap is the larger of
@@ -174,9 +176,9 @@ mystnb:
       central 68 per cent interval in both panels.
   figure:
     caption: >-
-      One posterior in two coordinates. Two bins hold one object certainly in bin 1 and
+      The same posterior has different modes in different coordinate systems. Two bins hold one object certainly in bin 1 and
       seven certainly in bin 2, under a flat prior. The fraction of bin 1 then has a
-      Beta(2, 8) posterior (top), and its isometric log-ratio $x$ the density below.
+      Beta(2, 8) posterior (top), and its isometric log-ratio $x$ has the density shown below.
       Each panel's peak is its own mode. The shaded central 68% interval holds the same
       draws in both.
     name: fig-two-modes

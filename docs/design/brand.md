@@ -45,9 +45,14 @@ Rules for the mark:
 "binference" is set in Sora at weight 600, lower case. The dot of the i is a measurement
 with an error bar, in coral. The lockups hold the wordmark as outlines, so they never depend
 on a loaded font: `lockup-{light,dark}.svg` with the mid cut, for bars and headers, and
-`lockup-large-{light,dark}.svg` with the full cut, for the README and other places where the
-mark is at least 48 px tall. The mark and the wordmark share a baseline (their size ratio is
-in the table of sizes below).
+`lockup-large-{light,dark}.svg` with the full cut, for places where the mark is at least
+48 px tall. The mark and the wordmark share a baseline (their size ratio is in the table of
+sizes below).
+
+The site uses two of the files in `static/brand/`: `lockup-dark.svg` in the top bar and the
+footer, and `favicon.svg`. The home page's animated mark is inline SVG in the theme's
+`hero.html`, which `brand.py` also writes. The other files are exports for use outside the
+site.
 
 ## Colour
 

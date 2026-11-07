@@ -106,7 +106,8 @@ def test_the_predictive_p_value_matches_the_pseudo_inverse_form():
     counts = rng.integers(20, 200, size=(J, K)).astype(float)
     generated = counts.sum(axis=0) / 0.8
     resp = Response.from_counts(counts, generated, Bins.categories(K))
-    n = rng.multinomial(2000, resp.measured_fractions([0.2, 0.3, 0.5])).astype(float)
+    q0 = resp.matrix @ [0.2, 0.3, 0.5]
+    n = rng.multinomial(2000, q0 / q0.sum()).astype(float)
     rho = np.array([0.25, 0.25, 0.5])
     R, N = resp.matrix, n.sum()
     q = R @ rho / (R.sum(0) @ rho)
@@ -151,6 +152,37 @@ def test_simulation_weights_are_tallied_as_effective_events():
     assert np.all(a.generated < np.bincount(truth.index(z), minlength=3))
 
 
+def test_labelled_objects_need_finite_scores():
+    with pytest.raises(ValueError, match="scores must be finite"):
+        Response.from_labelled([0.1, np.nan, 0.3, 0.8, 0.5, 0.2], [0, 1, 0, 1, 1, 0])
+
+
 def test_an_efficiency_must_be_probabilities():
     with pytest.raises(ValueError, match="efficiency"):
         Response(np.eye(2), Bins.categories(2), efficiency=[0.5, np.nan])
+
+
+def test_a_migration_matrix_off_one_by_rounding_gets_exactly_its_efficiency():
+    # the first column sums to 1.0005
+    resp = Response([[0.5005, 0.3], [0.5, 0.7]], Bins.categories(2), efficiency=[1.0, 0.9])
+    np.testing.assert_allclose(resp.efficiency, [1.0, 0.9], rtol=1e-12)
+
+
+def test_more_tallied_than_generated_events_name_the_truth_bins():
+    with pytest.raises(ValueError, match=r"more events than generated in truth bin\(s\) \[0\]"):
+        Response.from_counts([[6, 1], [5, 1]], [10, 10], Bins.categories(2))
+    with pytest.raises(ValueError, match="must have shape"):  # not a count per truth bin
+        Response.from_counts([6, 7], [10, 10], Bins.categories(2))
+
+
+def test_open_ended_needs_one_dimensional_measured_bins_whatever_the_constructor():
+    with pytest.raises(ValueError, match="open_ended needs 1-D"):
+        Response.from_simulation(
+            [0.1, 0.6], [0, 1], Bins.linear(0, 1, 2), Bins.categories(2), open_ended=True
+        )
+
+
+def test_a_truth_bin_the_response_never_observes_is_named():
+    resp = Response(np.array([[0.5, 0, 0.3], [0.5, 0, 0.3]]), Bins.categories(3))
+    with pytest.raises(ValueError, match=r"truth bin\(s\) \[1\] sum to zero"):
+        Likelihoods.from_binned(resp, counts=[3, 4])

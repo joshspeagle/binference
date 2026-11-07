@@ -87,5 +87,5 @@ def test_point_estimates_plot_their_rates():
     assert heights.max() > 1.0  # rates (W rho), not fractions
     rel = Selection(np.linspace(1.0, 0.4, 6), "on_measurement", scale="relative")
     est = binference.infer(_model().likelihoods, selection=rel, method="map")
-    with pytest.raises(ValueError, match="No rates"):
+    with pytest.raises(ValueError, match="relative"):
         est.plot(which="rate")

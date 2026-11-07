@@ -1,4 +1,5 @@
-"""Adaptive bin averages, in the measure coordinate or in ``z`` (DECISIONS #23)."""
+"""Adaptive bin averages, in the measure coordinate or in ``z``."""
+# DECISIONS #23
 
 from __future__ import annotations
 
@@ -16,16 +17,31 @@ from .warnings import InputWarning
 
 #: Most function values a quadrature evaluates in one call.
 MAX_ELEMENTS = 2**22
+#: How far inside a cell, as a fraction of its width, the check rule reads its ends: a jump
+#: closer to an edge goes unseen, and one exactly on an edge reads as the inside value.
+EDGE_INSET = 1e-9
+
+
+def _gauss(n: int) -> tuple[np.ndarray, np.ndarray]:
+    # Gauss-Legendre nodes and weights on [0, 1]
+    x, w = np.polynomial.legendre.leggauss(int(n))
+    return 0.5 * (x + 1.0), 0.5 * w
+
+
+# Lobatto's 5-point rule on [0, 1]
+_LOBATTO = (
+    np.array([EDGE_INSET, 0.5 - np.sqrt(21) / 14, 0.5, 0.5 + np.sqrt(21) / 14, 1 - EDGE_INSET]),
+    np.array([9.0, 49.0, 64.0, 49.0, 9.0]) / 180,
+)
 
 
 class _Rule:
-    # a tensor-product Gauss-Legendre rule on the unit cube, kept per axis
-    def __init__(self, n: int, ndim: int) -> None:
-        x, w = np.polynomial.legendre.leggauss(int(n))
-        self.t = 0.5 * (x + 1.0)
-        idx = np.array(list(product(range(int(n)), repeat=ndim)))  # (M, ndim)
+    # a tensor-product rule on the unit cube from nodes t and weights w on [0, 1], kept per axis
+    def __init__(self, t: np.ndarray, w: np.ndarray, ndim: int) -> None:
+        self.t = t
+        idx = np.array(list(product(range(t.size), repeat=ndim)))  # (M, ndim)
         self.idx = idx.T
-        self.logw = np.log(0.5 * w)[idx].sum(axis=1)  # (M,)
+        self.logw = np.log(w)[idx].sum(axis=1)  # (M,)
 
     def points(self, lo: np.ndarray, hi: np.ndarray, inverse) -> np.ndarray:
         # (C, M, ndim) points in z for cells [lo, hi] given in the integration coordinate
@@ -46,6 +62,7 @@ def bin_log_average(
     max_depth: int = 12,
     n_sub: int | None = None,
     must_split: Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray] | None = None,
+    jumps: bool = False,
 ) -> np.ndarray:
     """Log of the average of ``exp(logf)`` over each active bin, shape ``(N, K)``.
 
@@ -66,9 +83,19 @@ def bin_log_average(
     :class:`~binference.InputWarning` is raised. With ``n_sub`` a fixed
     ``n_sub``-point rule is used instead.
 
+    The Gauss-Legendre points leave the outer 4.7% of a cell at each end unread, so
+    a jump there goes unseen. With ``jumps`` each cell is also checked against
+    Lobatto's 5-point rule with its ends :data:`EDGE_INSET` inside the cell. That
+    suits a bounded function such as a detection probability: at an integrable
+    singularity on an edge the check would refine to ``max_depth``. A row whose
+    5-point estimates are all zero gives no scale for the error: where a check rule
+    reads something there, its cells are split until they are below ``tol`` of their
+    bin, and keep what the 5-point rule then reads, with an
+    :class:`~binference.InputWarning` where that is still nothing.
+
     ``must_split(z_lo, z_hi, r)`` (per-row mode) marks cells, given by their
     bounds in ``z``, that must be split whatever the error estimate says: a
-    function narrower than a cell can fall between the points of both rules,
+    function narrower than a cell can fall between the points of every rule,
     which then agree on a wrong value.
     """
     if not tol > 0 or max_depth < 0:
@@ -79,7 +106,6 @@ def bin_log_average(
         # refine blocks of rows separately, so the per-row state stays bounded
         block = max(1, MAX_ELEMENTS // (8 * bins.K))
         if rows > block:
-            kw = {"coordinate": coordinate, "tol": tol, "max_depth": max_depth, "n_sub": n_sub}
             return np.concatenate(
                 [
                     bin_log_average(
@@ -89,7 +115,11 @@ def bin_log_average(
                         must_split=None
                         if must_split is None
                         else (lambda a, b, r, start=sl.start: must_split(a, b, r + start)),
-                        **kw,
+                        coordinate=coordinate,
+                        tol=tol,
+                        max_depth=max_depth,
+                        n_sub=n_sub,
+                        jumps=jumps,
                     )
                     for sl in chunk_slices(rows, block)
                 ]
@@ -103,7 +133,12 @@ def bin_log_average(
     lo = np.stack([e[:-1][i] for e, i in zip(edges, j, strict=True)], axis=-1)
     hi = np.stack([e[1:][i] for e, i in zip(edges, j, strict=True)], axis=-1)
     owner = np.arange(bins.K)
-    rules = [_Rule(n_sub, nd)] if n_sub is not None else [_Rule(5, nd), _Rule(3, nd)]
+    if n_sub is not None:
+        rules = [_Rule(*_gauss(n_sub), nd)]
+    else:
+        rules = [_Rule(*_gauss(5), nd), _Rule(*_gauss(3), nd)]
+        if jumps:
+            rules.append(_Rule(*_LOBATTO, nd))
 
     if rows is None:
 
@@ -147,9 +182,13 @@ def bin_log_average(
     # errors are measured on averages (in u) or on masses (in z), relative to the
     # row's largest; the reference grows as refinement resolves narrow peaks
     logvol = np.zeros(bins.K) if coordinate == "measure" else np.log(bins.volumes)
-    rowmax = np.full(N, -np.inf)
+    # finite, so that where a row's 5-point estimates are all zero a check rule that reads
+    # something still makes an error, rather than a NaN that would pass
+    unseen = np.finfo(float).min
+    rowmax = np.full(N, unseen)
     corners = np.array(list(product((0.0, 0.5), repeat=nd)))
     unconverged = np.zeros(bins.K, dtype=bool)
+    unread = np.zeros(bins.K, dtype=bool)  # bins where such a row stopped with nothing read
     for depth in range(max_depth + 1):
         shift = logfrac + logvol[owner]
         if rows is None:
@@ -158,9 +197,17 @@ def bin_log_average(
             np.maximum.at(rowmax, row, fine + shift)
         rowmax = np.maximum(rowmax, (out + logvol).max(axis=1))
         scale = (rowmax[:, None] if rows is None else rowmax[row]) - logvol[owner]
-        with np.errstate(invalid="ignore"):
-            diff = np.nan_to_num(np.abs(np.exp(fine - scale) - np.exp(coarse[0] - scale)))
-        err = np.exp(logfrac) * (diff.max(axis=0) if rows is None else diff)
+        with np.errstate(invalid="ignore", over="ignore"):  # the checks' largest disagreement
+            diff = np.nan_to_num(np.abs(np.exp(fine - scale) - np.exp(np.stack(coarse) - scale)))
+        blind = rowmax == unseen  # no scale for the error: stop below tol of the bin
+        stopped = None
+        if blind.any():
+            small = logfrac < np.log(tol)
+            mask = blind[:, None] & small if rows is None else blind[row] & small
+            stopped = (diff > 0).any(axis=0) & mask  # read only by a check rule
+            stopped = stopped.any(axis=0) if rows is None else stopped
+            diff[:, mask] = 0.0
+        err = np.exp(logfrac) * diff.max(axis=(0, 1) if rows is None else 0)
         ok = err <= tol
         if must_split is not None:
             z_lo = np.stack([inv(lo[:, d]) for d, inv in enumerate(inverse)], axis=-1)
@@ -169,6 +216,8 @@ def bin_log_average(
         if depth == max_depth:
             unconverged[owner[~ok]] = True
             ok[:] = True
+        if stopped is not None:
+            unread[owner[stopped & ok]] = True
         if rows is None:
             np.logaddexp.at(out.T, owner[ok], (fine[:, ok] + logfrac[ok]).T)
         else:
@@ -188,6 +237,13 @@ def bin_log_average(
         warn(
             f"Bin averages did not reach tol={tol:g} in {int(unconverged.sum())} bin(s) after "
             f"{max_depth} refinements; raise max_depth or tol.",
+            InputWarning,
+        )
+    if unread.any():
+        warn(
+            f"Bin averages read zero in {int(unread.sum())} bin(s) where the function is "
+            f"non-zero only in a feature too narrow to resolve at tol={tol:g}; lower tol, or "
+            "put bin edges at it.",
             InputWarning,
         )
     return out

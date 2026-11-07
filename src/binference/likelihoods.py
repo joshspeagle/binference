@@ -5,7 +5,7 @@ from __future__ import annotations
 import functools
 import inspect
 import pickle
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from functools import partial
 from typing import Any, Literal
 
@@ -15,7 +15,14 @@ from scipy import special
 
 from . import _kernels as kern
 from ._quadrature import bin_log_average
-from ._utils import check_nonnegative, check_positive_weights, frozen, is_integer_array, warn
+from ._utils import (
+    check_nonnegative,
+    check_positive_weights,
+    frozen,
+    is_integer_array,
+    read_only,
+    warn,
+)
 from .basis import Basis
 from .bins import Bins
 from .density import (
@@ -28,6 +35,7 @@ from .density import (
     _has_pdf,
     _is_distribution,
     _log_nonneg,
+    _public_family,
     log_interval_masses,
 )
 from .measure import Measure
@@ -69,9 +77,10 @@ def _interim_masses(
     tol: float = 1e-3,
     max_depth: int = 12,
     n_sub: int | None = None,
+    bounded: bool = False,
 ) -> np.ndarray:
     """Normalised interim-prior mass per bin."""
-    return Density.coerce(interim, representation).masses(
+    return Density.coerce(interim, representation, bounded=bounded).masses(
         bins, tol=tol, max_depth=max_depth, n_sub=n_sub
     )
 
@@ -130,13 +139,6 @@ def _group_rows(keys: list) -> tuple[np.ndarray, np.ndarray]:
     return np.array(first, dtype=np.intp), group
 
 
-def _read_only(a: Any) -> np.ndarray:
-    # a float array that cannot be changed in place: reused only when it is already
-    # read-only and owns its data (a read-only view could still change through its base)
-    a = np.asarray(a, dtype=float)
-    return a if not a.flags.writeable and a.base is None else frozen(a.copy())
-
-
 def _common(weights, selection, selection_mode, drop_empty, fractional_weights) -> dict[str, Any]:
     # the keyword arguments every constructor passes on to Likelihoods
     return {
@@ -148,25 +150,30 @@ def _common(weights, selection, selection_mode, drop_empty, fractional_weights) 
     }
 
 
+def _one_family(dists: list[Any]) -> Any:
+    """``dists``, frozen SciPy distributions of one family, as one frozen distribution whose
+    parameters are columns over them; ``None`` when they are not of one family."""
+    family = _public_family(dists[0])
+    keys = sorted(getattr(dists[0], "kwds", {}))
+    if family is None or not all(
+        type(getattr(d, "dist", None)) is type(family)
+        and len(d.args) == len(dists[0].args)
+        and sorted(d.kwds) == keys
+        and all(np.ndim(x) == 0 for x in (*d.args, *d.kwds.values()))
+        for d in dists
+    ):
+        return None
+    args = [np.array(a, dtype=float)[:, None] for a in zip(*(d.args for d in dists), strict=True)]
+    kwds = {k: np.array([d.kwds[k] for d in dists], dtype=float)[:, None] for k in keys}
+    return family(*args, **kwds)
+
+
 def _rows_logpdf(dists: list[Any], ndim: int) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
     """``f(z, r)``: log density of distribution ``r[p]`` at the points ``z[p]``."""
-    family = getattr(dists[0], "dist", None)
-    keys = sorted(getattr(dists[0], "kwds", {}))
-    same = (
-        ndim == 1
-        and family is not None
-        and all(
-            getattr(d, "dist", None) is family
-            and len(d.args) == len(dists[0].args)
-            and sorted(d.kwds) == keys
-            for d in dists
-        )
-    )
-    if same:  # frozen scipy distributions of one family: one call
-        args = [np.array(a, dtype=float) for a in zip(*(d.args for d in dists), strict=True)]
-        kwds = {k: np.array([d.kwds[k] for d in dists], dtype=float) for k in keys}
-        return lambda z, r: family.logpdf(
-            z, *(a[r, None] for a in args), **{k: v[r, None] for k, v in kwds.items()}
+    one = _one_family(dists) if ndim == 1 else None
+    if one is not None:  # one call for all
+        return lambda z, r: one.dist.logpdf(
+            z, *(a[r] for a in one.args), **{k: v[r] for k, v in one.kwds.items()}
         )
 
     def logpdf(z, r):
@@ -301,7 +308,8 @@ def _accepts_basis(within_bins: bool, exact: Callable[[dict], bool] | None = Non
                 bound.arguments["bins"] = basis.grid if within_bins else basis.bins
             interim = bound.arguments.get("interim")
             if within_bins and interim is not None:
-                dens = Density.coerce(interim, bound.arguments.pop("interim_representation", None))
+                rep = bound.arguments.pop("interim_representation", None)
+                dens = Density.coerce(interim, rep, bounded=bound.arguments.get("bounded", False))
                 if dens._values is not None:  # per reporting bin: flat in u within each
                     g, k = basis.grid, basis.grid_to_bins
                     share = g.u_volumes / basis.bins.u_volumes[k]
@@ -317,7 +325,7 @@ def _accepts_basis(within_bins: bool, exact: Callable[[dict], bool] | None = Non
 
 
 class Likelihoods:
-    r"""Bin-averaged per-object likelihoods :math:`L_{ik} \propto p(d_i \mid z_i \in B_k)`.
+    r"""Bin-averaged per-object likelihoods :math:`L_{ik} \propto p(d_i \mid k_i = k)`.
 
     This container holds the ``(N, K)`` matrix of likelihoods of every object
     for every bin, together with the :class:`~binference.Bins`, optional object
@@ -340,7 +348,7 @@ class Likelihoods:
         The support. Defaults to ``Bins.categories(K)``. With a
         :class:`~binference.Basis` the values are per reporting bin (the
         likelihood taken as flat within each) and are projected onto its
-        components (DECISIONS #76).
+        components.
     representation : {"density", "mass"}
         Values per unit volume (``"density"``) or integrated over each bin
         (``"mass"``). ``"density"`` (default): each value is the likelihood evaluated in (or
@@ -353,7 +361,7 @@ class Likelihoods:
     fractional_weights : bool
         Allow non-integer weights. They define a weighted pseudo-likelihood,
         not the likelihood of any data set, so posteriors from it are not
-        proper posteriors; a warning says so (DECISIONS #1).
+        proper posteriors; a warning says so.
     selection : array_like (K,), callable or Selection, optional
         Detection probability (or exposure) per bin, used by models unless
         overridden; see :doc:`/guides/selection`.
@@ -377,6 +385,8 @@ class Likelihoods:
     >>> lk.N, lk.K
     (2, 4)
     """
+
+    # DECISIONS #76, #1
 
     def __init__(
         self,
@@ -440,9 +450,9 @@ class Likelihoods:
         if norm.shape[0] == 0:
             raise ValueError("Likelihoods need at least one object.")
         self._values = frozen(norm)
-        self._log_scale = _read_only(log_scale)
+        self._log_scale = read_only(log_scale)
         self._bins = bins
-        self._weights = _read_only(weights)
+        self._weights = read_only(weights)
         if selection is not None and not isinstance(selection, Selection):
             raise TypeError("internal error: selection must be a Selection object")
         self._selection = selection
@@ -630,7 +640,7 @@ class Likelihoods:
         as likelihoods of the components of ``basis``.
 
         The likelihood is taken as flat within each of its bins, so
-        :math:`L_{ik} = \\sum_q L_{iq} M_{qk}` with :math:`M` the components'
+        :math:`L_{ik} = \\sum_q L_{iq} A_{qk}` with :math:`A` the components'
         masses in those bins; constructors that know the likelihood within bins
         (:meth:`from_gaussian`, :meth:`from_density`, :meth:`from_samples`) do
         this on the quadrature cells when given the :class:`~binference.Basis`
@@ -711,20 +721,21 @@ class Likelihoods:
 
         Posteriors are formed under ``interim``: by default the interim
         prior the likelihoods were built with (so the stack reproduces the
-        input posteriors), else :meth:`Density.flat`. Stacking is exactly one
+        input posteriors), else a population flat in the measure coordinate
+        (:meth:`Density.flat`). Stacking is exactly one
         EM step from the interim prior, not the maximum-likelihood population;
         it is biased toward the interim prior and broadened by the measurement
         noise, and is provided for comparison only. Its distance from the
         optimum is ``PopulationModel(lk).kkt_gap(lk.stack())``. With a
-        :class:`~binference.Basis` it is over the components (map it with
-        ``lk.basis.to_bins``), under a flat interim prior unless ``interim``
-        is given.
+        :class:`~binference.Basis` it is over the components (``lk.basis.to_bins``
+        maps it to the bins, as ``plot(stack=...)`` does), under a flat interim
+        prior unless ``interim`` is given.
 
         Parameters
         ----------
         interim : Density, "flat", callable, distribution or array_like (K,), optional
-            Prior the stacked posteriors are formed under; ``None`` uses the input's
-            interim prior.
+            Prior the stacked posteriors are formed under, an array one value per
+            column (per component on a basis); ``None`` uses the input's interim prior.
         interim_representation : {"mass", "density"}, optional
             Whether an array ``interim`` holds masses or densities.
         """
@@ -809,8 +820,7 @@ class Likelihoods:
             Non-negative values (rows need not be normalised).
         bins : Bins or Basis
             The bins the values are tabulated on.
-            With a :class:`~binference.Basis`, likelihoods of its components
-            (DECISIONS #76).
+            With a :class:`~binference.Basis`, likelihoods of its components.
         kind : {"likelihood"}, optional
             The values are likelihoods. Exactly one of ``kind`` and ``interim``.
         interim : Density, "flat", callable, distribution or array_like (K,), optional
@@ -838,6 +848,7 @@ class Likelihoods:
         fractional_weights : bool, optional
             Accept non-integer weights, which give a pseudo-likelihood.
         """
+        # DECISIONS #76
         posterior = _check_kind(kind, interim)
         if representation is None:
             representation = "mass" if posterior else "density"
@@ -885,10 +896,10 @@ class Likelihoods:
         keep_samples: bool = True,
         warn_outside: bool = True,
     ) -> Likelihoods:
-        r"""Build likelihoods from per-object posterior samples (DECISIONS #31).
+        r"""Build likelihoods from per-object posterior samples.
 
         One Monte Carlo estimator, :math:`\hat L_{ik} \propto \frac1S \sum_s
-        w_s\,\mathbb 1[z_s \in B_k]\,T'(z_s) / \pi(z_s)`, averaged over each bin
+        \omega_s\,\mathbb 1[z_s \in B_k]\,T'(z_s) / \pi(z_s)`, averaged over each bin
         in the measure coordinate:
 
         * when the interim prior is known only per bin (``"flat"``, masses or
@@ -912,8 +923,7 @@ class Likelihoods:
             ``(S_i, ndim)`` arrays.
         bins : Bins or Basis
             Target bins (grids only).
-            With a :class:`~binference.Basis`, likelihoods of its components
-            (DECISIONS #76).
+            With a :class:`~binference.Basis`, likelihoods of its components.
         interim : Density, "flat", callable, distribution or array_like (K,)
             Prior under which the samples were drawn, read by
             :meth:`Density.coerce`. There is deliberately no default: samples
@@ -924,10 +934,10 @@ class Likelihoods:
             Importance weights for the samples (same layout as ``samples``).
         sparse : bool, optional
             Store the result sparsely. Defaults to sparse when fewer than 10%
-            of entries are non-zero (``_kernels.SPARSE_FILL``; DECISIONS #77).
+            of entries are non-zero (``_kernels.SPARSE_FILL``).
         min_samples : int
             Warn if more than 10% of the objects have fewer effective samples
-            inside the bins than this (audit I-23).
+            inside the bins than this.
         floor : float
             Pseudo-samples added to every object, spread over the bins in
             proportion to the interim prior: a Dirichlet floor that keeps bins no
@@ -935,7 +945,7 @@ class Likelihoods:
         keep_samples : bool
             Keep the samples inside the bins and their weights, so that
             :meth:`PopulationResult.sample_values` resamples them within the drawn
-            bin (DECISIONS #50); ``False`` saves that copy of the samples.
+            bin; ``False`` saves that copy of the samples.
         warn_outside : bool
             Warn when many objects have most of their samples outside the bins
             (see :meth:`from_gaussian`).
@@ -952,6 +962,7 @@ class Likelihoods:
         fractional_weights : bool, optional
             Accept non-integer weights, which give a pseudo-likelihood.
         """
+        # DECISIONS #31, #76, #77, #50
         if bins.is_categorical:
             raise ValueError("from_samples needs ordered (grid) bins.")
         if not floor >= 0:
@@ -970,7 +981,15 @@ class Likelihoods:
         else:
             zz = flat[inside].reshape(-1, bins.ndim)
             log_pi_u = np.asarray(log_pi(zz[:, 0] if bins.ndim == 1 else zz), dtype=float).ravel()
-            log_pi_u -= sum(m.log_jacobian(zz[:, d]) for d, m in enumerate(bins.measures))
+            for d, m in enumerate(bins.measures):
+                with np.errstate(divide="ignore", invalid="ignore"):  # NaN at an edge: below
+                    log_jac = m.log_jacobian(zz[:, d])
+                if not np.all(np.isfinite(log_jac)):
+                    raise ValueError(
+                        f"Samples fall where the slope of {m!r} is infinite, zero or undefined, "
+                        "as at an edge of its domain."
+                    )
+                log_pi_u -= log_jac
         if not np.all(np.isfinite(log_pi_u)):
             raise ValueError("Samples fall where the interim density is zero or undefined.")
         # rows are rescaled to counts below, so shift each object's log weights to max 0
@@ -1011,11 +1030,7 @@ class Likelihoods:
         lk = cls(
             values,
             bins,
-            weights=weights,
-            selection=selection,
-            selection_mode=selection_mode,
-            drop_empty=drop_empty,
-            fractional_weights=fractional_weights,
+            **_common(weights, selection, selection_mode, drop_empty, fractional_weights),
         )
         lk.meta.update(source="samples", interim_prior_masses=Pi)
         _attach_per_object(
@@ -1044,13 +1059,14 @@ class Likelihoods:
         estimate of :math:`L_i\cdot\rho` and the effective number of samples
         under ``rho``. Summed over objects, :math:`\sum_i V_i` is about the bias
         it puts in the total log-likelihood (Jensen); values above about one
-        call for more samples (DECISIONS #31).
+        call for more samples.
 
         Parameters
         ----------
         rho : array_like (K,)
             Population fractions.
         """
+        # DECISIONS #31
         if "sample_sum" not in self.meta:
             raise ValueError("sample_variance needs likelihoods built by from_samples.")
         a = np.asarray(rho, dtype=float).ravel()
@@ -1100,7 +1116,7 @@ class Likelihoods:
         N-D grids, measurement errors are independent per axis (``mean`` and
         ``sigma`` of shape ``(N, ndim)``) unless ``cov`` gives each object's full
         covariance; correlated Gaussians are averaged over each bin by adaptive
-        cubature in log space, to ``tol``, in any number of dimensions (DECISIONS #25).
+        cubature in log space, to ``tol``, in any number of dimensions.
         Each object's fraction of mass outside the active bins is recorded in
         ``meta["outside_fraction"]``; ``warn_outside`` warns when more than 10% of
         the objects have more than 90% of their mass outside.
@@ -1113,13 +1129,13 @@ class Likelihoods:
             Measurement uncertainties (strictly positive).
         bins : Bins or Basis
             Grid bins.
-            With a :class:`~binference.Basis`, likelihoods of its components
-            (DECISIONS #76).
+            With a :class:`~binference.Basis`, likelihoods of its components.
         cov : array_like, shape (ndim, ndim) or (N, ndim, ndim), optional
             Full covariance matrices (symmetric positive definite), in place of
             ``sigma``.
         tol : float, optional
-            Relative tolerance of the adaptive quadrature over each bin.
+            Tolerance of the adaptive quadrature, relative to each object's largest bin
+            average.
         max_depth : int, optional
             Most refinements of the adaptive quadrature.
         warn_outside : bool, optional
@@ -1137,6 +1153,7 @@ class Likelihoods:
         fractional_weights : bool, optional
             Accept non-integer weights, which give a pseudo-likelihood.
         """
+        # DECISIONS #25, #76
         basis = bins if isinstance(bins, Basis) else None
         if basis is not None:  # evaluated on its quadrature cells, returned per component
             bins = basis.components
@@ -1255,6 +1272,7 @@ class Likelihoods:
         tol: float = 1e-3,
         max_depth: int = 12,
         n_sub: int | None = None,
+        bounded: bool = False,
         weights: Any = None,
         selection: Any = None,
         selection_mode: str | None = None,
@@ -1279,12 +1297,16 @@ class Likelihoods:
         in log space so that far tails keep their precision.
 
         Other integrals use adaptive quadrature: each bin is refined until the
-        estimated error is below ``tol`` relative to each row's largest bin
-        average, splitting cells at most ``max_depth`` times; ``n_sub`` instead
-        fixes ``n_sub`` Gauss-Legendre points per bin and axis. The fraction of
-        each distribution's mass outside the active bins is recorded in
-        ``meta["outside_fraction"]`` on 1-D bins (see :meth:`from_gaussian` for
-        ``warn_outside``).
+        estimated error is below ``tol``, splitting cells at most ``max_depth`` times;
+        ``n_sub`` instead fixes ``n_sub`` Gauss-Legendre points per bin and axis. A
+        jump in the outer 4.7% of a cell, or a peak narrower than the spacing of the
+        points, can fall between them and be missed without a warning: pass
+        ``bounded=True`` for a bounded density, such as a box, or put bin edges at the
+        jumps.
+        Distributions with a ``cdf`` on 1-D bins give exact bin masses, for posteriors
+        and for likelihoods on bins linear in z, and the fraction of each one's mass
+        outside the active bins is recorded in ``meta["outside_fraction"]`` (see
+        :meth:`from_gaussian` for ``warn_outside``).
 
         Parameters
         ----------
@@ -1303,11 +1325,19 @@ class Likelihoods:
         log : bool, optional
             The function returns logarithms.
         tol : float, optional
-            Relative tolerance of the adaptive quadrature over each bin.
+            Tolerance of the adaptive quadrature, relative to each object's largest bin
+            average (bin mass for posteriors).
         max_depth : int, optional
             Most refinements of the adaptive quadrature.
         n_sub : int, optional
             Fixed Gauss-Legendre points per bin and axis in place of adaptive quadrature.
+        bounded : bool, optional
+            The densities, and an ``interim`` given as a function, are bounded: each cell
+            is also checked against Lobatto's 5-point rule read just inside its edges,
+            which sees a jump the Gauss points miss, as for a selection function. A cell
+            then reads 13/8 the points in 1-D, a jump takes about log2(1 / tol)
+            refinements, and an integrable singularity on an edge would refine to
+            ``max_depth``. Ignored with ``n_sub``.
         weights : array_like (N,), optional
             Integer multiplicity of each object; ``None`` gives every object weight one.
         selection : array_like (K,), callable or Selection, optional
@@ -1321,7 +1351,8 @@ class Likelihoods:
         fractional_weights : bool, optional
             Accept non-integer weights, which give a pseudo-likelihood.
         warn_outside : bool, optional
-            Warn when many objects have most of their likelihood outside the bins.
+            Warn when many objects have most of their likelihood outside the bins
+            (distributions with a ``cdf`` on 1-D bins).
         """
         if bins.is_categorical:
             raise ValueError("from_density needs grid bins.")
@@ -1334,17 +1365,25 @@ class Likelihoods:
             "tol": tol,
             "max_depth": max_depth,
             "n_sub": n_sub,
+            "jumps": bounded,
         }
         log_inside = None
         if callable(density):
             logf = density if log else (lambda z: _log_nonneg(density(z)))
             log_avg = bin_log_average(logf, bins, **quad)
         else:
-            dists = list(density)
+            dists = list(density) if isinstance(density, Iterable) else []
             if not dists or not all(_is_distribution(d) for d in dists):
-                raise TypeError("density must be a function or a sequence of distributions.")
+                raise TypeError(
+                    "density must be a function or a sequence of distributions (a list of one "
+                    "for a single object)."
+                )
             if bins.ndim == 1 and all(_has_cdf(d) for d in dists):
-                log_mass = np.stack([_dist_log_masses(d, bins.edges[0]) for d in dists])
+                one = _one_family(dists)
+                if one is None:
+                    log_mass = np.stack([_dist_log_masses(d, bins.edges[0]) for d in dists])
+                else:  # one call for all
+                    log_mass = _dist_log_masses(one, bins.edges[0])
                 log_mass = log_mass[:, bins.cell_index[0]]
                 log_inside = special.logsumexp(log_mass, axis=1)
             if log_inside is not None and (posterior or bins.measures[0] == Measure.linear()):
@@ -1360,7 +1399,9 @@ class Likelihoods:
                 )
         if posterior:  # the interim prior gets the same quadrature as the values
             interim = Density.from_masses(
-                _interim_masses(interim, bins, interim_representation, tol, max_depth, n_sub)
+                _interim_masses(
+                    interim, bins, interim_representation, tol, max_depth, n_sub, bounded
+                )
             )
         lk = cls.from_table(
             log_avg,
@@ -1399,10 +1440,10 @@ class Likelihoods:
         sums of :math:`R`) becomes the selection function in ``"on_measurement"`` mode,
         because the rows already include it. For a response tallied from events,
         which is inferred with the population, the rows and the efficiency are its
-        posterior means, so a measured bin without tallied events still has a row
-        (DECISIONS #81). This covers unfolding (a detector
+        posterior means, so a measured bin without tallied events still has a row.
+        This covers unfolding (a detector
         response) and classifier outputs binned by score
-        (:meth:`Response.from_labelled`, DECISIONS #29).
+        (:meth:`Response.from_labelled`).
 
         Parameters
         ----------
@@ -1418,6 +1459,7 @@ class Likelihoods:
             Accept non-integer (for example weighted) counts, which give a
             pseudo-likelihood.
         """
+        # DECISIONS #81, #29
         if not isinstance(response, Response):
             raise TypeError(
                 f"response must be a binference.Response; got {type(response).__name__}."
@@ -1447,8 +1489,17 @@ class Likelihoods:
         keep = c > 0
         if not keep.any():
             raise ValueError("counts are all zero: there are no observed objects.")
+        rows = response._rows()
+        dead = np.flatnonzero(keep & (rows.sum(axis=1) <= 0))
+        if dead.size:
+            raise ValueError(
+                f"Measured bin(s) {dead[:5].tolist()} hold observed objects, but the response "
+                "gives them zero probability from every truth bin: remove those bins' counts, "
+                "or give the response a row there (a response tallied from events and left "
+                "uncertain, not .fixed(), has one)."
+            )
         lk = cls(
-            response._rows()[keep],
+            rows[keep],
             response.truth_bins,
             weights=c[keep],
             selection=response._selection(),
@@ -1492,10 +1543,12 @@ def _slice_per_object(meta: dict[str, Any], rows: Any) -> dict[str, Any]:
 
 
 class _WithinBin:
-    """Within-bin data for :meth:`PopulationResult.sample_values` (DECISIONS #50). They
+    """Within-bin data for :meth:`PopulationResult.sample_values`. They
     pickle when they can; a function that cannot (a lambda density) pickles as empty, with
     a warning, so that a model can still be sent elsewhere, and its value draws fall back
     to flat."""
+
+    # DECISIONS #50
 
     __slots__ = ("data",)
 
@@ -1518,13 +1571,14 @@ class _WithinBin:
 
 def _keep_within(lk: Likelihoods, n: int, kind: str, *data: Any) -> None:
     """Keep the within-bin information of ``n`` input rows, indexed by the input row
-    (``meta["value_row"]`` maps the surviving rows to it; DECISIONS #50)."""
+    (``meta["value_row"]`` maps the surviving rows to it)."""
+    # DECISIONS #50
     lk.meta["within"] = _WithinBin((kind, *data))
     _attach_per_object(lk, value_row=np.arange(n))
 
 
 def _interim_at_points(density: Density, bins: Bins) -> tuple:
-    """What :func:`log_interim` reads: the density, and its log in ``u`` per bin of the
+    """What :func:`_log_interim` reads: the density, and its log in ``u`` per bin of the
     1-D ``bins`` when it is known only per bin (flat in ``u`` within each)."""
     if density._log_pointwise() is not None:
         return density, None, bins
@@ -1532,7 +1586,7 @@ def _interim_at_points(density: Density, bins: Bins) -> tuple:
         return density, np.log(density.masses(bins) / bins.u_volumes), bins
 
 
-def log_interim(interim: tuple | None, z: np.ndarray) -> Any:
+def _log_interim(interim: tuple | None, z: np.ndarray) -> Any:
     """The log interim density in ``z`` at the points ``z`` (any shape), up to a constant
     per bin; 0 without one (likelihoods)."""
     if interim is None:
@@ -1680,5 +1734,10 @@ def _bin_samples(samples: Any, bins: Bins, sample_weights: Any):
             if [len(s) for s in sws] != sizes.tolist():
                 raise ValueError("sample_weights must match the layout of samples.")
             sw = np.concatenate(sws)
+    if not np.all(np.isfinite(flat)):
+        raise ValueError(
+            "samples must be finite; give objects with different numbers of samples as a list "
+            "of arrays rather than padding with NaN."
+        )
     check_nonnegative(sw, "sample_weights")
     return flat, obj_ids, bins.index(flat), sw, n_obj

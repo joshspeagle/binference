@@ -28,6 +28,9 @@ _INIT_BUFFER = 75
 _BASE_WINDOW = 25
 #: Iterations of the last fast phase of Stan-style warm-up.
 _TERM_BUFFER = 50
+#: A leapfrog step whose energy rose by more than this since the trajectory's start (or
+#: became non-finite) is a divergence.
+_MAX_ENERGY_ERROR = 1000.0
 
 
 class Metric:
@@ -184,7 +187,9 @@ def _build(x, p, g, v, depth, eps, H0, metric, fn, rng, max_dE):
     return t1
 
 
-def nuts_step(x, lp, g, eps, metric: Metric, fn: LogpGrad, rng, max_depth=10, max_dE=1000.0):
+def nuts_step(
+    x, lp, g, eps, metric: Metric, fn: LogpGrad, rng, max_depth=10, max_dE=_MAX_ENERGY_ERROR
+):
     """One NUTS transition.
 
     Returns ``(x, lp, g, accept_stat, depth, diverging, n_leapfrog, energy)``.

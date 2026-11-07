@@ -1,8 +1,6 @@
 # The model
 
-What does binference assume about the objects and their population, and which posterior
-does it compute? This page states the model in full, gives its equivalent form with one
-latent label per object, and lists every assumption in one place.
+binference models a catalogue of $N$ objects as independent draws from a piecewise-constant population density over $K$ bins, with an equivalent data-augmentation form that assigns one latent bin label to each object.
 
 ```{plain-words}
 Each object says how well each bin explains its data. The population says how common

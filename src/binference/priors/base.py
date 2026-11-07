@@ -8,8 +8,7 @@ engines:
 * an unconstrained parametrisation ``x`` (``forward``) mapping to softmax logits
   (fractions) or log-rates (rates), with the prior log-density in ``x``-space
   (including Jacobians) and its gradient by the chain rule;
-* prior draws, and (where defined) the density on the simplex and a
-  unit-cube ``prior_transform`` for nested samplers;
+* prior draws, and (where defined) a closed-form density;
 * for conjugate priors, posterior draws / modes given latent counts and
   mean-field variational updates.
 """
@@ -21,7 +20,6 @@ import inspect
 from typing import Any
 
 import numpy as np
-from scipy import special
 
 from ..bins import Bins
 
@@ -43,24 +41,8 @@ def _log_gamma_variates(a: Any, rng: np.random.Generator, shape: tuple) -> np.nd
     return np.log(rng.standard_gamma(a + 1.0)) + np.log(rng.random(shape)) / a
 
 
-def _stick_break(a: np.ndarray, u: np.ndarray) -> np.ndarray:
-    """Dirichlet(a) from uniforms ``u`` (last axis of length ``len(a) - 1``) by stick-breaking."""
-    tail = np.cumsum(a[::-1])[::-1]  # tail[k] = sum_{j >= k} a_j
-    out = np.empty((*u.shape[:-1], a.size))
-    remaining = np.ones(u.shape[:-1])
-    for k in range(a.size - 1):
-        v = special.betaincinv(a[k], tail[k + 1], u[..., k])
-        out[..., k] = remaining * v
-        remaining = remaining * (1.0 - v)
-    out[..., -1] = remaining
-    return out
-
-
 class PopulationPrior:
     """Base class for priors on population fractions or rates."""
-
-    #: ``"fractions"`` (a distribution on the simplex) or ``"rates"``
-    kind: str = "fractions"
 
     def bind(self, bins: Bins) -> BoundPrior:  # pragma: no cover - abstract
         raise NotImplementedError
@@ -105,7 +87,26 @@ def _per_item(value: Any, n: int, name: str) -> np.ndarray:
 
 
 class BoundPrior:
-    """Numerical interface of a prior bound to specific bins (internal).
+    """Numerical interface of a prior bound to specific bins.
+
+    :meth:`PopulationPrior.bind` returns one, and the engines use it through the model:
+
+    * NUTS, Laplace and L-BFGS: :meth:`forward`, :meth:`log_prior_and_grad` and
+      :meth:`init_from_value`, in unconstrained coordinates ``x`` of size ``dim``;
+    * MAP on the simplex and the KKT gap, when ``has_density``: :meth:`log_density`,
+      :meth:`grad_log_density` and :meth:`unbounded_density`; for rates with
+      ``pseudocounts``, MAP's mix-SQP also reads ``b``, the Gamma rate parameters;
+    * NUTS's partial non-centring, when ``has_centering``: ``gamma``, ``n_active``,
+      ``with_centering``, ``recentre``, ``to_noncentred``, ``log_scales`` and
+      ``theta_from_x``, which the logistic family's bound priors share;
+    * Gibbs, EM and mean-field VB, when ``conjugate``: :meth:`posterior_sample`,
+      :meth:`map_from_counts` and the ``vb_`` methods, given the number of objects in
+      each bin (drawn by Gibbs, expected by EM and VB);
+    * prior draws and simulation: :meth:`sample`.
+
+    A subclass sets ``dim`` and the flags below, and implements the methods its flags
+    promise; the others raise ``NotImplementedError``. Values (fractions or rates) have
+    shape ``(K,)``, or ``(n, K)`` for ``n`` draws.
 
     Parameters
     ----------
@@ -115,10 +116,12 @@ class BoundPrior:
         The bins it is bound to.
     """
 
+    #: ``"fractions"`` (a distribution on the simplex) or ``"rates"``
     kind: str = "fractions"
+    #: whether the methods Gibbs, EM and mean-field VB use are implemented
     conjugate: bool = False
+    #: whether the methods MAP on the simplex and the KKT gap use are implemented
     has_density: bool = False
-    has_prior_transform: bool = False
     #: whether it has partial non-centring weights (``with_centering``; the logistic family)
     has_centering: bool = False
     #: counts its mode adds to the data's, ``alpha - 1`` (Dirichlet) or ``a - 1``
@@ -131,6 +134,7 @@ class BoundPrior:
         self.K = bins.K
 
     # -- unconstrained parametrisation --------------------------------------
+    #: size of the unconstrained coordinates ``x``
     dim: int
 
     def forward(self, x: np.ndarray) -> tuple[np.ndarray, Any]:  # pragma: no cover
@@ -179,6 +183,15 @@ class BoundPrior:
 
     # -- draws and densities -------------------------------------------------
     def sample(self, n: int, rng: np.random.Generator) -> np.ndarray:  # pragma: no cover
+        """``n`` draws of the fractions or rates from the prior, shape ``(n, K)``.
+
+        Parameters
+        ----------
+        n : int
+            Number of draws.
+        rng : numpy.random.Generator
+            Random number generator.
+        """
         raise NotImplementedError
 
     def log_density(self, value: np.ndarray) -> np.ndarray:
@@ -194,10 +207,26 @@ class BoundPrior:
     def unbounded_density(self) -> bool:
         """Whether the density of the fractions (or rates) is unbounded at the boundary.
 
-        Then its mode can lie on the boundary (components exactly zero), and
-        NUTS meets very long tails in log space for components without data.
+        Then its mode can lie on the boundary (components exactly zero).
         """
         return False
+
+    def long_log_tails(self) -> bool:
+        r"""Whether the prior gives bins without data long tails in the unconstrained coordinates.
+
+        As a group of bins empties, its total fraction (or rate) :math:`s` goes to zero and
+        the density of ``x``, the coordinates NUTS samples, falls like
+        :math:`s^{a} = e^{a \log s}`: a tail of scale :math:`1/a` in :math:`\log s`, which
+        NUTS needs long trajectories to cross. The tails count as long when some
+        :math:`a < 1`, the threshold of a Dirichlet's :math:`\alpha_k < 1`. The exponent
+        :math:`a` is the density's exponent at the boundary plus one for each bin in the
+        group, from the Jacobian of ``x``: for one bin of a Dirichlet, :math:`\alpha_k - 1`
+        becomes :math:`\alpha_k`. Where single bins have the longest tails, as for a
+        Dirichlet or Gamma rates, the tails are long exactly when the density is
+        unbounded, so this default returns :meth:`unbounded_density`; a prior whose
+        groups of several bins have their own exponents, such as a tree, overrides it.
+        """
+        return self.unbounded_density()
 
     def grad_log_density(self, value: np.ndarray) -> np.ndarray:
         """Gradient of :meth:`log_density` with respect to the fractions/rates.
@@ -212,37 +241,98 @@ class BoundPrior:
         """
         raise NotImplementedError(f"{type(self.prior).__name__} has no closed-form density.")
 
-    def prior_transform(self, u: np.ndarray) -> np.ndarray:
-        """Map the unit hypercube ``[0, 1]^dim`` to prior draws (nested sampling).
+    def _kkt_gradient(self, value, grad, include_prior=True):
+        # `grad` from the likelihood plus this prior's gradient, taken at _TINY at a zero, as
+        # in the MAP objective: hugely negative where the density is unbounded there (no
+        # violation), hugely positive where it vanishes, -b for rates of shape one
+        # (DECISIONS #71)
+        if include_prior and self.has_density:
+            return grad + self.grad_log_density(np.maximum(value, _TINY))
+        return grad
 
-        ``dim`` is ``K - 1`` for fractions and ``K`` for rates.
-
-        Parameters
-        ----------
-        u : ndarray (..., dim)
-            Points in the unit hypercube.
-        """
-        raise NotImplementedError(f"{type(self.prior).__name__} has no prior transform.")
+    def _kkt_violation(self, value, grad, W, include_prior=True):
+        # the KKT gap on the simplex: max_k (g_k - rho . g over the bins with mass) / W for
+        # the gradient g of the MAP objective
+        g = self._kkt_gradient(value, grad, include_prior)
+        pos = value > 0
+        return float(np.max(g - value[pos] @ g[pos])) / max(W, 1.0)
 
     # -- conjugate updates ----------------------------------------------------
     def posterior_sample(
         self, counts: np.ndarray, rng: np.random.Generator, exposure: np.ndarray | None = None
     ) -> np.ndarray:
+        """A draw of the fractions or rates given ``counts``, shape ``(K,)``: the
+        conditional Gibbs draws from at every iteration.
+
+        Parameters
+        ----------
+        counts : ndarray (K,)
+            Number of objects in each bin.
+        rng : numpy.random.Generator
+            Random number generator.
+        exposure : ndarray (K,), optional
+            Exposure of each bin, for rates (``None``: one); fractions ignore it.
+        """
         raise NotImplementedError(f"{type(self.prior).__name__} is not conjugate.")
 
     def map_from_counts(
         self, counts: np.ndarray, exposure: np.ndarray | None = None
     ) -> np.ndarray:
+        """The mode on the simplex (or of the rates) of the fractions given ``counts``,
+        shape ``(K,)``: EM's M-step.
+
+        Parameters
+        ----------
+        counts : ndarray (K,)
+            Number of objects in each bin.
+        exposure : ndarray (K,), optional
+            Exposure of each bin, for rates (``None``: one); fractions ignore it.
+        """
         raise NotImplementedError(f"{type(self.prior).__name__} is not conjugate.")
 
     def vb_update(self, counts: np.ndarray, exposure: np.ndarray | None = None) -> Any:
+        """Mean-field VB's state given ``counts``: the parameters of the variational
+        posterior, read by the other ``vb_`` methods.
+
+        Parameters
+        ----------
+        counts : ndarray (K,)
+            Expected number of objects in each bin.
+        exposure : ndarray (K,), optional
+            Exposure of each bin, for rates (``None``: one); fractions ignore it.
+        """
         raise NotImplementedError(f"{type(self.prior).__name__} is not conjugate.")
 
     def vb_expected_log(self, state: Any) -> np.ndarray:
+        """Expected logarithms of the fractions or rates under ``state``, shape ``(K,)``.
+
+        Parameters
+        ----------
+        state : object
+            What :meth:`vb_update` returned.
+        """
         raise NotImplementedError
 
     def vb_sample(self, state: Any, n: int, rng: np.random.Generator) -> np.ndarray:
+        """``n`` draws from the variational posterior ``state``, shape ``(n, K)``.
+
+        Parameters
+        ----------
+        state : object
+            What :meth:`vb_update` returned.
+        n : int
+            Number of draws.
+        rng : numpy.random.Generator
+            Random number generator.
+        """
         raise NotImplementedError
 
     def vb_mean(self, state: Any) -> np.ndarray:
+        """Mean of the fractions or rates under ``state``, shape ``(K,)``.
+
+        Parameters
+        ----------
+        state : object
+            What :meth:`vb_update` returned.
+        """
         raise NotImplementedError

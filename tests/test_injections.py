@@ -14,6 +14,8 @@ from binference.samplers import MAP, NUTS, Gibbs, Laplace, MeanFieldVB
 from binference.selection import S_FLOOR, _logit_density
 from binference.validation import SBCResult
 
+from .conftest import assert_draws_agree, assert_uniform_ranks
+
 
 def _injections(S, bins, n_per_bin, rng):
     z = np.repeat(bins.centers, n_per_bin) + rng.uniform(
@@ -34,7 +36,7 @@ def test_injections_give_a_beta_posterior_per_bin():
     np.testing.assert_array_equal(injected, [2, 1, 3, 1])
     np.testing.assert_array_equal(recovered, [1, 1, 2, 0])
     np.testing.assert_allclose(sel.values, (1 + recovered) / (3 + injected))
-    assert sel.draw(5, rng=0).shape == (5, 4) and sel.at_mean().injections is None
+    assert sel.draw(5, rng=0).shape == (5, 4) and sel.fixed().injections is None
 
 
 def test_draws_of_a_selection_never_underflow_to_zero():
@@ -67,24 +69,24 @@ def _has_xarray():
     return True
 
 
-def _problem(mode="on_truth", seed=0):
+def _problem(mode="on_truth", seed=0, smooth=None):
     rng = np.random.default_rng(seed)
     bins = Bins.linear(0, 1, 4)
     S = np.array([0.9, 0.7, 0.4, 0.2])
     mock = binference.simulate.mock_1d(300, bins, noise=0.1, rng=seed)
-    sel = Selection.from_injections(*_injections(S, bins, 40, rng), bins, mode)
+    sel = Selection.from_injections(*_injections(S, bins, 40, rng), bins, mode, smooth=smooth)
     return mock.likelihoods.with_selection(None), sel
 
 
 def test_engines_that_cannot_infer_a_selection_refuse_and_name_those_that_can():
     lk, sel = _problem()
     m = binference.PopulationModel(lk, selection=sel)
-    with pytest.raises(ValueError, match="method='nuts'"):
+    with pytest.raises(ValueError, match="method='nuts', 'gibbs', 'map', 'laplace' or 'auto',"):
         MeanFieldVB(m)
     for kw in ({"space": "simplex"}, {"algorithm": "em"}):
         with pytest.raises(ValueError, match="space='unconstrained'"):
             MAP(m, **kw)
-    est = binference.infer(lk, selection=sel.at_mean(), method="map")  # the plug-in
+    est = binference.infer(lk, selection=sel.fixed(), method="map")  # the plug-in
     assert np.isfinite(est.rho).all()
     res = binference.infer(lk, selection=sel, method="auto", n_samples=50, rng=0, check=False)
     assert res.method == "gibbs" and res.info["selection_draws"].shape == (4, 50, 4)
@@ -144,7 +146,7 @@ def test_a_selection_on_the_measurement_is_only_a_plug_in():
     lk, sel = _problem("on_measurement")
     with pytest.raises(ValueError, match="on the truth"):
         binference.PopulationModel(lk, selection=sel)
-    assert np.isfinite(binference.infer(lk, selection=sel.at_mean(), method="map").rho).all()
+    assert np.isfinite(binference.infer(lk, selection=sel.fixed(), method="map").rho).all()
 
 
 @pytest.mark.slow
@@ -170,8 +172,7 @@ def test_joint_inference_of_population_and_selection_is_calibrated():
         R, Sd = res.samples[idx], res.info["selection_draws"].reshape(-1, 4)[idx]
         ranks.append(np.concatenate([(R < rho).sum(0), (Sd < S).sum(0)]))
     names = [f"rho[{k}]" for k in range(4)] + [f"S[{k}]" for k in range(4)]
-    p = SBCResult(np.array(ranks), n_draws, names).pvalues(n_bins=10)
-    assert np.all(p > 1e-3 / p.size), dict(zip(names, p, strict=True))
+    assert_uniform_ranks(SBCResult(np.array(ranks), n_draws, names))
 
 
 def test_per_object_methods_use_each_draws_selection():
@@ -200,17 +201,8 @@ def test_nuts_agrees_with_joint_gibbs():
     lk, sel = _problem()
     m = binference.PopulationModel(lk, selection=sel)
     fits = [NUTS(m, rng=1).run(2000), Gibbs(m, rng=1).run(5000)]
-    stats = []
-    for r in fits:
-        draws = np.concatenate([r.samples, r.info["selection_draws"].reshape(-1, 4)], axis=1)
-        d = r.diagnostics
-        ess = np.concatenate([d["ess_bulk"], d["ess_bulk_selection"]])
-        stats.append((draws.mean(0), draws.std(0), ess))
-    (m1, s1, e1), (m2, s2, e2) = stats
-    # Monte Carlo errors: of a mean sd / sqrt(ESS), of an sd about sd / sqrt(2 ESS)
-    np.testing.assert_array_less(np.abs(m1 - m2), 4 * np.hypot(s1 / np.sqrt(e1), s2 / np.sqrt(e2)))
-    se_sd = np.hypot(s1 / np.sqrt(2 * e1), s2 / np.sqrt(2 * e2))
-    np.testing.assert_array_less(np.abs(s1 - s2), 4 * se_sd)
+    draws = [np.concatenate([r.chains, r.info["selection_draws"]], axis=-1) for r in fits]
+    assert_draws_agree(*draws, z=4)
 
 
 @pytest.mark.slow
@@ -235,8 +227,7 @@ def test_joint_inference_with_a_logistic_prior_and_nuts_is_calibrated():
         R, Sd = res.samples[idx], res.info["selection_draws"].reshape(-1, 4)[idx]
         ranks.append(np.concatenate([(R < rho).sum(0), (Sd < S).sum(0)]))
     names = [f"rho[{k}]" for k in range(4)] + [f"S[{k}]" for k in range(4)]
-    p = SBCResult(np.array(ranks), n_draws, names).pvalues(n_bins=7)
-    assert np.all(p > 1e-3 / p.size), dict(zip(names, p, strict=True))
+    assert_uniform_ranks(SBCResult(np.array(ranks), n_draws, names), n_bins=7)
 
 
 def test_a_smooth_selection_is_the_mode_of_its_injection_posterior():
@@ -290,7 +281,7 @@ def test_auto_and_exact_choose_what_they_can_infer():
         Likelihoods(lk.toarray()[:, :3], Bins.linear(0, 1, 3)),
         selection=Selection.from_injections([0.1, 0.5], [1, 1], Bins.linear(0, 1, 3), "on_truth"),
     )
-    with pytest.raises(ValueError, match="at_mean"):
+    with pytest.raises(ValueError, match=r"selection\.fixed"):
         binference.validation.exact_posterior(m)
     with pytest.raises(ValueError, match="prior"):
         Selection.from_injections([0.1], [1], Bins.linear(0, 1, 3), "on_truth", prior=1.0)

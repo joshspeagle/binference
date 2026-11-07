@@ -6,8 +6,6 @@ on:
   pull_request:
     # "labeled" lets the slow label start a run.
     types: [opened, synchronize, reopened, labeled]
-  schedule:
-    - cron: "17 5 * * 1"  # weekly: catches upstream breakage and runs the slow suite
   workflow_dispatch:
 
 # A new push to a branch cancels its older run; runs on main always finish.
@@ -21,8 +19,7 @@ permissions:
 jobs:
   changes:
     # What a pull request touches, so docs-only changes skip the test matrix and code-only
-    # changes skip nothing they could break. Pushes to main, the weekly run and manual runs
-    # run every job.
+    # changes skip nothing they could break. Pushes to main and manual runs run every job.
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -105,9 +102,9 @@ jobs:
       - run: pytest
 
   slow:
-    # Weekly, by hand, or on a pull request labelled "slow".
+    # By hand, or on a pull request labelled "slow".
     if: >-
-      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'workflow_dispatch' ||
       contains(github.event.pull_request.labels.*.name, 'slow')
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -124,8 +121,8 @@ jobs:
           OMP_NUM_THREADS: "1"
 
   linkcheck:
-    # Weekly or by hand: external links break without any change here.
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # By hand only: external links break without any change here.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -172,10 +169,8 @@ jobs:
         run: python docs/_scripts/run_snippets.py README.md docs/index.md docs/start/install.md docs/guides/*.md docs/guides/inputs/*.md
       # Executed notebooks are reused while the package, the plot style and the docs
       # configuration are unchanged; within that, a cache from other page text is restored
-      # and only notebooks whose code cells changed run again. The weekly run neither reads
-      # nor writes the cache, so it executes every notebook.
-      - if: github.event_name != 'schedule'
-        uses: actions/cache@v4
+      # and only notebooks whose code cells changed run again.
+      - uses: actions/cache@v4
         with:
           path: docs/_build/.jupyter_cache
           key: jupyter-${{ hashFiles('src/**', 'pyproject.toml', 'docs/conf.py', 'docs/_ext/**', 'benchmarks/**') }}-${{ hashFiles('docs/**/*.md') }}
@@ -231,10 +226,11 @@ jobs:
           "$RUNNER_TEMP/clean/bin/python" -I -c "import binference; print(binference.__version__)"
 
   ci-ok:
-    # One check that sums up a run, for branch protection: it fails when a job failed or was
-    # cancelled, and passes when jobs were skipped because the change cannot affect them.
+    # One check that sums up a run, for branch protection: it fails when a job it needs failed
+    # or was cancelled (a failed changes job skips the rest), and passes when jobs were skipped
+    # because the change cannot affect them or the run does not ask for them.
     if: always()
-    needs: [lint, test, minimum-dependencies, docs, dist]
+    needs: [changes, lint, test, minimum-dependencies, slow, docs, dist]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

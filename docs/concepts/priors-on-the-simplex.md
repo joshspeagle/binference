@@ -1,6 +1,6 @@
 # Priors on the simplex
 
-*What does a prior on the population fractions say, and when does it change the answer?*
+*A prior on the population fractions encodes pseudo-counts or smoothness across bins, and sets the answer wherever the data support in a bin is low.*
 
 ## Every population is a point on the simplex
 

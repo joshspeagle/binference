@@ -110,3 +110,32 @@ def test_a_truth_overlay_on_the_selected_population_is_reweighted_by_the_selecti
     _, res = _fit()
     rho = np.array([0.1, 0.2, 0.3, 0.4])
     np.testing.assert_allclose(_overlay(res, rho, "selected", 1.0), rho * S / (rho @ S))
+
+
+def test_a_stack_overlay_on_the_selected_population_is_not_reweighted_again():
+    pytest.importorskip("matplotlib").use("Agg")
+    import matplotlib.pyplot as plt
+
+    lk, res = _fit()
+    stack = lk.stack()
+    _, stacked = res.plot(which="selected", stack=stack).get_lines()
+    np.testing.assert_allclose(stacked.get_ydata()[:-1], stack)
+    plt.close("all")
+
+
+def test_a_truth_overlay_on_a_basis_is_refused_only_where_the_selection_weighs_components():
+    from binference.plotting import _overlay
+
+    lk = binference.simulate.mock_1d(100, Bins.linear(0, 1, 4), noise=0.1, rng=0).likelihoods
+    rho, sel = np.array([0.1, 0.2, 0.3, 0.4]), Selection(S, "on_truth")
+
+    def estimate(resolution, selection):
+        basis = binference.Basis(lk.bins, resolution=resolution)
+        model = binference.PopulationModel(lk.on_basis(basis), selection=selection)
+        return binference.PointEstimate(model, np.full(basis.C, 1 / basis.C))
+
+    # the identity basis is the bins; without a selection the population is selected
+    np.testing.assert_allclose(_overlay(estimate(1, sel), rho, "selected", 1), rho * S / (rho @ S))
+    np.testing.assert_allclose(_overlay(estimate(2, None), rho, "selected", 1), rho)
+    with pytest.raises(ValueError, match="truth cannot be shown on which='selected'"):
+        _overlay(estimate(2, sel), rho, "selected", 1)

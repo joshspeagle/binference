@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from .. import _kernels as kern
-from .._utils import RNGLike, warn
+from .._utils import RNGLike, check_positive_integers, warn
 from ..model import PopulationModel
 from ..priors.base import _TINY
 from ..results import PopulationResult
@@ -16,9 +16,9 @@ __all__ = ["MeanFieldVB"]
 
 
 class MeanFieldVB(Engine):
-    r"""Mean-field variational Bayes: :math:`q(\rho)\prod_i q(z_i)`.
+    r"""Mean-field variational Bayes: :math:`q(\rho)\prod_i q(k_i)`.
 
-    Coordinate ascent alternates :math:`q(z_i) \propto L_{ik}\exp E_q[\log\rho_k]`
+    Coordinate ascent alternates :math:`q(k_i=k) \propto L_{ik}\exp E_q[\log\rho_k]`
     and the conjugate update of :math:`q(\rho)` (e.g. a Dirichlet). This is the
     algorithm of RAIL's ``VarInfStackSummarizer``. It is fast but **under-
     estimates posterior widths**, severely so when per-object PDFs are broad
@@ -47,9 +47,6 @@ class MeanFieldVB(Engine):
         Accepted for a common signature; unused.
     """
 
-    name = "vb"
-    approximate = True
-
     def __init__(
         self,
         model: PopulationModel,
@@ -61,7 +58,7 @@ class MeanFieldVB(Engine):
     ) -> None:
         super().__init__(model, rng=rng, progress=progress)
         self.tol = float(tol)
-        self.max_iter = int(max_iter)
+        self.max_iter = check_positive_integers(max_iter, "max_iter")[0]
 
     @classmethod
     def unsupported(cls, model: PopulationModel) -> str | None:
@@ -101,8 +98,9 @@ class MeanFieldVB(Engine):
         n_samples : int, optional
             Draws from the variational posterior.
         """
+        n_samples = check_positive_integers(n_samples, "n_samples")[0]
         state, it, converged = self.fit()
-        draws = self.model.prior.vb_sample(state, int(n_samples), self.rng)
+        draws = self.model.prior.vb_sample(state, n_samples, self.rng)
         warn(
             "Mean-field VB underestimates posterior uncertainty, especially for broad per-object "
             "PDFs; use an exact engine (NUTS or Gibbs) for error bars.",

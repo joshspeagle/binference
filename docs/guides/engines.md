@@ -55,7 +55,8 @@ options.
   `binference.infer(lk, target_ess=1000)`.
 - **Engine options rule out engines** that do not take them. `target_accept` or
   `n_jobs` leave only NUTS, and `n_warmup` leaves Gibbs or NUTS. Options that no
-  candidate takes raise an error.
+  candidate takes raise an error before any fit, as does a value that a candidate
+  refuses.
 - **An explicit `n_samples`** fixes the length of a Gibbs run, so check the result;
   `infer` does by default.
 
@@ -127,6 +128,10 @@ routing, and [point estimates](../how-it-works/point-estimates.md)
 explains it.
 
 - **The choice** is recorded in `est.info["algorithm"]` and `est.info["space"]`.
+- **Which mode** depends on that space: `"simplex"` is the mode of the density of the
+  fractions or rates, `"unconstrained"` that of the density of $x$, which includes a
+  Jacobian, so the two differ
+  ([two modes](../how-it-works/point-estimates.md#two-coordinate-systems-two-modes)).
 - **The convergence check** is the {term}`KKT gap`, `est.kkt_gap`, which should be
   about zero. `MAP(tol=...)` bounds it. For L-BFGS, which reports a gradient instead,
   see {class}`~binference.samplers.MAP`.

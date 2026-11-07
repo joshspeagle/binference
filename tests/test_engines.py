@@ -13,7 +13,7 @@ from binference import priors as P
 from binference.samplers import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
 from binference.warnings import ApproximationWarning, InputWarning
 
-from .conftest import assert_matches_reference, sd_mcse
+from .conftest import assert_draws_agree, assert_matches_reference
 
 GAP = 1e3 * 1e-8  # MAP's guarantee: tol = 1e-8, or 1e3 * tol once round-off stops it
 
@@ -73,6 +73,7 @@ def test_nuts_onehot_is_conjugate(onehot, metric):
     res = binference.infer(
         lk,
         P.Dirichlet(alpha),
+        method="nuts",
         rng=2,
         n_chains=2,
         n_warmup=300,
@@ -152,11 +153,11 @@ def test_nuts_reparametrises_logistic_priors_without_touching_the_model():
     eng = NUTS(m, n_chains=2, n_warmup=150, rng=1)
     assert eng.metric == "dense" and eng.target_accept == 0.9
     res = eng.run(40)
-    assert np.all(m.prior.lam == 1.0)  # the user's model keeps its parametrisation
+    assert np.all(m.prior.gamma == 1.0)  # the user's model keeps its parametrisation
     assert eng.model is not m
-    assert not np.all(eng.model.prior.lam == 1.0)  # strong data: some modes centred
+    assert not np.all(eng.model.prior.gamma == 1.0)  # strong data: some modes centred
     # results are in the user's (non-centred) coordinates (audit N-1)
-    assert res.model is m and np.array_equal(res.info["centring"], eng.model.prior.lam)
+    assert res.model is m and np.array_equal(res.info["centring"], eng.model.prior.gamma)
     np.testing.assert_allclose(m.to_value(res.x[0, -1]), res.chains[0, -1])
     np.testing.assert_allclose(
         res.log_density_unconstrained[0, -5:],
@@ -171,25 +172,49 @@ def test_nuts_reparametrises_logistic_priors_without_touching_the_model():
 
 def test_nuts_validation():
     m = PopulationModel(np.ones((3, 2)))
+    with pytest.raises(TypeError):
+        NUTS("not a model")
     with pytest.raises(ValueError):
         NUTS(m, n_chains=0)
     with pytest.raises(ValueError):
         NUTS(m, metric="full")
     with pytest.raises(ValueError):
         NUTS(m, target_accept=1.5)
-    with pytest.raises(ValueError):
-        NUTS(m, init=np.zeros(5)).run(1)
+    with pytest.raises(ValueError, match="init_x"):
+        NUTS(m, init_x=np.zeros(5))  # its shape when the engine is made
+    with pytest.raises(ValueError, match="zero posterior density"):  # its density when run
+        NUTS(PopulationModel(np.eye(2)), init_x=[1e3]).run(1)
+    with pytest.raises(ValueError, match="fractions or rates of shape"):
+        NUTS(m, init=np.full(m.dim, 0.2))  # a point in unconstrained coordinates
+    with pytest.raises(ValueError, match="not both"):
+        NUTS(m, init=[0.5, 0.5], init_x=[0.0])
     with pytest.raises(RuntimeError):
         _ = NUTS(m).result
+
+
+def test_nuts_backs_off_a_jitter_that_leaves_the_support_from_init_as_from_the_mode():
+    # this model's density is zero beyond |x| of about 700, so jitter 1e4 leaves it
+    nuts = NUTS(PopulationModel(np.eye(2)), init=[0.5, 0.5], jitter=1e4, n_chains=4, rng=0)
+    starts = nuts._initial_points()
+    assert np.all(np.abs(starts) < 700)
 
 
 def test_nuts_chains_start_at_a_given_init_jittered_only_when_it_is_one_point(k3_problem):
     m = PopulationModel(k3_problem[0].likelihoods)  # its mode is near (1.3, -0.4)
     starts = np.array([[2.0, -2.0], [-2.0, 2.0]])
-    eng = NUTS(m, n_chains=2, n_warmup=0, init=starts, rng=0)
+    eng = NUTS(m, n_chains=2, n_warmup=0, init_x=starts, rng=0)
     eng.warmup()
     np.testing.assert_array_equal([c.x for c in eng._chains], starts)
-    eng = NUTS(m, n_chains=2, n_warmup=0, init=starts[0], jitter=0.1, rng=0)
+    # init is fractions, as for the other engines: the same point, converted
+    v = m.to_value(starts[0])
+    eng = NUTS(m, n_chains=2, n_warmup=0, init=v, jitter=0.0, rng=0)
+    eng.warmup()
+    np.testing.assert_allclose([c.x for c in eng._chains], [starts[0]] * 2, atol=1e-12)
+    rates = PopulationModel(k3_problem[0].likelihoods, P.GammaRates(1.0, 1e-3))
+    lam = np.array([30.0, 70.0, 5.0])  # rates above 1, whose logs are positive too
+    x = NUTS(rates, n_chains=1, init=lam, jitter=0.0)._initial_points()[0]
+    np.testing.assert_allclose(rates.to_value(x), lam)
+    eng = NUTS(m, n_chains=2, n_warmup=0, init_x=starts[0], jitter=0.1, rng=0)
     eng.warmup()
     x = np.array([c.x for c in eng._chains])
     assert np.all(np.abs(x - starts[0]) < 0.6) and not np.allclose(x[0], x[1])
@@ -200,6 +225,7 @@ def test_nuts_with_a_logistic_prior_matches_a_long_run():
     res = binference.infer(
         mock.likelihoods,
         P.LogisticRandomWalk(order=2),
+        method="nuts",
         rng=1,
         n_chains=2,
         n_warmup=200,
@@ -214,13 +240,9 @@ def test_nuts_with_a_logistic_prior_matches_a_long_run():
     #       n_warmup=1000, n_samples=10000) -> .mean, .std, rounded to 6 digits
     mean = [0.028023, 0.261029, 0.163405, 0.175175, 0.270258, 0.091127, 0.009948, 0.001036]
     sd = [0.013765, 0.031731, 0.030073, 0.028615, 0.031246, 0.020168, 0.005868, 0.00146]
-    for k in range(8):
-        x = res.chains[:, :, k]
-        assert abs(x.mean() - mean[k]) < 5 * binference.diagnostics.mcse(x), k
-        # MC error of the sd from the MCSE of the squared deviations, which underestimates
-        # it by up to 1.3x on the skewed edge bins of short runs (measured over 40 seeds):
-        # 6 such sigma are 4.6 true sigma
-        assert abs(x.std() - sd[k]) < 6 * sd_mcse(x), k
+    # sd_mcse underestimates the error of an sd by up to 1.3x on the skewed edge bins of
+    # runs this short (40 seeds), so z = 5 is about 3.8 true sigma there
+    assert_matches_reference(res, mean, sd)
 
 
 # -------------------------------------------------------------------- Gibbs
@@ -230,6 +252,13 @@ def test_gibbs_matches_exact(k3_problem):
         mock.likelihoods, method="gibbs", rng=3, n_samples=3000, n_warmup=200, check=False
     )
     assert_matches_reference(res, exact.mean, exact.std)
+
+
+def test_gibbs_keeps_the_last_draw_of_every_thinning_block_of_each_chain(k3_problem):
+    m = PopulationModel(k3_problem[0].likelihoods)
+    thinned = Gibbs(m, n_chains=2, n_warmup=20, thin=3, rng=4).run(10)
+    every = Gibbs(m, n_chains=2, n_warmup=20, rng=4).run(30)
+    np.testing.assert_array_equal(thinned.chains, every.chains[:, 2::3])
 
 
 def test_gibbs_onehot_is_conjugate(onehot):
@@ -246,7 +275,13 @@ def test_gibbs_selection_matches_exact(k3_selection_problem):
     )
     assert_matches_reference(res, exact.mean, exact.std)
     nuts = binference.infer(
-        mock.likelihoods, rng=5, n_chains=2, n_warmup=300, n_samples=1500, check=False
+        mock.likelihoods,
+        method="nuts",
+        rng=5,
+        n_chains=2,
+        n_warmup=300,
+        n_samples=1500,
+        check=False,
     )
     assert_matches_reference(nuts, exact.mean, exact.std)
 
@@ -262,13 +297,13 @@ def test_fraction_selection_only_depends_on_ratios(k3_selection_problem, mode):
         m = PopulationModel(lk, selection=Selection(scale * S, mode, scale="relative"))
         est = MAP(m).run()
         gibbs = Gibbs(m, n_chains=2, n_warmup=200, rng=3).run(1500)
-        fits[scale] = (est.rho, gibbs.mean, gibbs.std)
+        fits[scale] = (est.rho, gibbs)
         assert np.all(gibbs.samples > 0)
     np.testing.assert_allclose(fits[3.0][0], fits[1.0][0], rtol=1e-6)
-    np.testing.assert_allclose(fits[3.0][1], fits[1.0][1], atol=0.02)
+    np.testing.assert_allclose(fits[3.0][1].samples, fits[1.0][1].samples, rtol=1e-12)
     exact_m = PopulationModel(lk, selection=S, selection_mode=mode)
     nuts = NUTS(exact_m, n_chains=2, n_warmup=300, rng=4).run(800)
-    np.testing.assert_allclose(fits[3.0][1], nuts.mean, atol=0.02)
+    assert_draws_agree(fits[3.0][1].chains, nuts.chains)
 
 
 def test_gibbs_rates_agree_with_nuts(k3_selection_problem):
@@ -278,11 +313,17 @@ def test_gibbs_rates_agree_with_nuts(k3_selection_problem):
         mock.likelihoods, prior, method="gibbs", rng=6, n_samples=3000, check=False
     )
     n = binference.infer(
-        mock.likelihoods, prior, rng=6, n_chains=2, n_warmup=300, n_samples=1500, check=False
+        mock.likelihoods,
+        prior,
+        method="nuts",
+        rng=6,
+        n_chains=2,
+        n_warmup=300,
+        n_samples=1500,
+        check=False,
     )
     assert g.rates is not None and n.rates is not None
-    np.testing.assert_allclose(g.rates.mean(0), n.rates.mean(0), rtol=0.06)
-    np.testing.assert_allclose(g.rates.std(0), n.rates.std(0), rtol=0.15)
+    assert_draws_agree(*(r.rates.reshape(r.chains.shape) for r in (g, n)))
     np.testing.assert_allclose(g.samples.sum(1), 1.0)
 
 
@@ -293,9 +334,16 @@ def test_gibbs_tree_priors_agree_with_nuts(prior):
         mock.likelihoods, prior, method="gibbs", rng=7, n_samples=3000, check=False
     )
     n = binference.infer(
-        mock.likelihoods, prior, rng=7, n_chains=2, n_warmup=300, n_samples=1500, check=False
+        mock.likelihoods,
+        prior,
+        method="nuts",
+        rng=7,
+        n_chains=2,
+        n_warmup=300,
+        n_samples=1500,
+        check=False,
     )
-    assert_matches_reference(g, n.mean, n.std, z=6, sd_rtol=0.2)
+    assert_draws_agree(g.chains, n.chains)
 
 
 def test_gibbs_validation_and_labels(onehot):
@@ -323,7 +371,7 @@ def test_gibbs_integer_weights_compressed(rng):
     assert lk_comp.N == 3
     a = binference.infer(lk_full, method="gibbs", rng=1, n_samples=4000, check=False)
     b = binference.infer(lk_comp, method="gibbs", rng=1, n_samples=4000, check=False)
-    assert_matches_reference(b, a.mean, a.std, z=6, sd_rtol=0.2)
+    assert_draws_agree(b.chains, a.chains)
 
 
 def test_label_sampling_dense_sparse_agree(rng):
@@ -487,8 +535,23 @@ def test_laplace_with_importance(k3_problem):
     mock, exact = k3_problem
     res = binference.infer(mock.likelihoods, method="laplace", rng=4, n_samples=4000)
     assert "k_hat" in res.info
-    np.testing.assert_allclose(res.mean, exact.mean, atol=0.01)
-    np.testing.assert_allclose(res.std, exact.std, rtol=0.15)
+    assert_matches_reference(res, exact.mean, exact.std)
+
+
+def test_a_widened_gaussian_laplace_proposal_recovers_the_exact_posterior(onehot):
+    # one-hot likelihoods: the posterior is Dirichlet(1 + counts), close to Gaussian in
+    # log-ratio coordinates
+    lk, counts = onehot
+    m = PopulationModel(lk)
+    res = Laplace(m, df=None, inflate=1.5, rng=0).run(4000)
+    assert not res.approximate  # k-hat passed
+    # a wrong sign of log q narrows the draws by about a quarter
+    assert_matches_reference(res, *dirichlet_moments(1.0 + counts))
+    # without importance the draws are the proposals, which inflate widens
+    with pytest.warns(ApproximationWarning):
+        raw = Laplace(m, inflate=1.5, importance=False, rng=0).run(8000)
+    ratio = raw.x[0].std(axis=0) / (1.5 * np.sqrt(np.diag(raw.info["cov"])))
+    np.testing.assert_allclose(ratio, 1.0, atol=5 / np.sqrt(2 * 8000))
 
 
 def test_laplace_uncorrected_is_flagged(k3_problem):
@@ -523,9 +586,7 @@ def test_vb_exact_for_onehot_and_overconfident_otherwise(onehot, k3_problem):
     lk, counts = onehot
     with pytest.warns(ApproximationWarning):
         res = MeanFieldVB(PopulationModel(lk), rng=1).run(20000)
-    mean, sd = dirichlet_moments(1.0 + counts)
-    np.testing.assert_allclose(res.mean, mean, atol=3e-3)
-    np.testing.assert_allclose(res.std, sd, rtol=0.05)
+    assert_matches_reference(res, *dirichlet_moments(1.0 + counts))
     mock, exact = k3_problem
     with pytest.warns(ApproximationWarning):
         vb = MeanFieldVB(PopulationModel(mock.likelihoods), rng=1).run(4000)

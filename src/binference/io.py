@@ -10,7 +10,7 @@ import numpy as np
 
 from ._version import __version__
 from .basis import Basis
-from .bins import Bins
+from .bins import Bins, _bin_labels
 from .measure import Measure
 from .selection import Selection
 from .selection import _rebuild as _rebuild_selection
@@ -43,10 +43,7 @@ def _bins_to_parts(bins: Bins) -> tuple[dict[str, Any], dict[str, np.ndarray]]:
 
 def _bins_from_parts(meta: dict[str, Any], arrays: Any) -> Bins:
     if meta["bins"] == "categories":
-        labels = meta["labels"]
-        if all(isinstance(lab, int) for lab in labels) and labels == list(range(len(labels))):
-            return Bins.categories(len(labels))
-        return Bins.categories(labels)
+        return Bins.categories(meta["labels"])
     nd = int(meta["ndim"])
     measures = []
     for d, name in enumerate(meta.get("measures", ["linear"] * nd)):
@@ -196,7 +193,7 @@ def load_result(path: str) -> PopulationResult:
         if not os.path.exists(name) and os.path.exists(name + ".npz"):
             path = name + ".npz"
     with np.load(path, allow_pickle=False) as data:
-        meta = json.loads(str(data["meta"]))
+        meta = json.loads(str(data["meta"].item()))
         if meta.get("schema", 0) > SCHEMA_VERSION:
             raise ValueError("This file was written by a newer version of binference.")
         bins = _bins_from_parts(meta, data)
@@ -257,8 +254,6 @@ def to_datatree(result: PopulationResult):
         raise ImportError("to_datatree needs xarray: pip install 'binference[xarray]'.") from err
     C = result.chains
     n_chains, n_draws, _ = C.shape
-    from .results import _bin_labels
-
     coords: dict[str, Any] = {
         "chain": np.arange(n_chains),
         "draw": np.arange(n_draws),

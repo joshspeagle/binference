@@ -1,13 +1,13 @@
 """Simplex helpers: softmax, isometric log-ratio (ILR) and centred log-ratio maps.
 
-The ILR map uses the orthonormal Helmert basis ``V`` (shape ``(K, K-1)``,
+The ILR map uses the orthonormal Helmert basis ``Q`` (shape ``(K, K-1)``,
 columns orthonormal and summing to zero):
 
-    eta = V.T @ log(rho)          (ILR)
-    rho = softmax(V @ eta)        (inverse ILR)
+    x = Q.T @ log(rho)          (ILR)
+    rho = softmax(Q @ x)        (inverse ILR)
 
-The Jacobian of ``eta -> rho[:K-1]`` has determinant ``sqrt(K) * prod(rho)``,
-so the log-density of ``eta`` is ``log p(rho) + sum(log rho) + 0.5 log K``.
+The Jacobian of ``x -> rho[:K-1]`` has determinant ``sqrt(K) * prod(rho)``,
+so the log-density of ``x`` is ``log p(rho) + sum(log rho) + 0.5 log K``.
 """
 
 from __future__ import annotations
@@ -17,8 +17,6 @@ from functools import lru_cache
 import numpy as np
 
 from ._utils import frozen
-
-__all__ = ["helmert_basis", "log_softmax", "softmax"]
 
 
 @lru_cache(maxsize=64)

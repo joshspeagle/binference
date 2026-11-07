@@ -64,7 +64,9 @@ bibtex_reference_style = "author_year_round"
 
 # -- API reference ------------------------------------------------------------
 autosummary_generate = True
-autodoc_default_options = {"members": True, "inherited-members": False}
+# a boolean inherited-members default would replace the engine template's option
+templates_path = ["_templates"]
+autodoc_default_options = {"members": True}
 autodoc_typehints = "none"
 numpydoc_show_class_members = False
 numpydoc_class_members_toctree = False
@@ -88,7 +90,7 @@ html_copy_source = False
 # MathJax 3, pinned (Sphinx's default loads an unpinned version)
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"
 
-# -- Link check (weekly in CI) --------------------------------------------------
+# -- Link check (by hand in CI) -------------------------------------------------
 # DOIs are checked against the DOI resolver instead (_scripts/check_dois.py), since many
 # publishers answer automated requests with 403; git.ligo.org does the same.
 linkcheck_ignore = [r"https://doi\.org/", r"https://git\.ligo\.org/"]

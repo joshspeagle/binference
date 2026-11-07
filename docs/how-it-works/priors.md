@@ -1,8 +1,6 @@
 # Priors in detail
 
-What exactly does each prior on the population say, and in which coordinates do the
-engines see it? This page defines the two families of priors, the coordinates the
-gradient-based engines use, and the priors on hyperparameters. The
+binference provides two families of population priors (conjugate Dirichlet-tree priors and smooth logistic-normal priors) together with unconstrained coordinate transforms for gradient-based engines and hyperpriors for smoothness parameters. The
 {doc}`priors guide <../guides/priors>` says which prior to choose for which data.
 
 ## The Dirichlet family as trees
@@ -50,8 +48,8 @@ shape of their tree.
   $\alpha_k$ and `b` equal to $\sum_{j>k}\alpha_j$ it is $\mathrm{Dir}(\alpha)$. Other
   parameters give variances and correlations, including positive ones, that a Dirichlet
   cannot express.
-- **`DirichletTree(tree, alpha)`** takes any tree, written as nested lists of bin
-  indices, with one concentration per branch.
+- **`DirichletTree(tree, alpha)`** takes any tree, written as nested lists of bins or as
+  named groups, with one concentration per branch.
 - **`PolyaTree`** {cite:p}`lavine1992` is a balanced binary tree over ordered
   one-dimensional bins, split in halves by index. A split at depth $h$ (the root has
   $h=1$) gives a child the concentration
@@ -74,8 +72,12 @@ independent shares, with second moment $\prod_h(a_h+1)/(2(2a_h+1))$ for
 $a_h=c_{\rm PT}h^2$.
 ```
 
-Concentrations below one, and the Pólya tree, give densities that are unbounded at the
-edge of the simplex. Their most probable population is then found in unconstrained
+A branch whose concentration is less than the number of bins below it gives a density
+that is unbounded at the edge of the simplex: a Dirichlet concentration below one, or,
+in a Pólya tree whose base measure gives every bin the same mass, $c_{\rm PT}$ below half
+the number of bins (the default $c_{\rm PT}=1$ on three bins or more).
+The bound prior's {meth}`~binference.priors.BoundPrior.unbounded_density` says whether it
+has one. With such a prior the most probable population is found in unconstrained
 coordinates ([L-BFGS](point-estimates.md#l-bfgs)).
 
 ## The logistic family

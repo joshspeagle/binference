@@ -99,9 +99,10 @@ Dirichlet tree
 
 divergence
 divergent transition
-  A NUTS trajectory whose energy error became very large. Divergences mark regions the
-  sampler cannot explore, so the draws there may be biased. See
-  [NUTS](../guides/engines.md#nuts).
+  A NUTS trajectory in which a leapfrog step's energy rose since the trajectory's start
+  by more than a threshold ([defaults](defaults.md#engines)), or was not finite.
+  Divergences mark regions the sampler cannot explore, so the draws there may be biased.
+  See [NUTS](../guides/engines.md#nuts).
 
 draw
   One value of the population, or of another quantity, from a posterior or an

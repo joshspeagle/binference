@@ -93,6 +93,23 @@ def test_autocorr_function():
     assert f.shape == (1000,)
 
 
+@pytest.mark.parametrize("value", [0.25, 0.3])
+def test_a_constant_chain_has_no_autocorrelation_time(value):
+    # 0/0 became a zero autocorrelation: a chain whose mean is exact (0.25) looked
+    # independent, time 1, and one whose mean is off by round-off (0.3) gave time n
+    x = np.full((2, 500), value)
+    assert np.isnan(d.autocorr_time(x)) and np.isnan(d.autocorr_function(x)).all()
+
+
+def test_psis_refuses_an_infinite_log_weight(rng):
+    # +inf was mapped to -inf with NaN: an infinite ratio got weight zero and a k-hat that
+    # looked fine
+    with pytest.raises(ValueError, match=r"log_weights must not be \+inf"):
+        d.psis(np.r_[rng.normal(size=99), np.inf])
+    lw, _ = d.psis(np.r_[rng.normal(size=99), np.nan])  # NaN still weighs zero
+    assert lw[-1] == -np.inf and np.isfinite(lw[:-1]).all()
+
+
 def test_psis_of_equal_weights_has_no_tail():
     lw, k = d.psis(np.full(100, 3.0) + 1e-14 * np.arange(100))  # equal up to round-off
     np.testing.assert_allclose(np.exp(lw), 0.01)

@@ -13,15 +13,15 @@ with ``A_c`` the total concentration of node ``c``'s children.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
 from scipy import special
 
 from .._simplex import helmert_basis, log_softmax, softmax
-from .._utils import check_positive
-from ..bins import Bins
+from .._utils import check_nonnegative, check_positive
+from ..bins import Bins, _bin_labels
 from ..density import Density
 from .base import (
     _TINY,
@@ -29,7 +29,6 @@ from .base import (
     PopulationPrior,
     _log_gamma_variates,
     _per_item,
-    _stick_break,
 )
 
 __all__ = ["Dirichlet", "DirichletTree", "GeneralizedDirichlet", "PolyaTree"]
@@ -46,7 +45,6 @@ class _SimplexBound(BoundPrior):
     """Shared ILR machinery for simplex priors."""
 
     has_density = True
-    has_prior_transform = True
     conjugate = True
 
     def __init__(self, prior: PopulationPrior, bins: Bins) -> None:
@@ -84,10 +82,8 @@ class Dirichlet(PopulationPrior):
 
     Parameters
     ----------
-    alpha : float, array_like (K,), or "reference"
-        Concentration parameters (strictly positive). ``"reference"`` uses
-        ``alpha = 1/K`` (Berger, Bernardo & Sun 2015), which avoids swamping
-        sparse problems with many bins.
+    alpha : float or array_like (K,)
+        Concentration parameters (strictly positive).
 
     Notes
     -----
@@ -96,14 +92,13 @@ class Dirichlet(PopulationPrior):
     base measure (flat in the measure coordinate by default) instead.
     """
 
-    def __init__(self, alpha: float | Sequence[float] | np.ndarray | str = 1.0) -> None:
-        if isinstance(alpha, str):
-            if alpha != "reference":
-                raise ValueError("alpha must be positive numbers or 'reference'.")
-        else:
-            check_positive(alpha, "Dirichlet alpha")
+    def __init__(self, alpha: float | Sequence[float] | np.ndarray = 1.0) -> None:
+        check_positive(alpha, "Dirichlet alpha")
         self.alpha = alpha
         self._base: tuple[float, Any] | None = None
+
+    def __repr__(self) -> str:
+        return "Dirichlet.reference()" if isinstance(self.alpha, str) else super().__repr__()
 
     def _params(self):
         if self._base is not None:
@@ -111,15 +106,15 @@ class Dirichlet(PopulationPrior):
         return {"alpha": self.alpha}
 
     @classmethod
-    def reference(cls, K: int | None = None) -> Dirichlet:
-        """Reference prior ``alpha = 1/K``.
+    def reference(cls) -> Dirichlet:
+        """Reference prior ``alpha = 1/K`` (Berger, Bernardo & Sun 2015).
 
-        Parameters
-        ----------
-        K : int, optional
-            Number of bins; ``None`` takes it from the bins when the prior is bound.
+        ``K`` is the number of bins the prior is bound to. Adding one pseudo-object in all
+        rather than ``K``, it avoids swamping sparse problems with many bins.
         """
-        return cls("reference") if K is None else cls(1.0 / K)
+        obj = cls()
+        obj.alpha = "reference"  # 1/K, set at binding
+        return obj
 
     @classmethod
     def from_counts(
@@ -141,10 +136,8 @@ class Dirichlet(PopulationPrior):
         base : float, optional
             Concentration added to every bin.
         """
-        c = np.asarray(counts, dtype=float)
-        if np.any(c < 0):
-            raise ValueError("counts must be non-negative.")
-        return cls(base + strength * c)
+        c = check_nonnegative(counts, "counts")
+        return cls(check_nonnegative(base, "base") + check_nonnegative(strength, "strength") * c)
 
     @classmethod
     def from_base_measure(cls, concentration: float = 1.0, base: Any = "flat") -> Dirichlet:
@@ -183,6 +176,20 @@ class Dirichlet(PopulationPrior):
     def bind(self, bins: Bins) -> _BoundDirichlet:
         return _BoundDirichlet(self, bins, self.resolve_alpha(bins))
 
+    def describe(self, bins: Bins, counts: Any = None) -> str:
+        """The prior as a one-node tree, drawn as text (see :meth:`DirichletTree.describe`).
+
+        Parameters
+        ----------
+        bins : Bins
+            The bins it is drawn on.
+        counts : array_like (K,), optional
+            Counts per bin; the drawing then shows the posterior given them.
+        """
+        alpha = self.resolve_alpha(bins)
+        tree = _TreeStructure([[("leaf", k) for k in range(bins.K)]], [alpha], bins.K)
+        return _describe(self, bins, tree, counts)
+
 
 class _BoundDirichlet(_SimplexBound):
     def __init__(self, prior: PopulationPrior, bins: Bins, alpha: np.ndarray) -> None:
@@ -207,9 +214,6 @@ class _BoundDirichlet(_SimplexBound):
         v = np.asarray(value, dtype=float)
         pos = v > 0
         return np.where(pos, (self.alpha - 1.0) / np.where(pos, v, 1.0), 0.0)
-
-    def prior_transform(self, u):
-        return _stick_break(self.alpha, np.asarray(u, dtype=float))
 
     def posterior_sample(self, counts, rng, exposure=None):
         return _dirichlet_draw(self.alpha + counts, rng)
@@ -246,15 +250,16 @@ class _TreeStructure:
     """
 
     def __init__(self, nodes: list[list[tuple[str, int]]], alphas: list[np.ndarray], K: int):
-        # the priors validate the concentrations; the leaves need K
+        # the priors build valid trees and validate the concentrations
+        if K < 2:
+            raise ValueError("The simplex needs at least two bins (K >= 2).")
         C = len(nodes)
-        seen_leaves: list[int] = []
         parent_slot_of_node = np.full(C, -1, dtype=np.int64)
         leaf_slot = np.full(K, -1, dtype=np.int64)
         slot_child: list[tuple[str, int]] = []
         slot_node: list[int] = []
         slot_alpha: list[float] = []
-        ptr = [0]
+        node_start = [0]  # node c's slots are node_start[c] to node_start[c + 1] - 1 (CSR)
         for c, (children, a) in enumerate(zip(nodes, alphas, strict=True)):
             for (kind, idx), aj in zip(children, a, strict=True):
                 s = len(slot_child)
@@ -262,23 +267,12 @@ class _TreeStructure:
                 slot_node.append(c)
                 slot_alpha.append(float(aj))
                 if kind == "leaf":
-                    if not 0 <= idx < K:
-                        raise ValueError(f"Leaf index {idx} out of range for K={K}.")
-                    seen_leaves.append(idx)
                     leaf_slot[idx] = s
                 else:
-                    if not c < idx < C:
-                        raise ValueError("Child nodes must come after their parents.")
-                    if parent_slot_of_node[idx] != -1:
-                        raise ValueError(f"Node {idx} has more than one parent.")
                     parent_slot_of_node[idx] = s
-            ptr.append(len(slot_child))
-        if sorted(seen_leaves) != list(range(K)):
-            raise ValueError("Tree leaves must be exactly 0..K-1, each appearing once.")
-        if np.any(parent_slot_of_node[1:] < 0):
-            raise ValueError("Every internal node except the root needs a parent.")
+            node_start.append(len(slot_child))
         self.K, self.C = K, C
-        self.ptr = np.asarray(ptr)
+        self.node_start = np.asarray(node_start)
         self.slot_node = np.asarray(slot_node)
         self.slot_alpha = np.asarray(slot_alpha)
         self.slot_child = slot_child
@@ -299,15 +293,13 @@ class _TreeStructure:
                 slot_mem[s] = node_mem[idx]
         self.node_mem = node_mem
         self.slot_mem = slot_mem
-        A_node = np.add.reduceat(self.slot_alpha, self.ptr[:-1])
-        self.A_node = A_node
+        # each branch's exponent on the simplex: its alpha less the bins below it
+        self.slot_exponent = self.slot_alpha - slot_mem.sum(axis=1)
+        A_node = np.add.reduceat(self.slot_alpha, self.node_start[:-1])
         self.leaf_coef = self.slot_alpha[leaf_slot] - 1.0  # (K,)
         nr = np.arange(1, C)
         self.node_coef = self.slot_alpha[parent_slot_of_node[nr]] - A_node[nr]  # (C-1,)
         self.nonroot_mem = node_mem[1:]
-        # slot_nodes[s, c'] = 1 if non-root internal node c' lies under (or is) slot s's child
-        sizes = self.nonroot_mem.sum(axis=1)
-        self.slot_nodes = ((slot_mem @ self.nonroot_mem.T) == sizes[None, :]).astype(float)
         self.const = float(
             np.sum(special.gammaln(A_node)) - np.sum(special.gammaln(self.slot_alpha))
         )
@@ -326,12 +318,16 @@ class _TreeStructure:
         shape = (alpha_slots.size,) if size is None else (size, alpha_slots.size)
         theta = np.empty(shape)
         for c in range(self.C):
-            sl = slice(self.ptr[c], self.ptr[c + 1])
+            sl = slice(self.node_start[c], self.node_start[c + 1])
             theta[..., sl] = _dirichlet_draw(alpha_slots[sl], rng, size=size)
         return theta
 
     def slot_counts(self, counts: np.ndarray) -> np.ndarray:
         return self.slot_mem @ counts
+
+    def node_totals(self, x: np.ndarray) -> np.ndarray:
+        """For each slot, the sum of ``x`` over the slots of its node."""
+        return np.repeat(np.add.reduceat(x, self.node_start[:-1]), np.diff(self.node_start))
 
 
 class _BoundTree(_SimplexBound):
@@ -355,11 +351,37 @@ class _BoundTree(_SimplexBound):
         return np.maximum(self.tree.compose(theta), _TINY)
 
     def unbounded_density(self):
-        # log-density coefficients of the branch probabilities: negative ones (e.g.
-        # Polya trees, whose concentrations grow with depth) make it unbounded
+        # a branch with less concentration than bins below it (e.g. near the root of a
+        # Polya tree with c below K/2) has a negative exponent, which makes the density
+        # unbounded. Read from alpha, not summed from the log-density's coefficients,
+        # whose rounding can put an exponent of zero below it.
+        return bool(np.any(self.tree.slot_exponent < 0.0))
+
+    def long_log_tails(self):
+        # the Jacobian of the unconstrained coordinates adds one per bin below a
+        # branch, so there its exponent is its alpha
+        return bool(np.any(self.tree.slot_alpha < 1.0))
+
+    def _kkt_violation(self, value, grad, W, include_prior=True):
+        # In the branch probabilities theta, where the log-density is sum_j e_j log theta_j:
+        # at each node with mass, (n_j + e_j) / theta_j for the counts n_j below branch j,
+        # against lambda = sum (n_j + e_j) over its branches with mass (EM's M-step sets
+        # theta_j to (n_j + e_j) / lambda), relative to the counts the node holds,
+        # sum |n_j| + |e_j|: in the units of the gap in rho where the data dominate,
+        # relative to the prior where it does. A branch of exponent zero adds exactly zero;
+        # in rho its terms of order 1/rho cancel only to round-off, a gap of order 1e5 once
+        # a group of bins empties (rho near 1e-22).
+        if not include_prior:
+            return super()._kkt_violation(value, grad, W, False)
         t = self.tree
-        coef = t.slot_mem @ t.leaf_coef + t.slot_nodes @ t.node_coef
-        return bool(np.any(coef < 0.0))
+        vt = np.maximum(value, _TINY)  # as in the MAP objective
+        mass, n, live = (t.slot_mem @ np.column_stack([vt, vt * grad, value])).T
+        x = n + t.slot_exponent
+        live = live > 0
+        lam = t.node_totals(np.where(live, x, 0.0))
+        held = t.node_totals(np.where(live, np.abs(n) + np.abs(t.slot_exponent), 0.0))
+        r = (x * t.node_totals(mass) / mass - lam) / np.maximum(held, _TINY)
+        return float(np.max(r, where=t.node_totals(live.astype(float)) > 0, initial=-np.inf))
 
     def log_density(self, value):
         t = self.tree
@@ -379,15 +401,6 @@ class _BoundTree(_SimplexBound):
         g = g + t.nonroot_mem[ok].T @ (t.node_coef[ok] / rc[ok])
         return np.where(pos, g, 0.0)
 
-    def prior_transform(self, u):
-        t = self.tree
-        u = np.asarray(u, dtype=float)
-        theta = np.empty((*u.shape[:-1], t.slot_alpha.size))
-        for c in range(t.C):  # one stick-breaking per internal node, of m - 1 uniforms
-            lo, hi = t.ptr[c], t.ptr[c + 1]
-            theta[..., lo:hi] = _stick_break(t.slot_alpha[lo:hi], u[..., lo - c : hi - c - 1])
-        return t.compose(theta)
-
     def posterior_sample(self, counts, rng, exposure=None):
         t = self.tree
         return np.maximum(
@@ -396,67 +409,202 @@ class _BoundTree(_SimplexBound):
 
     def map_from_counts(self, counts, exposure=None):
         # Mode of (prior density on the simplex) x prod rho^counts. The log-density is
-        # linear in log leaf and node masses, i.e. linear in the log branch
-        # probabilities, so each node's branches are proportional to their coefficients.
+        # linear in the log branch probabilities, so each node's branches are proportional
+        # to their exponents plus the counts below them.
         t = self.tree
-        x = t.slot_mem @ (np.asarray(counts, float) + t.leaf_coef) + t.slot_nodes @ t.node_coef
-        x = np.maximum(x, 0.0)
-        tot = np.add.reduceat(x, t.ptr[:-1])
-        n_ch = np.diff(t.ptr)
-        tot_rep = np.repeat(tot, n_ch)
-        theta = np.where(
-            tot_rep > 0, x / np.where(tot_rep > 0, tot_rep, 1.0), 1.0 / np.repeat(n_ch, n_ch)
-        )
-        return t.compose(theta)
+        x = np.maximum(t.slot_counts(counts) + t.slot_exponent, 0.0)
+        tot = t.node_totals(x)
+        uniform = 1.0 / t.node_totals(np.ones_like(x))  # a node with no mass splits evenly
+        return t.compose(np.where(tot > 0, x / np.where(tot > 0, tot, 1.0), uniform))
 
     def vb_update(self, counts, exposure=None):
         return self.tree.slot_alpha + self.tree.slot_counts(counts)
 
     def vb_expected_log(self, state):
         t = self.tree
-        tot = np.repeat(np.add.reduceat(state, t.ptr[:-1]), np.diff(t.ptr))
-        return (special.digamma(state) - special.digamma(tot)) @ t.slot_mem
+        return (special.digamma(state) - special.digamma(t.node_totals(state))) @ t.slot_mem
 
     def vb_sample(self, state, n, rng):
         return np.maximum(self.tree.compose(self.tree.draw_theta(state, rng, size=n)), _TINY)
 
     def vb_mean(self, state):
-        t = self.tree
-        tot = np.repeat(np.add.reduceat(state, t.ptr[:-1]), np.diff(t.ptr))
-        return t.compose(state / tot)
+        return self.tree.compose(state / self.tree.node_totals(state))
 
 
-def _parse_nested(tree: Any) -> list[list[tuple[str, int]]]:
-    """Nested lists of leaf indices -> flattened node list (pre-order)."""
-    nodes: list[list[tuple[str, int]]] = []
+def _parse_tree(tree: Any) -> tuple[list[list[tuple[str, Any]]], list[list[list[Any]]]]:
+    """A tree of bins -> its nodes in pre-order and the names of each node's branches.
 
-    def visit(sub: Any) -> int:
-        if isinstance(sub, int | np.integer):
-            raise ValueError("The tree root must be a list of children.")
+    Groups are lists, or dicts from group names to members; a member is a group or a bin
+    (an index, or a label resolved when the prior is bound). A named group of one member is
+    that member. ``nodes[c]`` lists node ``c``'s children, each ``("leaf", bin)`` or
+    ``("node", c')``; ``names[c][j]`` holds the group names of the branch to child ``j``.
+    """
+    nodes: list[list[tuple[str, Any]]] = []
+    names: list[list[list[Any]]] = []
+    seen: set[Any] = set()
+
+    def is_group(member: Any) -> bool:
+        return isinstance(member, Mapping | Sequence | np.ndarray) and not isinstance(
+            member, str | bytes
+        )
+
+    def members(group: Any) -> list[tuple[Any, Any]]:
+        if isinstance(group, Mapping):
+            for name in group:
+                if name in seen:
+                    raise ValueError(f"tree: the group name {name!r} is used twice.")
+                seen.add(name)
+            return list(group.items())
+        if not is_group(group):
+            raise ValueError("tree: the root must be a list or dict of groups and bins.")
+        return [(None, m) for m in group]
+
+    def child(member: Any, name: Any) -> tuple[str, Any, list[Any]]:
+        named = [] if name is None else [name]
+        if is_group(member):
+            items = members(member)
+            # a group of one named member (a named group of one, or a dict of one group)
+            # is that member
+            if len(items) == 1 and (named or items[0][0] is not None):
+                kind, value, inner = child(items[0][1], items[0][0])
+                return kind, value, named + inner
+            return "node", visit(items, name), named
+        if isinstance(member, bool):
+            raise ValueError(f"tree: {member!r} is not a bin.")
+        try:
+            hash(member)
+        except TypeError:
+            raise ValueError(
+                f"tree: {member!r} is neither a bin nor a group (a list or a dict)."
+            ) from None
+        return "leaf", int(member) if isinstance(member, int | np.integer) else member, named
+
+    def visit(items: list[tuple[Any, Any]], name: Any) -> int:
         idx = len(nodes)
-        children: list[tuple[str, int]] = []
-        nodes.append(children)
-        for ch in sub:
-            if isinstance(ch, int | np.integer):
-                children.append(("leaf", int(ch)))
-            else:
-                children.append(("node", visit(ch)))
-        if len(children) < 2:
-            raise ValueError("Every internal node of a Dirichlet-tree needs >= 2 children.")
+        nodes.append([])
+        names.append([])
+        for member_name, member in items:
+            kind, value, branch = child(member, member_name)
+            nodes[idx].append((kind, value))
+            names[idx].append(branch)
+        if len(nodes[idx]) < 2:
+            where = "the root" if idx == 0 else "a group" if name is None else f"group {name!r}"
+            raise ValueError(f"tree: {where} needs at least two members.")
         return idx
 
-    visit(tree)
-    return nodes
+    visit(members(tree), None)
+    return nodes, names
+
+
+def _bin_names(bins: Bins) -> list[str]:
+    """Each bin as drawings and errors name it: its label, or its index and its cell."""
+    cells = _bin_labels(bins)
+    return list(cells) if bins.is_categorical else [f"bin {k} {c}" for k, c in enumerate(cells)]
+
+
+def _span(bins: Bins, ks: np.ndarray, names: list[str]) -> str:
+    if bins.is_categorical:
+        shown = ", ".join(names[k] for k in ks[:6])
+        return shown + (f", … ({ks.size} bins)" if ks.size > 6 else "")
+    if np.all(np.diff(ks) == 1):
+        return f"bins {ks[0]}–{ks[-1]}"
+    return "bins " + ", ".join(map(str, ks[:8])) + (", …" if ks.size > 8 else "")
+
+
+def _describe(
+    prior: PopulationPrior,
+    bins: Bins,
+    t: _TreeStructure,
+    counts: Any,
+    names: list[list[Any]] | None = None,
+) -> str:
+    """The tree as text: each branch's concentration, mean share and mean mass."""
+    alpha = t.slot_alpha
+    if counts is not None:
+        n = check_nonnegative(counts, "counts")
+        if n.shape != (bins.K,):
+            raise ValueError(
+                f"counts must have one value per bin ({bins.K}); got shape {n.shape}."
+            )
+        alpha = alpha + t.slot_counts(n)
+    share = alpha / t.node_totals(alpha)
+    if names is None:
+        flat: list[Any] = [None] * len(t.slot_child)
+    else:
+        flat = []
+        for node in names:
+            flat.extend(node)
+    bin_names = _bin_names(bins)
+    given = "posterior given the counts" if counts is not None else "prior"
+    lines = [f"{type(prior).__name__}: {given}, on {bins.K} bins"]
+    lines.append(f"root: {_span(bins, np.arange(bins.K), bin_names)}")
+    # depth first, children in order, without recursion (a caterpillar is K - 1 deep); a
+    # branch's mean mass is the product of the mean shares down to it, as the shares of
+    # different nodes are independent
+    stack = [(s, "", 1.0) for s in reversed(range(t.node_start[0], t.node_start[1]))]
+    while stack:
+        s, indent, above = stack.pop()
+        kind, idx = t.slot_child[s]
+        last = s == t.node_start[t.slot_node[s] + 1] - 1
+        mass = above * share[s]
+        if kind == "leaf":
+            what = bin_names[idx]
+        else:
+            what = _span(bins, np.flatnonzero(t.node_mem[idx]), bin_names)
+            inner = indent + ("    " if last else "│   ")
+            stack += [
+                (j, inner, mass) for j in reversed(range(t.node_start[idx], t.node_start[idx + 1]))
+            ]
+        label = f"{flat[s][0]}: {what}" if flat[s] else what
+        lines.append(
+            f"{indent}{'└── ' if last else '├── '}α={alpha[s]:.3g}  "
+            f"share {share[s]:.2f}  mass {mass:.3f}  {label}"
+        )
+    return "\n".join(lines)
 
 
 class _TreePrior(PopulationPrior):
     """A prior built as a Dirichlet-tree over the bins (subclasses give its structure)."""
+
+    #: the group names on each node's branches (``DirichletTree`` with named groups)
+    _names: list[list[list[Any]]] | None = None
 
     def _structure(self, bins: Bins) -> _TreeStructure:  # pragma: no cover - abstract
         raise NotImplementedError
 
     def bind(self, bins: Bins) -> _BoundTree:
         return _BoundTree(self, bins, self._structure(bins))
+
+    def describe(self, bins: Bins, counts: Any = None) -> str:
+        """The tree on ``bins``, drawn as text.
+
+        Each line is a branch: its concentration ``α``, the share of its parent it takes
+        on average, the mean fraction of the population below it, and the bins it leads
+        to. With ``counts`` the drawing shows the posterior given them, each branch's
+        concentration raised by the counts of the bins below it.
+
+        Parameters
+        ----------
+        bins : Bins
+            The bins it is drawn on.
+        counts : array_like (K,), optional
+            Counts per bin.
+
+        Examples
+        --------
+        >>> import binference
+        >>> bins = binference.Bins.linear(0.0, 1.0, 4)
+        >>> print(binference.priors.PolyaTree().describe(bins))
+        PolyaTree: prior, on 4 bins
+        root: bins 0–3
+        ├── α=1  share 0.50  mass 0.500  bins 0–1
+        │   ├── α=4  share 0.50  mass 0.250  bin 0 [0, 0.25)
+        │   └── α=4  share 0.50  mass 0.250  bin 1 [0.25, 0.5)
+        └── α=1  share 0.50  mass 0.500  bins 2–3
+            ├── α=4  share 0.50  mass 0.250  bin 2 [0.5, 0.75)
+            └── α=4  share 0.50  mass 0.250  bin 3 [0.75, 1)
+        """
+        return _describe(self, bins, self._structure(bins), counts, self._names)
 
 
 class DirichletTree(_TreePrior):
@@ -469,27 +617,63 @@ class DirichletTree(_TreePrior):
 
     Parameters
     ----------
-    tree : nested sequence of int
-        Internal nodes are lists; leaves are bin indices ``0..K-1``, each
-        appearing exactly once. E.g. ``[[0, 1], [2, [3, 4]]]``.
-    alpha : float or sequence of arrays
-        A single concentration for every branch, or one array per internal node
-        (in pre-order, i.e. parents before children, left to right) with one
-        value per child.
+    tree : nested lists, or dicts of named groups
+        The groups of bins. A group is a list of members, or a dict from group names
+        to members; a member is a group or a bin. Bins are indices ``0..K-1`` or, on
+        categorical bins, their labels, and each appears exactly once. A named group
+        of one member is that member. E.g. ``[[0, 1], [2, [3, 4]]]``, or
+        ``{"spiral": ["Sa", "Sb"], "early": {"elliptical": ["E0", "E3"], "lenticular": ["S0"]}}``.
+    alpha : float, sequence of arrays, or dict
+        A single concentration for every branch; one array per internal node (in
+        pre-order, i.e. parents before children, left to right) with one value per
+        member; or a dict from group names, and bins as the tree writes them, to the
+        concentration of the branch leading into each, every other branch keeping 1.
 
     Examples
     --------
     >>> import binference
     >>> prior = binference.priors.DirichletTree([[0, 1], [2, [3, 4]]], alpha=2.0)
+    >>> groups = {
+    ...     "spiral": ["Sa", "Sb"],
+    ...     "early": {"elliptical": ["E0", "E3"], "lenticular": ["S0"]},
+    ... }
+    >>> named = binference.priors.DirichletTree(groups, alpha={"spiral": 3.0})
     """
 
-    def __init__(self, tree: Any, alpha: float | Sequence[Any] = 1.0) -> None:
+    describe = _TreePrior.describe  # documented on this class's API page
+
+    def __init__(
+        self, tree: Any, alpha: float | Sequence[Any] | Mapping[Any, float] = 1.0
+    ) -> None:
         self.tree = tree
         self.alpha = alpha
-        self._nodes = _parse_nested(tree)
+        self._nodes, self._names = _parse_tree(tree)
         self._alphas = self._resolve_alphas(alpha)
 
     def _resolve_alphas(self, alpha) -> list[np.ndarray]:
+        if isinstance(alpha, Mapping):  # keyed by group names and bins as the tree writes them
+            out, used = [np.ones(len(ch)) for ch in self._nodes], set()
+            for c, children in enumerate(self._nodes):
+                for j, (kind, v) in enumerate(children):
+                    names = self._names[c][j] + ([v] if kind == "leaf" else [])
+                    keys = [key for key in names if key in alpha]
+                    if len(keys) > 1:
+                        raise ValueError(f"alpha: {keys[0]!r} and {keys[1]!r} name one branch.")
+                    if not keys:
+                        continue
+                    if keys[0] in used:  # a group named like a bin
+                        raise ValueError(f"alpha: {keys[0]!r} names more than one branch.")
+                    a = check_positive(alpha[keys[0]], f"alpha[{keys[0]!r}]")
+                    if a.ndim:
+                        raise ValueError(f"alpha[{keys[0]!r}] must be one number.")
+                    out[c][j] = float(a)
+                    used.add(keys[0])
+            unknown = [key for key in alpha if key not in used]
+            if unknown:
+                raise ValueError(
+                    f"alpha: {', '.join(map(repr, unknown))} names no group or bin of the tree."
+                )
+            return out
         # per-node arrays may differ in length, so test the container before np.ndim
         if not isinstance(alpha, list | tuple) and np.ndim(alpha) == 0:
             a = float(check_positive(alpha, "alpha"))
@@ -503,14 +687,42 @@ class DirichletTree(_TreePrior):
         return alphas
 
     def _structure(self, bins: Bins) -> _TreeStructure:
-        return _TreeStructure(self._nodes, self._alphas, bins.K)
+        lookup = {} if bins.labels is None else {lab: k for k, lab in enumerate(bins.labels)}
+
+        def index(leaf: Any) -> int:
+            if isinstance(leaf, int):
+                if not 0 <= leaf < bins.K:
+                    raise ValueError(f"tree: bin index {leaf} is out of range for K={bins.K}.")
+                return leaf
+            if leaf not in lookup:
+                if bins.labels is None:
+                    raise ValueError(
+                        f"tree: {leaf!r} is not a bin index (labels need categories)."
+                    )
+                raise ValueError(f"tree: {leaf!r} is not one of the bins' labels.")
+            return lookup[leaf]
+
+        nodes = []
+        leaf_indices: list[int] = []
+        for ch in self._nodes:
+            resolved = [(kind, index(v) if kind == "leaf" else v) for kind, v in ch]
+            nodes.append(resolved)
+            leaf_indices.extend(v for kind, v in resolved if kind == "leaf")
+        n = np.bincount(leaf_indices, minlength=bins.K)
+        for bad, what in ((n > 1, "appear more than once"), (n == 0, "are in no group")):
+            if bad.any():
+                names = _bin_names(bins)
+                raise ValueError(
+                    f"tree: bins {what}: {', '.join(names[k] for k in np.flatnonzero(bad))}."
+                )
+        return _TreeStructure(nodes, self._alphas, bins.K)
 
 
 class GeneralizedDirichlet(_TreePrior):
     r"""Generalised Dirichlet (Connor & Mosimann 1969) via stick-breaking Betas.
 
-    :math:`V_k \sim \mathrm{Beta}(a_k, b_k)` for ``k = 1..K-1`` and
-    :math:`\rho_k = V_k \prod_{j<k} (1 - V_j)`, breaking sticks in bin order (or
+    :math:`\nu_k \sim \mathrm{Beta}(a_k, b_k)` for ``k = 1..K-1`` and
+    :math:`\rho_k = \nu_k \prod_{j<k} (1 - \nu_j)`, breaking sticks in bin order (or
     ``order``). It reduces to :math:`\mathrm{Dir}(\alpha_1, \dots, \alpha_K)`
     with :math:`a_k = \alpha_k` and :math:`b_k = \sum_{j>k}\alpha_j`, the sum
     including :math:`\alpha_K`; other choices give more flexible (including
@@ -522,10 +734,12 @@ class GeneralizedDirichlet(_TreePrior):
         First Beta parameter of each stick.
     b : float or array_like (K-1,), optional
         Second Beta parameter of each stick. ``None`` gives the
-        Dirichlet-equivalent ``b_k = (K - 1 - k) * a`` for scalar ``a``.
+        Dirichlet-equivalent ``b_k = (K - k) * a`` for scalar ``a``.
     order : sequence of int, optional
         Permutation of the bins defining the stick-breaking order.
     """
+
+    describe = _TreePrior.describe  # documented on this class's API page
 
     def __init__(
         self,
@@ -569,9 +783,9 @@ class GeneralizedDirichlet(_TreePrior):
 class PolyaTree(_TreePrior):
     r"""Finite Polya-tree prior on an ordered 1-D grid (a balanced binary Dirichlet-tree).
 
-    Bins are split recursively into halves; a split at level :math:`m`
+    Bins are split recursively into halves; a split at level :math:`h`
     (root = 1) has Beta concentrations
-    :math:`c\,m^{p}\cdot 2 G_0(\text{child})/G_0(\text{parent})`, so the prior
+    :math:`c_{\rm PT}\,h^{p_{\rm PT}}\cdot 2 G_0(\text{child})/G_0(\text{parent})`, so the prior
     mean is the base measure :math:`G_0` and fluctuations shrink at finer
     scales (``power=2`` gives absolutely continuous limits; Lavine 1992). A
     conjugate, multi-scale alternative to smoothness priors.
@@ -579,14 +793,16 @@ class PolyaTree(_TreePrior):
     Parameters
     ----------
     c : float
-        Overall concentration (larger = closer to the base measure).
+        Overall concentration :math:`c_{\rm PT}` (larger = closer to the base measure).
     power : float
-        Growth of concentration with depth.
+        Growth exponent :math:`p_{\rm PT}` of concentration with depth :math:`h`.
     base : Density, "flat", callable or array_like (K,)
         Base measure, read by :meth:`Density.coerce <binference.Density.coerce>`
         (an array is masses per bin). The default is flat in the measure
         coordinate.
     """
+
+    describe = _TreePrior.describe  # documented on this class's API page
 
     def __init__(
         self,

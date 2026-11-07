@@ -1,5 +1,6 @@
 """Tests for PopulationResult and PointEstimate (spec 7; R-OUT-*)."""
 
+import pickle
 import warnings
 
 import numpy as np
@@ -112,6 +113,48 @@ def test_realized_counts_narrower_than_population_for_precise_data():
     assert np.all((res.samples * lk.W).std(0) > 3.0)  # population fractions still uncertain
 
 
+def test_realized_counts_add_fractional_weights():
+    # objects with non-integer weights take the branch that draws labels and adds their
+    # weights, which no other test reaches
+    rng = np.random.default_rng(5)
+    labels = rng.integers(0, 5, size=40)
+    w = rng.choice([0.5, 1.5, 2.25], size=40)
+    with pytest.warns(binference.InputWarning, match="pseudo-likelihood"):
+        lk = Likelihoods(
+            np.eye(5)[labels] + 1e-9, Bins.linear(0, 1, 5), weights=w, fractional_weights=True
+        )
+    res = PopulationResult.from_samples(PopulationModel(lk), np.full((20, 5), 0.2))
+    # near one-hot likelihoods: every draw is the weighted histogram of the true bins
+    counts = res.realized_counts(n_draws=None, rng=1)
+    expect = np.bincount(labels, weights=w, minlength=5)
+    np.testing.assert_allclose(counts, np.broadcast_to(expect, (20, 5)))
+
+
+def test_a_result_keeps_read_only_copies_of_its_draws_and_diagnostics(small_1d):
+    # the draws were the caller's array, and the cached diagnostics writeable: a change on
+    # either side changed the result, and what check() reports, under its cached summaries
+    model = PopulationModel(small_1d.likelihoods)
+    draws = np.random.default_rng(0).dirichlet(np.ones(12), size=(2, 30))
+    info = {"hyperparameters": {"tau": np.ones(3)}}
+    res = PopulationResult(model, draws, method="test", info=info)
+    mean = res.mean
+    draws[:] = 1.0 / 12
+    info["hyperparameters"]["tau"][0] = 99.0
+    np.testing.assert_array_equal(res.mean, mean)
+    assert res.info["hyperparameters"]["tau"][0] == 1.0
+    assert "rhat" in res.diagnostics  # cached first: a cache that cannot be pickled fails
+    for r in (res, pickle.loads(pickle.dumps(res))):  # unpickled, still read-only
+        for arr in (r.samples, r.total, r.summary().rhat, r.info["hyperparameters"]["tau"]):
+            with pytest.raises(ValueError, match="read-only"):
+                arr[0] = 0.0
+        with pytest.raises(TypeError):
+            r.diagnostics["rhat"] = None
+    value = np.full(12, 1.0 / 12)
+    est = binference.PointEstimate(model, value)
+    value[0] = 1.0
+    assert est.value[0] == 1.0 / 12 and not est.value.flags.writeable
+
+
 def test_predict_and_log_predictive(fitted, small_1d):
     new = small_1d.likelihoods.subset(np.arange(20))
     p = fitted.predict_proba(new, n_draws=50)
@@ -122,10 +165,8 @@ def test_predict_and_log_predictive(fitted, small_1d):
     # objects are scored a chunk at a time, with the same values
     np.testing.assert_allclose(fitted.log_predictive(new, n_draws=50, chunk=7), lp, rtol=1e-12)
     # a deliberately wrong population scores worse on held-out data
-    wrong = PopulationResult(
-        fitted.model, np.tile(np.r_[np.ones(6), np.full(6, 1e-3)], (50, 1)), method="test"
-    )
-    wrong._draws /= wrong._draws.sum(-1, keepdims=True)
+    draws = np.tile(np.r_[np.ones(6), np.full(6, 1e-3)], (50, 1))
+    wrong = PopulationResult(fitted.model, draws / draws.sum(-1, keepdims=True), method="test")
     assert lp.sum() > wrong.log_predictive(new).sum()
 
 

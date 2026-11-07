@@ -285,6 +285,52 @@ def test_function_quadrature_converges():
     np.testing.assert_allclose(c.toarray(), a.toarray(), rtol=1e-4, atol=1e-8)
 
 
+@pytest.mark.parametrize(
+    ("f", "expected"),
+    [
+        (lambda z: np.where(z < 0.26, 1.0, 0.2), [1.0, (0.01 + 0.24 * 0.2) / 0.25, 0.2, 0.2]),
+        # a box that no Gauss-Legendre point reads, within 4.7% of the edge on both sides
+        (lambda z: np.where(np.abs(z - 0.25) < 0.005, 1.0, 0.0), [1.0, 1.0, 0.0, 0.0]),
+    ],
+)
+def test_a_bounded_density_is_checked_for_jumps_near_bin_edges(f, expected):
+    # bin averages relative to the largest, within twice tol: the error estimate is the
+    # rules' disagreement
+    bins = Bins.linear(0, 1, 4)
+    lk = Likelihoods.from_density(lambda z: f(z)[None], bins, kind="likelihood", bounded=True)
+    masses = binference.Density.from_function(f, bounded=True).masses(bins)
+    np.testing.assert_allclose(lk.toarray()[0], expected, atol=2e-3)
+    np.testing.assert_allclose(masses / masses.max(), expected, atol=2e-3)
+
+
+@pytest.mark.parametrize("on_basis", [False, True])
+def test_a_bounded_posterior_and_its_interim_prior_get_the_same_check(on_basis):
+    # posteriors equal to their interim prior: the likelihood they leave is flat
+    step = lambda z: np.where(z < 0.26, 1.0, 0.2)  # noqa: E731
+    bins = Bins.linear(0, 1, 4)
+    bins = binference.Basis(bins) if on_basis else bins  # flat components on the bins
+    lk = Likelihoods.from_density(lambda z: step(z)[None], bins, interim=step, bounded=True)
+    np.testing.assert_allclose(lk.toarray()[0], 1.0, atol=2e-3)
+
+
+def test_a_row_only_the_jump_check_reads_stops_below_tol_of_its_bin_and_warns():
+    # a slab on a bin face that no 5-point Gauss point reaches before max_depth: its cells
+    # stop once below tol of their bin (about 60,000 points), not at max_depth (7.7M)
+    from binference._quadrature import bin_log_average
+
+    n_points = []
+
+    def logf(z):
+        n_points.append(len(z))
+        with np.errstate(divide="ignore"):
+            return np.log(np.abs(z[:, 0] - 0.25) < 1e-6)[None]
+
+    bins = Bins.grid(np.linspace(0, 1, 5), np.linspace(0, 1, 5))
+    with pytest.warns(InputWarning, match="too narrow to resolve"):
+        out = bin_log_average(logf, bins, jumps=True)
+    assert np.isneginf(out).all() and sum(n_points) < 500_000
+
+
 def test_from_binned():
     R = np.array([[0.7, 0.1], [0.2, 0.6], [0.05, 0.2]])  # columns sum < 1 (efficiency)
     counts = np.array([10, 0, 3])

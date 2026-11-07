@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from .. import diagnostics as diag
-from .._utils import RNGLike, check_positive, warn
+from .._utils import RNGLike, check_positive, check_positive_integers, warn
 from ..model import PopulationModel
 from ..results import PopulationResult
 from ..warnings import ApproximationWarning, ConvergenceWarning
@@ -18,7 +18,8 @@ from .optimize import MAP
 
 __all__ = ["Laplace"]
 
-#: Importance proposals per draw when ``n_proposals`` is ``None``.
+#: Importance proposals per draw when ``n_proposals`` is ``None`` (at least
+#: ``diagnostics.PSIS_MIN_WEIGHTS`` in all, the fewest ``diagnostics.psis`` takes).
 PROPOSAL_FACTOR = 2
 #: Eigenvalues of a Hessian that is not positive definite are raised to this times the
 #: largest (at least one).
@@ -33,17 +34,16 @@ def _systematic_resample(w: np.ndarray, n: int, rng: np.random.Generator) -> np.
 
 
 class Laplace(Engine):
-    """Gaussian (Laplace) approximation in unconstrained coordinates.
+    r"""Gaussian (Laplace) approximation in unconstrained coordinates.
 
-    The posterior mode in unconstrained coordinates is found with L-BFGS, the
-    Hessian is computed from central differences of the exact gradient, and
-    draws from the Gaussian are mapped to the simplex (or rates). With
-    ``importance=True`` (default) the draws are corrected towards the exact
-    posterior by Pareto-smoothed importance resampling; the Pareto shape
-    ``k_hat`` (in ``info``) diagnoses whether the correction is reliable:
-    below ``min(1 - 1 / log10(S), 0.7)`` for ``S`` proposals (Vehtari et al.
-    2024), in ``info["k_hat_threshold"]``. Without a reliable correction the
-    result is flagged ``approximate=True``.
+    The posterior mode in unconstrained coordinates is found with L-BFGS, and the
+    Hessian :math:`H` there from central differences of the exact gradient;
+    ``info["cov"]`` holds :math:`(-H)^{-1}`. Proposals with scale matrix ``inflate**2``
+    times :math:`(-H)^{-1}` (see ``df``) are mapped to the simplex (or rates) and, with
+    ``importance=True``, resampled towards the exact posterior by Pareto-smoothed
+    importance weights. The result is flagged ``approximate=True`` when ``info["k_hat"]``
+    reaches ``info["k_hat_threshold"]`` (:func:`~binference.diagnostics.psis_threshold`),
+    and always without importance, whose draws are Gaussian.
 
     The approximation is excellent for well-populated bins with many objects
     and poorer for nearly empty bins, whose log-fractions have long tails.
@@ -55,13 +55,13 @@ class Laplace(Engine):
         Apply PSIS importance resampling.
     n_proposals : int, optional
         Number of proposals for importance resampling (default
-        ``2 * n_samples``); without it the draws are the proposals themselves.
+        ``max(2 * n_samples, 5)``); without it the draws are the proposals themselves.
     df : float or None
         Degrees of freedom of the multivariate Student-t importance proposal
         (default 5); ``None`` uses the Gaussian itself. Heavier tails make the
         importance correction more robust.
     inflate : float
-        Scale applied to the proposal's standard deviations.
+        Factor on the scale of the proposals, or of the draws without ``importance``.
     step : float
         Relative step for the finite-difference Hessian.
     rng : int, numpy.random.Generator, or None
@@ -78,7 +78,6 @@ class Laplace(Engine):
     replacement for NUTS.
     """
 
-    name = "laplace"
     joint = True
 
     def __init__(
@@ -94,8 +93,12 @@ class Laplace(Engine):
         progress: bool = False,
     ) -> None:
         super().__init__(model, rng=rng, progress=progress)
-        if n_proposals is not None and n_proposals < 5:
-            raise ValueError("n_proposals must be at least 5 (for Pareto smoothing).")
+        if n_proposals is not None:
+            n_proposals = check_positive_integers(n_proposals, "n_proposals")[0]
+            if n_proposals < diag.PSIS_MIN_WEIGHTS:
+                raise ValueError(
+                    f"n_proposals must be at least {diag.PSIS_MIN_WEIGHTS} (for Pareto smoothing)."
+                )
         self.importance = bool(importance)
         self.n_proposals = n_proposals
         if df is not None and df <= 0:
@@ -150,12 +153,16 @@ class Laplace(Engine):
         n_samples : int, optional
             Draws returned in total.
         """
+        # without importance resampling the proposals are the draws (audit N-4); Pareto
+        # smoothing needs a few, which n_proposals is checked for when the engine is made
+        n_samples = check_positive_integers(n_samples, "n_samples")[0]
+        M = n_samples
+        if self.importance:
+            M = self.n_proposals or max(PROPOSAL_FACTOR * n_samples, diag.PSIS_MIN_WEIGHTS)
         m = self.model
         x0, _, lam, U, cov = self._mode_and_eigen()
         d = x0.size
         sd_mat = (U / np.sqrt(lam)) * self.inflate
-        # without importance resampling the proposals are the draws (audit N-4)
-        M = (self.n_proposals or PROPOSAL_FACTOR * n_samples) if self.importance else n_samples
         Z = self.rng.standard_normal((M, d))
         if self.importance and self.df is not None:
             Z = Z / np.sqrt(self.rng.chisquare(self.df, size=M) / self.df)[:, None]

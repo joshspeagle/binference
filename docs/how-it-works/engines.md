@@ -9,8 +9,7 @@ kernelspec:
 
 # Engines in detail
 
-What does each engine compute, and when are its draws exact? Every {term}`engine` works
-on the posterior of the {doc}`model <model>`. NUTS and Gibbs draw from it exactly, given
+Every {term}`engine` operates on the posterior of the {doc}`model <model>`. NUTS and Gibbs draw from it exactly, given
 enough iterations. Laplace and mean-field VB approximate it, and the bootstrap answers a
 different, frequentist question. {doc}`auto` describes how `method="auto"` chooses
 between them, and the {doc}`engines guide <../guides/engines>` how to call them.
@@ -132,9 +131,9 @@ mystnb:
       little. At 1 bin width it drifts slowly up and down over hundreds of iterations.
   figure:
     caption: >-
-      Gibbs traces of the slowest-mixing bin for likelihoods 0.1, 0.3 and 1 bin widths
-      wide, on 1,000 mock objects in ten bins on $[0,1]$: the first 400 of 4,000
-      iterations of one chain. Each label gives the
+      Gibbs traces of the slowest-mixing bin are shown for likelihoods 0.1, 0.3, and 1
+      bin widths wide on 1,000 mock objects in ten bins on $[0,1]$ (first 400 of 4,000
+      iterations of one chain). Each label gives the
       predicted autocorrelation time $(1+f)/(1-f)$, with $f$ at the most probable
       population, and the time measured on all 4,000 iterations. The prediction
       approximately predicts the slowest direction, not any one bin. A run of about 20
@@ -193,9 +192,10 @@ it by {term}`importance sampling`.
 2. Central differences of the exact gradient give the Hessian $H$ there. If $-H$ is not
    positive definite, its small eigenvalues are raised to a floor
    ([defaults](../reference/defaults.md#engines)) with a warning.
-3. A multivariate Student-$t$ proposal with covariance $(-H)^{-1}$ draws $n_{\rm draw}$
-   proposals, by default a fixed multiple of the draws asked for. Its heavy tails make
-   the correction more robust than a Gaussian proposal.
+3. A multivariate Student-$t$ distribution with scale matrix $(-H)^{-1}$ draws
+   $n_{\rm draw}$ proposals, by default a fixed multiple of the draws asked for. With
+   `df` degrees of freedom its covariance is `df / (df - 2)` times its scale matrix.
+   Its heavy tails make the correction more robust than a Gaussian proposal.
 4. Pareto-smoothed importance sampling {cite:p}`vehtari2024` weights the proposals by
    the exact density, and systematic resampling turns them into draws.
 

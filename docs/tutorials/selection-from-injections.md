@@ -92,7 +92,7 @@ print("recovered / injected, lightest five bins:",
 ## Four fits
 
 1. **No selection.** The catalogue is treated as a fair sample.
-2. **Plug-in.** The injection estimate `sel.at_mean()` is used as if it were exact.
+2. **Plug-in.** The injection estimate `sel.fixed()` is used as if it were exact.
 3. **Joint.** The detection probabilities are inferred together with the population,
    from the injections and the catalogue.
 4. **Exact.** For reference, the true $S(m)$ averaged over each bin
@@ -108,7 +108,7 @@ exact = binference.Selection.from_function(lambda x: S(np.exp(x)), bins, "on_tru
 kw = dict(method="nuts", n_warmup=500, rng=1)
 fits = {
     "no selection": binference.infer(lk, **kw),
-    "plug-in injections": binference.infer(lk, selection=sel.at_mean(), **kw),
+    "plug-in injections": binference.infer(lk, selection=sel.fixed(), **kw),
     "joint": binference.infer(lk, selection=sel, **kw),
     "exact selection": binference.infer(lk, selection=exact, **kw),
 }
@@ -234,7 +234,7 @@ ax.legend(ncol=2, loc="lower left", bbox_to_anchor=(0, 1));
 ## What to take away
 
 - `Selection.from_injections` passed to `infer` infers the selection together with the
-  population. `sel.at_mean()` is a plug-in that ignores the selection's uncertainty,
+  population. `sel.fixed()` is a plug-in that ignores the selection's uncertainty,
   which is large where few injections are recovered.
 - Here detection depends only on the true mass, so `"on_truth"` is exact. In real
   detectors, detection and measurement share the same noise, and the selection acts on

@@ -1,10 +1,6 @@
 # Validation
 
-How do we know a result is right? Two kinds of check answer two questions. Diagnostics
-ask whether one run computed its posterior well. Calibration asks whether the whole
-pipeline, from likelihoods and prior to engine, gives posteriors that are right on
-average. This page defines both, and lists the statistical checks binference's own test
-suite runs. The {doc}`validation guide <../guides/checking>` shows how to run them on
+Two complementary checks verify an inference result: single-run diagnostics test whether an engine explored its target posterior, and simulation-based calibration tests whether the full pipeline from likelihoods and prior to engine produces calibrated posteriors on average. The {doc}`checking guide <../guides/checking>` shows how to run them on
 your own analysis.
 
 ## Diagnostics of one run
@@ -28,7 +24,7 @@ your own analysis.
   point estimate is from the optimum.
 
 `result.check()` turns these into warnings; the
-[results guide](../guides/checking.md#diagnostics) lists what it flags, and the
+[checking guide](../guides/checking.md#diagnostics) lists what it flags, and the
 [defaults](../reference/defaults.md#results-and-diagnostics) hold its thresholds.
 
 These diagnostics cannot tell whether the posterior itself is right: whether the
@@ -66,9 +62,9 @@ Two tests check the ranks of each quantity for uniformity:
 - **ECDF** {cite:p}`sailynoja2022`: let $C_m$ be the number of ranks at most rank
   $m$. Each $C_m$ is binomial with $n_{\rm sim}$ trials and probability
   $(m+1)/(n_{\rm draw}+1)$. The statistic is the smallest two-sided binomial tail
-  probability over $m$. Its
-  p-value is computed exactly from the joint law of the counts. This test is the more
-  sensitive to bias.
+  probability over $m$. Its p-value is computed exactly from the joint law of the
+  counts; when its Bonferroni bound, $n_{\rm draw}$ times the statistic, is below
+  $10^{-12}$, that bound is returned instead. This test is the more sensitive to bias.
 
 `SBCResult.passed` applies a Bonferroni correction over the quantities.
 

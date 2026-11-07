@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from scipy import special, stats
@@ -26,8 +26,11 @@ from ._utils import RNGLike, as_generator, chunk_slices, spawn, warn
 from .likelihoods import Likelihoods
 from .model import PopulationModel
 from .priors import PopulationPrior
-from .results import _SYMBOL, PopulationResult, _central, _flat_draws
+from .results import _SYMBOL, PopulationResult, _central, _check_level, _flat_draws
 from .warnings import ConvergenceWarning
+
+if TYPE_CHECKING:  # pragma: no cover
+    from matplotlib.figure import Figure
 
 __all__ = ["CoverageResult", "ExactPosterior", "SBCResult", "coverage", "exact_posterior", "sbc"]
 
@@ -61,14 +64,17 @@ class ExactPosterior:
 
     @property
     def mean(self) -> np.ndarray:
+        """Posterior mean fractions ``(K,)``."""
         return self.weights @ self.points
 
     def cov(self) -> np.ndarray:
+        """Posterior covariance ``(K, K)`` of the fractions."""
         d = self.points - self.mean
         return (d * self.weights[:, None]).T @ d
 
     @property
     def std(self) -> np.ndarray:
+        """Posterior standard deviation of the fractions ``(K,)``."""
         return np.sqrt(np.diag(self.cov()))
 
     def quantile(self, q: Any, k: int) -> np.ndarray:
@@ -112,7 +118,8 @@ def exact_posterior(
     model : PopulationModel, Likelihoods or array_like (N, K)
         The model, or likelihoods to build one from with ``prior``.
     prior : PopulationPrior, optional
-        Population prior; ``None`` gives ``Dirichlet(1.0)``.
+        Population prior of likelihoods; ``None`` gives ``Dirichlet(1.0)``. A model
+        carries its own, so it takes none.
     n_grid : int, optional
         Gauss-Legendre nodes per stick coordinate.
     max_elements : int, optional
@@ -120,6 +127,11 @@ def exact_posterior(
     """
     if not isinstance(model, PopulationModel):
         model = PopulationModel(model, prior)
+    elif prior is not None:
+        raise ValueError(
+            "prior must be None when model is a PopulationModel: pass the prior when "
+            "building the model."
+        )
     if model.kind != "fractions" or not model.prior.has_density:
         raise ValueError(
             "exact_posterior needs a fractions model with a closed-form prior density."
@@ -129,7 +141,7 @@ def exact_posterior(
     if model.joint:
         raise ValueError(
             "exact_posterior integrates the population only; a selection from injections or "
-            "a tallied response would be fixed. Pass selection.at_mean() or response.fixed() "
+            "a tallied response would be fixed. Pass selection.fixed() or response.fixed() "
             "to compare with that."
         )
     s, ws = np.polynomial.legendre.leggauss(int(n_grid))
@@ -213,7 +225,7 @@ class SBCResult:
         """Expected count per histogram bin under uniform ranks, ``(n_bins,)``.
 
         Bins hold different numbers of the ``n_draws + 1`` possible ranks unless
-        ``n_bins`` divides ``n_draws + 1`` (audit G-1).
+        ``n_bins`` divides ``n_draws + 1``.
 
         Parameters
         ----------
@@ -239,18 +251,20 @@ class SBCResult:
             Chi-square test of the rank histogram or ECDF test of the ranks.
             ``"chisquare"``: Pearson's chi-square test of the rank histogram.
             ``"ecdf"``: the ECDF test of Säilynoja, Bürkner & Vehtari (2022).
-            With :math:`S` simulations and :math:`M` = ``n_draws``, the count
+            With :math:`n_{\rm sim}` simulations and :math:`n_{\rm draw}` = ``n_draws``, the count
             :math:`C_j` of ranks at most :math:`j` is
-            :math:`\mathrm{Binomial}(S, (j+1)/(M+1))` under uniformity. The
+            :math:`\mathrm{Binomial}(n_{\rm sim}, (j+1)/(n_{\rm draw}+1))` under uniformity. The
             statistic is the smallest two-sided binomial tail probability
 
             .. math:: \hat\gamma = \min_j 2\min\{P(C \le C_j), P(C \ge C_j)\}
 
-            over :math:`j = 0, \dots, M-1`, and the p-value is
+            over :math:`j = 0, \dots, n_{\rm draw}-1`, and the p-value is
             :math:`P(\gamma \le \hat\gamma)` for uniform ranks, computed
             exactly from the joint (multinomial) law of the counts: the smallest
             :math:`\alpha` for which the rank ECDF leaves the simultaneous
-            :math:`1 - \alpha` band. It takes no ``n_bins``.
+            :math:`1 - \alpha` band. When the Bonferroni bound
+            :math:`n_{\rm draw}\hat\gamma` of that p-value is below :math:`10^{-12}`, the bound
+            is returned instead. It takes no ``n_bins``.
 
         Returns
         -------
@@ -285,7 +299,14 @@ class SBCResult:
         p = self.pvalues(n_bins, method=method)
         return bool(np.all(p > alpha / p.size))
 
-    def plot(self, **kwargs: Any):
+    def plot(self, **kwargs: Any) -> Figure:
+        """Plot the rank histograms (see :func:`binference.plotting.plot_sbc`).
+
+        Parameters
+        ----------
+        **kwargs
+            Passed to :func:`binference.plotting.plot_sbc`.
+        """
         from .plotting import plot_sbc
 
         return plot_sbc(self, **kwargs)
@@ -349,6 +370,12 @@ def sbc(
 ) -> SBCResult:
     """Simulation-based calibration.
 
+    Ranks each parameter of the population and, with ``log_likelihood``, the joint
+    log-likelihood of the true population. A selection from injections or a tallied
+    response inferred with the population is not ranked: the log-likelihood fixes it at
+    its mean given the injections or tallies, for the truth and every draw alike, so it
+    checks the population only.
+
     Parameters
     ----------
     simulate : callable
@@ -407,10 +434,21 @@ def sbc(
 # ----------------------------------------------------------------------------
 @dataclass
 class CoverageResult:
-    """Empirical coverage of central credible intervals."""
+    """Empirical coverage of central credible intervals.
+
+    Attributes
+    ----------
+    levels : (n_levels,) array
+        Credible levels of the intervals.
+    covered : (n_simulations, n_levels, n_quantities) bool array
+        Whether each simulation's interval at each level contains the truth.
+    names : list of str
+        Quantity names: the population's, as in :class:`SBCResult`, then the
+        functionals'.
+    """
 
     levels: np.ndarray
-    covered: np.ndarray  # (n_simulations, n_levels, n_quantities) bool
+    covered: np.ndarray
     names: list[str]
 
     def coverage_rates(self) -> np.ndarray:
@@ -461,6 +499,8 @@ def coverage(
         Show a progress bar.
     """
     levels_arr = np.asarray(levels, dtype=float)
+    for lev in levels_arr:
+        _check_level(lev, "levels")
     functionals = functionals or {}
     out = []
     names: list[str] = []

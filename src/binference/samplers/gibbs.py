@@ -8,21 +8,29 @@ from typing import Any
 import numpy as np
 
 from .. import _kernels as kern
-from .._utils import RNGLike, check_positive, is_integer_array, progress, spawn
+from .._utils import (
+    RNGLike,
+    check_nonnegative,
+    check_positive_integers,
+    frozen,
+    is_integer_array,
+    progress,
+    spawn,
+)
 from ..model import PopulationModel
 from ..priors.dirichlet import _dirichlet_draw
 from ..results import PopulationResult
 from ..selection import _beta_posterior, _draw_beta
-from .base import Engine, interior_start
+from .base import MarkovEngine, check_init, interior_start
 
 __all__ = ["Gibbs"]
 
 
-class Gibbs(Engine):
+class Gibbs(MarkovEngine):
     r"""Data-augmentation Gibbs sampler (the "hierarchical" sampler).
 
     Alternates (i) drawing every object's bin label
-    :math:`z_i \sim \mathrm{Cat}(r_i(\rho))` and (ii) drawing the population from
+    :math:`k_i \sim \mathrm{Cat}(r_i(\rho))` and (ii) drawing the population from
     its conjugate conditional given the counts (Dirichlet family:
     :math:`\rho \mid n \sim \mathrm{Dir}(\alpha + n)`; rates:
     :math:`\lambda_k \mid n \sim \mathrm{Gamma}(a_k + n_k, b_k + S_k)`). With a
@@ -48,8 +56,9 @@ class Gibbs(Engine):
         Keep every ``thin``-th draw.
     store_labels : bool or array_like of int
         Store joint draws of the objects' bins. ``True`` stores them for all
-        objects (unit weights only), an array for the given object indices
-        (sorted and deduplicated, as ``result.label_index`` records).
+        objects, an array for the given object indices (sorted and deduplicated,
+        as ``result.label_index`` records). Either needs unit object weights
+        (uncompressed likelihoods).
     init : array_like (K,), optional
         Positive fractions or rates around which the chains start. Each chain
         starts from its own draw of the population's conditional given the
@@ -64,9 +73,7 @@ class Gibbs(Engine):
         Show a progress bar.
     """
 
-    name = "gibbs"
     joint = True
-    markov = True
 
     def __init__(
         self,
@@ -85,15 +92,11 @@ class Gibbs(Engine):
         self._w_int = np.round(model.likelihoods.weights)
         self._unit = bool(np.all(self._w_int == 1))
         if store_labels is True:
-            if not self._unit:
-                raise ValueError("store_labels=True needs unit weights; pass object indices.")
             self.label_index = np.arange(model.N)
         elif store_labels is False or store_labels is None:
             self.label_index = None
         else:
             self.label_index = np.unique(np.atleast_1d(np.asarray(store_labels, dtype=int)))
-            if not self._unit:
-                raise ValueError("Storing labels needs unit object weights.")
             if self.label_index.size and not (
                 0 <= self.label_index[0] and self.label_index[-1] < model.N
             ):
@@ -103,21 +106,16 @@ class Gibbs(Engine):
                 "store_labels is not available with an inferred response (objects are counts "
                 "per measured bin); use result.sample_assignments()."
             )
-        if init is not None:
-            init = check_positive(init, "init")
-            if init.shape != (model.K,):
-                raise ValueError(f"init must have shape ({model.K},); got {init.shape}.")
-        if n_chains < 1 or thin < 1:
-            raise ValueError("n_chains and thin must be positive.")
-        self.n_chains = int(n_chains)
-        self.n_warmup = int(n_warmup)
-        self.thin = int(thin)
-        self.chunk = None if chunk is None else int(chunk)
-        self.init = init
+        # with multiplicities m_i each row draws Mult(m_i, r_i) counts, and no labels
+        if self.label_index is not None and not self._unit:
+            raise ValueError("store_labels needs unit object weights (uncompressed likelihoods).")
+        self.n_chains = check_positive_integers(n_chains, "n_chains")[0]
+        self.n_warmup = int(check_nonnegative(n_warmup, "n_warmup"))
+        self.thin = check_positive_integers(thin, "thin")[0]
+        self.chunk = None if chunk is None else check_positive_integers(chunk, "chunk")[0]
+        self.init = check_init(init, model)
         self._state: list[np.ndarray] | None = None
         self._rngs: list[np.random.Generator] | None = None
-        self._warm = False
-        self._draws: list[np.ndarray] = []
         self._labels: list[np.ndarray] = []
         # a selection or response inferred with the population: its current value per chain
         self._extra: list[np.ndarray] | None = None
@@ -209,15 +207,10 @@ class Gibbs(Engine):
         self._state[c] = m.prior.posterior_sample(counts + missed, rng)
         return self._state[c], None
 
-    def warmup(self) -> None:
-        """Run burn-in if it has not been run yet."""
-        self._setup()
-        if self._warm:
-            return
+    def _warm_up(self) -> None:
         for _ in progress(range(self.n_warmup), self.n_warmup, "Gibbs burn-in", self.progress):
             for c in range(self.n_chains):
                 self._iterate(c)
-        self._warm = True
 
     def sample(self, n_samples: int) -> Iterator[np.ndarray]:
         """Generator over kept iterations, yielding ``(n_chains, K)`` values.
@@ -227,6 +220,7 @@ class Gibbs(Engine):
         n_samples : int
             Kept iterations per chain.
         """
+        n_samples = check_positive_integers(n_samples, "n_samples")[0]
         self.warmup()
         C, K = self.n_chains, self.model.K
         draws = np.empty((C, n_samples, K))
@@ -255,28 +249,15 @@ class Gibbs(Engine):
                 if store:
                     self._labels.append(labs[:, :n_done])
 
-    def run(self, n_samples: int = 1000) -> PopulationResult:
-        """Burn in (first call only), draw ``n_samples`` per chain, and return all draws so far.
-
-        Parameters
-        ----------
-        n_samples : int, optional
-            Draws per chain after burn-in.
-        """
-        for _ in self.sample(int(n_samples)):
-            pass
-        return self.result
-
     @property
     def result(self) -> PopulationResult:
-        if not self._draws:
-            raise RuntimeError("No draws yet; call run().")
-        D = np.concatenate(self._draws, axis=1)
-        labels = np.concatenate(self._labels, axis=1) if self._labels else None
+        # fresh and read-only, so the result keeps them rather than copying them
+        D = frozen(self._all_draws())
+        labels = frozen(np.concatenate(self._labels, axis=1)) if self._labels else None
         info = {"thin": self.thin, "n_warmup": self.n_warmup}
         if self._extra_draws:  # inferred with the population (DECISIONS #79, #81)
             key = "selection_draws" if self.model.selection_uncertain else "response_draws"
-            info[key] = np.concatenate(self._extra_draws, axis=1)
+            info[key] = frozen(np.concatenate(self._extra_draws, axis=1))
         return PopulationResult(
             self.model,
             D,

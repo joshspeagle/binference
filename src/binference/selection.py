@@ -2,7 +2,7 @@ r"""Selection functions (detection probabilities or exposures per bin).
 
 Selection enters the likelihood in one of three ways, and choosing the wrong one
 biases the population (Mandel, Farr & Gair 2019). binference therefore requires
-the mode to be stated explicitly (DECISIONS #7, #8):
+the mode to be stated explicitly:
 
 ``mode="on_measurement"``
     Objects are selected on their *measured data* (e.g. a flux or
@@ -20,16 +20,17 @@ the mode to be stated explicitly (DECISIONS #7, #8):
     likelihood row is multiplied by :math:`S_k` *and* the normalisation is
     added.
 
-``Selection.combined(on_truth=C, on_measurement=T)``
-    Both at once, :math:`P(\text{obs} \mid z, d) = C(z)\,T(d)`: rows are
-    multiplied by :math:`C_k` only, and the normalisation uses
-    :math:`S_k`, the bin average of :math:`C(z)\,P(d \in A \mid z)`.
+``Selection.combined(on_truth=..., on_measurement=...)``
+    Both at once, :math:`P(\text{obs} \mid z, d) = S^{\rm truth}(z)\,S^{\rm meas}(d)`: rows are
+    multiplied by :math:`S^{\rm truth}_k` only, and the normalisation uses
+    :math:`S_k`, the bin average of :math:`S^{\rm truth}(z)\,P(d \in A \mid z)`.
 
 Values are detection probabilities in (0, 1] by default; ``scale="exposure"``
 allows any positive absolute values (rates), and ``scale="relative"`` declares
 values known only up to a constant, which is enough for fractions but not for
-totals or rates (DECISIONS #46).
+totals or rates.
 """
+# DECISIONS #7, #8, #46
 
 from __future__ import annotations
 
@@ -40,7 +41,7 @@ import numpy as np
 from scipy import special
 
 from ._quadrature import bin_log_average
-from ._utils import as_generator, check_positive, frozen, warn
+from ._utils import SetOnce, as_generator, check_positive, frozen, warn
 from .basis import Basis
 from .bins import Bins
 from .density import _log_nonneg
@@ -71,7 +72,7 @@ _HELP = (
 )
 
 
-class Selection:
+class Selection(SetOnce):
     """Per-bin detection probability (fractions) or exposure (rates), with its mode.
 
     Parameters
@@ -94,18 +95,20 @@ class Selection:
         :math:`S_k`, the probability that an object in bin *k* is selected.
     row : ndarray (K,) or None
         The factor applied to the likelihood columns (:math:`S_k` on the
-        truth, :math:`C_k` combined, ``None`` on the measurement).
+        truth, :math:`S^{\\rm truth}_k` combined, ``None`` on the measurement).
     basis : Basis or None
         Set when the values are per component of a :class:`~binference.Basis`
-        (:math:`\\phi_k`-weighted averages) rather than per bin.
+        (:math:`\\psi_k`-weighted averages) rather than per bin.
     injections : tuple or None
         For a selection measured by injections (:meth:`from_injections`), a named
         tuple ``(injected, recovered, prior, smooth)``: counts per bin, the Beta prior
         and the step scale of the smooth model (or ``None``). The selection is
-        then uncertain, and inferred jointly with the population (DECISIONS #30,
-        #80); ``values`` are its posterior means given the injections alone
+        then uncertain, and inferred jointly with the population;
+        ``values`` are its posterior means given the injections alone
         (independent Betas) or the mode of :math:`\\mathrm{logit}\\,S` (smooth).
     """
+
+    # DECISIONS #30, #80
 
     __slots__ = ("basis", "injections", "row", "scale", "values")
 
@@ -117,12 +120,6 @@ class Selection:
         self.scale = scale
         self.basis = None
         self.injections = None
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name in Selection.__slots__ and not hasattr(self, name):
-            object.__setattr__(self, name, value)
-        else:
-            raise AttributeError("Selection objects are immutable.")
 
     def _parts(self) -> tuple:
         # the arguments of _rebuild; row as "values" when it is the values (on the truth)
@@ -145,22 +142,22 @@ class Selection:
     ) -> Selection:
         """A selection measured by injecting objects of known true value ``z``.
 
-        Counts the injections per bin, :math:`n_k`, and those recovered,
-        :math:`d_k`; with a :math:`\\mathrm{Beta}(a, b)` prior each :math:`S_k` has the
-        posterior :math:`\\mathrm{Beta}(a + d_k, b + n_k - d_k)` given the
-        injections alone. With ``smooth`` the :math:`S_k` are tied together by a
+        Counts the injections per bin, :math:`n^{\\rm inj}_k`, and those recovered,
+        :math:`n^{\\rm rec}_k`; with a :math:`\\mathrm{Beta}(a, b)` prior each :math:`S_k` has the
+        posterior :math:`\\mathrm{Beta}(a + n^{\\rm rec}_k, b + n^{\\rm inj}_k - n^{\\rm rec}_k)`
+        given the injections alone. With ``smooth`` the :math:`S_k` are tied together by a
         second-order random walk on :math:`y_k = \\mathrm{logit}\\,S_k`, the log density
-        gaining :math:`-\\sum_k (y_{k-1} - 2y_k + y_{k+1})^2 / 2\\tau^2`, which lends
+        gaining :math:`-\\sum_k (y_{k-1} - 2y_k + y_{k+1})^2 / 2\\tau_S^2`, which lends
         sparsely injected bins strength from their neighbours.
 
         A selection on the truth is uncertain: NUTS, MAP (``space="unconstrained"``),
         Laplace and, for independent Betas and a conjugate prior, Gibbs infer it
         jointly with the population, where the catalogue informs the ratios
-        between the :math:`S_k` (their level comes from the injections; DECISIONS
-        #10, #30, #79, #80); :meth:`at_mean` gives a fixed selection at
+        between the :math:`S_k` (their level comes from the injections);
+        :meth:`fixed` gives a fixed selection at
         :attr:`values`, ignoring the uncertainty. A selection on the measurement
         cannot be inferred (the likelihoods' cut already fixes it), and neither can a
-        selection with a rates prior; pass :meth:`at_mean` for both.
+        selection with a rates prior; pass :meth:`fixed` for both.
 
         Parameters
         ----------
@@ -175,9 +172,10 @@ class Selection:
         prior : (float, float)
             Beta prior :math:`(a, b)` of every :math:`S_k`, both positive.
         smooth : float, optional
-            Step scale :math:`\\tau` of the random walk, in logit per bin (1-D bins
+            Step scale :math:`\\tau_S` of the random walk, in logit per bin (1-D bins
             only); ``None`` (default) keeps the :math:`S_k` independent.
         """
+        # DECISIONS #10, #30, #79, #80
         _check_mode(mode)
         if isinstance(bins, Basis):
             raise ValueError(
@@ -241,8 +239,9 @@ class Selection:
         s, f = _beta_posterior(self.injections)
         return _draw_beta(s, f, as_generator(rng), size=(int(n), self.K))
 
-    def at_mean(self) -> Selection:
-        """This selection fixed at its :attr:`values`, ignoring their uncertainty."""
+    def fixed(self) -> Selection:
+        """This selection taken as known at its :attr:`values`, a plug-in that ignores their
+        uncertainty."""
         return _rebuild(*self._parts()[:4])
 
     @property
@@ -261,16 +260,23 @@ class Selection:
         *,
         scale: str = "probability",
         tol: float = 1e-6,
+        max_depth: int = 20,
     ) -> Selection:
         """A selection given as a function of the true value, averaged over each bin.
 
         ``function(z)`` returns the detection probability (or exposure) at
         points ``z`` (shape ``(M,)`` in 1-D, ``(M, ndim)`` on grids, labels for
         categories). Each bin takes its average in the measure coordinate, the
-        within-bin shape of the population (DECISIONS #10, #47), by adaptive
-        quadrature to ``tol`` relative to the largest bin average. With a
+        within-bin shape of the population, by adaptive
+        quadrature to ``tol`` relative to the largest bin average. A single jump inside a
+        bin is found wherever it lies (a window narrower than the spacing of the points can
+        still fall between them: put bin edges at its ends), and each refinement halves the
+        cell that holds it,
+        so reaching ``tol`` takes about :math:`\\log_2(1/\\mathrm{tol})` refinements, 20
+        for the default ``tol``, which the default ``max_depth`` allows; for a smaller
+        ``tol`` raise ``max_depth``, or put a bin edge at the jump. With a
         :class:`~binference.Basis` for ``bins``, the averages are taken on its
-        quadrature cells and weighted by each component (DECISIONS #47, #76).
+        quadrature cells and weighted by each component.
 
         Parameters
         ----------
@@ -285,13 +291,17 @@ class Selection:
             values, as for :class:`Selection`.
         tol : float, optional
             Quadrature tolerance relative to the largest bin average.
+        max_depth : int, optional
+            Most refinements of the adaptive quadrature; each halves a cell.
         """
+        # DECISIONS #10, #47, #76
         _check_mode(mode)
         _check_values(np.ones(2), scale, "selection")  # the scale, before any quadrature
+        quad = {"tol": tol, "max_depth": max_depth}
         if isinstance(bins, Basis):
-            sel = cls.from_function(function, bins.grid, mode, scale=scale, tol=tol)
+            sel = cls.from_function(function, bins.grid, mode, scale=scale, **quad)
             return _on_basis(sel, bins, bins.grid_masses)
-        return cls(_bin_average(function, bins, tol=tol)[0], mode, scale=scale)
+        return cls(_bin_average(function, bins, **quad)[0], mode, scale=scale)
 
     @classmethod
     def combined(
@@ -302,13 +312,14 @@ class Selection:
         *,
         scale: str = "probability",
         tol: float = 1e-6,
+        max_depth: int = 20,
     ) -> Selection:
-        """Selection on the truth and on the measurement at once (DECISIONS #8).
+        """Selection on the truth and on the measurement at once.
 
         Parameters
         ----------
         on_truth : array_like (K,) or callable
-            :math:`C`, the detection probability given the true value.
+            :math:`S^{\\rm truth}`, the detection probability given the true value.
         on_measurement : array_like (K,) or callable
             :math:`P(d \\in A \\mid z)`, the probability that the measured data
             pass the cut given the true value.
@@ -320,20 +331,25 @@ class Selection:
         scale : {"probability", "exposure", "relative"}, optional
             Whether the values of both parts are detection probabilities, exposures
             or relative values, as for :class:`Selection`.
-        tol : float
+        tol : float, optional
             Quadrature tolerance for callable parts (see :meth:`from_function`).
+        max_depth : int, optional
+            Most refinements of the adaptive quadrature for callable parts.
         """
+        # DECISIONS #8
+        _check_values(np.ones(2), scale, "selection")  # the scale, before any quadrature
+        quad = {"tol": tol, "max_depth": max_depth}
         if isinstance(bins, Basis):  # on the quadrature cells, then per component
             parts = [
                 p if callable(p) else _per_bin(p, bins.K)[bins.grid_to_bins]
                 for p in (on_truth, on_measurement)
             ]
-            sel = cls.combined(*parts, bins.grid, scale=scale, tol=tol)
+            sel = cls.combined(*parts, bins.grid, scale=scale, **quad)
             return _on_basis(sel, bins, bins.grid_masses)
         if callable(on_truth) and callable(on_measurement):
             if bins is None:
                 raise ValueError("Selection.combined needs bins when a part is a callable.")
-            C, CT = _bin_average(on_truth, bins, on_measurement, tol=tol)
+            C, CT = _bin_average(on_truth, bins, on_measurement, **quad)
             C = _check_values(C, scale, "on_truth")
             return _combined(C, CT / C, scale)
         parts = []
@@ -341,7 +357,7 @@ class Selection:
             if callable(part):
                 if bins is None:
                     raise ValueError("Selection.combined needs bins when a part is a callable.")
-                part = _bin_average(part, bins, tol=tol)[0]  # the other is constant in bins
+                part = _bin_average(part, bins, **quad)[0]  # the other is constant in bins
             parts.append(part)
         return _combined(*parts, scale)
 
@@ -455,7 +471,7 @@ def _on_basis(sel: Selection, basis: Basis, M: Any) -> Selection:
     if sel.injections is not None:
         raise ValueError(
             "A selection from injections cannot be moved onto a Basis: its Beta posteriors "
-            "are per bin. Use plain bins, or sel.at_mean() for a fixed selection."
+            "are per bin. Use plain bins, or sel.fixed() for a fixed selection."
         )
     row = None if sel.row is None else "values" if sel.row is sel.values else M.T @ sel.row
     return _rebuild(M.T @ sel.values, row, sel.scale, basis)
@@ -495,22 +511,23 @@ def _check_values(values: Any, scale: str, name: str) -> np.ndarray:
     v = np.array(values, dtype=float).ravel()
     if v.size < 2:
         raise ValueError(f"{name} needs one value per bin.")
-    if not np.all(np.isfinite(v)) or np.any(v <= 0):
+    bad = np.flatnonzero(~(np.isfinite(v) & (v > 0)))
+    if bad.size:
         raise ValueError(
-            f"{name} values must be finite and strictly positive (bins that can never be "
-            "observed are not identifiable; remove them from the bins)."
+            f"{name} values must be finite and strictly positive; bin(s) {bad[:5].tolist()} "
+            "are not (bins that can never be observed are not identifiable; remove them)."
         )
-    if scale == "probability" and np.any(v > 1.0 + 1e-12):
+    if scale == "probability" and np.any(v > 1.0 + 1e-12):  # DECISIONS #46
         raise ValueError(
             f"{name} values are detection probabilities and must not exceed one; for "
             "absolute exposures pass Selection(S, mode, scale='exposure'), for values known "
-            "only up to a constant Selection(S, mode, scale='relative') (DECISIONS #46)."
+            "only up to a constant Selection(S, mode, scale='relative')."
         )
     return v
 
 
 def _check_mode(mode: str) -> None:
-    if mode not in ("on_truth", "on_measurement"):
+    if mode not in SELECTION_MODES[:2]:  # the third, "combined", is Selection.combined's
         raise ValueError(
             "selection mode must be 'on_measurement' or 'on_truth' (or use "
             f"Selection.combined); got {mode!r}. {_HELP}"
@@ -523,6 +540,7 @@ def _bin_average(
     factor: Callable | None = None,
     log_weight: Callable | None = None,
     tol: float = 1e-6,
+    max_depth: int = 12,
 ) -> np.ndarray:
     """Weighted bin averages of a non-negative ``function`` (and of ``function * factor``).
 
@@ -549,14 +567,15 @@ def _bin_average(
             rows = [r + lw for r in rows] + [lw]
         return np.stack(rows)
 
-    if log_weight is None:
-        return np.exp(bin_log_average(logf, bins, tol=tol))
-    out = bin_log_average(logf, bins, coordinate="z", tol=tol)
+    quad = {"tol": tol, "max_depth": max_depth}
+    if log_weight is None:  # bounded, so the check for jumps converges (bin_log_average)
+        return np.exp(bin_log_average(logf, bins, jumps=True, **quad))
+    out = bin_log_average(logf, bins, coordinate="z", **quad)
     with np.errstate(invalid="ignore"):
         avg = np.exp(out[:-1] - out[-1])  # divide by the bin's weight
     empty = ~np.isfinite(out[-1])
     if empty.any():  # no population in the bin: fall back to the unweighted average
-        avg[:, empty] = _bin_average(function, bins, factor, tol=tol)[:, empty]
+        avg[:, empty] = _bin_average(function, bins, factor, **quad)[:, empty]
     return avg
 
 
@@ -582,7 +601,7 @@ def as_selection(selection: Any, mode: str | None, bins: Bins | Basis) -> Select
     A raw array is checked for steep changes between neighbouring bins; a
     :class:`Selection` or a callable is taken as already averaged within bins.
     With a :class:`~binference.Basis`, arrays and selections given per bin are
-    mapped to the components (:math:`\\phi_k`-weighted averages) and callables are
+    mapped to the components (:math:`\\psi_k`-weighted averages) and callables are
     averaged on the basis's quadrature cells.
 
     Parameters

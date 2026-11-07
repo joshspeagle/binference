@@ -66,7 +66,16 @@ result may be biased.
 `Bin averages did not reach tol=<tol> in <n> bin(s) after <max_depth> refinements; ...`
 : **When.** The adaptive quadrature of a density or selection function stops early.
   **Cause.** The function is sharp or discontinuous within a bin.
-  **Fix.** Raise `max_depth` or `tol`, or pass `n_sub=` for fixed quadrature points.
+  **Fix.** Raise `max_depth` or `tol`, or put a bin edge at the jump; `from_density`
+  also takes `n_sub=` for fixed quadrature points.
+
+`Bin averages read zero in <n> bin(s) where the function is non-zero only in a feature too narrow to resolve at tol=<tol>; ...`
+: **When.** None of the quadrature's main points reads the function anywhere, the
+  checks near cell edges read something, and the cells there have been split to below
+  `tol` of their bin.
+  **Cause.** The function is non-zero only in a feature thinner than the quadrature
+  resolves at `tol`, such as a thin box on a bin edge.
+  **Fix.** Lower `tol`, or put bin edges at the feature.
 
 `<n> injections fall outside the bins and are ignored.`
 : **When.** `Selection.from_injections` gets injections outside the bins.
@@ -145,12 +154,16 @@ just noisy.
     few effective draws. Run longer.
   - the same two messages `of the selection` or `of the response's efficiencies`, for a
     selection or response inferred with the population.
+  - `R-hat and ESS are undefined: chains shorter than 8, or constant`: the chains are
+    too short for R-hat and ESS, or never move. Run longer, or check the sampler.
   - `<n> divergent transitions (<x>% of draws)`: NUTS met a region it cannot explore.
     Try `target_accept=0.95`; see [diagnostics](../guides/checking.md#diagnostics).
   - `E-BFMI = <x> < 0.3 in some chain`: NUTS explores the energy distribution poorly.
     A longer warm-up or another prior may help.
   - `<x>% of NUTS iterations hit the maximum tree depth`: trajectories are cut short.
-    With Dirichlet concentrations below one, `method="gibbs"` is faster.
+    With a concentration below one, in a Dirichlet or on a branch of a tree prior, or a
+    shape below one in `GammaRates`, `method="gibbs"` is faster, and the hint says so
+    when Gibbs can fit the model.
   - `the optimiser did not converge`.
   - `Pareto k-hat = <k> >= <threshold> (importance sampling unreliable)`.
 
@@ -287,7 +300,7 @@ and says what was expected. These are the errors met most often:
 
 `<Engine> cannot infer a selection from injections or a tallied response; ...`
 : That engine cannot infer a selection or response jointly. Use one of the engines the
-  message names, or pass `selection.at_mean()` or `response.fixed()` to fix it.
+  message names, or pass `selection.fixed()` or `response.fixed()` to fix it.
 
 `Unknown method <name>; choose from [...]`, `n_samples does not apply to method=<name>.`
 : `infer` got an unknown engine name, or a draw count for a point estimate.

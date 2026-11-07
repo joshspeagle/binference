@@ -470,6 +470,29 @@ Append-only. One entry per working session (or per step within a long session).
 - #146: release 0.1.0 prepared: version, citation, dated CHANGELOG section, install from
   PyPI in the README and install page. Josh tags `v0.1.0` after merge.
 
+## 2026-10-31: the teardown replaces the chat walkthrough
+
+- #150: step 3.1 in chat stalled. Printouts of the tree arrays did not explain the structure, the engines needed more than a paragraph each, and corrections were scattered through the conversation. Josh asked for one artifact that is a deck, a document and a dashboard at once (DECISIONS #106).
+- Found in chat before the switch, and carried into the teardown's ledger: `_TreeStructure.ptr` is an undocumented CSR-style index; nothing calls `prior_transform`, and `_stick_break` exists only for it; the tree priors need a readable drawing and a named-group input; the point-estimate docs should say, where results are read, that a mode on the simplex adds α − 1 to the counts and a mode in the unconstrained coordinates adds α; `unbounded_density()` is right for MAP's choice of coordinates, not for the NUTS tree-depth hint, which needs the tails in the unconstrained coordinates.
+- The walkthrough's measurements in chat were first run against a stale checkout (`/home/user/pastry`, at PR #110) on the import path; rerun on `main`, every figure agreed. Scripts now set `PYTHONPATH` to the checkout they describe.
+- #152 (PR #154): `prior_transform` removed, with `has_prior_transform` and `_stick_break` (DECISIONS #107); breaking, so the next release is 0.2.0.
+- #153: tree priors get `describe(bins, counts=None)`, a text drawing with α, mean share and mean mass on each branch; `DirichletTree` takes named groups and `alpha` by group or bin name; `_TreeStructure.ptr` becomes `node_start` (DECISIONS #108).
+- #158 merged (#153). #155: the NUTS tree-depth hint now reads the tails in the coordinates NUTS samples, through `BoundPrior.long_log_tails()`, and suggests Gibbs only where Gibbs can run; tree exponents are read from the concentrations, so rounding no longer makes a bounded tree unbounded (DECISIONS #109).
+- #159: `ci-ok` gates on `changes` and `slow` too, scikit-learn joins the `test` extra so its test runs, and the sdist is clean (DECISIONS #110).
+- #162: `plot_individual` and the truth overlay on a basis, the stack overlay on the selected population, colour lists and `plot_sbc`'s log-likelihood panel (DECISIONS #111).
+- #160: engine inputs are checked when the engine is made, EM moves zeros in its start, the rates start is fitted on L over S, and `Engine.name` and `approximate` are removed (DECISIONS #112).
+- #163: selection functions are checked for jumps near bin edges and refine to depth 20; frozen SciPy distributions of one family are evaluated in one call; errors name the input at fault; `at_mean` is `fixed`; `measured_fractions` is gone (DECISIONS #113).
+- #168, #170: `plot(stack=)` shares a stack over a basis's components among the bins (DECISIONS #114); `from_density` and `Density.from_function` take `bounded=`, and the quadrature's reference starts finite, so a row only the check rules read is refined (DECISIONS #115).
+- #171: results keep read-only copies of their draws; `check()` flags chains too short to diagnose and reads an inferred selection's tail ESS; mock samples are flat in u within bins; levels, `psis` and constant chains are checked; `diagnostics.kkt_gap` and `missing_information` are removed (DECISIONS #117).
+- #172: bins and measures stay read-only through pickling and copying, bin counts and factors are checked, `Bins.widths` is removed; `expected_counts` refuses impossible objects, non-finite log-likelihoods are −inf in every kernel, `missing_information` adds a `GammaRates` prior's pseudo-counts, and the joint batched log-likelihood is vectorised (DECISIONS #116).
+- #177: the cross-engine tests name NUTS for their references, s.d.s and two-run comparisons pass within Monte Carlo error through two conftest helpers, and the joint SBC tests add the ECDF test (DECISIONS #118).
+- #173: densities compare by value and key priors by their values; tree priors take their EM weights from the concentrations (#166); auto says why it left Gibbs out and keeps its extended result; `n_samples`, `Dirichlet.from_counts` and hyperparameters are checked by name; `lam` becomes `gamma`; a tree prior's KKT gap is checked in branch coordinates; NUTS on flat likelihoods checks the default logistic hyperpriors (DECISIONS #119).
+- #176: auto builds the engines it may run when it is made, so options are checked at once, and converts `init` for NUTS (#174); Gibbs and NUTS share a `MarkovEngine` base; the warm-up curvature above 200 dimensions is taken at one chain; the divergence threshold is named; engine docs and notation corrected (DECISIONS #120).
+- 0.1.0 released 2026-10-29: tag `v0.1.0`, the Release workflow, PyPI.
+- #178: the 0.1.0 changelog's original list uses the released names and defaults; settled questions closed; the landscape page notes the old name; benchmark figures allowed when dated; the brand files the site uses named; the normal CDF's source credited; public docstrings, rendered comments and error messages no longer cite decisions, which a test enforces (DECISIONS #121).
+- #190: `NUTS(init=)` reads fractions or rates like every engine, unconstrained starts move to `init_x`, and auto loses its NUTS special case (DECISIONS #122; Josh's choice).
+- #192: CI no longer runs on a weekly schedule; the slow suite and the link check run by hand, and the slow suite also on pull requests labelled `slow` (DECISIONS #123; Josh's choice).
+
 ## 2026-10-29: binference 0.1.0 on PyPI
 
 - #147 merged at Josh's call while its docs build was still running (every other job had
@@ -478,4 +501,4 @@ Append-only. One entry per working session (or per step within a long session).
   `main` had finished; nothing was uploaded. Re-run once CI was green, it published 0.1.0.
   A clean install from PyPI imports 0.1.0 and runs the README example.
 - The GitHub release was missed (a manual step) and must be made by hand for 0.1.0;
-  #148 makes the workflow create it from now on (DECISIONS #106).
+  #148 makes the workflow create it from now on (DECISIONS #124).
