@@ -827,8 +827,8 @@ class PopulationModel:
             reproducible.
         include_prior : bool, optional
             Add the pseudo-counts of a Dirichlet or ``GammaRates`` prior, as the MAP EM
-            does; other priors add none. NaN where concentrations or shapes
-            below one outweigh the data.
+            does, or a tree prior's curvature; other priors add none. NaN where
+            concentrations or shapes below one outweigh the data.
         chunk : int, optional
             Objects processed per block, which bounds memory.
         """
@@ -872,8 +872,13 @@ class PopulationModel:
                 return np.nan
             I_c = n_complete * C
             I_obs = self.W * (np.diag(phi) - np.outer(phi, phi)) - Im + extra * C
+            if include_prior:  # a tree prior's term, which pseudo-counts cannot state
+                curvature = self.prior.log_ratio_curvature(rho, on)
+                I_c, I_obs = I_c + curvature, I_obs + curvature
             V = helmert_basis(rho.size)
             I_c, I_obs = V.T @ I_c @ V, V.T @ I_obs @ V
+            if include_prior and np.linalg.eigvalsh(0.5 * (I_c + I_c.T))[0] <= 0:
+                return np.nan  # concentrations below one outweigh the data
         I_c = 0.5 * (I_c + I_c.T) + 1e-12 * np.trace(I_c) / len(I_c) * np.eye(len(I_c))
         I_obs = 0.5 * (I_obs + I_obs.T)
         lam = linalg.eigh(I_obs, I_c, eigvals_only=True)
