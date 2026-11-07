@@ -65,7 +65,9 @@ result may be biased.
 
 `Bin averages did not reach tol=<tol> in <n> bin(s) after <max_depth> refinements; ...`
 : **When.** The adaptive quadrature of a density or selection function stops early.
-  **Cause.** The function is sharp or discontinuous within a bin.
+  **Cause.** The function is sharp or discontinuous within a bin, or a coarse cell read a
+  feature narrower than `max_depth` resolves. Errors are relative to the row's largest
+  bin, so a box much narrower than its bin may need a higher `max_depth` than a wide one.
   **Fix.** Raise `max_depth` or `tol`, or put a bin edge at the jump; `from_density`
   also takes `n_sub=` for fixed quadrature points.
 

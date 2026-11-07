@@ -144,6 +144,10 @@ def test_hessian_helpers():
     cov = covariance_from_hessian(np.diag([-1.0, 0.5]))
     assert np.all(np.linalg.eigvalsh(cov) > 0)
     assert covariance_from_hessian(np.diag([1.0, 2.0])) is None
+    # a flat or negatively curved direction gets the largest variance seen, not 1e6 of them
+    for flat in (0.5, 0.0, -1e-9):
+        cov = covariance_from_hessian(np.diag([-4.0, -1.0, flat]))
+        np.testing.assert_allclose(np.diag(cov), [0.25, 1.0, 1.0])
     assert covariance_from_hessian(np.full((2, 2), np.nan)) is None
 
 

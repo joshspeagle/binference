@@ -295,10 +295,13 @@ def test_function_quadrature_converges():
 )
 def test_a_bounded_density_is_checked_for_jumps_near_bin_edges(f, expected):
     # bin averages relative to the largest, within twice tol: the error estimate is the
-    # rules' disagreement
+    # rules' disagreement. max_depth=14: the box's average is 0.02 of its height, so tol
+    # relative to that average needs two more refinements at its jumps than the default
     bins = Bins.linear(0, 1, 4)
-    lk = Likelihoods.from_density(lambda z: f(z)[None], bins, kind="likelihood", bounded=True)
-    masses = binference.Density.from_function(f, bounded=True).masses(bins)
+    lk = Likelihoods.from_density(
+        lambda z: f(z)[None], bins, kind="likelihood", bounded=True, max_depth=14
+    )
+    masses = binference.Density.from_function(f, bounded=True).masses(bins, max_depth=14)
     np.testing.assert_allclose(lk.toarray()[0], expected, atol=2e-3)
     np.testing.assert_allclose(masses / masses.max(), expected, atol=2e-3)
 
