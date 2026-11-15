@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 
-from .._utils import RNGLike, check_positive_integers, progress, spawn, warn
+from .._utils import RNGLike, check_nonnegative, check_positive_integers, progress, spawn, warn
 from ..model import PopulationModel
 from ..results import PopulationResult
 from ..warnings import ConvergenceWarning
@@ -360,9 +360,8 @@ class NUTS(MarkovEngine):
             )
         self.n_chains = check_positive_integers(n_chains, "n_chains")[0]
         self.max_depth = check_positive_integers(max_depth, "max_depth")[0]
-        for name, value in (("n_warmup", n_warmup), ("jitter", jitter)):
-            if value < 0:
-                raise ValueError(f"{name} must be non-negative; got {value}.")
+        check_nonnegative(n_warmup, "n_warmup")
+        check_nonnegative(jitter, "jitter")
         if not isinstance(n_jobs, bool) and n_jobs == -1:
             n_jobs = _cpu_count()
         try:

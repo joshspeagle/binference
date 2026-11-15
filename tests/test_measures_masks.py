@@ -92,7 +92,7 @@ def test_index_rejects_multi_column_values_for_1d_bins():
 
 def test_sample_within_is_uniform_in_the_measure_coordinate():
     b = Bins.log(1.0, 100.0, 1)
-    v = b.sample_within(np.zeros(20000, dtype=int), np.random.default_rng(0))
+    v = b.sample_within(np.zeros(20000, dtype=int), rng=np.random.default_rng(0))
     assert v.min() >= 1.0 and v.max() <= 100.0
     # uniform in log z: half of the draws fall below 10
     assert abs(np.mean(v < 10.0) - 0.5) < 4 * 0.5 / np.sqrt(v.size)

@@ -2,8 +2,8 @@
 
 All notable changes to binference are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
-[Semantic Versioning](https://semver.org/) (with the usual 0.x caveat that minor
-releases may break the API).
+[Semantic Versioning](https://semver.org/) as the contributing guide's "Breaking
+changes" section sets out.
 
 ## [Unreleased]
 
@@ -21,18 +21,13 @@ releases may break the API).
 
 ### Changed
 
-- **Breaking:** options that followed the primary arguments are keyword-only, so the same
-  call means the same thing on sibling methods. `check(True)` set `strict` on a sampled
-  result but `kkt_max` on a point estimate; `which` was the first, second or third
-  argument depending on the method. Affected: `check`, `cov`, `corr`, `quantile`,
-  `interval`, `functional`, `rebin` and `summary` on results; the per-object methods
-  (`assignment_probabilities`, `sample_values` and the rest) after `idx` or
-  `likelihoods`; `PointEstimate.laplace` after `n_samples`; `Likelihoods.with_weights`
-  and `stack`; `PopulationModel.kkt_gap`, `missing_information` and `log_likelihood`;
-  `validation.exact_posterior`; `simulate.population`; `plot_individual` after `ax` and
-  `plot_sbc` after the SBC result; `LogisticNormal`, `LogisticRandomWalk` and
-  `LogisticGP` after their first argument. To migrate, pass these arguments by name, as
-  the docs always have.
+- **Breaking:** options after a method's primary arguments are keyword-only, so a
+  positional call means the same on sibling methods (`check(True)` set `strict` on one
+  result type and `kkt_max` on the other). This covers the result and per-object methods,
+  `PointEstimate.laplace`, `Likelihoods.with_weights` and `stack`, `PopulationModel`'s
+  methods, `exact_posterior`, `SBCResult.passed`, `simulate.population`,
+  `plot_individual`, `plot_sbc`, the logistic priors and `Bins(mask=)`; and `rng` everywhere a user passes it. Passing one of these by
+  position raises a `TypeError`; pass it by name.
 - NUTS uses a dense metric for logistic priors up to 500 dimensions (from 200), and
   starts it from the curvature at every chain's position. With `LogisticGP`'s default
   basis, two chains and one thread each, this cut the time per fit by two to five times
@@ -43,8 +38,8 @@ releases may break the API).
   measure coordinate, in units of their mean spacing, and its unpenalised trends are
   polynomials in that coordinate. On bins of equal width in the measure coordinate
   (`Bins.linear`, `Bins.log`) nothing changes; on unequal bins a step over a wider gap may
-  be larger. Results saved on unequal bins by 0.2 attach under the new prior. There is no
-  argument for the old index steps; to reproduce a 0.2 fit on unequal bins, use 0.2.
+  be larger. Results saved on unequal bins by 0.2 attach under the new prior. No argument
+  restores the index steps; use 0.2 to reproduce such a fit.
 - **Breaking:** `LogisticGP` with `n_basis=None` gives each axis as many sines as its
   narrowest bin fits across the axis, at most four per bin; on bins of equal width this is
   one per bin, as before. To keep 0.2's basis on unequal bins, pass `n_basis` with the

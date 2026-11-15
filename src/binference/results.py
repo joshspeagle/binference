@@ -1333,7 +1333,7 @@ class PopulationResult(_IndividualMixin):
         # DECISIONS #9, #46, #78
         if self._total is None and self.model is not None:
             S = self._inferred_selection()  # per draw, when inferred with the population
-            total = self.model.draw_total(self._params, _draws_rng(self._params), S)
+            total = self.model.draw_total(self._params, rng=_draws_rng(self._params), S=S)
             self._total = None if total is None else frozen(total)
         return None if self._total is None else self._total.ravel()
 

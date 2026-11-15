@@ -8,7 +8,18 @@ import numpy as np
 import pytest
 
 import binference
-from binference import Bins, PopulationEstimator, PopulationModel, Selection
+from binference import (
+    Bins,
+    PointEstimate,
+    PopulationEstimator,
+    PopulationModel,
+    PopulationResult,
+    Selection,
+    plotting,
+    priors,
+    simulate,
+    validation,
+)
 
 from .conftest import ignore_few_recoveries, selection_mock
 
@@ -194,50 +205,73 @@ def test_method_em_on_a_joint_model_runs_its_optimiser():
 
 
 # the reviewed API (#238): the primary data by position, every option by keyword
+R, P, L, M = PopulationResult, PointEstimate, binference.Likelihoods, PopulationModel
 POSITIONAL = {
-    "results.PopulationResult.cov": [],
-    "results.PopulationResult.corr": [],
-    "results.PopulationResult.check": [],
-    "results.PointEstimate.check": [],
-    "results.PopulationResult.quantile": ["q"],
-    "results.PopulationResult.interval": ["level"],
-    "results.PopulationResult.functional": ["func"],
-    "results.PopulationResult.rebin": ["groups"],
-    "results.PopulationResult.summary": ["level"],
-    "results.PointEstimate.laplace": ["n_samples"],
-    "results.PopulationResult.assignment_probabilities": ["idx"],
-    "results.PopulationResult.assignment_probabilities_loo": ["idx"],
-    "results.PopulationResult.sample_assignments": ["idx"],
-    "results.PopulationResult.sample_values": ["idx"],
-    "results.PopulationResult.realized_counts": ["n_draws"],
-    "results.PopulationResult.predict_proba": ["likelihoods"],
-    "results.PopulationResult.log_predictive": ["likelihoods"],
-    "likelihoods.Likelihoods.with_weights": ["weights"],
-    "likelihoods.Likelihoods.with_selection": ["selection", "selection_mode"],
-    "likelihoods.Likelihoods.stack": ["interim"],
-    "model.PopulationModel.kkt_gap": ["value"],
-    "model.PopulationModel.missing_information": ["value"],
-    "model.PopulationModel.log_likelihood": ["value"],
-    "validation.exact_posterior": ["model", "prior"],
-    "simulate.population": ["bins", "density"],
-    "plotting.plot_individual": ["result", "i", "ax"],
-    "plotting.plot_sbc": ["sbc_result"],
-    "priors.LogisticNormal": ["mean"],
-    "priors.LogisticRandomWalk": ["order"],
-    "priors.LogisticGP": ["kernel"],
+    R.cov: [],
+    R.corr: [],
+    R.check: [],
+    P.check: [],
+    R.quantile: ["q"],
+    R.interval: ["level"],
+    R.functional: ["func"],
+    R.rebin: ["groups"],
+    R.summary: ["level"],
+    P.laplace: ["n_samples"],
+    R.assignment_probabilities: ["idx"],
+    R.assignment_probabilities_loo: ["idx"],
+    R.sample_assignments: ["idx"],
+    R.sample_values: ["idx"],
+    R.realized_counts: ["n_draws"],
+    R.predict_proba: ["likelihoods"],
+    R.log_predictive: ["likelihoods"],
+    L.with_weights: ["weights"],
+    L.with_selection: ["selection", "selection_mode"],
+    L.stack: ["interim"],
+    M.kkt_gap: ["value"],
+    M.missing_information: ["value"],
+    M.log_likelihood: ["value"],
+    validation.exact_posterior: ["model", "prior"],
+    simulate.population: ["bins", "density"],
+    plotting.plot_individual: ["result", "i", "ax"],
+    plotting.plot_sbc: ["sbc_result"],
+    priors.LogisticNormal: ["mean"],
+    priors.LogisticRandomWalk: ["order"],
+    priors.LogisticGP: ["kernel"],
 }
 
 
-@pytest.mark.parametrize("path", POSITIONAL)
-def test_options_after_the_primary_arguments_are_keyword_only(path):
-    module, *attrs = path.split(".")
-    obj = importlib.import_module(f"binference.{module}")
-    for a in attrs:
-        obj = getattr(obj, a)
-    params = list(inspect.signature(obj).parameters.values())
-    positional = [
+def _positional(func):
+    return [
         p.name
-        for p in params
-        if p.kind is p.POSITIONAL_OR_KEYWORD and p.name not in ("self", "cls")
+        for p in inspect.signature(func).parameters.values()
+        if p.kind is p.POSITIONAL_OR_KEYWORD and p.name != "self"
     ]
-    assert positional == POSITIONAL[path]
+
+
+@pytest.mark.parametrize("func", POSITIONAL, ids=lambda f: f.__qualname__)
+def test_options_after_the_primary_arguments_are_keyword_only(func):
+    assert _positional(func) == POSITIONAL[func]
+
+
+def _public_callables():
+    for module in ("", ".priors", ".engines", ".simulate", ".validation", ".plotting", ".io"):
+        mod = importlib.import_module(f"binference{module}")
+        for name in mod.__all__:
+            obj = getattr(mod, name)
+            if inspect.isclass(obj) and issubclass(obj, Exception):
+                continue
+            yield obj
+            if inspect.isclass(obj):
+                yield from (getattr(obj, k) for k in vars(obj) if not k.startswith("_"))
+
+
+def test_no_public_callable_takes_rng_by_position():
+    # the protocol prior authors implement, sample(n, rng) and kin, is exempt (#238)
+    funcs = [
+        f
+        for f in _public_callables()
+        if callable(f)
+        and not f.__module__.startswith(("binference.priors.base", "binference.priors.hyper"))
+    ]
+    assert len(funcs) > 100
+    assert [f.__qualname__ for f in funcs if "rng" in _positional(f)] == []

@@ -129,15 +129,16 @@ pytest tests/test_explainers.py
 From 0.3.0 on, a release changes the public API (the names in each `__all__` and their
 arguments) in these ways only:
 
-- **A patch release** (`0.3.1`) never breaks a call that worked before.
-- **A rename or removal** of a public name or argument keeps the old spelling working for
-  at least one minor release. Calls through it emit a `FutureWarning` that names the
-  replacement. The next minor release, or a later one, removes it.
-- **A change that cannot keep the old form working**, such as a new default, a different
-  number, or an argument made keyword-only, goes into a minor release only (`0.4.0`).
-- **Every breaking change** gets a CHANGELOG entry starting **Breaking:** that says how to
+- A change that breaks a call that worked before goes into a minor release (`0.4.0`),
+  never a patch release (`0.3.1`).
+- A renamed or removed public name or argument keeps its old spelling working for at least
+  one minor release, with a `FutureWarning` that names the replacement.
+- Every breaking change has a CHANGELOG entry starting **Breaking:** that says how to
   migrate: the argument value that restores the old behaviour, or why there is none.
-- **Saved results** from the previous minor release still load.
+- Saved results from the previous minor release still load.
+
+Options after a function's primary arguments are keyword-only, and so is `rng`;
+`tests/test_api.py` checks both.
 
 After 1.0, the same rules apply with major releases in place of minor ones.
 

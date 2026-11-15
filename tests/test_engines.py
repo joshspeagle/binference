@@ -1289,3 +1289,10 @@ def test_bootstrap_replicates_are_optimal_for_their_own_weights(monkeypatch, see
     gaps = [m._with_weights(wb).kkt_gap(v) for wb, v in zip(weights, res.samples, strict=True)]
     # converged means gap <= 1e3 * tol (DECISIONS #71); from the full-data MAP: up to 6e-2
     assert max(gaps) < 1e-5
+
+
+@pytest.mark.parametrize("option", ["n_warmup", "jitter"])
+def test_nuts_refuses_a_nan_warm_up_length_or_jitter(option):
+    # NaN passed the old `value < 0` check
+    with pytest.raises(ValueError, match=f"{option} must be finite"):
+        NUTS(PopulationModel(Likelihoods(np.eye(2))), **{option: np.nan})

@@ -226,7 +226,7 @@ class Selection(SetOnce):
         object.__setattr__(sel, "_recovered", injections.recovered)
         return sel
 
-    def draw(self, n: int, rng: RNGLike = None) -> np.ndarray:
+    def draw(self, n: int, *, rng: RNGLike = None) -> np.ndarray:
         """``(n, K)`` posterior draws of :math:`S` given the injections alone
         (independent Betas), floored at :data:`S_FLOOR` so that none underflows to zero.
 

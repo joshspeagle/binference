@@ -96,7 +96,9 @@ class Bins(SetOnce):
         "_volumes",
     )
 
-    def __init__(self, edges: Any, measure: MeasureLike | None = None, mask: Any = None) -> None:
+    def __init__(
+        self, edges: Any, measure: MeasureLike | None = None, *, mask: Any = None
+    ) -> None:
         self._set_grid((_as_edges(edges, 0),), measure, mask)
 
     # ------------------------------------------------------------------ setup
@@ -170,7 +172,7 @@ class Bins(SetOnce):
 
     # ------------------------------------------------------------ constructors
     @classmethod
-    def linear(cls, lo: float, hi: float, n: int, mask: Any = None) -> Bins:
+    def linear(cls, lo: float, hi: float, n: int, *, mask: Any = None) -> Bins:
         """``n`` equal-width bins spanning ``[lo, hi]``, linear measure.
 
         Parameters
@@ -186,7 +188,7 @@ class Bins(SetOnce):
         return cls(np.linspace(lo, hi, n + 1), measure="linear", mask=mask)
 
     @classmethod
-    def log(cls, lo: float, hi: float, n: int, mask: Any = None) -> Bins:
+    def log(cls, lo: float, hi: float, n: int, *, mask: Any = None) -> Bins:
         """``n`` logarithmically spaced bins spanning ``[lo, hi]`` (``lo > 0``), log measure.
 
         Parameters
@@ -496,7 +498,7 @@ class Bins(SetOnce):
         k = np.asarray(k)
         return tuple(i[k] for i in self._cell_index)
 
-    def sample_within(self, k: Any, rng: np.random.Generator) -> np.ndarray:
+    def sample_within(self, k: Any, *, rng: np.random.Generator) -> np.ndarray:
         """Values drawn uniformly in ``u`` inside the bins ``k`` (grids only).
 
         Returns an array of ``k``'s shape for 1-D bins, with a trailing axis of

@@ -151,9 +151,9 @@ class Gibbs(MarkovEngine):
         self._state = [m.prior.posterior_sample(nhat, r, exposure=m._exposure) for r in self._rngs]
         # each chain starts from a draw given the injections or the tallies
         if m.selection_uncertain:
-            self._extra = [m.selection_spec.draw(1, r)[0] for r in self._rngs]  # floored
+            self._extra = [m.selection_spec.draw(1, rng=r)[0] for r in self._rngs]  # floored
         elif m.response is not None:
-            self._extra = [m.response.draw(1, r)[0] for r in self._rngs]
+            self._extra = [m.response.draw(1, rng=r)[0] for r in self._rngs]
 
     def _iterate(self, c: int) -> tuple[np.ndarray, np.ndarray | None]:
         m = self.model

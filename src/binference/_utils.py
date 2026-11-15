@@ -141,7 +141,8 @@ def _check_sign(value: Any, name: str, positive: bool) -> np.ndarray:
         ok = False
     if not ok:
         what = "strictly positive" if positive else "non-negative"
-        raise ValueError(f"{name} must be finite and {what}.")
+        got = f"; got {value!r}" if np.ndim(value) == 0 else ""
+        raise ValueError(f"{name} must be finite and {what}{got}.")
     return a
 
 
