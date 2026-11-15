@@ -7,6 +7,7 @@ import pytest
 from scipy import stats
 
 import binference
+import binference._values
 from binference import Basis, Bins, Likelihoods, PopulationModel, PopulationResult
 
 BINS = Bins.linear(0, 1, 5)
@@ -20,7 +21,7 @@ INTERIM = stats.expon(scale=0.1)
 POST_MU = MU - SD**2 / 0.1
 
 
-def _values(lk, **kw):
+def _draw(lk, **kw):
     est = binference.infer(lk, method="map")
     return est.sample_values(idx=np.zeros(N_COPY, int), rng=1, **kw)[0]
 
@@ -44,21 +45,21 @@ def test_density_likelihoods_draw_values_from_the_density_inside_the_bin():
         return stats.norm.pdf(z[None, :], MU[:, None], SD)
 
     lk = Likelihoods.from_density(dens, BINS, kind="likelihood")
-    _check_truncnorm(_values(lk), MU[0], SD)
+    _check_truncnorm(_draw(lk), MU[0], SD)
     dists = [stats.norm(m, SD) for m in MU]
-    _check_truncnorm(_values(Likelihoods.from_density(dists, BINS, kind="likelihood")), MU[0], SD)
+    _check_truncnorm(_draw(Likelihoods.from_density(dists, BINS, kind="likelihood")), MU[0], SD)
 
 
 def test_posterior_densities_divide_out_the_interim_prior_inside_the_bin():
     post = [stats.norm(m, SD) for m in POST_MU]
     lk = Likelihoods.from_density(post, BINS, interim=INTERIM)
-    _check_truncnorm(_values(lk), MU[0], SD)
+    _check_truncnorm(_draw(lk), MU[0], SD)
 
 
 def test_samples_are_resampled_inside_the_drawn_bin_with_the_interim_divided_out():
     samples = POST_MU[:2, None] + SD * np.random.default_rng(0).standard_normal((2, 100_000))
     lk = Likelihoods.from_samples(samples, BINS, interim=INTERIM)
-    vals = _values(lk)
+    vals = _draw(lk)
     assert np.isin(vals, samples[0]).all()
 
     def ess(lo, hi):  # of the weights 1 / pi of object 0's samples in [lo, hi)
@@ -87,7 +88,7 @@ def test_correlated_gaussians_draw_jointly_within_the_box():
     grid = Bins.grid([np.linspace(0, 1, 3), np.linspace(0, 1, 3)])
     mu, cov = np.array([0.45, 0.4]), 0.15**2 * np.array([[1.0, 0.9], [0.9, 1.0]])
     lk = Likelihoods.from_gaussian(np.tile(mu, (3, 1)), bins=grid, cov=cov)
-    vals = _values(lk)
+    vals = _draw(lk)
     k = grid.index(vals)
     box = vals[k == np.bincount(k).argmax()]  # the box with most draws
     lo, hi = box.min(0).round(1), box.max(0).round(1)  # its edges, on this 0.5 grid
@@ -101,11 +102,11 @@ def test_correlated_gaussians_draw_jointly_within_the_box():
 def test_only_inputs_without_within_bin_information_warn():
     gauss = Likelihoods.from_gaussian(MU, SD, BINS)
     with pytest.warns(binference.InputWarning, match=r"\(table\) keep no information"):
-        _values(Likelihoods.from_table(gauss.values, BINS, kind="likelihood"))
+        _draw(Likelihoods.from_table(gauss.values, BINS, kind="likelihood"))
     samples = np.random.default_rng(0).normal(0.5, 0.1, (3, 500))
     with pytest.warns(binference.InputWarning, match="keep no information"):
-        _values(Likelihoods.from_samples(samples, BINS, interim="flat", keep_samples=False))
-    _values(Likelihoods.from_samples(samples, BINS, interim="flat")[1:])  # rows follow subsets
+        _draw(Likelihoods.from_samples(samples, BINS, interim="flat", keep_samples=False))
+    _draw(Likelihoods.from_samples(samples, BINS, interim="flat")[1:])  # rows follow subsets
 
 
 def test_workers_get_no_within_bin_data_and_unpicklable_data_pickle_as_empty():
@@ -128,7 +129,7 @@ def test_a_bin_no_sample_reached_draws_flat_within_it():
     rng = np.random.default_rng(0)  # object i's samples all lie in bin i % 5
     samples = 0.2 * (np.arange(20)[:, None] % 5 + rng.uniform(0.0, 1.0, (20, 200)))
     lk = Likelihoods.from_samples(samples, BINS, interim="flat", floor=50.0)
-    vals = _values(lk)
+    vals = _draw(lk)
     far = vals[vals >= 0.2]
     k = BINS.index(far)
     assert far.size > 200
@@ -137,7 +138,7 @@ def test_a_bin_no_sample_reached_draws_flat_within_it():
 
 
 def test_truncated_normal_draws_keep_their_precision_in_far_tails():
-    from binference.results import _truncnorm
+    from binference._values import _truncnorm
 
     a, b = np.array([-1.0, 8.0, -12.0]), np.array([0.5, 9.0, -11.0])
     x = _truncnorm(np.repeat(a, 20_000), np.repeat(b, 20_000), np.random.default_rng(0))
@@ -177,7 +178,7 @@ def test_samples_with_zero_weights_leave_the_other_objects_and_bins_intact():
 def test_an_interim_prior_that_vanishes_inside_a_bin_does_not_collapse_the_draws():
     post = [stats.uniform(0.0, 0.95)] * 3  # posteriors under the same interim prior
     lk = Likelihoods.from_density(post, BINS, interim=stats.uniform(0.0, 0.95))
-    vals = _values(lk)
+    vals = _draw(lk)
     last = vals[vals >= 0.8]
     assert last.size > 200 and last.max() - last.min() > 0.1
 
@@ -192,16 +193,24 @@ def test_distributions_without_a_density_fall_back_with_a_warning():
 
     lk = Likelihoods.from_density([CdfOnly(m) for m in MU], BINS, kind="likelihood")
     with pytest.warns(binference.InputWarning, match="keep no information"):
-        _values(lk)
+        _draw(lk)
 
 
 def test_density_functions_are_evaluated_a_few_bins_at_a_time(monkeypatch):
-    lk = Likelihoods.from_density(
-        lambda z: stats.norm.logpdf(z[None, :], MU[:, None], SD), BINS, kind="likelihood", log=True
-    )
-    whole = _values(lk)
-    monkeypatch.setattr(binference.results, "EVAL_BUDGET", 3 * 64)  # one bin per call
-    np.testing.assert_array_equal(_values(lk), whole)
+    calls = []
+
+    def logpdf(z):
+        calls.append(z.size)
+        return stats.norm.logpdf(z[None, :], MU[:, None], SD)
+
+    lk = Likelihoods.from_density(logpdf, BINS, kind="likelihood", log=True)
+    calls.clear()
+    whole = _draw(lk)
+    n_whole = len(calls)
+    calls.clear()
+    monkeypatch.setattr(binference._values, "EVAL_BUDGET", 3 * 64)  # one bin per call
+    np.testing.assert_array_equal(_draw(lk), whole)
+    assert len(calls) > n_whole and max(calls) <= 64
     dists = Likelihoods.from_density([stats.norm(m, SD) for m in MU], BINS, kind="likelihood")
     assert pickle.loads(pickle.dumps(dists)).meta["within"].data is not None
 
