@@ -70,6 +70,26 @@ from the curvature of the log density in the hyperparameters at a fixed $\eta$. 
 holds the weights $\gamma_j$ used, and results are reported in the non-centred
 coordinates.
 
+**A known limitation:** on large grids, the E-BFMI of partially centred
+`LogisticGP` fits falls below 0.3, and `check()` flags it. The hyperparameters still mix
+as well as in the non-centred form, which keeps the E-BFMI near one. The figures below
+are from 3000 objects from `mock_2d` on [0, 1]², at noise 0.5 / k, with the default
+basis, a dense metric, and two chains of 300 warm-up iterations and 300 draws each.
+
+| Grid | E-BFMI, partially centred | E-BFMI, non-centred | Hyperparameter ESS per second, partially centred | Hyperparameter ESS per second, non-centred |
+|---|---|---|---|---|
+| 8 × 8 | 0.53–0.60 | 0.93–0.97 | 6.0–9.6 | 1.3–1.4 |
+| 12 × 12 | 0.36–0.37 | 0.82 | 1.8–1.9 | 0.4–0.8 |
+| 16 × 16 | 0.17–0.26 | 0.75–0.97 | 0.3–0.7 | 0.4–0.5 |
+
+Each range covers two seeds. A warm-up of 1000 iterations left the E-BFMI on 16 × 16 at
+0.13–0.34. On 30 and 60 bins in 1-D, with 3000 objects, partial centring gave 3 to 7
+times the non-centred hyperparameter ESS per second, at E-BFMI 0.42 to 1.03. With 300
+objects the two forms were about equal. The non-centred form is therefore not the
+default. On a grid, `LogisticGP(n_basis=10)` gives a smaller, easier fit, but it changes
+the prior once there are more than 10 bins per axis. The scripts are in the repository's
+`notes/review/experiments/222`.
+
 ## Gibbs sampling
 
 The data-augmentation sampler {cite:p}`tanner1987,diebolt1994` alternates two exact

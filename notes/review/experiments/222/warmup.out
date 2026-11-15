@@ -1,0 +1,4 @@
+16x16 auto   seed 0 s 1416.1 ebfmi [0.23 0.18] hyper-ess    60 ( 0.04/s) min-ess   217 div   0
+16x16 dense  seed 0 s  282.6 ebfmi [0.25 0.34] hyper-ess   136 ( 0.48/s) min-ess   361 div   0
+16x16 auto   seed 1 s 1404.1 ebfmi [0.31 0.23] hyper-ess    96 ( 0.07/s) min-ess   277 div   0
+16x16 dense  seed 1 s  483.7 ebfmi [0.13 0.18] hyper-ess    56 ( 0.11/s) min-ess   262 div   0

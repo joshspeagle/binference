@@ -19,7 +19,7 @@ Each item is an issue labelled `0.3.0` and a sub-issue of #225. Stages 1 and 2 c
 | | #233 | Samples constructor: kind and smoothing | done (#253) |
 | | #234 | Selection draws: parameters only, or averaging as an opt-in | done (#249) |
 | | #235 | `GeneralizedDirichlet` from a target mean; Pólya tree split points | done (#250) |
-| 3 Samplers | #222 | NUTS on `LogisticGP` with large grids; ships if its acceptance is met, otherwise documented as a known limitation | open |
+| 3 Samplers | #222 | NUTS on `LogisticGP` with large grids; ships if its acceptance is met, otherwise documented as a known limitation | in review: not met, documented; dense metric to 500 dimensions |
 | 4 Release | #77 | Golden values against mixsqp, REBayes and Empirikos, tried in a cloud session first | open |
 | | #238 | Review of the public API and the policy for breaking changes | open |
 | | #239 | Docs pass and the release | open |

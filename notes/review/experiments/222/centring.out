@@ -1,0 +1,28 @@
+1d-gp-30       partial  seed 0 s    8.5 ebfmi 0.57 hyper-ess   247 (28.99/s) min-ess   412 div   0 centred 0.93
+1d-gp-30       noncent  seed 0 s   18.3 ebfmi 0.77 hyper-ess   136 ( 7.47/s) min-ess   353 div   1 centred -
+1d-gp-30       partial  seed 1 s   10.7 ebfmi 0.42 hyper-ess   213 (19.89/s) min-ess   389 div   0 centred 1.00
+1d-gp-30       noncent  seed 1 s   18.0 ebfmi 0.95 hyper-ess    78 ( 4.31/s) min-ess   537 div   1 centred -
+1d-gp-60       partial  seed 0 s   13.0 ebfmi 0.58 hyper-ess   222 (17.17/s) min-ess   313 div   0 centred 0.47
+1d-gp-60       noncent  seed 0 s   22.2 ebfmi 0.90 hyper-ess    63 ( 2.82/s) min-ess   496 div   2 centred -
+1d-gp-60       partial  seed 1 s   18.7 ebfmi 0.59 hyper-ess   285 (15.25/s) min-ess   287 div   0 centred 0.53
+1d-gp-60       noncent  seed 1 s   32.6 ebfmi 0.91 hyper-ess   167 ( 5.11/s) min-ess   516 div   2 centred -
+1d-rw2-60      partial  seed 0 s   15.4 ebfmi 1.02 hyper-ess   539 (35.06/s) min-ess   585 div   0 centred 0.17
+1d-rw2-60      noncent  seed 0 s   27.7 ebfmi 0.80 hyper-ess   133 ( 4.78/s) min-ess   345 div   2 centred -
+1d-rw2-60      partial  seed 1 s   17.4 ebfmi 1.03 hyper-ess   489 (28.14/s) min-ess   569 div   0 centred 0.20
+1d-rw2-60      noncent  seed 1 s   22.4 ebfmi 0.85 hyper-ess    90 ( 4.01/s) min-ess   206 div  18 centred -
+1d-gp-60-n300  partial  seed 0 s    6.6 ebfmi 0.78 hyper-ess   272 (41.19/s) min-ess   526 div   0 centred 0.30
+1d-gp-60-n300  noncent  seed 0 s    8.1 ebfmi 0.84 hyper-ess   336 (41.78/s) min-ess   532 div   0 centred -
+1d-gp-60-n300  partial  seed 1 s    5.6 ebfmi 0.70 hyper-ess   263 (46.89/s) min-ess   453 div   0 centred 0.37
+1d-gp-60-n300  noncent  seed 1 s    5.8 ebfmi 0.79 hyper-ess   199 (34.05/s) min-ess   288 div   0 centred -
+2d-gp-8        partial  seed 0 s   27.3 ebfmi 0.60 hyper-ess   262 ( 9.57/s) min-ess   381 div   0 centred 1.00
+2d-gp-8        noncent  seed 0 s   70.0 ebfmi 0.93 hyper-ess    90 ( 1.29/s) min-ess   197 div   1 centred -
+2d-gp-8        partial  seed 1 s   36.2 ebfmi 0.53 hyper-ess   215 ( 5.95/s) min-ess   399 div   0 centred 1.00
+2d-gp-8        noncent  seed 1 s   75.1 ebfmi 0.97 hyper-ess   107 ( 1.43/s) min-ess   414 div   2 centred -
+2d-gp-12       partial  seed 0 s   76.3 ebfmi 0.36 hyper-ess   137 ( 1.79/s) min-ess   247 div   0 centred 1.00
+2d-gp-12       noncent  seed 0 s  100.7 ebfmi 0.82 hyper-ess    75 ( 0.75/s) min-ess   246 div   0 centred -
+2d-gp-12       partial  seed 1 s   48.4 ebfmi 0.37 hyper-ess    94 ( 1.94/s) min-ess   245 div   0 centred 1.00
+2d-gp-12       noncent  seed 1 s  104.8 ebfmi 0.82 hyper-ess    45 ( 0.43/s) min-ess   165 div   2 centred -
+2d-gp-16       partial  seed 0 s  173.4 ebfmi 0.26 hyper-ess   127 ( 0.73/s) min-ess   445 div   0 centred 1.00
+2d-gp-16       noncent  seed 0 s  284.3 ebfmi 0.75 hyper-ess   119 ( 0.42/s) min-ess   351 div   7 centred -
+2d-gp-16       partial  seed 1 s  286.2 ebfmi 0.17 hyper-ess    96 ( 0.33/s) min-ess   292 div   0 centred 1.00
+2d-gp-16       noncent  seed 1 s  182.8 ebfmi 0.97 hyper-ess    93 ( 0.51/s) min-ess   177 div   0 centred -
