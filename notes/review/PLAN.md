@@ -13,12 +13,12 @@ Each item is an issue labelled `0.3.0` and a sub-issue of #225. Stages 1 and 2 c
 | | #228 | A contributor set-up that works outside Josh's machine | done (#241) |
 | | #229 | Tests grouped by module, not by the review that added them | done (#245) |
 | | #230 | Split `results.py` along its seams, if the split is clean (optional) | done (#246): no split, value drawing moved out |
-| | #231 | Public-repository hygiene: conduct, security, DOI, the old name | in review |
-| 2 API and defaults | #204 | Derived totals under a flat Dirichlet | open |
+| | #231 | Public-repository hygiene: conduct, security, DOI, the old name | done (#247) |
+| 2 API and defaults | #204 | Derived totals under a flat Dirichlet | default kept (Josh); measuring the injection-selection bias |
 | | #232 | Every prior takes its geometry from the bins' measure | open |
 | | #233 | Samples constructor: kind and smoothing | open |
-| | #234 | Selection draws: parameters only, or averaging as an opt-in | open |
-| | #235 | `GeneralizedDirichlet` from a target mean; Pólya tree split points | open |
+| | #234 | Selection draws: parameters only, or averaging as an opt-in | in review: no averaging (Josh) |
+| | #235 | `GeneralizedDirichlet` from a target mean; Pólya tree split points | ruled: GD mean constructor, index split kept (Josh) |
 | 3 Samplers | #222 | NUTS on `LogisticGP` with large grids; ships if its acceptance is met, otherwise documented as a known limitation | open |
 | 4 Release | #77 | Golden values against mixsqp, REBayes and Empirikos, tried in a cloud session first | open |
 | | #238 | Review of the public API and the policy for breaking changes | open |
