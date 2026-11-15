@@ -7,7 +7,14 @@ import numpy as np
 import pytest
 
 import binference
-from binference import Bins, PopulationEstimator, PopulationModel, Selection
+from binference import (
+    Bins,
+    PopulationEstimator,
+    PopulationModel,
+    Selection,
+)
+
+from .conftest import fit_with_selection
 
 
 def test_namespace():
@@ -155,3 +162,48 @@ def test_infer_checks_the_inputs_after_every_engine(method):
     lk = binference.Likelihoods.from_samples(rng.uniform(0, 1, (2000, 80)), bins, interim="flat")
     with pytest.warns(binference.InputWarning, match="Monte Carlo variance"):
         binference.infer(lk, method=method, rng=0)
+
+
+def test_plotting_and_io_are_listed_on_the_package_without_loading_their_extras():
+    import subprocess
+    import sys
+
+    # in a fresh interpreter: listed by dir(), matplotlib and xarray not loaded, and a
+    # star import leaves the standard io alone
+    code = (
+        "import sys, binference; star = {}; exec('from binference import *', star); "
+        "print({'plotting', 'io'} <= set(dir(binference)), "
+        "{'matplotlib', 'xarray'} & set(sys.modules), 'io' in star)"
+    )
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert out.stdout.split() == ["True", "set()", "False"], out.stderr
+
+
+def test_method_em_runs_em_and_auto_is_recorded_in_any_case():
+    lk, _ = fit_with_selection()
+    assert binference.infer(lk, method="em").info["algorithm"] in ("em", "squarem")
+    res = binference.infer(lk, method="AUTO", n_samples=20, rng=0, check=False)
+    assert res.info["auto_method"] == res.method
+
+
+def test_estimator_works_with_scikit_learn_model_selection():
+    model_selection = pytest.importorskip("sklearn.model_selection")
+    bins = Bins.linear(0, 1, 4)
+    lk = binference.simulate.mock_1d(120, bins, noise=0.1, rng=0).likelihoods
+    est = binference.PopulationEstimator(method="map", bins=bins)
+    assert np.isfinite(model_selection.cross_val_score(est, lk, cv=3)).all()
+    grid = {"prior": [binference.priors.Dirichlet(0.5), binference.priors.Dirichlet(1.0)]}
+    assert model_selection.GridSearchCV(est, grid, cv=3).fit(lk.toarray()).best_params_
+
+
+def test_method_em_on_a_joint_model_runs_its_optimiser():
+    lk, _ = fit_with_selection()
+    z = np.linspace(0.05, 0.95, 40)
+    sel = binference.Selection.from_injections(z, np.tile([True, False], 20), lk.bins, "on_truth")
+    assert binference.infer(lk, selection=sel, method="em").info["space"] == "unconstrained"
+
+
+def test_a_star_import_leaves_the_standard_io_module_alone():
+    ns: dict = {}
+    exec("import io\nfrom binference import *", ns)
+    assert hasattr(ns["io"], "BytesIO")

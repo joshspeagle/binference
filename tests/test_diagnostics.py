@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 
+import binference
 from binference import diagnostics as d
 
 
@@ -159,3 +160,21 @@ def test_a_degenerate_tail_fit_gives_an_infinite_k_hat(monkeypatch):
     monkeypatch.setattr(d, "_gpdfit", nan_fit)
     lw, k = d.psis(np.random.default_rng(0).normal(size=200))
     assert k == np.inf and np.isfinite(lw).all()
+
+
+def test_the_psis_threshold_needs_five_weights():
+    with pytest.raises(ValueError, match="at least 5"):
+        binference.diagnostics.psis_threshold(1)
+    assert binference.diagnostics.psis_threshold(10_000) == 0.7
+
+
+def test_psis_rounds_the_tail_length_up():
+    # 3 sqrt(1000) = 94.9: the tail is the 95 largest weights, as in ArviZ and loo (O-20)
+    from binference.diagnostics import _gpdfit, psis
+
+    lw = np.random.default_rng(2).standard_t(3, 1000)
+    lw -= lw.max()
+    s = np.sort(lw)
+    cut = np.exp(s[-96])
+    k_ref, _ = _gpdfit(np.exp(s[-95:]) - cut)
+    assert psis(lw)[1] == pytest.approx(k_ref)

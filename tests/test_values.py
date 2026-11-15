@@ -7,7 +7,7 @@ import pytest
 from scipy import stats
 
 import binference
-from binference import Basis, Bins, Likelihoods
+from binference import Basis, Bins, Likelihoods, PopulationModel, PopulationResult
 
 BINS = Bins.linear(0, 1, 5)
 MU, SD = np.array([0.37, 0.52, 0.71]), 0.08
@@ -204,3 +204,42 @@ def test_density_functions_are_evaluated_a_few_bins_at_a_time(monkeypatch):
     np.testing.assert_array_equal(_values(lk), whole)
     dists = Likelihoods.from_density([stats.norm(m, SD) for m in MU], BINS, kind="likelihood")
     assert pickle.loads(pickle.dumps(dists)).meta["within"].data is not None
+
+
+def test_loglike_values_need_support_in_the_bin_and_call_loglike_once_per_object():
+    bins = Bins.linear(0, 1, 4)
+    mock = binference.simulate.mock_1d(30, bins, noise=0.3, rng=0)
+    lk = Likelihoods(mock.likelihoods.toarray(), bins)
+    res = binference.infer(lk, method="gibbs", n_samples=20, rng=0, check=False)
+    calls = []
+
+    def loglike(z, i):
+        calls.append(i)
+        return -0.5 * ((z - mock.measurements["mean"][i]) / 0.3) ** 2
+
+    res.sample_values(idx=[0, 1, 2], n_draws=20, rng=0, loglike=loglike)
+    assert sorted(calls) == [0, 1, 2]
+
+    def narrow(z, i):
+        return np.where(np.abs(z - 0.08) < 1e-6, 0.0, -np.inf)
+
+    with pytest.raises(ValueError, match="sub-points"):
+        res.sample_values(idx=[0], n_draws=20, rng=0, loglike=narrow)
+
+
+# ------------------------------------------------------------- results (6, 12-14)
+def test_sample_values_follow_the_likelihood_within_bins():
+    bins = Bins([0.0, 0.5, 1.0])
+    lk = Likelihoods.from_gaussian(np.array([0.26, 0.7]), np.array([0.02, 0.3]), bins)
+    res = PopulationResult(PopulationModel(lk), np.tile([0.5, 0.5], (400, 1)), method="test")
+    v = res.sample_values(rng=1)
+    assert v[:, 0].mean() == pytest.approx(0.26, abs=0.005)
+    assert v[:, 0].std() == pytest.approx(0.02, rel=0.15)
+    plain = PopulationResult(PopulationModel(Likelihoods(lk.toarray(), bins)),
+                             np.tile([0.5, 0.5], (400, 1)), method="test")  # fmt: skip
+    custom = plain.sample_values(
+        idx=[0], rng=1, loglike=lambda z, i: stats.norm.logpdf(z, [0.26, 0.7][i], 0.02)
+    )
+    assert custom.std() == pytest.approx(0.02, rel=0.2)
+    with pytest.warns(binference.InputWarning, match="population alone"):  # top-hat
+        assert plain.sample_values(idx=[0], rng=1).std() > 0.1
