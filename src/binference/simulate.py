@@ -351,7 +351,7 @@ def _gaussian_mock(
     return Mock(bins, lk, truth, {"mean": obs, "sigma": sigma})
 
 
-def _posterior_samples_1d(obs, sigma, bins, interim, n_samples, gen):
+def _posterior_samples_1d(obs, sigma, bins, interim, samples_per_object, gen):
     grid = bins.refine(50)[0].edges[0]  # 50 steps per bin, equal in u: each in one bin
     mid = 0.5 * (grid[1:] + grid[:-1])
     # the prior mass of each step, the interim density in z read as from_samples reads it
@@ -359,13 +359,13 @@ def _posterior_samples_1d(obs, sigma, bins, interim, n_samples, gen):
     with np.errstate(divide="ignore"):
         log_prior = _log_interim(_interim_at_points(interim, bins), mid) + np.log(np.diff(grid))
     log_prior = np.where(bins.index(mid) >= 0, log_prior, -np.inf)
-    out = np.empty((obs.size, n_samples))
+    out = np.empty((obs.size, samples_per_object))
     for i in range(obs.size):
         logp = -0.5 * ((mid - obs[i]) / sigma[i]) ** 2 + log_prior
         p = np.exp(logp - logp.max())
         cdf = np.concatenate(([0.0], np.cumsum(p)))
         cdf /= cdf[-1]
-        out[i] = np.interp(gen.random(n_samples), cdf, grid)
+        out[i] = np.interp(gen.random(samples_per_object), cdf, grid)
     return out
 
 

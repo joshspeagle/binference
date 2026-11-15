@@ -1698,6 +1698,7 @@ class PopulationResult(_IndividualMixin):
         support_min : float, optional
             Flag bins with less data support than this; ``None`` skips the test.
         """
+        check_positive_integers(n_predictive, "n_predictive")
         d = self.diagnostics
         msgs = self._mixing_problems(rhat_max, ess_min)
         hints = []

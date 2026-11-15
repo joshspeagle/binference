@@ -582,3 +582,10 @@ def test_check_reports_missing_information_when_gibbs_mixes_slowly():
     with pytest.warns(binference.ConvergenceWarning, match=r"missing information [01]\.\d\d"):
         res.check()
     assert 0.5 < res.diagnostics["missing_information"] <= 1.0
+
+
+@pytest.mark.parametrize("n", [0, -1, 2.5])
+def test_check_refuses_a_predictive_draw_count_that_is_not_a_positive_integer(fitted, n):
+    # zero draws turned the label-shift check off without a word
+    with pytest.raises(ValueError, match="n_predictive"):
+        fitted.check(n_predictive=n)

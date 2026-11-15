@@ -25,7 +25,7 @@ def one(a):
         ex,ey=bins.edges
         z=np.stack([ex[ij[:,0]]+rng.uniform(0,1,N)*np.diff(ex)[ij[:,0]],ey[ij[:,1]]+rng.uniform(0,1,N)*np.diff(ey)[ij[:,1]]],axis=-1)
         obs=z+noise*rng.standard_normal((N,2))
-        lk=binference.Likelihoods.from_gaussian(obs,noise,bins)
+        lk=binference.Likelihoods.from_gaussian(obs,bins,noise)
     t=time.perf_counter(); r=binference.infer(lk,pr,method="nuts",rng=rng,check=False,**kw); dt=time.perf_counter()-t
     d=r.samples; idx=np.linspace(0,len(d)-1,NDRAW).astype(int); d=d[idx]
     rank=(d<truth).sum(0)

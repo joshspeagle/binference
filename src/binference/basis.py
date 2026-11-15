@@ -157,21 +157,23 @@ class Basis:
         Parameters
         ----------
         bins : Bins
-            Grid covering the components' range with the same measures.
+            A grid covering the components' range with the same measures: the reporting
+            bins, the components, the quadrature grid or a refinement of them.
         """
         comp = self.components
         if bins.is_categorical or bins.ndim != comp.ndim or bins.measures != comp.measures:
             raise ValueError("bins must be a grid with the components' measures.")
         out = []
-        for u_grid, u_comp in zip(bins.u_edges, comp.u_edges, strict=True):
-            if not np.allclose([u_grid[0], u_grid[-1]], [u_comp[0], u_comp[-1]]):
+        for u_bins, u_comp in zip(bins.u_edges, comp.u_edges, strict=True):
+            if not np.allclose([u_bins[0], u_bins[-1]], [u_comp[0], u_comp[-1]]):
                 raise ValueError("bins must cover the same range as the basis.")
-            out.append(_axis_masses(u_grid, u_comp, self.order))
+            out.append(_axis_masses(u_bins, u_comp, self.order))
         return out
 
     def masses(self, bins: Bins) -> sp.csr_array:
         r"""``(bins.K, C)`` sparse masses :math:`A_{qk} = \int_{B_q} \psi_k\,du` of the
-        components in the cells :math:`B_q` of ``bins`` (:math:`A` in the reporting bins).
+        components in the cells :math:`B_q` of ``bins`` (:math:`A` when ``bins`` are the
+        reporting bins).
 
         ``bins`` must cover the components' range with the same measures (the
         reporting bins, the components or any refinement of them). Each column
@@ -180,7 +182,7 @@ class Basis:
         Parameters
         ----------
         bins : Bins
-            Grid covering the components' range with the same measures.
+            A grid covering the components' range with the same measures.
         """
         M = None
         for m in self.axis_masses(bins):

@@ -45,6 +45,8 @@ changes" section sets out.
   `TypeError`; pass it by name.
 - `NUTS` refuses a NaN `n_warmup` or `jitter` and a fractional `n_warmup`, which it
   truncated.
+- `infer` names an option that no engine takes as unknown, rather than suggesting `method=`;
+  `check` refuses an `n_predictive` that is not a positive integer.
 - NUTS uses a dense metric for logistic priors up to 500 dimensions (from 200), and
   starts it from the curvature at every chain's position. With `LogisticGP`'s default
   basis, two chains and one thread each, this cut the time per fit by two to five times

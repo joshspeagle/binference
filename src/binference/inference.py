@@ -146,6 +146,11 @@ class Auto(Engine):
         )
 
     def _none_takes_the_options(self) -> ValueError:
+        engines = [*METHODS.values(), *(engine for _, engine in _CANDIDATES)]
+        known = {name for engine in engines for name in _options(engine)}
+        unknown = sorted(set(self.engine_kwargs) - known)
+        if unknown:
+            return ValueError(f"No engine takes the options {unknown}; check their names.")
         return ValueError(
             f"None of the engines method='auto' can use for this model (Laplace, NUTS, "
             f"and Gibbs where it applies) takes all of {sorted(self.engine_kwargs)}; pass "

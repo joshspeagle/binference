@@ -113,6 +113,9 @@ def test_engine_options_rule_out_the_engines_that_do_not_take_them(short_nuts):
     assert res.info["auto_reason"] == "the only engine that takes these options"
     with pytest.raises(ValueError, match="None of the engines"):
         binference.infer(lk, df=4, target_accept=0.9)
+    # an option no engine takes, such as a misspelt one, is named as unknown
+    with pytest.raises(ValueError, match=r"No engine takes the options \['nnz_limit'\]"):
+        binference.infer(lk, nnz_limit=1e8)
 
 
 def test_a_hopeless_laplace_trial_stops_after_its_first_thousand_proposals(monkeypatch):
