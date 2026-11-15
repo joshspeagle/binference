@@ -865,3 +865,19 @@ def test_logistic_prior_mean_is_a_flat_density():
         mu = prior.bind(bins).mu
         lv = np.log(bins.volumes)
         np.testing.assert_allclose(mu, lv - lv.mean())
+
+
+def test_a_generalized_dirichlet_from_a_base_measure_has_its_masses_as_mean(seed):
+    base = np.array([1.0, 3.0, 2.0, 5.0, 1.0, 4.0])
+    prior = P.GeneralizedDirichlet.from_base_measure(3.0, base, order=[5, 0, 4, 1, 3, 2])
+    draws = prior.bind(Bins.linear(0, 1, 6)).sample(40_000, np.random.default_rng(seed))
+    se = draws.std(0) / np.sqrt(len(draws))
+    np.testing.assert_array_less(np.abs(draws.mean(0) - base / base.sum()), 4 * se)
+
+
+def test_a_generalized_dirichlet_from_a_base_measure_checks_its_arguments():
+    with pytest.raises(ValueError, match="concentration"):
+        P.GeneralizedDirichlet.from_base_measure(0.0)
+    with pytest.raises(ValueError, match="positive mass"):
+        P.GeneralizedDirichlet.from_base_measure(2.0, [1.0, 0.0, 1.0]).bind(Bins.linear(0, 1, 3))
+    assert "concentration=2.0" in repr(P.GeneralizedDirichlet.from_base_measure())

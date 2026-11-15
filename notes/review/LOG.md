@@ -535,3 +535,4 @@ Append-only. One entry per working session (or per step within a long session).
 - #231: no code of conduct or security policy (Josh's call); Zenodo DOIs from 0.3.0, which Josh turns on (DECISIONS #138). The old name survives only in the design pages that record history; the citation's abstract lists every input kind.
 - #204: measured (comment on the issue): with an exact selection the default prior gives totals at z = −0.59 ± 0.07, a flat rate prior +0.44, Dirichlet(1/K) −0.10 but samples badly; with a selection from 3000 injections z = −1.35. Josh kept the default prior and asked to find the cause of the injection bias; a second measurement (more injections, Beta priors on S, smoothing, a fixed selection) is running.
 - #234: no averaging over selection draws (Josh, DECISIONS #139); the selection guide says why.
+- #235: `GeneralizedDirichlet.from_base_measure` (DECISIONS #140, Josh's choice); Pólya trees keep index splits, now documented in the class.

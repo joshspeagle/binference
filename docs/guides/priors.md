@@ -69,6 +69,9 @@ print(binference.infer(lk, polya, method="map").rho[:3].round(4))
   groups; on categorical bins a bin can be named by its label. A dict `alpha` sets the
   concentration of the branch into each group, or bin as the tree writes it, that it
   names; the other branches keep 1.
+- **`GeneralizedDirichlet.from_base_measure(c)`**: use it for a chain whose prior mean
+  is a base measure, flat by default. With `a` and `b` alone the mean falls along the
+  chain.
 - **`PolyaTree`**: use it on 1-D ordered bins for a conjugate prior with structure at
   several scales.
 
