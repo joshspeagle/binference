@@ -115,7 +115,8 @@ compares it with two other solvers on four problems. The other solvers' solution
 stored with the scripts that wrote them, in `tests/data/golden/`.
 
 - **mixsqp** {cite:p}`kim2020`: its own simulated normal scale mixture, and the
-  Gaussian-location problem of REBayes's `GLmix` on REBayes's baseball data. REBayes
+  Gaussian-location problem of REBayes's `GLmix` on REBayes's baseball data
+  {cite:p}`brown2008`. REBayes
   needs a solver that is not free ([the software landscape](../fields/software.md#comparison)),
   so mixsqp solves that problem too. MAP matches the log-likelihood to $10^{-10}$
   relative, and the weights and fitted values to $10^{-5}$.

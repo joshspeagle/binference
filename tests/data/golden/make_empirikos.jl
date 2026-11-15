@@ -7,8 +7,14 @@
 #   "tacks":   Beckett and Diaconis's thumbtack data, x successes out of k = 9 trials,
 #              p on 99 equally spaced points in [0.01, 0.99].
 # Run from this directory: julia make_empirikos.jl
-# (needs Empirikos, Hypatia, DataFrames, StatsBase, Distributions, JSON)
-using Empirikos, Hypatia, DataFrames, StatsBase, Distributions, JSON, Pkg
+# It installs the versions that wrote empirikos.json into a temporary environment.
+import Pkg
+Pkg.activate(; temp=true)
+Pkg.add([Pkg.PackageSpec(name="Empirikos", version="0.6.5"),
+         Pkg.PackageSpec(name="Hypatia", version="0.11.1"),
+         Pkg.PackageSpec(name="JuMP", version="1.32.1"),
+         Pkg.PackageSpec.(["DataFrames", "StatsBase", "Distributions", "JSON"])...])
+using Empirikos, Hypatia, DataFrames, StatsBase, Distributions, JSON
 
 function npmle(Zs, counts, grid)
     prior = StatsBase.fit(NPMLE(DiscretePriorClass(grid), Hypatia.Optimizer),
@@ -23,7 +29,8 @@ bichsel = merge(Dict("z" => b.z), npmle(PoissonSample.(b.z), b.count, collect(ra
 
 t = DataFrame(Empirikos.Tacks.load_table())
 tc = countmap(collect(zip(t.x, t.k)))
-xs = first.(collect(keys(tc))); ks = last.(collect(keys(tc))); cs = collect(values(tc))
+rows = sort(collect(tc))  # (x, k) => count, in a stable order
+xs = [r[1][1] for r in rows]; ks = [r[1][2] for r in rows]; cs = last.(rows)
 tacks = merge(Dict("x" => xs, "k" => ks),
               npmle(BinomialSample.(xs, ks), cs, collect(range(0.01, 0.99, length=99))))
 

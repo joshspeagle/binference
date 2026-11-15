@@ -12,10 +12,13 @@
 # Run from this directory: Rscript make_mixsqp.R  (needs mixsqp, REBayes for the data, jsonlite)
 library(mixsqp)
 library(jsonlite)
+# the versions that wrote mixsqp.json; another version may stop at a different point
+stopifnot(packageVersion("mixsqp") == "0.3.54", packageVersion("REBayes") == "2.60")
 data(bball, package = "REBayes")
 
-solve <- function(L) {
+fit_npmle <- function(L) {
   fit <- mixsqp(L, control = list(convtol.sqp = 1e-10, verbose = FALSE))
+  stopifnot(fit$status == "converged to optimal solution")
   w <- fit$x / sum(fit$x)
   list(weights = w, loglik = sum(log(L %*% w)), status = fit$status)
 }
@@ -23,14 +26,14 @@ solve <- function(L) {
 set.seed(1)
 sim <- simulatemixdata(400, 20)
 L <- outer(sim$x, sim$s, function(x, s) dnorm(x, sd = sqrt(1 + s^2)))  # not row-normalised
-scale <- c(list(x = sim$x, s = sim$s), solve(L))
+scale <- c(list(x = sim$x, s = sim$s), fit_npmle(L))
 
 b <- subset(bball, year == 2005 & season == 1 & pitcher == 0 & AB >= 11)
 y <- asin(sqrt((b$H + 0.25) / (b$AB + 0.5)))
 se <- 1 / (2 * sqrt(b$AB))
 v <- seq(min(y), max(y), length.out = 300)
 L <- dnorm(outer(y, v, "-") / se) / se
-glmix <- c(list(y = y, se = se, grid = v), solve(L))
+glmix <- c(list(y = y, se = se, grid = v), fit_npmle(L))
 
 out <- list(
   scale = scale, glmix = glmix,
