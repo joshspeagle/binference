@@ -22,6 +22,7 @@ mode is dropped wherever it is explicit.
 from __future__ import annotations
 
 import copy
+import math
 from collections.abc import Sequence
 from typing import Any
 
@@ -78,9 +79,9 @@ class _KronBasis:
         return t.reshape(self.J)
 
 
-def _orthonormal_polys(n: int, degree: int) -> np.ndarray:
-    """Orthonormal basis of polynomials of degree < ``degree`` on 0..n-1 (columns)."""
-    x = np.arange(n, dtype=float)
+def _orthonormal_polys(x: np.ndarray, degree: int) -> np.ndarray:
+    """Orthonormal basis of polynomials of degree < ``degree`` at the points ``x`` (columns)."""
+    x = np.asarray(x, dtype=float)
     x = (x - x.mean()) / max(1.0, x.std())
     P = np.stack([x**p for p in range(degree)], axis=1)
     q, _ = np.linalg.qr(P)
@@ -89,23 +90,41 @@ def _orthonormal_polys(n: int, degree: int) -> np.ndarray:
     return q
 
 
-def _rw_precision(n: int, order: int) -> np.ndarray:
-    """The 1-D random-walk precision ``D_r^T D_r`` of the ``order``-th differences."""
+def _rw_steps(u_edges: np.ndarray) -> np.ndarray:
+    """Bin centres in ``u``, in units of their mean spacing: the random walk's positions."""
+    c = 0.5 * (u_edges[1:] + u_edges[:-1])
+    return (c - c[0]) / ((c[-1] - c[0]) / (c.size - 1)) if c.size > 1 else c - c[0]
+
+
+def _rw_precision(x: np.ndarray, order: int) -> np.ndarray:
+    """The 1-D random-walk precision ``D^T D`` at positions ``x``.
+
+    Row ``i`` of ``D`` is ``order!`` times the ``order``-th divided difference over
+    ``x[i]..x[i+order]``, weighted by ``sqrt((x[i+order] - x[i]) / order)``: on unit spacing
+    this is ``np.diff`` of that order, and an increment's variance grows with its span.
+    """
+    x = np.asarray(x, dtype=float)
+    n = x.size
     if n <= order:
         raise ValueError(f"A random walk of order {order} needs more than {order} bins per axis.")
-    D = np.diff(np.eye(n), n=order, axis=0)
+    D = np.eye(n)
+    for k in range(1, order + 1):
+        D = (D[1:] - D[:-1]) / (x[k:] - x[:-k])[:, None]
+    span = x[order:] - x[:-order]
+    D *= math.factorial(order) * np.sqrt(span / order)[:, None]
     return D.T @ D
 
 
-def _rw_eigen(n: int, order: int) -> tuple[np.ndarray, np.ndarray]:
+def _rw_eigen(x: np.ndarray, order: int) -> tuple[np.ndarray, np.ndarray]:
     """Eigen-decomposition of the 1-D random-walk precision ``D_r^T D_r``.
 
     The first ``order`` eigenvectors are replaced by an explicit orthonormal
     polynomial basis of the null space (constant first), with eigenvalue 0.
     """
-    Q = _rw_precision(n, order)
+    n = len(x)
+    Q = _rw_precision(x, order)
     _, U = np.linalg.eigh(Q)
-    null = _orthonormal_polys(n, order)
+    null = _orthonormal_polys(x, order)
     # project the non-null eigenvectors off the polynomial null space for safety
     U_rest = U[:, order:]
     U_rest = U_rest - null @ (null.T @ U_rest)
@@ -406,8 +425,11 @@ class LogisticRandomWalk(PopulationPrior):
     the surface :math:`xy` is unpenalised too (and :math:`x^2y^2` for
     ``order=3``).
 
-    Smoothness is measured per bin step, so the natural scale of ``scale``
-    depends on the binning.
+    Differences are taken in the measure coordinate :math:`u`, at the bin centres, in
+    units of the mean spacing of the centres along each axis: on bins of equal width in
+    :math:`u` they are the differences between adjacent bins, and on unequal bins a step
+    over a wider gap may be larger. The natural size of ``scale`` therefore depends on
+    the number of bins per axis.
 
     Parameters
     ----------
@@ -445,7 +467,7 @@ class LogisticRandomWalk(PopulationPrior):
 
     def bind(self, bins: Bins) -> _BoundRandomWalk:
         _require_full_grid(bins)
-        per_axis = [_rw_eigen(n, self.order) for n in bins.shape]
+        per_axis = [_rw_eigen(_rw_steps(u), self.order) for u in bins.u_edges]
         basis = _KronBasis([U for _, U in per_axis])
         eig = np.zeros(1)
         null = np.ones(1, dtype=bool)

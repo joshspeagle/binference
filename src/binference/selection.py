@@ -437,7 +437,7 @@ def _logit_density(y: np.ndarray, injections: _Injections) -> tuple[float, np.nd
 def _logit_mode(y: np.ndarray, injections: _Injections) -> np.ndarray:
     """The mode of :func:`_logit_density` (strictly concave), by damped Newton steps from ``y``."""
     s, f = _beta_posterior(injections)
-    Q = _rw_precision(s.size, 2) / injections.smooth**2
+    Q = _rw_precision(np.arange(s.size), 2) / injections.smooth**2
     lp, g = _logit_density(y, injections)
     for _ in range(100):
         S = special.expit(y)

@@ -894,3 +894,35 @@ def test_a_generalized_dirichlet_from_a_base_measure_checks_its_arguments():
     assert repr(P.GeneralizedDirichlet.from_base_measure(2)) == repr(
         P.GeneralizedDirichlet.from_base_measure(2.0)
     )
+
+
+def test_a_first_order_random_walk_steps_in_the_measure_coordinate(seed):
+    # on bins unequal in u, a neighbour difference has variance in proportion to its spacing
+    edges = np.array([0.0, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2])
+    bins = Bins(edges)
+    prior = P.LogisticRandomWalk(order=1, scale=Fixed(1.0))
+    r = prior.bind(bins).sample(20_000, np.random.default_rng(seed))
+    log_density = np.log(r / np.diff(edges))
+    centres = 0.5 * (edges[1:] + edges[:-1])
+    ratio = np.var(np.diff(log_density, axis=1), axis=0) / np.diff(centres)
+    # each variance has a Monte Carlo error of about 1% (sqrt(2 / 20000))
+    np.testing.assert_allclose(ratio, np.mean(ratio), rtol=0.06)
+
+
+def test_a_second_order_random_walk_leaves_lines_in_u_unpenalised():
+    from binference.priors.logistic import _rw_precision, _rw_steps
+
+    x = _rw_steps(np.array([0.0, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2]))
+    Q = _rw_precision(x, 2)
+    np.testing.assert_allclose(Q @ np.ones(6), 0.0, atol=1e-12)
+    np.testing.assert_allclose(Q @ x, 0.0, atol=1e-12)
+    assert np.linalg.matrix_rank(Q) == 4
+
+
+@pytest.mark.parametrize("order", [1, 2, 3])
+def test_a_random_walk_on_equal_bins_steps_by_bin(order):
+    from binference.priors.logistic import _rw_precision, _rw_steps
+
+    D = np.diff(np.eye(9), n=order, axis=0)
+    x = _rw_steps(Bins.log(1.0, 100.0, 9).u_edges[0])
+    np.testing.assert_allclose(_rw_precision(x, order), D.T @ D, atol=1e-12)

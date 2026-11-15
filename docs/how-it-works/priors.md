@@ -111,6 +111,11 @@ unchanged, so the constant mode is dropped wherever the basis contains it.
   covariance the components are independent, with an inferred common scale.
 - **`LogisticRandomWalk(order)`** makes the order-$r$ differences of $\eta$ between
   adjacent bins independent $\mathcal N(0,\tau^2)$ {cite:p}`rue2005`.
+  - Positions are the bin centres in the measure coordinate, $x_k$, in units of their mean
+    spacing along the axis. Row $i$ of $\mathcal D_r$ is $r!$ times the order-$r$ divided
+    difference over $x_i,\dots,x_{i+r}$, weighted by $\sqrt{(x_{i+r}-x_i)/r}$. On equal
+    spacing this is the plain difference of adjacent bins. On unequal spacing an
+    order-1 step has variance in proportion to its gap, as for Brownian motion in $u$.
   - The basis holds the eigenvectors of the difference precision $\mathcal D_r^\top\mathcal D_r$, with
     eigenvalues $e_j$ and scales $s_j=\tau/\sqrt{e_j}$.
   - The polynomial modes the differences do not penalise, such as the linear trend for
@@ -119,8 +124,8 @@ unchanged, so the constant mode is dropped wherever the basis contains it.
   - On grids of several dimensions the precision is the Kronecker sum of the per-axis
     precisions. Its unpenalised modes are the products of the per-axis ones, so for
     $r=2$ in two dimensions the surface $u_1u_2$ is not penalised either.
-  - Smoothness is measured per bin step, so the natural size of $\tau$ depends on the
-    binning.
+  - The unpenalised polynomials are polynomials in $x$, so a trend linear in $u$ is free
+    for $r=2$. The natural size of $\tau$ depends on the number of bins per axis.
 - **`LogisticGP(kernel)`** is a Hilbert-space reduced-rank Gaussian process
   {cite:p}`solin2020,riutortmayol2023`.
   - Let an axis have half-range $\Delta$ and centre $\bar u$ in the measure coordinate.
