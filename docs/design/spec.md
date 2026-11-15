@@ -5,7 +5,7 @@
 **Status:** draft for review, 2026-10-22. Sections 3–11 were updated to match the code on 2026-10-26 (issue #79). Changed statements cite the decision that changed them (DECISIONS #n, `notes/review/DECISIONS.md`). The decision log in §13 is unchanged.
 
 **Inputs to this document:**
-- The landscape census in `reports/Population inference software landscape.md`, with the notes behind it in `research_notes/`.
+- The landscape census, now the page {doc}`landscape`, with the notes behind it in [`research_notes/`](https://github.com/joshspeagle/binference/tree/3c12aa3d174bc335edadceb3d4cfeed25e62c94d/research_notes) (archived, DECISIONS #134).
 - An audit of the population samplers in `frankenz`.
 - A set of prototype benchmarks run while writing this spec (Section 6.10).
 
@@ -82,7 +82,7 @@ The goal is the **population distribution** $\rho \in \Delta^{K-1}$ (the fractio
 - **Outputs:** population posteriors, best fits, realised-sample histograms, individual-object posteriors and draws (including values within bins), leave-one-out posteriors, diagnostics, SBC/coverage tools, simulation utilities, plotting and serialisation.
 - **Documentation:** a theory page in clean notation, executed tutorials per field, background pages on each field's methods, and an API reference.
 
-**Later (see `notes/review/post-v1.md` and the deferred issues):**
+**Later (see the issues labelled `deferred`):**
 - A hierarchical Dirichlet model with uncertain concentration and an uncertain reference sample (the coherent replacement for frankenz's "flexible reference").
 - Rates with logistic-normal priors.
 - Evidence estimates.
@@ -675,7 +675,7 @@ These were decided without the user's input so that work could proceed. Each is 
 
 ## Appendix B: lessons from the `frankenz` samplers
 
-The full audit is in `research_notes/Population inference software landscape/frankenz_audit.md`; the landscape report summarises it. The findings that shape this spec:
+The full audit is in [`frankenz_audit.md`](https://github.com/joshspeagle/binference/blob/3c12aa3d174bc335edadceb3d4cfeed25e62c94d/research_notes/Population%20inference%20software%20landscape/frankenz_audit.md) (archived); the landscape report summarises it. The findings that shape this spec:
 
 1. **Same target.** The population and hierarchical samplers target the same marginal posterior for $\rho$ (§3.3), so binference offers one model with several engines rather than two models.
 2. **The hierarchical (data-augmentation Gibbs) sampler is exact** and is kept, vectorised, as `Gibbs` (§6). Its mixing degrades sharply once likelihoods are as wide as the bins (median autocorrelation time 7 → 180 sweeps), which is why NUTS is the default.

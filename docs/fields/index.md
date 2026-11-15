@@ -87,9 +87,7 @@ software
 
 These pages condense a census of the software and literature made while binference
 was designed. The census keeps every citation, the code read and the numerical checks.
-The repository holds ten research notes in
-[`research_notes/`](https://github.com/joshspeagle/binference/tree/main/research_notes)
-and a synthesis report in
-[`reports/`](https://github.com/joshspeagle/binference/tree/main/reports). The design
-notes include the report as {doc}`../design/landscape`. Nobody updates the notes; they
+Ten research notes, archived in
+[`research_notes/`](https://github.com/joshspeagle/binference/tree/3c12aa3d174bc335edadceb3d4cfeed25e62c94d/research_notes) at the state they were written, and a synthesis
+report, the design page {doc}`../design/landscape`, hold it. Nobody updates the notes; they
 describe each project as it was in October 2026.

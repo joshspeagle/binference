@@ -48,7 +48,6 @@ jobs:
               - "docs/**"
               - "benchmarks/**"  # read by docs/how-it-works/auto.md
               - "CONTRIBUTING.md"
-              - "reports/**"  # included by docs/design/landscape.md
 
   lint:
     # The pre-commit hooks are the single pin of the lint and format tools.

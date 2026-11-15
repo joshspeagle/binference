@@ -525,3 +525,6 @@ Append-only. One entry per working session (or per step within a long session).
 - #221 closed after it was split into #232 to #237; #236 (NUTS coordinates and metrics) and #237 (N-D trees and the roadmap) are `deferred`.
 - `PLAN.md` replaces the walkthrough's phases with the stages; each open item in `QUESTIONS.md` names the issue that carries it.
 - This container lacked `~/.venvs/default`, so the fast tests were not run here; #228 makes the set-up portable.
+- #228 (PR #241): `CLAUDE.md` and `CONTRIBUTING.md` work from a fresh clone: a virtual environment with an editable install, no `<Dropbox>` paths (personal tooling goes in the ignored `CLAUDE.local.md`), the notation page as the one reference for symbols.
+- #227 survey: about 90% of the walkthrough material is already in the docs, a third of the briefings is stale, and every audit finding spot-checked (15) is fixed. To move first: the landscape report, which the docs build included from `reports/`; then a handful of measured figures and a contributor architecture section.
+- #227, part 1: the landscape report's text lives in `docs/design/landscape.md`, and `reports/` is gone. Links to the material to be archived point at commit `3c12aa3`, the last `main` that holds all of it, so they keep working after removal without a tag.
