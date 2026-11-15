@@ -40,7 +40,7 @@ import numpy as np
 import binference
 
 mu = binference.simulate.mock_unfolding(3000, rng=2)
-lk_unfold = binference.Likelihoods.from_binned(mu.response, counts=mu.measurements["reco_counts"])
+lk_unfold = binference.Likelihoods.from_binned(mu.response, counts=mu.measurements["measured_counts"])
 print(lk_unfold.selection.mode, lk_unfold.K)
 ```
 

@@ -221,7 +221,7 @@ class PopulationModel:
         """
         return self.selection_spec is not None and self.selection_spec.injections is not None
 
-    def draw_total(
+    def sample_total(
         self, value: np.ndarray, *, rng: np.random.Generator, S: np.ndarray | None = None
     ) -> np.ndarray | None:
         r"""Draws of the total :math:`\Lambda \mid \rho \sim \mathrm{Gamma}(W, S\cdot\rho)`.

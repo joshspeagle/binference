@@ -59,8 +59,4 @@ New items:
 
 ## Renames from the API review (#238)
 
-- [x] The review of #238 proposed renames that would break callers. → DECISIONS #149: Josh approved all, without deprecation shims (alpha). Under the new policy each would keep its old spelling for one minor release with a `FutureWarning`. Default: none in 0.3.0; revisit for 0.4.0. Josh: which, if any, now?
-  - `selection.as_selection` is exported and documented but is an internal normaliser (it takes a `Basis`; only `model.py` and `likelihoods.py` call it): make it private.
-  - `Likelihoods.from_gaussian(mean, sigma=None, bins=None, ...)`: every sibling constructor takes `bins` second and required; reorder to `from_gaussian(mean, bins, sigma=None, ...)`.
-  - `Auto(gibbs_max_missing=, max_gibbs_draws=, nnz_limit=)`: one pattern, such as `max_gibbs_missing`, `max_gibbs_draws`, `max_nnz`.
-  - `Selection.from_function(function, ...)` against `func` in `Density.from_function` and `functional`; `Basis.masses(grid)` against `Density.masses(bins)`; `draw` on `Response` and `Selection` against `sample` elsewhere; `mock_1d(n_samples=)` (samples per object) and `check(predictive_draws=)` against the `n_samples`/`n_draws` rule; `mock_unfolding(n_true, n_reco)` against `Response`'s `truth_bins`/`measured_bins`.
+- [x] Renames proposed by the review of #238. → DECISIONS #149: Josh approved them all, without deprecation shims (alpha); landed with #257.

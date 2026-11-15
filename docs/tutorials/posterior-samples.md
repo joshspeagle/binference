@@ -51,7 +51,7 @@ ln_bins = binference.Bins.linear(np.log(m_lo), np.log(m_hi), 16)
 mock = binference.simulate.mock_1d(
     600, ln_bins, density=population, noise=(0.2, 0.4),
     interim=lambda x: np.exp(2 * x),     # the PE prior: proportional to m**2 in ln m
-    n_samples=1000, rng=150914,
+    samples_per_object=1000, rng=150914,
 )
 samples = np.exp(mock.samples)           # (events, samples), in solar masses
 rho_true = mock.truth.rho

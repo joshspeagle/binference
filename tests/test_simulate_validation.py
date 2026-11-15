@@ -151,7 +151,7 @@ def test_mock_2d_categorical_unfolding():
     mu = mock_unfolding(2000, rng=7)
     assert mu.likelihoods.selection.mode == "on_measurement"
     assert mu.response.matrix.shape == (25, 20)
-    np.testing.assert_allclose(mu.likelihoods.W, mu.measurements["reco_counts"].sum())
+    np.testing.assert_allclose(mu.likelihoods.W, mu.measurements["measured_counts"].sum())
 
 
 def test_exact_posterior_conjugate():

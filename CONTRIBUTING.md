@@ -130,11 +130,10 @@ From 0.3.0 on, a release changes the public API (the names in each `__all__` and
 arguments) in these ways only:
 
 - A change that breaks a call that worked before goes into a minor release (`0.4.0`),
-  never a patch release (`0.3.1`).
+  never a patch release (`0.3.1`). Before 1.0 a rename drops the old spelling at once.
 - Every breaking change has a CHANGELOG entry starting **Breaking:** that says how to
   migrate: the new name, the argument value that restores the old behaviour, or why there
   is none.
-- Before 1.0 a rename takes effect at once, without keeping the old spelling.
 - Saved results from the previous minor release still load.
 
 Options after a function's primary arguments are keyword-only, and so is `rng`.

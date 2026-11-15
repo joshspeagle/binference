@@ -540,26 +540,26 @@ def mock_unfolding(
     n_truth = check_positive_integers(n_truth, "n_truth")[0]
     n_measured = check_positive_integers(n_measured, "n_measured")[0]
     tb = Bins.linear(0.0, 1.0, n_truth)
-    re = np.linspace(-0.1, 1.1, n_measured + 1)
+    edges_m = np.linspace(-0.1, 1.1, n_measured + 1)
     density = lambda z: np.exp(-slope * np.asarray(z))  # noqa: E731
     rho = population(tb, density)
     eff = lambda z: efficiency[0] + (efficiency[1] - efficiency[0]) * np.asarray(z)  # noqa: E731
-    # response R[j, k] = P(reco j, detected | true bin k), population uniform within bin k
+    # response R[j, k] = P(measured j, detected | true bin k), population uniform within bin k
     u, wq = np.polynomial.legendre.leggauss(16)
     e = tb.edges[0]
     R = np.zeros((n_measured, n_truth))
     for k in range(n_truth):
         zk = e[k] + (e[k + 1] - e[k]) * 0.5 * (u + 1.0)
         wk = 0.5 * wq
-        cdf = stats.norm.cdf((re[None, :] - zk[:, None]) / resolution)
+        cdf = stats.norm.cdf((edges_m[None, :] - zk[:, None]) / resolution)
         R[:, k] = (np.diff(cdf, axis=1) * (wk * eff(zk))[:, None]).sum(axis=0)
     # simulate events
     z, _ = _draw_values(tb, density, n_objects, gen)
     det = gen.random(n_objects) < eff(z)
-    reco = z + resolution * gen.standard_normal(n_objects)
-    observed = det & (reco >= re[0]) & (reco <= re[-1])
-    response = Response(R, tb, Bins(re))
-    lk = Likelihoods.from_binned(response, values=reco[observed])
+    measured = z + resolution * gen.standard_normal(n_objects)
+    observed = det & (measured >= edges_m[0]) & (measured <= edges_m[-1])
+    response = Response(R, tb, Bins(edges_m))
+    lk = Likelihoods.from_binned(response, values=measured[observed])
     counts = np.bincount(lk.meta["measured_bin"], weights=lk.weights, minlength=n_measured)
     true_lab = tb.index(z[observed])
     truth = Truth(
@@ -569,7 +569,7 @@ def mock_unfolding(
         counts=np.bincount(true_lab, minlength=n_truth).astype(float),
         n_drawn=n_objects,
     )
-    return Mock(tb, lk, truth, {"reco_counts": counts}, response=response)
+    return Mock(tb, lk, truth, {"measured_counts": counts}, response=response)
 
 
 # ----------------------------------------------------------------------------

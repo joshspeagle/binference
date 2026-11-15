@@ -136,7 +136,7 @@ class Basis:
 
     @property
     def grid_masses(self) -> sp.csr_array:
-        """``masses(grid)``: the components' masses in the quadrature cells (cached)."""
+        """``masses(self.grid)``: the components' masses in the quadrature cells (cached)."""
         if self._grid_masses is None:
             self._grid_masses = self.masses(self.grid)
         return self._grid_masses
@@ -149,7 +149,7 @@ class Basis:
         return self._shares
 
     def axis_masses(self, bins: Bins) -> list[sp.csr_array]:
-        """Per-axis masses of the components' factors in ``bins``'s intervals (no mask).
+        """Per-axis masses of the components' factors in the intervals of ``bins`` (no mask).
 
         On unmasked bins :meth:`masses` is their Kronecker product, so
         separable inputs can be projected one axis at a time.

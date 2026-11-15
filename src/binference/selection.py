@@ -547,17 +547,17 @@ def _check_mode(mode: str) -> None:
 
 
 def _bin_average(
-    function: Callable,
+    func: Callable,
     bins: Bins,
     factor: Callable | None = None,
     log_weight: Callable | None = None,
     tol: float = 1e-6,
     max_depth: int = 12,
 ) -> np.ndarray:
-    """Weighted bin averages of a non-negative ``function`` (and of ``function * factor``).
+    """Weighted bin averages of a non-negative ``func`` (and of ``func * factor``).
 
-    Returns an array with one row: the average of ``function`` over each bin,
-    and a second row with the average of ``function * factor`` when ``factor``
+    Returns an array with one row: the average of ``func`` over each bin,
+    and a second row with the average of ``func * factor`` when ``factor``
     is given, both from one adaptive quadrature. The weight is uniform in the
     measure coordinate (the within-bin population shape), or ``exp(log_weight(z))``
     per unit ``z`` when given (a population density); a bin where that weight
@@ -565,14 +565,14 @@ def _bin_average(
     """
     if bins.is_categorical:
         labels = np.asarray(bins.labels, dtype=object)
-        f = np.asarray(function(labels), dtype=float).ravel()
+        f = np.asarray(func(labels), dtype=float).ravel()
         return f[None] if factor is None else np.stack([f, f * np.ravel(factor(labels))])
 
     def logs(f, z):
         return _log_nonneg(np.ravel(f(z)), "The values of a selection function")
 
     def logf(z):
-        lf = logs(function, z)
+        lf = logs(func, z)
         rows = [lf] if factor is None else [lf, lf + logs(factor, z)]
         if log_weight is not None:
             lw = np.asarray(log_weight(z), dtype=float).ravel()
@@ -587,7 +587,7 @@ def _bin_average(
         avg = np.exp(out[:-1] - out[-1])  # divide by the bin's weight
     empty = ~np.isfinite(out[-1])
     if empty.any():  # no population in the bin: fall back to the unweighted average
-        avg[:, empty] = _bin_average(function, bins, factor, **quad)[:, empty]
+        avg[:, empty] = _bin_average(func, bins, factor, **quad)[:, empty]
     return avg
 
 
