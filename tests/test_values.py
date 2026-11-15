@@ -137,7 +137,7 @@ def test_a_bin_no_sample_reached_draws_flat_within_it():
 
 
 def test_truncated_normal_draws_keep_their_precision_in_far_tails():
-    from binference.results import _truncnorm
+    from binference._values import _truncnorm
 
     a, b = np.array([-1.0, 8.0, -12.0]), np.array([0.5, 9.0, -11.0])
     x = _truncnorm(np.repeat(a, 20_000), np.repeat(b, 20_000), np.random.default_rng(0))
@@ -200,7 +200,7 @@ def test_density_functions_are_evaluated_a_few_bins_at_a_time(monkeypatch):
         lambda z: stats.norm.logpdf(z[None, :], MU[:, None], SD), BINS, kind="likelihood", log=True
     )
     whole = _values(lk)
-    monkeypatch.setattr(binference.results, "EVAL_BUDGET", 3 * 64)  # one bin per call
+    monkeypatch.setattr(binference._values, "EVAL_BUDGET", 3 * 64)  # one bin per call
     np.testing.assert_array_equal(_values(lk), whole)
     dists = Likelihoods.from_density([stats.norm(m, SD) for m in MU], BINS, kind="likelihood")
     assert pickle.loads(pickle.dumps(dists)).meta["within"].data is not None

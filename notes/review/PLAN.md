@@ -11,8 +11,8 @@ Each item is an issue labelled `0.3.0` and a sub-issue of #225. Stages 1 and 2 c
 | 0 Record the plan | #226 | This plan, the split of #221, the questions cross-referenced | done (#240) |
 | 1 Clean-up (no behaviour change) | #227 | Fold the walkthrough notes into the docs, then archive them | done (#242, #243, #244) |
 | | #228 | A contributor set-up that works outside Josh's machine | done (#241) |
-| | #229 | Tests grouped by module, not by the review that added them | in review |
-| | #230 | Split `results.py` along its seams, if the split is clean (optional) | open |
+| | #229 | Tests grouped by module, not by the review that added them | done (#245) |
+| | #230 | Split `results.py` along its seams, if the split is clean (optional) | in review: no split, value drawing moved out |
 | | #231 | Public-repository hygiene: conduct, security, DOI, the old name | open |
 | 2 API and defaults | #204 | Derived totals under a flat Dirichlet | open |
 | | #232 | Every prior takes its geometry from the bins' measure | open |
