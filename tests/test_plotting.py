@@ -1,4 +1,4 @@
-"""Smoke tests of the plots."""
+"""Tests of the plots."""
 
 import numpy as np
 import pytest

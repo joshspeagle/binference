@@ -15,7 +15,7 @@ from binference import priors as P
 from binference.engines import Gibbs
 from binference.priors import Dirichlet, PolyaTree
 
-from .conftest import fit_with_selection
+from .conftest import fit_with_selection, selection_mock
 
 
 def test_save_load_round_trip(res1d, small_1d, tmp_path):
@@ -69,12 +69,12 @@ def test_to_datatree(res1d):
 
 
 def test_a_reloaded_fit_keeps_its_selection_and_total(tmp_path):
-    # the selection was lost on save and attach redrew the total without it (O-1)
+    # the selection was lost on save and attach redrew the total without it (audit O-1)
     lk, res = fit_with_selection()
     before = res.assignment_probabilities(n_draws=20), res.log_predictive(lk[:5], n_draws=20)
     total = res.total.copy()
     res.save(str(tmp_path / "fit"))
-    back = PopulationResult.load(str(tmp_path / "fit"))  # without the .npz suffix (O-10)
+    back = PopulationResult.load(str(tmp_path / "fit"))  # without the .npz suffix (audit O-10)
     np.testing.assert_allclose(back.total, total)
     back.attach(lk)
     assert back.selection == res.selection
@@ -90,8 +90,8 @@ def test_a_reloaded_fit_keeps_its_selection_and_total(tmp_path):
 @pytest.mark.filterwarnings("ignore::binference.ApproximationWarning")  # Laplace's k-hat
 def test_a_reloaded_fit_keeps_a_combined_or_injection_selection(tmp_path, kind):
     # the row of a combined selection and the injections are saved beside the values
-    bins = Bins.linear(0, 1, 4)
-    lk = binference.simulate.mock_1d(200, bins, noise=0.1, rng=0).likelihoods.with_selection(None)
+    lk = selection_mock()
+    bins = lk.bins
     rng = np.random.default_rng(1)
     z = rng.uniform(0, 1, 400)
     detected = rng.random(400) < 1 - 0.5 * z
@@ -217,3 +217,9 @@ def test_a_reloaded_fit_on_a_transform_axis_attaches_without_a_basis(tmp_path):
     res = binference.infer(lk, method="gibbs", n_samples=20, n_warmup=10, rng=0, check=False)
     res.save(str(tmp_path / "t"))
     PopulationResult.load(str(tmp_path / "t")).attach(lk).assignment_probabilities(idx=[0])
+
+
+def test_engine_statistics_that_cannot_be_saved_are_named():
+    _, res = fit_with_selection()
+    res.info["metrics"] = [np.eye(2), np.eye(2)]
+    assert res.to_dict()["meta"]["info_dropped"] == ["metrics"]

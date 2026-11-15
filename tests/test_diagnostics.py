@@ -169,12 +169,10 @@ def test_the_psis_threshold_needs_five_weights():
 
 
 def test_psis_rounds_the_tail_length_up():
-    # 3 sqrt(1000) = 94.9: the tail is the 95 largest weights, as in ArviZ and loo (O-20)
-    from binference.diagnostics import _gpdfit, psis
-
+    # 3 sqrt(1000) = 94.9: the tail is the 95 largest weights, as in ArviZ and loo (audit O-20)
     lw = np.random.default_rng(2).standard_t(3, 1000)
     lw -= lw.max()
     s = np.sort(lw)
     cut = np.exp(s[-96])
-    k_ref, _ = _gpdfit(np.exp(s[-95:]) - cut)
-    assert psis(lw)[1] == pytest.approx(k_ref)
+    k_ref, _ = d._gpdfit(np.exp(s[-95:]) - cut)
+    assert d.psis(lw)[1] == pytest.approx(k_ref)

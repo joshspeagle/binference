@@ -18,7 +18,7 @@ from binference import (
 from binference import priors as P
 from binference.engines import Gibbs
 
-from .conftest import fit_with_selection, small_mock
+from .conftest import fit_with_selection, selection_mock, small_mock
 
 
 @pytest.fixture(scope="module")
@@ -328,12 +328,6 @@ def test_likelihoods_on_other_bins_are_refused(tmp_path):
             method(elsewhere)
 
 
-def test_engine_statistics_that_cannot_be_saved_are_named():
-    _, res = fit_with_selection()
-    res.info["metrics"] = [np.eye(2), np.eye(2)]
-    assert res.to_dict()["meta"]["info_dropped"] == ["metrics"]
-
-
 def _external(draws, model, **info):
     return PopulationResult.from_samples(model, draws, info=info)
 
@@ -348,7 +342,7 @@ def test_check_flags_energy_tail_mixing_one_chain_and_unconverged_fits():
         _external(good, m, ebfmi=np.array([0.1, 0.9, 0.9, 0.9])).check()
     with pytest.warns(binference.ConvergenceWarning, match="did not converge"):
         _external(good, m, converged=False).check()
-    # one chain with a trend: split R-hat catches it (O-7)
+    # one chain with a trend: split R-hat catches it (audit O-7)
     trend = good[:1].copy()
     trend[0, :, 0] += np.linspace(0, 0.2, 400)
     trend /= trend.sum(axis=-1, keepdims=True)
@@ -401,7 +395,7 @@ def test_a_strict_check_raises_a_diagnostics_error():
 
 
 def test_summary_mixing_columns_describe_the_quantity_summarised():
-    # fractions mix well while the rates' total does not (O-8)
+    # fractions mix well while the rates' total does not (audit O-8)
     rng = np.random.default_rng(1)
     rho = rng.dirichlet(np.ones(3) * 50, size=(2, 300))
     total = np.repeat(rng.gamma(50.0, 2.0, size=(2, 30)), 10, axis=1)[..., None]
@@ -438,11 +432,8 @@ def test_external_draws_are_checked_and_normalised():
 
 
 def test_which_takes_both_spellings_everywhere():
-    pytest.importorskip("matplotlib")
-    import matplotlib
-    import matplotlib.pyplot
-
-    matplotlib.use("Agg")
+    mpl = pytest.importorskip("matplotlib")
+    mpl.use("Agg")
     _, res = fit_with_selection()
     np.testing.assert_allclose(
         res.rebin([0, 0, 1, 1], which="rate"), res.rebin([[0, 1], [2, 3]], "rates")
@@ -453,12 +444,12 @@ def test_which_takes_both_spellings_everywhere():
     res.plot_corner(which="rates")
     res.plot_trace(which="rate")
     res.plot_individual(0)
-    est = binference.infer(fit_with_selection()[0], method="map")
+    est = binference.infer(selection_mock(), method="map")
     ax = est.plot(which="rates")
     np.testing.assert_allclose(ax.lines[0].get_ydata()[:-1], est.rates)
     with pytest.raises(ValueError, match="which"):
         est.plot(which="bogus")
-    matplotlib.pyplot.close("all")
+    mpl.pyplot.close("all")
 
 
 def test_rebin_takes_integral_floats_and_refuses_others():
@@ -476,8 +467,8 @@ def test_independent_draws_get_no_chain_diagnostics():
     assert PopulationResult(res.model, trend, method="bootstrap").check() == []
 
 
-def test_attach_refuses_a_selection_the_fit_did_not_have(tmp_path):
-    lk, _ = fit_with_selection()
+def test_attach_refuses_a_selection_the_fit_did_not_have():
+    lk = selection_mock()
     res = binference.infer(lk, method="gibbs", n_samples=20, rng=0, check=False)
     with pytest.raises(ValueError, match="another selection"):
         res.attach(lk.with_selection(np.full(4, 0.5), "on_truth"))
@@ -582,7 +573,6 @@ def test_rate_diagnostics_use_rates():
     assert res.diagnostics["ess_bulk"][0] == pytest.approx(expected)
 
 
-# ------------------------------------------------ missing information (other observations)
 def test_check_reports_missing_information_when_gibbs_mixes_slowly():
     mock = binference.simulate.mock_1d(500, Bins.linear(0, 3, 15), noise=(0.4, 0.6), rng=1)
     res = binference.infer(

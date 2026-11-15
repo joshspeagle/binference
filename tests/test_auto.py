@@ -12,6 +12,7 @@ from binference import inference as inf
 from binference import priors as P
 from binference.engines import NUTS
 
+from .conftest import selection_mock
 from .test_injections import _problem
 
 
@@ -330,3 +331,10 @@ def test_a_joint_run_too_short_for_an_ess_is_extended_rather_than_crashing():
 def test_auto_refuses_counts_that_are_not_usable_integers(kw, name):
     with pytest.raises(ValueError, match=name):
         inf.Auto(binference.PopulationModel(_lk(0.3)), **kw)
+
+
+def test_method_em_runs_em_and_auto_is_recorded_in_any_case():
+    lk = selection_mock()
+    assert binference.infer(lk, method="em").info["algorithm"] in ("em", "squarem")
+    res = binference.infer(lk, method="AUTO", n_samples=20, rng=0, check=False)
+    assert res.info["auto_method"] == res.method

@@ -9,7 +9,7 @@ from scipy import stats
 import binference
 from binference import Bins, Likelihoods
 from binference import priors as P
-from binference.engines import NUTS
+from binference.engines import NUTS, Gibbs, Laplace
 from binference.simulate import mock_1d, mock_2d, mock_categorical, mock_unfolding, population
 
 
@@ -361,7 +361,6 @@ def test_the_exact_posterior_is_accurate_at_the_simplex_boundary(alpha):
 
 
 def test_counts_and_factors_refuse_non_integer_and_boolean_values():
-    from binference.engines import Gibbs, Laplace
 
     bins = Bins.linear(0.0, 1.0, 4)
     lk = Likelihoods(np.ones((6, 4)), bins)

@@ -1,4 +1,5 @@
-"""Engine tests on small problems with exact references (test plan 2.6)."""
+"""Engine tests: exact references on small problems (test plan 2.6), then each engine's
+checks, options and failure modes."""
 
 import pickle
 import time
@@ -257,7 +258,7 @@ def test_nuts_with_a_logistic_prior_matches_a_long_run(seed):
 
 
 def _gp_model(n=3000, K=12, seed=2):
-    mock = binference.simulate.mock_1d(n, Bins.linear(0, 3, K), noise=(0.05, 0.1), rng=seed)
+    mock = small_mock(n, K, noise=(0.05, 0.1), seed=seed)
     return PopulationModel(mock.likelihoods, P.LogisticRandomWalk(order=1))
 
 
@@ -288,7 +289,7 @@ def test_nuts_arguments_are_checked():
 
 
 def test_an_error_in_a_worker_is_raised_not_hidden_by_a_serial_rerun(seed):
-    eng = NUTS(_gp_model(n=200, K=6), n_chains=2, n_warmup=0, n_jobs=2, rng=seed + 0)
+    eng = NUTS(_gp_model(n=200, K=6), n_chains=2, n_warmup=0, n_jobs=2, rng=seed)
     eng._setup()
 
     class Pool:  # a pool whose workers report the model's own error
@@ -306,14 +307,14 @@ def test_an_error_in_a_worker_is_raised_not_hidden_by_a_serial_rerun(seed):
 
 def test_a_dense_metric_draws_momenta_with_the_inverse_covariance(seed):
     inv_m = np.array([[2.0, 0.6, 0.0], [0.6, 1.0, 0.3], [0.0, 0.3, 0.5]])
-    rng = np.random.default_rng(seed + 0)
+    rng = np.random.default_rng(seed)
     p = np.array([Metric(inv_m).draw_momentum(rng) for _ in range(40000)])
     # entries of a sample covariance from 40,000 draws are within about 2% of the truth
     np.testing.assert_allclose(np.cov(p.T), np.linalg.inv(inv_m), atol=0.08)
 
 
 def test_warm_up_alone_leaves_no_worker_processes(seed):
-    eng = NUTS(_gp_model(n=200, K=6), n_chains=2, n_warmup=30, n_jobs=2, rng=seed + 0)
+    eng = NUTS(_gp_model(n=200, K=6), n_chains=2, n_warmup=30, n_jobs=2, rng=seed)
     eng.warmup()
     assert eng._pool is None
 
@@ -341,7 +342,7 @@ def test_adaptation_windows_match_stan_except_one_window_for_151_to_199_iteratio
 
 def test_step_size_adaptation_reaches_the_target_acceptance_on_a_standard_gaussian(seed):
     acc = []
-    for rng in np.random.default_rng(seed + 0).spawn(4):
+    for rng in np.random.default_rng(seed).spawn(4):
         chain = _Chain(rng.standard_normal(10), _standard_gaussian, rng, 1000, 0.8, dense=False)
         for _ in range(1000):
             chain.step(10, adapt=True)
@@ -367,7 +368,7 @@ def test_above_the_dense_limit_the_warm_up_curvature_is_taken_at_one_chain(monke
     for limit in (nuts._DENSE_MAX_DIM, 0):  # 6 bins, then as if above the limit
         monkeypatch.setattr(nuts, "_DENSE_MAX_DIM", limit)
         calls.clear()
-        eng = NUTS(model, n_chains=3, n_warmup=0, rng=seed + 0)
+        eng = NUTS(model, n_chains=3, n_warmup=0, rng=seed)
         eng._setup()
         eng._adapt_geometry()
         counts.append((calls.count("fd_hessian_diag"), calls.count("fd_hessian")))
@@ -566,7 +567,6 @@ def test_label_sampling_dense_sparse_agree(rng):
     L = rng.uniform(size=(5000, 6)) * (rng.uniform(size=(5000, 6)) > 0.4)
     L[:, 0] += 0.01
     rho = rng.dirichlet(np.ones(6))
-    import scipy.sparse as sp
 
     a = kern.sample_labels(L, rho, np.random.default_rng(1))
     b = kern.sample_labels(sp.csr_array(L), rho, np.random.default_rng(1))
@@ -576,7 +576,7 @@ def test_label_sampling_dense_sparse_agree(rng):
 
 
 def test_weighted_label_counts_on_sparse_likelihoods_stay_sparse_and_correct(seed):
-    rng = np.random.default_rng(seed + 0)
+    rng = np.random.default_rng(seed)
     N, K = 20000, 2500
     cols = rng.integers(0, K, size=(N, 10))
     L = sp.csr_array((rng.random(N * 10), (np.repeat(np.arange(N), 10), cols.ravel())), (N, K))
@@ -595,8 +595,7 @@ def test_weighted_label_counts_on_sparse_likelihoods_stay_sparse_and_correct(see
 
 
 def _model(n=200, K=4):
-    mock = binference.simulate.mock_1d(n, Bins.linear(0, 3, K), rng=1)
-    return PopulationModel(mock.likelihoods)
+    return PopulationModel(small_mock(n, K, noise=(0.05, 0.2)).likelihoods)
 
 
 def test_gibbs_inputs_are_checked_when_the_engine_is_made():
@@ -615,7 +614,7 @@ def test_gibbs_inputs_are_checked_when_the_engine_is_made():
 
 
 def test_gibbs_chains_from_one_init_start_apart(seed):
-    eng = Gibbs(_model(), init=[0.25, 0.25, 0.25, 0.25], n_chains=3, rng=seed + 0)
+    eng = Gibbs(_model(), init=[0.25, 0.25, 0.25, 0.25], n_chains=3, rng=seed)
     eng._setup()
     starts = np.array(eng._state)
     assert not np.allclose(starts[0], starts[1])  # R-hat needs overdispersed starts
@@ -626,7 +625,7 @@ def test_gibbs_starts_correct_for_the_objects_a_selection_missed(seed):
         3000, Bins.linear(0, 3, 3), selection=[1.0, 0.5, 0.2], noise=0.3, rng=seed + 3
     )
     m = PopulationModel(mock.likelihoods)
-    eng = Gibbs(m, n_chains=20, rng=seed + 0)
+    eng = Gibbs(m, n_chains=20, rng=seed)
     eng._setup()
     # starts drawn around the observed composition were 0.1 or more off in a fraction;
     # the start posterior SD is about 0.01, so the mean of 20 is within 0.01
@@ -634,7 +633,7 @@ def test_gibbs_starts_correct_for_the_objects_a_selection_missed(seed):
 
 
 def test_label_draws_do_not_depend_on_the_chunk_size(seed):
-    L = np.random.default_rng(seed + 0).random((50, 6)) * (
+    L = np.random.default_rng(seed).random((50, 6)) * (
         np.random.default_rng(seed + 1).random((50, 6)) > 0.4
     )
     L[:, 0] += 0.1  # every object possible
@@ -647,7 +646,7 @@ def test_label_draws_do_not_depend_on_the_chunk_size(seed):
 
 
 def test_gibbs_says_why_a_model_is_unsupported_and_refuses_it_with_that_reason(seed):
-    lk = binference.simulate.mock_1d(50, Bins.linear(0, 1, 4), rng=seed + 0).likelihoods
+    lk = binference.simulate.mock_1d(50, Bins.linear(0, 1, 4), rng=seed).likelihoods
     assert Gibbs.unsupported(PopulationModel(lk)) is None
     logistic = PopulationModel(lk, binference.priors.LogisticNormal())
     reason = Gibbs.unsupported(logistic)
@@ -686,7 +685,7 @@ def test_map_squarem_faster_than_em(seed):
     m = PopulationModel(mock.likelihoods)
     fast = MAP(m, algorithm="em", accelerate=True).run()
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", binference.ConvergenceWarning)
+        warnings.simplefilter("ignore", ConvergenceWarning)
         slow = MAP(m, algorithm="em", accelerate=False, max_iter=100000).run()
     # plain EM stops early along flat directions, so the mix-SQP optimum is the reference
     np.testing.assert_allclose(fast.rho, MAP(m).run().rho, atol=2e-4)
@@ -884,12 +883,11 @@ def test_map_checks_its_init_and_em_moves_a_zero_in_it():
 
 
 def test_a_failed_quadratic_subproblem_hands_mixsqp_over_to_em(monkeypatch):
-    from binference.engines import optimize
 
     def fail(*args, **kwargs):
         raise RuntimeError("Maximum number of iterations reached.")
 
-    monkeypatch.setattr(optimize.optimize, "nnls", fail)
+    monkeypatch.setattr("binference.engines.optimize.optimize.nnls", fail)
     m = PopulationModel(small_mock().likelihoods)
     with pytest.warns(ConvergenceWarning, match="continuing with EM"):
         est = MAP(m).run()
@@ -908,7 +906,7 @@ def test_a_zero_rate_under_a_gamma_prior_is_no_kkt_violation(seed):
 @pytest.mark.parametrize("alpha", [0.5, 0.9])
 def test_priors_unbounded_at_the_boundary_converge_on_the_simplex(alpha):
     m = PopulationModel(small_mock(K=20, noise=0.2).likelihoods, P.Dirichlet(alpha))
-    with pytest.warns(binference.InputWarning, match="unbounded"):
+    with pytest.warns(InputWarning, match="unbounded"):
         est = MAP(m, space="simplex").run()  # a ConvergenceWarning is an error here
     assert est.converged and np.any(est.value == 0.0)
 
@@ -931,7 +929,7 @@ def test_an_explicit_simplex_algorithm_never_silently_runs_lbfgs():
     with pytest.raises(ValueError, match="concentrations >= 1"):
         MAP(PopulationModel(lk, P.Dirichlet(0.5)), algorithm="mixsqp")
     # below one, auto picks L-BFGS, but asking for EM runs EM on the simplex (and warns)
-    with pytest.warns(binference.InputWarning, match="unbounded"):
+    with pytest.warns(InputWarning, match="unbounded"):
         est = binference.infer(lk, P.Dirichlet(0.5), method="em")
     assert est.info == {"space": "simplex", "algorithm": "squarem"}
 
@@ -963,7 +961,7 @@ def test_em_stops_with_a_warning_where_an_object_becomes_impossible():
     L = _one_object_bin(n=8, K=4)
     w = np.ones(L.shape[0])
     w[-1] = 0.3  # alone in its bin, clipped to zero by a concentration below one
-    with pytest.warns(binference.InputWarning, match="pseudo-likelihood"):
+    with pytest.warns(InputWarning, match="pseudo-likelihood"):
         lk = Likelihoods(L, Bins.categories(4), weights=w, fractional_weights=True)
     m = PopulationModel(lk, P.Dirichlet(0.5))
     for accelerate in (True, False):
@@ -1043,7 +1041,7 @@ def test_em_convergence_warning_reports_missing_information(seed):
     mock = binference.simulate.mock_1d(500, Bins.linear(0, 3, 15), noise=(0.4, 0.6), rng=seed + 1)
     S = np.linspace(1.0, 0.5, 15)
     m = PopulationModel(mock.likelihoods, P.Dirichlet(2.0), selection=S, selection_mode="on_truth")
-    with pytest.warns(binference.ConvergenceWarning, match="missing information"):
+    with pytest.warns(ConvergenceWarning, match="missing information"):
         MAP(m, max_iter=5).run()
 
 
@@ -1099,29 +1097,28 @@ def test_laplace_clips_negative_curvature_to_a_wide_positive_variance(k3_problem
 
 
 def _dirichlet_model():
-    mock = binference.simulate.mock_1d(500, Bins.linear(0, 3, 4), rng=3)
-    return PopulationModel(mock.likelihoods)
+    return PopulationModel(small_mock(500, 4, noise=(0.05, 0.2), seed=3).likelihoods)
 
 
 def test_an_uncorrected_laplace_returns_every_draw_asked_for(seed):
-    with pytest.warns(binference.ApproximationWarning):
-        res = Laplace(_dirichlet_model(), importance=False, n_proposals=100, rng=seed + 0).run(400)
+    with pytest.warns(ApproximationWarning):
+        res = Laplace(_dirichlet_model(), importance=False, n_proposals=100, rng=seed).run(400)
     assert res.n_draws == 400
 
 
 def test_laplace_draws_a_few_samples_from_enough_proposals_to_smooth(seed):
     # 2 * n_samples = 4 proposals by default; Pareto smoothing needs 5, too few to vouch
-    with pytest.warns(binference.ApproximationWarning):
-        res = Laplace(_dirichlet_model(), rng=seed + 0).run(2)
+    with pytest.warns(ApproximationWarning):
+        res = Laplace(_dirichlet_model(), rng=seed).run(2)
     assert res.n_draws == 2 and res.approximate
     with pytest.raises(ValueError, match="n_samples"):
-        Laplace(_dirichlet_model(), rng=seed + 0).run(0)
+        Laplace(_dirichlet_model(), rng=seed).run(0)
 
 
 def test_the_laplace_k_hat_threshold_tightens_for_few_proposals(seed):
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", binference.ApproximationWarning)
-        res = Laplace(_dirichlet_model(), rng=seed + 0).run(100)  # 200 proposals
+        warnings.simplefilter("ignore", ApproximationWarning)
+        res = Laplace(_dirichlet_model(), rng=seed).run(100)  # 200 proposals
     assert res.info["k_hat_threshold"] == pytest.approx(1 - 1 / np.log10(200))
     assert res.approximate == (res.info["k_hat"] >= res.info["k_hat_threshold"])
 
@@ -1219,10 +1216,10 @@ def test_bootstrap_counts_replicates_that_did_not_converge(seed):
         binference.priors.Dirichlet(2.0),
     )
     with (
-        pytest.warns(binference.ApproximationWarning),  # always: not a posterior
-        pytest.warns(binference.ConvergenceWarning) as rec,
+        pytest.warns(ApproximationWarning),  # always: not a posterior
+        pytest.warns(ConvergenceWarning) as rec,
     ):
-        res = Bootstrap(m, max_iter=1, rng=seed + 0).run(5)
+        res = Bootstrap(m, max_iter=1, rng=seed).run(5)
     msgs = [str(r.message) for r in rec]
     assert any(s.startswith("EM did not converge") for s in msgs)  # the base fit is not silenced
     assert "5 of 5 bootstrap fits did not converge; raise max_iter." in msgs
@@ -1247,7 +1244,7 @@ def _bootstrap(model, **kw):
 
 @pytest.mark.parametrize("scheme", ["nonparametric", "bayesian"])
 def test_bootstrap_resamples_objects_not_rows(scheme, seed):
-    rng = np.random.default_rng(seed + 0)
+    rng = np.random.default_rng(seed)
     labels = rng.choice(4, size=2000, p=[0.4, 0.1, 0.4, 0.1])
     L = np.eye(4)[labels] * 0.9 + 0.1 / 4  # only four distinct rows
     raw = Likelihoods(L)

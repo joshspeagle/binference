@@ -124,11 +124,16 @@ def small_mock(n=2000, K=12, noise=0.15, seed=1):
     return binference.simulate.mock_1d(n, Bins.linear(0, 3, K), noise=noise, rng=seed)
 
 
+def selection_mock():
+    """200 objects in 4 bins on [0, 1], ready for a selection given at the fit."""
+    return binference.simulate.mock_1d(
+        200, Bins.linear(0, 1, 4), noise=0.1, rng=0
+    ).likelihoods.with_selection(None)
+
+
 def fit_with_selection():
     """A short Gibbs fit under an on-truth selection, and its likelihoods."""
-    bins = Bins.linear(0, 1, 4)
-    mock = binference.simulate.mock_1d(200, bins, noise=0.1, rng=0)
-    lk = mock.likelihoods.with_selection(None)
+    lk = selection_mock()
     S = np.array([1.0, 0.7, 0.4, 0.2])
     res = binference.infer(
         lk,
@@ -142,7 +147,7 @@ def fit_with_selection():
     return lk, res
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def res1d(small_1d):
     return binference.infer(
         small_1d.likelihoods,

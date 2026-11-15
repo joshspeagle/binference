@@ -10,7 +10,7 @@ The plan was written before the code. It was brought up to date with the suite o
 
 ## 1. Principles
 
-- **Deterministic.** Every random test uses a fixed seed passed through `rng`. Tests that rely on statistical tolerances use a seed that passes, plus tolerances wide enough that the false-failure probability is small for any seed. `BINFERENCE_TEST_SEEDS=0,1,2 pytest` loops over seeds in the tests that take the `seed` or `rng` fixture (`tests/conftest.py`), in the same spirit as dynesty. The engine-against-exact comparisons take it too, except for the data behind a pinned reference.
+- **Deterministic.** Every random test uses a fixed seed passed through `rng`. Tests that rely on statistical tolerances use a seed that passes, plus tolerances wide enough that the false-failure probability is small for any seed. `BINFERENCE_TEST_SEEDS=0,1,2 pytest` loops over seeds in the tests that take the `seed` or `rng` fixture (`tests/conftest.py`), in the same spirit as dynesty. The engine tests take it too, with two kinds of exception: the data behind a pinned reference, and a test whose decision the engine's own seed can flip (`test_weak_data_smoothness_fits_stay_non_centred`, issue #236), which keeps fixed seeds.
 - **Tolerances scale with Monte Carlo error.** Compare against references with
 
   $$|\hat\theta - \theta_\text{ref}| \le z\cdot \mathrm{MCSE}(\hat\theta) + \epsilon_\text{abs}, \qquad z = 4 \text{ to } 5.$$
