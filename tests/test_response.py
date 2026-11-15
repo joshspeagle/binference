@@ -186,3 +186,20 @@ def test_a_truth_bin_the_response_never_observes_is_named():
     resp = Response(np.array([[0.5, 0, 0.3], [0.5, 0, 0.3]]), Bins.categories(3))
     with pytest.raises(ValueError, match=r"truth bin\(s\) \[1\] sum to zero"):
         Likelihoods.from_binned(resp, counts=[3, 4])
+
+
+def test_a_migration_matrix_with_an_efficiency_gives_the_joint_response():
+    mu = binference.simulate.mock_unfolding(6000, rng=3)
+    R, counts = mu.response.matrix, mu.measurements["reco_counts"]
+    eps = R.sum(axis=0)
+    migration = R / eps
+    a = Likelihoods.from_binned(mu.response, counts=counts)
+    b = Likelihoods.from_binned(Response(migration, mu.bins, efficiency=eps), counts=counts)
+    np.testing.assert_allclose(b.toarray(), a.toarray(), rtol=1e-12)
+    np.testing.assert_array_equal(b.weights, a.weights)
+    assert a.selection.mode == b.selection.mode == "on_measurement"
+    np.testing.assert_allclose(b.selection.values, a.selection.values, rtol=1e-12)
+    with pytest.warns(InputWarning, match="counted twice"):
+        Response(R, mu.bins, efficiency=eps)
+    with pytest.raises(ValueError, match="sum to more than one"):
+        Response(2.0 * migration, mu.bins)

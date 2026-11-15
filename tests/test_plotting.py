@@ -1,4 +1,4 @@
-"""Smoke tests for plotting and round-trip tests for saving/loading."""
+"""Tests of the plots."""
 
 import numpy as np
 import pytest
@@ -9,19 +9,6 @@ from binference import Bins, PopulationResult
 mpl = pytest.importorskip("matplotlib")
 mpl.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
-
-
-@pytest.fixture(scope="module")
-def res1d(small_1d):
-    return binference.infer(
-        small_1d.likelihoods,
-        method="gibbs",
-        rng=1,
-        n_samples=100,
-        n_warmup=20,
-        check=False,
-        store_labels=[0, 1],
-    )
 
 
 def test_plot_1d_2d_categorical(res1d, small_1d):
@@ -163,51 +150,13 @@ def test_a_list_of_colours_is_for_the_bars_of_categories_only(res1d):
     plt.close("all")
 
 
-def test_save_load_round_trip(res1d, small_1d, tmp_path):
-    path = tmp_path / "res.npz"
-    res1d.save(path)
-    back = PopulationResult.load(path)
-    np.testing.assert_array_equal(back.chains, res1d.chains)
-    assert back.method == res1d.method and back.kind == res1d.kind
-    assert back.bins == res1d.bins
-    np.testing.assert_array_equal(back.labels, res1d.labels)
-    assert back.prior_repr == res1d.prior_repr
-    assert back.model is None
-    back.attach(small_1d.likelihoods)
-    assert back.assignment_probabilities(idx=[0], n_draws=5).shape == (1, 12)
-    d = res1d.to_dict()
-    assert d["meta"]["method"] == "gibbs" and d["meta"]["bins"] == "grid"
-
-
-def test_save_load_categories_and_rates(tmp_path):
-    mc = binference.simulate.mock_categorical(100, 3, rng=1)
-    r = binference.infer(
-        mc.likelihoods,
-        binference.priors.GammaRates(1.0, 1e-2),
-        method="gibbs",
-        rng=1,
-        n_samples=30,
-        check=False,
-    )
-    path = tmp_path / "cat.npz"
-    r.save(path)
-    back = PopulationResult.load(path)
-    assert back.bins.is_categorical and back.bins.labels == ("class_0", "class_1", "class_2")
-    np.testing.assert_allclose(back.rates, r.rates)
-
-
-def test_boolean_category_labels_reload_as_booleans():
-    from binference.io import _bins_from_parts, _bins_to_parts
-
-    bins = Bins.categories([False, True])  # as Response.from_labelled builds for boolean labels
-    labels = _bins_from_parts(*_bins_to_parts(bins)).labels
-    assert labels == (False, True) and all(type(lab) is bool for lab in labels)
-
-
-def test_to_datatree(res1d):
-    pytest.importorskip("xarray")
-    dt = res1d.to_datatree()
-    assert "posterior" in dt.children
-    assert dt["posterior"]["rho"].shape == (4, 100, 12)
-    # rates of a fractions fit are the derived ones, not the fractions (DECISIONS #78)
-    np.testing.assert_allclose(dt["posterior"]["rate"].values.reshape(-1, 12), res1d.rates)
+def test_plots_refuse_three_axes_and_warn_when_two_drop_overlays():
+    grid3 = Bins.grid([0, 1, 2], [0, 1, 2], [0, 1, 2])
+    cube = PopulationResult(None, np.full((5, 8), 1 / 8), method="external", bins=grid3)
+    with pytest.raises(ValueError, match="1-D and 2-D"):
+        cube.plot()
+    grid2 = Bins.grid([0, 1, 2], [0, 1, 2])
+    square = PopulationResult(None, np.full((5, 4), 1 / 4), method="external", bins=grid2)
+    with pytest.warns(binference.InputWarning, match="2-D plots"):
+        square.plot(truth=np.full(4, 0.25))
+    plt.close("all")

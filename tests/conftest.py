@@ -12,6 +12,7 @@ import pytest
 from scipy import stats
 
 import binference
+from binference import Bins
 from binference import diagnostics as diag
 
 # Optional seed sweeping for robustness checks: BINFERENCE_TEST_SEEDS="0,1,2" pytest ...
@@ -116,3 +117,44 @@ def assert_uniform_ranks(res, alpha=1e-3, n_bins=10):
     # both tests, each at the Bonferroni-corrected level of SBCResult.passed (DECISIONS #87)
     for method, p in sbc_pvalues(res, n_bins).items():
         assert np.all(p > alpha / p.size), (method, dict(zip(res.names, p, strict=True)))
+
+
+def small_mock(n=2000, K=12, noise=0.15, seed=1):
+    """A 1-D mock on [0, 3] in K bins, for MAP and model tests."""
+    return binference.simulate.mock_1d(n, Bins.linear(0, 3, K), noise=noise, rng=seed)
+
+
+def selection_mock():
+    """200 objects in 4 bins on [0, 1], ready for a selection given at the fit."""
+    return binference.simulate.mock_1d(
+        200, Bins.linear(0, 1, 4), noise=0.1, rng=0
+    ).likelihoods.with_selection(None)
+
+
+def fit_with_selection():
+    """A short Gibbs fit under an on-truth selection, and its likelihoods."""
+    lk = selection_mock()
+    S = np.array([1.0, 0.7, 0.4, 0.2])
+    res = binference.infer(
+        lk,
+        method="gibbs",
+        selection=S,
+        selection_mode="on_truth",
+        n_samples=50,
+        rng=0,
+        check=False,
+    )
+    return lk, res
+
+
+@pytest.fixture(scope="session")
+def res1d(small_1d):
+    return binference.infer(
+        small_1d.likelihoods,
+        method="gibbs",
+        rng=1,
+        n_samples=100,
+        n_warmup=20,
+        check=False,
+        store_labels=[0, 1],
+    )

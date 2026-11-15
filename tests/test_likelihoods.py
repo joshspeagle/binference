@@ -6,7 +6,7 @@ import scipy.sparse as sp
 from scipy import stats
 
 import binference
-from binference import Bins, Likelihoods, Response
+from binference import Bins, Likelihoods, PopulationModel, Response
 from binference.warnings import InputWarning
 
 
@@ -394,3 +394,51 @@ def test_stack_one_em_step():
     bins = Bins.linear(0, 1, 3)
     lk = Likelihoods(np.array([[1.0, 1.0, 0.0], [0.0, 1.0, 1.0]]), bins)
     np.testing.assert_allclose(lk.stack(), [0.25, 0.5, 0.25])
+
+
+def test_to_sparse_does_not_modify_the_original():
+    lk = Likelihoods(np.random.default_rng(0).random((4, 5)) ** 3).to_sparse()
+    before, nnz = lk.toarray().copy(), lk.nnz
+    model = PopulationModel(lk)
+    L_before = model._L.toarray().copy()
+    lk.to_sparse(rtol=0.2)
+    np.testing.assert_array_equal(lk.toarray(), before)
+    assert lk.nnz == nnz
+    np.testing.assert_array_equal(model._L.toarray(), L_before)
+    M = sp.csr_array(np.random.default_rng(1).random((3, 4)))
+    data = M.data.copy()
+    Likelihoods(M)
+    np.testing.assert_array_equal(M.data, data)
+
+
+def test_an_array_interim_on_unequal_bins_needs_its_representation():
+    bins = Bins.log(0.05, 5.0, 12)
+    rng = np.random.default_rng(4)
+    z = rng.uniform(0.1, 4.0, 200)
+    c = bins.centers
+    like = stats.norm.pdf(c[None, :], z[:, None], 0.1 * (1 + z[:, None]))
+    prior_density = 1.0 / c  # interim prior density at the bin centres
+    post_density = like * prior_density
+    post_density /= (post_density * bins.volumes).sum(axis=1, keepdims=True)
+    with pytest.raises(ValueError, match="ambiguous"):
+        Likelihoods.from_table(post_density, bins, interim=prior_density, representation="density")
+    lk = Likelihoods.from_table(
+        post_density,
+        bins,
+        interim=prior_density,
+        representation="density",
+        interim_representation="density",
+    )
+    expected = Likelihoods(like, bins)
+    np.testing.assert_allclose(lk.toarray(), expected.toarray(), rtol=1e-8, atol=1e-12)
+
+
+def test_per_object_meta_follows_subsets_and_drops():
+    bins = Bins.linear(0, 1, 5)
+    samples = [np.r_[np.full(30, 0.5)], np.full(30, 7.0), np.linspace(0.1, 0.9, 40)]
+    with pytest.warns(InputWarning):
+        lk = Likelihoods.from_samples(samples, bins, "flat", drop_empty=True, min_samples=1)
+    assert lk.N == 2 and lk.meta["n_eff"].shape == (2,)
+    g = Likelihoods.from_gaussian(np.array([0.2, 0.5, 0.8]), 0.1, bins)
+    assert g[1:].meta["gaussian_mean"].shape == (2, 1)
+    assert "gaussian_mean" not in Likelihoods(np.ones((3, 5)), bins).compress().meta

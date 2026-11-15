@@ -1,12 +1,19 @@
 """Tests for PopulationModel (spec 3, 6.1)."""
 
+import warnings
+
 import numpy as np
 import pytest
 import scipy.sparse as sp
 
 import binference
-from binference import Bins, Likelihoods, PopulationModel
+from binference import Bins, Likelihoods, PopulationModel, Selection
 from binference import priors as P
+from binference._simplex import helmert_basis, softmax
+from binference.engines import MAP
+from binference.engines.base import em_update
+
+from .conftest import small_mock
 
 
 @pytest.fixture
@@ -287,3 +294,136 @@ def test_missing_information_is_the_same_in_chunks(lk6):
     rho = m.expected_counts(np.full(6, 1 / 6)) / m.W
     whole = m.missing_information(rho, chunk=None)
     assert m.missing_information(rho, chunk=7) == pytest.approx(whole, rel=1e-10)
+
+
+def test_the_rates_gap_is_one_sided_at_a_rate_near_zero():
+    m = PopulationModel(small_mock(K=20, noise=0.05).likelihoods, P.GammaRates(1.0, 1e-12))
+    lam = MAP(m).run().value
+    assert np.any(lam == 0.0)
+    near = np.where(lam == 0.0, 1e-12, lam)  # where EM leaves a rate it drives to zero
+    assert m.kkt_gap(near) < 1e-6
+
+
+def test_the_prior_density_is_reported_as_it_is_on_the_boundary():
+    lk = small_mock(K=4).likelihoods
+    at_zero = np.array([0.0, 0.2, 0.3, 0.5])
+    assert PopulationModel(lk, P.Dirichlet(2.0)).log_prior(at_zero) == -np.inf
+    assert PopulationModel(lk, P.Dirichlet(0.5)).log_prior(at_zero) == np.inf
+    assert np.isnan(PopulationModel(lk, P.LogisticGP()).log_prior(at_zero))
+    tree = PopulationModel(lk, P.PolyaTree(c=1.0))
+    assert np.isnan(tree.log_prior(np.array([0.0, 0.0, 0.5, 0.5])))  # inf - inf, quietly
+
+
+def test_missing_information_is_nan_where_a_sparse_prior_outweighs_the_data():
+    mock = binference.simulate.mock_1d(5, Bins.linear(0, 3, 10), rng=7)
+    m = PopulationModel(mock.likelihoods, P.Dirichlet(0.3))
+    assert np.isnan(m.missing_information(np.full(10, 0.1), include_prior=True))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        MAP(m, space="simplex", max_iter=3).run()  # warns, does not crash
+
+
+def _em_jacobian_radius(m, value, h=1e-6):
+    # spectral radius of the EM map at its fixed point, in isometric log-ratios (fractions,
+    # which need not be normalised: V's columns sum to zero) or log-rates
+    if m.kind == "rates":
+        to_x, to_value = np.log, np.exp
+    else:
+        V = helmert_basis(m.K)
+        to_x, to_value = (lambda v: V.T @ np.log(v)), (lambda x: softmax(V @ x))
+
+    def F(x):
+        return to_x(em_update(m, to_value(x)))
+
+    x0 = to_x(value)
+    J = np.column_stack([(F(x0 + h * e) - F(x0 - h * e)) / (2 * h) for e in np.eye(x0.size)])
+    return float(np.max(np.abs(np.linalg.eigvals(J))))
+
+
+@pytest.mark.parametrize("mode", [None, "on_truth", "on_measurement"])
+@pytest.mark.parametrize(
+    "prior",
+    [
+        P.Dirichlet(1.0),
+        P.Dirichlet(50.0),
+        P.GammaRates(1.0, 1e-9),
+        P.GammaRates(200.0, 1.0),
+        P.GeneralizedDirichlet(50.0),
+        P.DirichletTree([[0, 1, 2], [3, 4, 5]], alpha=20.0),
+    ],
+    ids=repr,
+)
+def test_missing_information_is_the_rate_of_em(mode, prior):
+    # an interior estimate: at a fraction of zero the EM rate there is that of an active
+    # constraint, not of missing information
+    mock = binference.simulate.mock_1d(
+        1500, Bins.linear(0, 3, 6), density="uniform", noise=0.25, rng=1
+    )
+    sel = None if mode is None else Selection(np.linspace(1.0, 0.3, 6), mode)
+    m = PopulationModel(mock.likelihoods, prior, selection=sel)
+    mode_value = MAP(m, algorithm="em", max_iter=100000).run().value
+    f = m.missing_information(mode_value, include_prior=True)
+    np.testing.assert_allclose(f, _em_jacobian_radius(m, mode_value), atol=1e-4)
+
+
+@pytest.mark.parametrize(
+    "prior",
+    [
+        P.GeneralizedDirichlet(2.0),
+        P.PolyaTree(),
+        P.DirichletTree([[0, 1, 2], [3, 4, 5]], alpha=2.0),
+    ],
+    ids=repr,
+)
+def test_missing_information_with_a_tree_prior_is_finite_with_bins_at_zero(prior):
+    mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 6), rng=1)
+    m = PopulationModel(mock.likelihoods, prior)
+    value = np.array([0.0, 0.3, 0.2, 0.0, 0.3, 0.2])
+    assert 0.0 <= m.missing_information(value, include_prior=True) <= 1.0
+
+
+def test_missing_information_is_nan_where_small_concentrations_outweigh_the_data():
+    mock = binference.simulate.mock_1d(5, Bins.linear(0, 1, 20), rng=1)
+    m = PopulationModel(mock.likelihoods, P.GeneralizedDirichlet(0.1))
+    assert np.isnan(m.missing_information(np.full(20, 0.05), include_prior=True))
+
+
+def test_the_kkt_gap_is_infinite_where_an_object_is_impossible():
+    m = PopulationModel(Likelihoods(np.eye(3), Bins.categories(3)))
+    assert m.kkt_gap(np.array([0.0, 0.5, 0.5])) == np.inf
+
+
+def test_the_rates_kkt_gap_does_not_depend_on_the_units_of_the_exposure():
+    mock = binference.simulate.mock_1d(800, Bins.linear(0, 3, 6), rng=2)
+
+    def model(unit):
+        sel = Selection(np.full(6, unit), "on_truth", scale="exposure")
+        return PopulationModel(mock.likelihoods, P.GammaRates(1.0, 1e-9 * unit), selection=sel)
+
+    lam = 1.01 * MAP(model(1.0)).run().value  # the same point, in each unit of exposure
+    gaps = [model(unit).kkt_gap(lam / unit) for unit in (1e-3, 1.0, 1e3)]
+    np.testing.assert_allclose(gaps, gaps[1], rtol=1e-9)
+    assert gaps[1] > 1e-3  # a 1% perturbation is visible
+
+
+def test_a_weighted_copy_describes_its_own_rows():
+    mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 6), rng=5)
+    m = PopulationModel(mock.likelihoods)
+    w = np.random.default_rng(0).poisson(1.0, m.N).astype(float)
+    mw = m._with_weights(w)
+    assert mw.N == np.count_nonzero(w) == mw._L.shape[0] and mw.W == w.sum()
+    value = MAP(mw).run().value
+    assert 0 <= mw.missing_information(value, max_objects=100) <= 1  # subsamples its own rows
+
+
+def test_a_flat_tree_and_a_flat_dirichlet_give_comparable_kkt_gaps():
+    # the same objective: the tree's gap, checked node by node in branch coordinates, is
+    # not shrunk by a node's mass (a pair holding 1.5% of the objects, split evenly)
+    mock = binference.simulate.mock_1d(
+        2000, Bins.linear(0, 1, 4), density=np.array([0.6, 0.38, 0.015, 0.005]), noise=0.05, rng=3
+    )
+    tree = P.DirichletTree([[0, 1], [2, 3]], alpha=[[2.0, 2.0], [1.0, 1.0], [1.0, 1.0]])
+    flat, mt = PopulationModel(mock.likelihoods), PopulationModel(mock.likelihoods, tree)
+    v = MAP(flat).run().rho
+    w = np.r_[v[:2], [(v[2] + v[3]) / 2] * 2]
+    assert flat.kkt_gap(w) > 1e-2 and 0.5 < mt.kkt_gap(w) / flat.kkt_gap(w) < 4

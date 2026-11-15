@@ -1,6 +1,6 @@
 # Plan
 
-**Current position:** 0.2.0 is released (#223). The next release is 0.3.0, tracked in #225 (DECISIONS #134). The walkthrough's phases and the teardown (DECISIONS #106) are finished; their record is `LOG.md` and `DECISIONS.md`, and their material is archived under the tag `walkthrough-archive` by #227.
+**Current position:** 0.2.0 is released (#223). The next release is 0.3.0, tracked in #225 (DECISIONS #134). The walkthrough's phases and the teardown (DECISIONS #106) are finished; their record is `LOG.md` and `DECISIONS.md`, and their material is archived at commit `3c12aa3` by #227 (DECISIONS #135).
 
 ## Stages to 0.3.0
 
@@ -8,10 +8,10 @@ Each item is an issue labelled `0.3.0` and a sub-issue of #225. Stages 1 and 2 c
 
 | Stage | Issue | Item | Status |
 |---|---|---|---|
-| 0 Record the plan | #226 | This plan, the split of #221, the questions cross-referenced | in review |
-| 1 Clean-up (no behaviour change) | #227 | Fold the walkthrough notes into the docs, then archive them under a tag | open |
-| | #228 | A contributor set-up that works outside Josh's machine | open |
-| | #229 | Tests grouped by module, not by the review that added them | open |
+| 0 Record the plan | #226 | This plan, the split of #221, the questions cross-referenced | done (#240) |
+| 1 Clean-up (no behaviour change) | #227 | Fold the walkthrough notes into the docs, then archive them | done (#242, #243, #244) |
+| | #228 | A contributor set-up that works outside Josh's machine | done (#241) |
+| | #229 | Tests grouped by module, not by the review that added them | in review |
 | | #230 | Split `results.py` along its seams, if the split is clean (optional) | open |
 | | #231 | Public-repository hygiene: conduct, security, DOI, the old name | open |
 | 2 API and defaults | #204 | Derived totals under a flat Dirichlet | open |

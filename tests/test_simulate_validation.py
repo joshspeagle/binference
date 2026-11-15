@@ -1,5 +1,7 @@
 """Tests for binference.simulate and binference.validation (spec 9)."""
 
+import warnings
+
 import numpy as np
 import pytest
 from scipy import stats
@@ -7,6 +9,7 @@ from scipy import stats
 import binference
 from binference import Bins, Likelihoods
 from binference import priors as P
+from binference.engines import NUTS, Gibbs, Laplace
 from binference.simulate import mock_1d, mock_2d, mock_categorical, mock_unfolding, population
 
 
@@ -358,7 +361,6 @@ def test_the_exact_posterior_is_accurate_at_the_simplex_boundary(alpha):
 
 
 def test_counts_and_factors_refuse_non_integer_and_boolean_values():
-    from binference.engines import NUTS, Gibbs, Laplace
 
     bins = Bins.linear(0.0, 1.0, 4)
     lk = Likelihoods(np.ones((6, 4)), bins)
@@ -407,3 +409,24 @@ def test_passed_by_default_requires_both_tests_each_corrected_for_the_other(monk
     assert not res.passed(alpha=0.01)
     with pytest.raises(ValueError, match='"both"'):
         res.passed(method="ks")
+
+
+def test_sbc_ranks_rates_for_rate_models():
+    bins = Bins.linear(0, 1, 3)
+
+    def simulate(rng):
+        lam = rng.gamma(20.0, 1.0, size=3)
+        n = rng.poisson(lam)
+        z = np.concatenate([rng.uniform(k / 3, (k + 1) / 3, c) for k, c in enumerate(n)])
+        lk = Likelihoods.from_gaussian(z + 0.05 * rng.standard_normal(z.size), 0.05, bins)
+        return lk, lam
+
+    def fit(lk, rng):
+        return binference.infer(lk, P.GammaRates(20.0, 1.0), method="gibbs", rng=rng, n_chains=1,
+                            n_warmup=50, n_samples=100, check=False)  # fmt: skip
+
+    with warnings.catch_warnings():  # short chains: a few fits have an ESS below n_draws
+        warnings.simplefilter("ignore", binference.ConvergenceWarning)
+        res = binference.validation.sbc(simulate, fit, n_simulations=20, n_draws=19, rng=0)
+    # ranks of rates are spread out; ranking fractions against rates would pile them at 0
+    assert res.ranks[:, :3].mean() == pytest.approx(9.5, abs=3.0)
