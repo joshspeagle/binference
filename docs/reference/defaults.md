@@ -13,7 +13,6 @@ explain behaviour, not as settings to change.
 
 | Name | Value | Module | What it controls |
 |---|---|---|---|
-| `EVAL_BUDGET` | `16777216` | `binference._values` | Most values a density function returns per call when values are drawn (2**24 floats are 128 MB). |
 | `TAIL_QUANTILES` | `(0.05, 0.95)` | `binference.diagnostics` | Quantiles whose indicators define the tail ESS. |
 | `K_HAT_MAX` | `0.7` | `binference.diagnostics` | Pareto k-hat at or above which importance sampling is unreliable, reached from about 2,000 weights; with n weights the limit is min(1 - 1/log10(n), K_HAT_MAX). |
 | `PSIS_MIN_WEIGHTS` | `5` | `binference.diagnostics` | Fewest importance weights `psis` takes. Smoothing fits a tail of more than four weights (see `PSIS_TAIL`), which needs at least 21: with fewer, unequal weights get k_hat = inf and are not smoothed. |
@@ -65,6 +64,7 @@ explain behaviour, not as settings to change.
 | `MAX_ELEMENTS` | `4194304` | `binference._quadrature` | Most function values a quadrature evaluates in one call. |
 | `EDGE_INSET` | `1e-09` | `binference._quadrature` | How far inside a cell, as a fraction of its width, the check rule reads its ends: a jump closer to an edge goes unseen, and one exactly on an edge reads as the inside value. |
 | `CONFIRM_SHARE` | `0.9` | `binference._quadrature` | Share of a cell's largest point value that a cell holding that point must read for it to count as confirmed; below it, those cells are refined until one does. A function continuous at the point gets there as the cells shrink. |
+| `EVAL_BUDGET` | `16777216` | `binference._values` | Most values a density function returns per call when values are drawn (2**24 floats are 128 MB). |
 | `DEFAULT_OVERSAMPLE` | `{1: 8, 2: 4}` | `binference.basis` | Quadrature cells per order-1 component and axis when `oversample` is `None`, by dimension (2 above two dimensions; order 0 takes 1). |
 | `OUTSIDE_THRESHOLD` | `0.9` | `binference.likelihoods` | An object with more than this share of its likelihood outside the bins is mostly outside. |
 | `OUTSIDE_SHARE` | `0.1` | `binference.likelihoods` | A warning is raised when more than this share of the objects are mostly outside the bins. |

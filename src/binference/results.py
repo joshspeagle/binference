@@ -27,6 +27,7 @@ from ._utils import (
 from ._values import _value_drawer
 from .basis import Basis
 from .bins import Bins, _bin_labels
+from .likelihoods import Likelihoods
 from .warnings import ConvergenceWarning, DiagnosticsError, InputWarning
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -35,7 +36,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
 
-    from .likelihoods import Likelihoods
     from .model import PopulationModel
     from .selection import Selection
 
@@ -301,7 +301,6 @@ class _IndividualMixin:
         return np.bincount(S.indices, weights=n, minlength=self.bins.K)
 
     def _new_likelihoods(self, likelihoods: Any) -> Likelihoods:
-        from .likelihoods import Likelihoods
 
         model = self._require_model()
         basis = model.likelihoods.basis
@@ -823,7 +822,6 @@ class _IndividualMixin:
 
 def _rebuild_gaussian(lk: Likelihoods, basis: Basis) -> Likelihoods:
     """Gaussian likelihoods built again on ``basis`` from their kept means and errors."""
-    from .likelihoods import Likelihoods
 
     meta = lk.meta
     if "gaussian_mean" not in meta:
@@ -1221,7 +1219,6 @@ class PopulationResult(_IndividualMixin):
         likelihoods_or_model : Likelihoods or PopulationModel
             The fit's likelihoods, or a model built on them.
         """
-        from .likelihoods import Likelihoods
         from .model import PopulationModel
         from .selection import _rebuild as _rebuild_selection
 

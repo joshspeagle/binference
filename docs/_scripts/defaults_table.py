@@ -24,13 +24,9 @@ import binference
 PAGE = Path(__file__).resolve().parents[1] / "reference" / "defaults.md"
 START, END = "<!-- defaults:start -->", "<!-- defaults:end -->"
 
-#: (section title, module prefixes), in page order; every listed module must match one,
-#: and a module matching several is listed under the first
+#: (section title, module prefixes), in page order; every listed module must match one
 GROUPS = [
-    (
-        "Results and diagnostics",
-        ("binference.results", "binference.diagnostics", "binference._values"),
-    ),
+    ("Results and diagnostics", ("binference.results", "binference.diagnostics")),
     ("Engines", ("binference.engines",)),
     ("Priors", ("binference.priors",)),
     (
@@ -91,14 +87,13 @@ def render() -> str:
     rows, lines = constants(), [START, ""]
     for title, prefixes in GROUPS:
         group = [r for r in rows if r[0].startswith(prefixes)]
-        rows = [r for r in rows if r not in group]
         if group:
             lines += [f"## {title}", "", "| Name | Value | Module | What it controls |"]
             lines.append("|---|---|---|---|")
             for module, name, value, text in group:
                 lines.append(f"| `{name}` | `{value}` | `{module}` | {markdown(text)} |")
             lines.append("")
-    if unplaced := {r[0] for r in rows}:
+    if unplaced := {r[0] for r in rows if not any(r[0].startswith(p) for _, p in GROUPS)}:
         raise ValueError(f"add {sorted(unplaced)} to GROUPS in {__file__}")
     return "\n".join([*lines, END])
 

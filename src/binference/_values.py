@@ -2,7 +2,8 @@
 
 ``sample_values``, on a ``PopulationResult`` or a ``PointEstimate``, draws a value for each
 object inside the bin it is assigned to; :func:`_value_drawer` chooses how from what the
-likelihoods kept.
+likelihoods kept: the per-object arrays of ``Likelihoods.meta``
+(``_PER_OBJECT_KEYS`` and ``_WithinBin`` in ``likelihoods``).
 """
 
 from __future__ import annotations
@@ -17,6 +18,10 @@ from . import _kernels as kern
 from .density import _log_nonneg
 from .likelihoods import _log_interim, _rows_logpdf
 from .measure import Measure
+
+#: Most values a density function returns per call when values are drawn (2**24 floats
+#: are 128 MB).
+EVAL_BUDGET = 2**24
 
 
 def _value_drawer(model, loglike, n_sub: int, n_sweeps: int) -> tuple[Callable, bool]:
@@ -47,11 +52,6 @@ def _value_drawer(model, loglike, n_sub: int, n_sweeps: int) -> tuple[Callable, 
     else:
         evaluate = partial(_rows_logl, row, *data)
     return partial(_draw_subpoints, measures, n_sub, evaluate), True
-
-
-#: Most values a density function returns per call when values are drawn (2**24 floats
-#: are 128 MB).
-EVAL_BUDGET = 2**24
 
 
 def _dists_logl(row, logpdf, interim, objects, labels, zz):
