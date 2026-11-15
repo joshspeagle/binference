@@ -177,3 +177,85 @@ def test_samples_padded_with_nan_are_refused_with_a_pointer_to_ragged_lists():
     padded = np.array([[0.2, 0.3, np.nan, np.nan], [0.1, 0.4, 0.6, 0.8]])
     with pytest.raises(ValueError, match=r"samples must be finite.*list of arrays"):
         Likelihoods.from_samples(padded, Bins.linear(0, 1, 2), "flat", min_samples=0)
+
+
+def test_samples_of_a_likelihood_can_say_so_with_kind():
+    bins = Bins.linear(0, 1, 5)
+    x = np.random.default_rng(0).uniform(0, 1, (4, 50))
+    by_kind = Likelihoods.from_samples(x, bins, kind="likelihood")
+    by_interim = Likelihoods.from_samples(x, bins, interim=binference.Density.flat("z"))
+    np.testing.assert_array_equal(by_kind.toarray(), by_interim.toarray())
+
+
+def test_a_kde_with_a_vanishing_bandwidth_is_the_histogram():
+    bins = Bins.log(1.0, 100.0, 8)  # a measure that is not z, and a non-flat interim
+    rng = np.random.default_rng(1)
+    x = np.exp(rng.uniform(0.1, 4.5, (6, 80)))
+    interim = stats.loguniform(0.5, 200.0)
+    hist = Likelihoods.from_samples(x, bins, interim).toarray()
+    kde = Likelihoods.from_samples(x, bins, interim, smooth="kde", bandwidth=1e-9).toarray()
+    np.testing.assert_allclose(kde, hist, rtol=1e-9, atol=1e-12)
+
+
+def test_a_kde_is_closer_than_the_histogram_on_bins_narrower_than_the_posteriors():
+    rng = np.random.default_rng(2)
+    bins, sigma = Bins.linear(0, 1, 100), 0.08
+    d = rng.uniform(0.3, 0.7, 300)
+    x = d[:, None] + sigma * rng.standard_normal((300, 30))  # inside [0, 1] for these d
+    e = bins.edges[0]
+    exact = np.diff(stats.norm.cdf((e[None, :] - d[:, None]) / sigma), axis=1)
+
+    def error(lk):
+        p = lk.toarray() / lk.toarray().sum(1, keepdims=True)
+        big = exact >= 0.01
+        return np.sqrt(np.mean(((p - exact) / np.where(big, exact, 1))[big] ** 2))
+
+    hist = error(Likelihoods.from_samples(x, bins, kind="likelihood", warn_outside=False))
+    kde = error(
+        Likelihoods.from_samples(x, bins, kind="likelihood", smooth="kde", warn_outside=False)
+    )
+    assert kde < 0.5 * hist  # about 0.3 against 1.1
+
+
+def test_a_kde_keeps_the_mass_of_samples_at_the_ends_inside_the_bins():
+    bins = Bins.linear(0, 1, 4)
+    x = np.array([[0.0, 0.001, 0.999, 1.0]])
+    lk = Likelihoods.from_samples(
+        x, bins, kind="likelihood", smooth="kde", bandwidth=0.3, min_samples=1
+    )
+    np.testing.assert_allclose(lk.toarray()[0, 0], lk.toarray()[0, 3], rtol=1e-12)
+
+
+def test_kde_arguments_are_checked():
+    x = np.random.default_rng(3).uniform(0, 1, (2, 30))
+    bins = Bins.linear(0, 1, 3)
+    with pytest.raises(ValueError, match="smooth"):
+        Likelihoods.from_samples(x, bins, kind="likelihood", smooth="hist")
+    for bad in (0.0, [0.1, 0.2], "scott"):
+        with pytest.raises(ValueError, match="bandwidth"):
+            Likelihoods.from_samples(x, bins, kind="likelihood", smooth="kde", bandwidth=bad)
+    with pytest.raises(ValueError, match="needs smooth"):
+        Likelihoods.from_samples(x, bins, kind="likelihood", bandwidth=0.1)
+    grid = Bins.grid([0, 0.5, 1], [0, 0.5, 1])
+    with pytest.raises(ValueError, match="1-D bins"):
+        Likelihoods.from_samples(np.stack([x, x], axis=-1), grid, kind="likelihood", smooth="kde")
+    masked = Bins.linear(0, 1, 4, mask=[True, False, True, True])
+    with pytest.raises(ValueError, match="without a mask"):
+        Likelihoods.from_samples(x, masked, kind="likelihood", smooth="kde")
+
+
+def test_a_kde_leaves_the_noise_of_the_samples_to_the_histogram():
+    bins = Bins.linear(0, 1, 50)
+    x = 0.5 + 0.08 * np.random.default_rng(4).standard_normal((40, 30))
+    hist = Likelihoods.from_samples(x, bins, kind="likelihood", warn_outside=False)
+    kde = Likelihoods.from_samples(x, bins, kind="likelihood", smooth="kde", warn_outside=False)
+    rho = np.full(50, 1 / 50)
+    for a, b in zip(kde.sample_variance(rho), hist.sample_variance(rho), strict=True):
+        np.testing.assert_allclose(a, b)
+
+
+def test_a_kde_runs_on_the_cells_of_a_basis():
+    basis = binference.Basis(Bins.linear(0, 1, 6), order=1)
+    x = np.random.default_rng(5).uniform(0.1, 0.9, (3, 200))
+    lk = Likelihoods.from_samples(x, basis, kind="likelihood", smooth="kde")
+    assert lk.K == basis.K and np.all(lk.toarray() > 0)

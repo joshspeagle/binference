@@ -9,6 +9,12 @@ releases may break the API).
 
 ### Added
 
+- `Likelihoods.from_samples` takes `kind="likelihood"` for samples drawn from a
+  likelihood, as `from_table` and `from_density` do.
+- `Likelihoods.from_samples(..., smooth="kde", bandwidth=...)` spreads each sample over
+  the bins by a Gaussian kernel in the measure coordinate (1-D bins). It helps on bins much
+  narrower than the posteriors, widens each posterior by the bandwidth, and blurs
+  posteriors with several peaks.
 - `GeneralizedDirichlet.from_base_measure(concentration, base, order)` sets each stick's
   Beta so that the prior mean is the base measure's bin masses, with the same
   concentration `a + b` on every stick.
