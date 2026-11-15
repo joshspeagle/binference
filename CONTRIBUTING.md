@@ -52,6 +52,24 @@ pytest --cov=binference         # coverage report
   `ApproximationWarning`.
 * Docstrings follow the NumPy convention and render in the API reference.
 
+## How the code fits together
+
+* `infer` (`inference.py`) builds a `PopulationModel` (`model.py`) from the likelihoods,
+  the prior bound to the bins and any selection, chooses an engine class from `METHODS`
+  (or `Auto`), and runs it.
+* `Likelihoods` (`likelihoods.py`) stores $L$ with each row scaled to a largest value of
+  one and the row's log scale kept separately. Its `from_*` constructors read the inputs;
+  `bins.py`, `measure.py` and `basis.py` describe the bins, `density.py` interim priors,
+  `selection.py` and `response.py` the other inputs.
+* `PopulationModel` owns the log density and its gradient, through the kernels in
+  `_kernels.py`.
+* Engines ask the bound prior what it supports, never its class: `conjugate` (Gibbs, EM,
+  VB), `has_density` (MAP on the simplex and the KKT gap) and `kind` (fractions or
+  rates).
+* An engine returns a `PopulationResult` (draws) or a `PointEstimate` (`results.py`).
+  Both keep the model, from which they compute per-object outputs, checks, plots
+  (`plotting.py`) and exports (`io.py`).
+
 ## Extending binference
 
 * **Priors** subclass `binference.priors.PopulationPrior` (the user-facing
@@ -60,9 +78,8 @@ pytest --cov=binference         # coverage report
   returns the log prior and its gradient (`log_prior_and_grad`). Conjugate
   priors also implement `posterior_sample`, `map_from_counts` and the `vb_*`
   hooks, and so work with Gibbs, EM and VB.
-* **Engines** subclass `binference.engines.base.Engine`. They take a
-  `PopulationModel` and return a `PopulationResult` (draws) or a
-  `PointEstimate`. Register user-facing engines in `binference.inference.METHODS`.
+* **Engines** subclass `binference.engines.base.Engine`; register user-facing ones in
+  `binference.inference.METHODS`.
 * **Likelihood constructors** are `Likelihoods.from_*` class methods that
   return bin-averaged likelihoods. Inputs that carry an interim prior must
   require it explicitly.
