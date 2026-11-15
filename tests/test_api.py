@@ -1,13 +1,27 @@
 """Tests for the high-level API: infer(), PopulationEstimator, namespace (spec 8)."""
 
 import importlib
+import inspect
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 import binference
-from binference import Bins, PopulationEstimator, PopulationModel, Selection
+from binference import (
+    Bins,
+    PointEstimate,
+    PopulationEstimator,
+    PopulationModel,
+    PopulationResult,
+    Selection,
+    plotting,
+    priors,
+    simulate,
+    validation,
+)
+from binference.priors.base import BoundPrior
+from binference.priors.hyper import Hyperprior
 
 from .conftest import ignore_few_recoveries, selection_mock
 
@@ -190,3 +204,82 @@ def test_method_em_on_a_joint_model_runs_its_optimiser():
     z = np.linspace(0.05, 0.95, 40)
     sel = binference.Selection.from_injections(z, np.tile([True, False], 20), lk.bins, "on_truth")
     assert binference.infer(lk, selection=sel, method="em").info["space"] == "unconstrained"
+
+
+# the reviewed API (#238): the primary data by position, every option by keyword
+R, P, L, M = PopulationResult, PointEstimate, binference.Likelihoods, PopulationModel
+POSITIONAL = {
+    R.cov: [],
+    R.corr: [],
+    R.check: [],
+    P.check: [],
+    R.quantile: ["q"],
+    R.interval: ["level"],
+    R.functional: ["func"],
+    R.rebin: ["groups"],
+    R.summary: ["level"],
+    P.laplace: ["n_samples"],
+    R.assignment_probabilities: ["idx"],
+    R.assignment_probabilities_loo: ["idx"],
+    R.sample_assignments: ["idx"],
+    R.sample_values: ["idx"],
+    R.realized_counts: [],
+    R.predict_proba: ["likelihoods"],
+    R.log_predictive: ["likelihoods"],
+    L.with_weights: ["weights"],
+    L.with_selection: ["selection", "selection_mode"],
+    L.stack: ["interim"],
+    M.kkt_gap: ["value"],
+    M.missing_information: ["value"],
+    M.log_likelihood: ["value"],
+    validation.exact_posterior: ["model", "prior"],
+    simulate.population: ["bins", "density"],
+    plotting.plot_individual: ["result", "i", "ax"],
+    plotting.plot_sbc: ["sbc_result"],
+    priors.LogisticNormal: ["mean", "cov"],
+    priors.LogisticRandomWalk: ["order"],
+    priors.LogisticGP: ["kernel"],
+}
+
+
+def _positional(func):
+    return [
+        p.name
+        for p in inspect.signature(func).parameters.values()
+        if p.kind is p.POSITIONAL_OR_KEYWORD and p.name != "self"
+    ]
+
+
+@pytest.mark.parametrize("func", POSITIONAL, ids=lambda f: f.__qualname__)
+def test_options_after_the_primary_arguments_are_keyword_only(func):
+    assert _positional(func) == POSITIONAL[func]
+
+
+def _public_callables():
+    """Every public function, class and method (inherited ones too) in each `__all__`."""
+    for module in ("", ".priors", ".engines", ".simulate", ".validation", ".plotting", ".io"):
+        mod = importlib.import_module(f"binference{module}")
+        for name in mod.__all__:
+            obj = getattr(mod, name)
+            if not callable(obj) or (inspect.isclass(obj) and issubclass(obj, Exception)):
+                continue
+            yield obj
+            if inspect.isclass(obj):
+                for attr, member in inspect.getmembers(obj, callable):
+                    # the sample(n, rng) protocol prior authors implement is exempt (#238)
+                    protocol = attr in ("sample", "posterior_sample", "vb_sample") and issubclass(
+                        obj, (BoundPrior, Hyperprior)
+                    )
+                    if not attr.startswith("_") and not protocol:
+                        yield member
+
+
+def test_no_public_callable_takes_rng_by_position():
+    funcs = list(_public_callables())
+    assert len(funcs) > 100
+    assert [f.__qualname__ for f in funcs if "rng" in _positional(f)] == []
+
+
+def test_argument_checks_name_the_argument_even_for_ragged_input():
+    with pytest.raises(ValueError, match="x must be finite"):
+        binference._utils.check_positive([[1.0], [1.0, 2.0]], "x")

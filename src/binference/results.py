@@ -351,7 +351,7 @@ class _IndividualMixin:
     best: PointEstimate
 
     def assignment_probabilities_loo(
-        self, idx: Any = None, n_draws: int | None = N_DRAWS, chunk: int = 4096
+        self, idx: Any = None, *, n_draws: int | None = N_DRAWS, chunk: int = 4096
     ) -> tuple[np.ndarray, np.ndarray]:
         r"""Each object's posterior over bins under the population fitted without it,
         :math:`P(k_i = k \mid D_{-i})`: leave-one-out, for calibration checks.
@@ -496,7 +496,7 @@ class _IndividualMixin:
         return self.best.log_predictive(likelihoods, **kwargs)
 
     def assignment_probabilities(
-        self, idx: Any = None, n_draws: int | None = N_DRAWS, chunk: int = 4096
+        self, idx: Any = None, *, n_draws: int | None = N_DRAWS, chunk: int = 4096
     ) -> np.ndarray:
         r"""Posterior probability that each object lies in each bin, :math:`P(k_i = k \mid D)`.
 
@@ -520,7 +520,7 @@ class _IndividualMixin:
         return self._to_bins(_mean_responsibilities(_objects(L, model.N, idx), R, chunk))
 
     def sample_assignments(
-        self, idx: Any = None, n_draws: int | None = N_DRAWS, rng: RNGLike = None
+        self, idx: Any = None, *, n_draws: int | None = N_DRAWS, rng: RNGLike = None
     ) -> np.ndarray:
         """Joint draws of the bin labels of objects ``idx`` (all by default).
 
@@ -551,7 +551,7 @@ class _IndividualMixin:
         )
 
     def realized_counts(
-        self, n_draws: int | None = N_DRAWS, rng: RNGLike = None, full: bool = False
+        self, *, n_draws: int | None = N_DRAWS, rng: RNGLike = None, full: bool = False
     ) -> np.ndarray:
         """Draws of the realised histogram of the observed objects' true bins.
 
@@ -685,6 +685,7 @@ class _IndividualMixin:
     def sample_values(
         self,
         idx: Any = None,
+        *,
         n_draws: int | None = N_DRAWS,
         rng: RNGLike = None,
         loglike: Callable[[np.ndarray, int], np.ndarray] | None = None,
@@ -779,7 +780,7 @@ class _IndividualMixin:
         return out[..., 0] if bins.ndim == 1 else out
 
     def predict_proba(
-        self, likelihoods: Likelihoods | Any, n_draws: int | None = N_DRAWS, chunk: int = 4096
+        self, likelihoods: Likelihoods | Any, *, n_draws: int | None = N_DRAWS, chunk: int = 4096
     ) -> np.ndarray:
         """Posterior over bins for *new* objects under the inferred population.
 
@@ -796,7 +797,7 @@ class _IndividualMixin:
         return self._to_bins(_mean_responsibilities(L, R, chunk))
 
     def log_predictive(
-        self, likelihoods: Likelihoods | Any, n_draws: int | None = N_DRAWS, chunk: int = 4096
+        self, likelihoods: Likelihoods | Any, *, n_draws: int | None = N_DRAWS, chunk: int = 4096
     ) -> np.ndarray:
         r"""Log posterior-predictive density of new objects, :math:`\log E[L_i\cdot\rho]`.
 
@@ -1332,7 +1333,7 @@ class PopulationResult(_IndividualMixin):
         # DECISIONS #9, #46, #78
         if self._total is None and self.model is not None:
             S = self._inferred_selection()  # per draw, when inferred with the population
-            total = self.model.draw_total(self._params, _draws_rng(self._params), S)
+            total = self.model.draw_total(self._params, rng=_draws_rng(self._params), S=S)
             self._total = None if total is None else frozen(total)
         return None if self._total is None else self._total.ravel()
 
@@ -1390,7 +1391,7 @@ class PopulationResult(_IndividualMixin):
         """Posterior standard deviation of the fractions ``(K,)``."""
         return self.samples.std(axis=0, ddof=1)
 
-    def cov(self, which: str = "fractions") -> np.ndarray:
+    def cov(self, *, which: str = "fractions") -> np.ndarray:
         """Posterior covariance ``(K, K)`` of the fractions (or ``which="rates"``, ...).
 
         Parameters
@@ -1400,7 +1401,7 @@ class PopulationResult(_IndividualMixin):
         """
         return np.cov(self._which(which), rowvar=False)
 
-    def corr(self, which: str = "fractions") -> np.ndarray:
+    def corr(self, *, which: str = "fractions") -> np.ndarray:
         """Posterior correlation matrix ``(K, K)`` of the fractions (or ``which=...``).
 
         Parameters
@@ -1411,7 +1412,7 @@ class PopulationResult(_IndividualMixin):
         with np.errstate(invalid="ignore", divide="ignore"):
             return np.corrcoef(self._which(which), rowvar=False)
 
-    def quantile(self, q: Any, which: str = "fractions") -> np.ndarray:
+    def quantile(self, q: Any, *, which: str = "fractions") -> np.ndarray:
         """Posterior quantiles, shape ``(*np.shape(q), K)``.
 
         Parameters
@@ -1424,7 +1425,7 @@ class PopulationResult(_IndividualMixin):
         return np.quantile(self._which(which), q, axis=0)
 
     def interval(
-        self, level: float = 0.68, kind: str = "central", which: str = "fractions"
+        self, level: float = 0.68, *, kind: str = "central", which: str = "fractions"
     ) -> tuple[np.ndarray, np.ndarray]:
         """Per-bin credible intervals ``(lo, hi)``, each ``(K,)``.
 
@@ -1456,7 +1457,11 @@ class PopulationResult(_IndividualMixin):
         return self._which("density")
 
     def functional(
-        self, func: Callable[[np.ndarray], Any], vectorized: bool = False, which: str = "fractions"
+        self,
+        func: Callable[[np.ndarray], Any],
+        *,
+        vectorized: bool = False,
+        which: str = "fractions",
     ) -> np.ndarray:
         """Draws of a derived quantity ``func(rho)`` (e.g. the mean redshift), or of
         the rates or densities with ``which``.
@@ -1479,7 +1484,7 @@ class PopulationResult(_IndividualMixin):
             return np.asarray(func(X))
         return np.array([func(r) for r in X])
 
-    def rebin(self, groups: Any, which: str = "fractions") -> np.ndarray:
+    def rebin(self, groups: Any, *, which: str = "fractions") -> np.ndarray:
         """Fractions (or rates, with ``which="rates"``) aggregated into coarser groups.
 
         ``groups`` is either a length-``K`` array of integers mapping bins to groups
@@ -1657,6 +1662,7 @@ class PopulationResult(_IndividualMixin):
 
     def check(
         self,
+        *,
         strict: bool = False,
         rhat_max: float = RHAT_MAX,
         ess_min: float = ESS_MIN_PER_CHAIN,
@@ -1797,7 +1803,7 @@ class PopulationResult(_IndividualMixin):
             )
         return self._cache[key]
 
-    def summary(self, level: float = 0.68, which: str = "fractions") -> Summary:
+    def summary(self, level: float = 0.68, *, which: str = "fractions") -> Summary:
         """Per-bin posterior summary table (mean, sd, median, interval, ESS, R-hat).
 
         Parameters
@@ -2146,7 +2152,7 @@ class PointEstimate(_IndividualMixin):
             return np.asarray(self.x, dtype=float).ravel()
         return model.from_value(self.value)
 
-    def check(self, kkt_max: float = 1e-4, strict: bool = False) -> list[str]:
+    def check(self, *, kkt_max: float = 1e-4, strict: bool = False) -> list[str]:
         """Warn (or raise with ``strict=True``) when the optimiser did not converge, when the
         KKT gap (per object; see :meth:`PopulationModel.kkt_gap`) exceeds ``kkt_max``, when
         sample likelihoods carry too much Monte Carlo noise, or when injections are too few
@@ -2184,7 +2190,7 @@ class PointEstimate(_IndividualMixin):
         return self._which("density")[0]
 
     def laplace(
-        self, n_samples: int = 4000, rng: RNGLike = None, **kwargs: Any
+        self, n_samples: int = 4000, *, rng: RNGLike = None, **kwargs: Any
     ) -> PopulationResult:
         """Laplace approximation around the mode (see :class:`binference.engines.Laplace`).
 

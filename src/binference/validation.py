@@ -96,6 +96,7 @@ class ExactPosterior:
 def exact_posterior(
     model: PopulationModel | Likelihoods | Any,
     prior: PopulationPrior | None = None,
+    *,
     n_grid: int = 200,
     max_elements: int = MAX_ELEMENTS,
 ) -> ExactPosterior:
@@ -281,7 +282,7 @@ class SBCResult:
         return np.array([stats.chisquare(h, f_exp=e).pvalue for h in H])
 
     def passed(
-        self, alpha: float = 0.01, n_bins: int | None = None, *, method: str = "both"
+        self, alpha: float = 0.01, *, n_bins: int | None = None, method: str = "both"
     ) -> bool:
         """True if no quantity rejects uniformity at Bonferroni-corrected level ``alpha``.
 

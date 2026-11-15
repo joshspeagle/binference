@@ -179,7 +179,7 @@ class PopulationEstimator:
         w = X.weights if isinstance(X, Likelihoods) else np.ones(lp.size)
         return float(np.dot(w, lp) / w.sum())
 
-    def sample(self, n: int = 1, rng: RNGLike = None) -> np.ndarray:
+    def sample(self, n: int = 1, *, rng: RNGLike = None) -> np.ndarray:
         """Draws of the population fractions from the fitted posterior.
 
         Parameters

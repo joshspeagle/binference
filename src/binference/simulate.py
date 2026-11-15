@@ -128,7 +128,7 @@ def _as_density(density: Any, bins: Bins) -> Density:
     return Density.coerce(density, "mass", name="density")
 
 
-def population(bins: Bins, density: Any = "bimodal", tol: float = 1e-6) -> np.ndarray:
+def population(bins: Bins, density: Any = "bimodal", *, tol: float = 1e-6) -> np.ndarray:
     """Population fractions per bin from a density name, :class:`Density`, callable or masses.
 
     Parameters
@@ -151,14 +151,14 @@ def _draw_values(bins: Bins, density: Any, n: int, rng: np.random.Generator):
     if f is None:
         rho = population(bins, density)
         labels = rng.choice(bins.K, size=n, p=rho)
-        return bins.sample_within(labels, rng), labels
+        return bins.sample_within(labels, rng=rng), labels
     # inverse-CDF sampling on every bin split into 20 equal steps in u (the mask repeated)
     fb, coarse = bins.refine(20)
     dens = np.exp(np.asarray(f(fb.centers), dtype=float).ravel()) * fb.volumes
     if not dens.sum() > 0:
         raise ValueError("density has no mass on the active bins.")
     cell = rng.choice(fb.K, size=n, p=dens / dens.sum())
-    return fb.sample_within(cell, rng), coarse[cell]
+    return fb.sample_within(cell, rng=rng), coarse[cell]
 
 
 def _noise(noise: Any, n: int, rng: np.random.Generator, shape=()) -> np.ndarray:

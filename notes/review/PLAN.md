@@ -20,8 +20,8 @@ Each item is an issue labelled `0.3.0` and a sub-issue of #225. Stages 1 and 2 c
 | | #234 | Selection draws: parameters only, or averaging as an opt-in | done (#249) |
 | | #235 | `GeneralizedDirichlet` from a target mean; Pólya tree split points | done (#250) |
 | 3 Samplers | #222 | NUTS on `LogisticGP` with large grids; ships if its acceptance is met, otherwise documented as a known limitation | done (#254): not met, documented; dense metric to 500 dimensions |
-| 4 Release | #77 | Golden values against mixsqp, REBayes and Empirikos, tried in a cloud session first | in review: mixsqp and Empirikos; REBayes's problem through mixsqp |
-| | #238 | Review of the public API and the policy for breaking changes | open |
+| 4 Release | #77 | Golden values against mixsqp, REBayes and Empirikos, tried in a cloud session first | done (#255): mixsqp and Empirikos; REBayes's problem through mixsqp |
+| | #238 | Review of the public API and the policy for breaking changes | in review: options keyword-only, policy in `CONTRIBUTING.md`; renames in `QUESTIONS.md` |
 | | #239 | Docs pass and the release | open |
 
 ## After 0.3.0

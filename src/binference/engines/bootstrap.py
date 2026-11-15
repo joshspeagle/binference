@@ -42,7 +42,8 @@ class Bootstrap(Engine):
         Tolerance of each replicate's MAP fit (see :class:`~binference.engines.MAP`'s
         ``tol``).
     max_iter : int, optional
-        Most iterations of each replicate's MAP fit.
+        Most iterations of each replicate's MAP fit; fewer than ``MAP``'s default, since
+        each replicate starts from the full-data fit.
     rng : int, Generator or None
         Random number generator.
     progress : bool, optional

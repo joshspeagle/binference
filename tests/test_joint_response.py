@@ -101,7 +101,7 @@ def test_per_object_methods_and_the_total_use_each_draws_response():
     )
     np.testing.assert_allclose(res.assignment_probabilities(n_draws=None), expect)
     eff = res.info["response_draws"].sum(axis=-2)  # (chain, draw, K), as the draws
-    total = res.model.draw_total(res._params, _draws_rng(res._params), eff)
+    total = res.model.draw_total(res._params, rng=_draws_rng(res._params), S=eff)
     np.testing.assert_allclose(res.total, total.ravel())
     assert "ess_bulk_response" in res.diagnostics  # the efficiencies'
     assert res.sample_assignments(n_draws=5, rng=1).shape == (5, lk.N)

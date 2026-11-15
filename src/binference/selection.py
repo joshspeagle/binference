@@ -41,7 +41,7 @@ import numpy as np
 from scipy import special
 
 from ._quadrature import bin_log_average
-from ._utils import SetOnce, as_generator, check_positive, frozen, warn
+from ._utils import RNGLike, SetOnce, as_generator, check_positive, frozen, warn
 from .basis import Basis, as_basis
 from .bins import Bins
 from .density import _log_nonneg
@@ -226,7 +226,7 @@ class Selection(SetOnce):
         object.__setattr__(sel, "_recovered", injections.recovered)
         return sel
 
-    def draw(self, n: int, rng: Any = None) -> np.ndarray:
+    def draw(self, n: int, *, rng: RNGLike = None) -> np.ndarray:
         """``(n, K)`` posterior draws of :math:`S` given the injections alone
         (independent Betas), floored at :data:`S_FLOOR` so that none underflows to zero.
 

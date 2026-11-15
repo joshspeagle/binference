@@ -2,8 +2,8 @@
 
 All notable changes to binference are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
-[Semantic Versioning](https://semver.org/) (with the usual 0.x caveat that minor
-releases may break the API).
+[Semantic Versioning](https://semver.org/) as the contributing guide's "Breaking
+changes" section sets out.
 
 ## [Unreleased]
 
@@ -21,6 +21,17 @@ releases may break the API).
 
 ### Changed
 
+- **Breaking:** options after a method's primary arguments are keyword-only, so a
+  positional call means the same on sibling methods (`check(True)` set `strict` on one
+  result type and `kkt_max` on the other). This covers the result and per-object methods
+  (`realized_counts` takes only keywords), `PointEstimate.laplace`,
+  `Likelihoods.with_weights` and `stack`, `PopulationModel`'s methods, `exact_posterior`,
+  `SBCResult.passed`, `simulate.population`, `plot_individual`, `plot_sbc`,
+  `LogisticRandomWalk`, `LogisticGP`, `LogisticNormal` after `cov`, and `Bins(mask=)`;
+  and `rng` everywhere a user passes it. Passing one of these by position raises a
+  `TypeError`; pass it by name.
+- `NUTS` refuses a NaN `n_warmup` or `jitter` and a fractional `n_warmup`, which it
+  truncated.
 - NUTS uses a dense metric for logistic priors up to 500 dimensions (from 200), and
   starts it from the curvature at every chain's position. With `LogisticGP`'s default
   basis, two chains and one thread each, this cut the time per fit by two to five times
@@ -31,10 +42,12 @@ releases may break the API).
   measure coordinate, in units of their mean spacing, and its unpenalised trends are
   polynomials in that coordinate. On bins of equal width in the measure coordinate
   (`Bins.linear`, `Bins.log`) nothing changes; on unequal bins a step over a wider gap may
-  be larger. Results saved on unequal bins by 0.2 attach under the new prior.
+  be larger. Results saved on unequal bins by 0.2 attach under the new prior. No argument
+  restores the index steps; use 0.2 to reproduce such a fit.
 - **Breaking:** `LogisticGP` with `n_basis=None` gives each axis as many sines as its
   narrowest bin fits across the axis, at most four per bin; on bins of equal width this is
-  one per bin, as before.
+  one per bin, as before. To keep 0.2's basis on unequal bins, pass `n_basis` with the
+  number of bins on each axis.
 - A `Dirichlet` with one concentration for every bin (a scalar `alpha`, the default, or
   `Dirichlet.reference()`) raises an `InputWarning` on bins of unequal width in the measure
   coordinate, where its prior mean is not a flat density, and points to
@@ -43,7 +56,7 @@ releases may break the API).
 - **Breaking:** `Selection.from_injections` takes Jeffreys' prior, `prior=(0.5, 0.5)`, on
   each bin's detection probability by default; it was `(1, 1)`. With few recoveries it
   reduced the low bias of derived totals from 12% to 9% in simulations of the injections
-  tutorial's setup.
+  tutorial's setup. Pass `prior=(1, 1)` for the old default.
 - `check()` warns when bins with fewer than 20 recovered injections hold more than a tenth
   of the population, for a selection from injections inferred or `fixed()`, and names the
   bins that need more injections.

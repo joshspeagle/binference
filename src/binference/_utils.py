@@ -129,8 +129,10 @@ def check_nonnegative(value: Any, name: str) -> np.ndarray:
 
 
 def _check_sign(value: Any, name: str, positive: bool) -> np.ndarray:
+    got = ""
     try:
         raw = np.asarray(value)
+        got = f"; got {value!r}" if raw.ndim == 0 else ""
         a = np.asarray(raw, dtype=float)
         ok = (
             raw.dtype.kind != "b"
@@ -141,7 +143,7 @@ def _check_sign(value: Any, name: str, positive: bool) -> np.ndarray:
         ok = False
     if not ok:
         what = "strictly positive" if positive else "non-negative"
-        raise ValueError(f"{name} must be finite and {what}.")
+        raise ValueError(f"{name} must be finite and {what}{got}.")
     return a
 
 

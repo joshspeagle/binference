@@ -143,7 +143,7 @@ def _rail_like(rng):
     rho = population(bins, "bimodal")
     N = 5000
     labels = rng.choice(bins.K, size=N, p=rho)
-    z = bins.sample_within(labels, rng)
+    z = bins.sample_within(labels, rng=rng)
     sigma = 0.05 * (1 + z)
     obs = z + sigma * rng.standard_normal(N)
     alias = np.where(rng.random(N) < 0.2, rng.uniform(0.0, 3.0, N), np.nan)

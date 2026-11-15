@@ -609,7 +609,7 @@ class Likelihoods:
             meta=_slice_per_object({**self.meta, "subset_of": self.N}, rows),
         )
 
-    def with_weights(self, weights: Any, fractional_weights: bool = False) -> Likelihoods:
+    def with_weights(self, weights: Any, *, fractional_weights: bool = False) -> Likelihoods:
         """Copy with new object weights.
 
         Parameters
@@ -716,6 +716,7 @@ class Likelihoods:
     def stack(
         self,
         interim: InterimPrior | None = None,
+        *,
         interim_representation: Representation | None = None,
     ) -> np.ndarray:
         """Naive "stacked" population estimate: the weighted mean of per-object posteriors.

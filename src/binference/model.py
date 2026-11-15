@@ -222,7 +222,7 @@ class PopulationModel:
         return self.selection_spec is not None and self.selection_spec.injections is not None
 
     def draw_total(
-        self, value: np.ndarray, rng: np.random.Generator, S: np.ndarray | None = None
+        self, value: np.ndarray, *, rng: np.random.Generator, S: np.ndarray | None = None
     ) -> np.ndarray | None:
         r"""Draws of the total :math:`\Lambda \mid \rho \sim \mathrm{Gamma}(W, S\cdot\rho)`.
 
@@ -625,6 +625,7 @@ class PopulationModel:
     def log_likelihood(
         self,
         value: np.ndarray,
+        *,
         absolute: bool = True,
         S: np.ndarray | None = None,
         response: np.ndarray | None = None,
@@ -744,7 +745,7 @@ class PopulationModel:
         """
         return kern.responsibilities(self._L, np.asarray(value, dtype=float), idx=idx)
 
-    def sample_prior(self, n: int, rng: RNGLike = None) -> np.ndarray:
+    def sample_prior(self, n: int, *, rng: RNGLike = None) -> np.ndarray:
         """Draws of fractions (or rates) from the prior.
 
         Parameters
@@ -757,7 +758,7 @@ class PopulationModel:
         return self.prior.sample(int(n), as_generator(rng))
 
     # -------------------------------------------------------- diagnostics
-    def kkt_gap(self, value: np.ndarray, include_prior: bool = True) -> float:
+    def kkt_gap(self, value: np.ndarray, *, include_prior: bool = True) -> float:
         r"""Violation of the first-order optimality conditions at ``value``.
 
         Zero (to numerical precision) at the maximum-likelihood / MAP estimate
@@ -801,6 +802,7 @@ class PopulationModel:
     def missing_information(
         self,
         value: np.ndarray,
+        *,
         max_objects: int = 20000,
         rng: RNGLike = 0,
         include_prior: bool = False,

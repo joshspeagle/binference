@@ -26,7 +26,7 @@ other indices are declared where they are used. The {doc}`glossary` defines the 
 | $P_{ik}$ | mass of object $i$'s posterior in bin $k$ | the table of `from_table(..., interim=)` | [model](../how-it-works/model.md#likelihoods-versus-posteriors) |
 | $\Pi_k$ | mass of the interim prior in bin $k$ | `Density.masses` | [model](../how-it-works/model.md#likelihoods-versus-posteriors) |
 | $\omega_s$ | importance weight of sample or draw $s$ | `sample_weights=` | [inputs](../guides/inputs/samples.md) |
-| $n_{\rm draw}$ | number of draws or importance weights | `n_draws`, `n_proposals` | [engines](../how-it-works/engines.md#laplace-with-importance-sampling) |
+| $n_{\rm draw}$ | number of draws or importance weights | `n_samples` (draws an engine makes), `n_draws` (stored draws a method uses), `n_proposals` | [engines](../how-it-works/engines.md#laplace-with-importance-sampling) |
 
 ## The population
 
@@ -112,3 +112,11 @@ The field pages quote each field's own formulas. On the gravitational-wave page,
 $\Lambda$ denotes hyperparameters, $\theta$ an event's parameters, $S_i$ the number of
 samples of event $i$, $R$ the merger rate and $N_\text{draw}$ the number of injections.
 On the empirical-Bayes page, $w$ and $g$ denote $\rho$.
+
+The argument `kind` has a meaning of its own in each place it appears:
+
+- in the `Likelihoods` constructors, the kind of input (`"likelihood"`, or a posterior with
+  `interim=`);
+- in `diagnostics.ess`, the effective sample size computed (`"bulk"`, `"tail"` or `"mean"`);
+- in `PopulationResult.interval`, the interval (`"central"` or `"hdi"`);
+- on a prior and a result, whether it describes fractions or rates.
