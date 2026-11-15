@@ -124,6 +124,23 @@ pytest tests/test_explainers.py
 * CI is defined in `.github/workflows/ci.yml`; label a pull request `slow` to run the
   slow statistical suite on it. Pushes to `main` publish the docs to GitHub Pages.
 
+## Breaking changes
+
+From 0.3.0 on, a release changes the public API (the names in each `__all__` and their
+arguments) in these ways only:
+
+- **A patch release** (`0.3.1`) never breaks a call that worked before.
+- **A rename or removal** of a public name or argument keeps the old spelling working for
+  at least one minor release. Calls through it emit a `FutureWarning` that names the
+  replacement. The next minor release, or a later one, removes it.
+- **A change that cannot keep the old form working**, such as a new default, a different
+  number, or an argument made keyword-only, goes into a minor release only (`0.4.0`).
+- **Every breaking change** gets a CHANGELOG entry starting **Breaking:** that says how to
+  migrate: the argument value that restores the old behaviour, or why there is none.
+- **Saved results** from the previous minor release still load.
+
+After 1.0, the same rules apply with major releases in place of minor ones.
+
 ## Releasing
 
 Releases go to PyPI from `.github/workflows/release.yml` through trusted publishing; no
