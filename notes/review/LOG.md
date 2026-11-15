@@ -517,3 +517,11 @@ Append-only. One entry per working session (or per step within a long session).
 - #129, #103 item 2 (PR #213): `LogisticGP` is calibrated by SBC on bins and grids; Josh kept its default basis after review showed a cap changes the prior on fine grids (DECISIONS #132, #222).
 - #93 (PR #214): plain bins are the identity basis (DECISIONS #133).
 - Deferred work filed as issues #215 to #222 and #204; #2 and #3 folded into #220; #4 and #8 closed.
+
+## 2026-11-15: the plan to 0.3.0
+
+- Josh asked for a staged plan for everything still open on the way to a public release. The repository is already public and on PyPI, so the plan's target became 0.3.0 at Josh's call (DECISIONS #134).
+- #225 tracks the release, with fifteen sub-issues: #226 (this record), the clean-up #227 to #231, the API questions #204 and #232 to #235, #222, #77, the API review #238 and the docs pass #239.
+- #221 closed after it was split into #232 to #237; #236 (NUTS coordinates and metrics) and #237 (N-D trees and the roadmap) are `deferred`.
+- `PLAN.md` replaces the walkthrough's phases with the stages; each open item in `QUESTIONS.md` names the issue that carries it.
+- This container lacked `~/.venvs/default`, so the fast tests were not run here; #228 makes the set-up portable.
