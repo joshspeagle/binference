@@ -6,10 +6,10 @@ likelihoods, posteriors, samples, binned measurements or classifier outputs.
 
 ## Start here
 
-- The walkthrough with Josh lives in `notes/review/`: read its `README.md`, then
-  `PLAN.md` (current position), the last entries of `LOG.md`, and `QUESTIONS.md`.
-- Every settled choice is in `notes/review/DECISIONS.md`; the landing of the v0.1 branch
-  on `main` follows `notes/review/landing-plan.md` (tracking issue #4).
+- `notes/review/PLAN.md` is the current position: the stages to the next release
+  (tracking issue #225). Then read the last entries of `notes/review/LOG.md` and the open
+  items of `notes/review/QUESTIONS.md`.
+- Every settled choice is in `notes/review/DECISIONS.md`.
 - Design background: `docs/design/spec.md`, `docs/how-it-works/model.md`.
 
 ## Layout
@@ -25,9 +25,11 @@ likelihoods, posteriors, samples, binned measurements or classifier outputs.
 
 ## Commands
 
-Use the shared `~/.venvs/default` Python environment (`PYTHONPATH=src ~/.venvs/default/bin/pytest`, `~/.local/bin/ruff`). Set-up, tests, lint (`pre-commit run --all-files`), docs and the snippet runner are in
-`CONTRIBUTING.md`; CI runs the same commands (`.github/workflows/ci.yml`). Fast tests take
-about 80 s, the slow suite about 20 min on one thread, a clean docs build about 9 min. Use
+Work in a virtual environment with the package installed editable
+(`pip install -e ".[dev]"`, or `".[test,plot]"` for the tests alone). Set-up, tests, lint
+(`pre-commit run --all-files`), docs and the snippet runner are in `CONTRIBUTING.md`; CI
+runs the same commands (`.github/workflows/ci.yml`). Fast tests take about 80 s, the slow
+suite about 20 min on one thread, a clean docs build about 9 min. Use
 `OPENBLAS_NUM_THREADS=1` for timings in shared containers.
 
 ## Recording
@@ -83,7 +85,7 @@ All code reaches `main` through a pull request that closes an issue (DECISIONS #
   (SPEC 7). float64 unless a decision says otherwise.
 - Expose every tunable with a sensible default (DECISIONS #16).
 - Type hints on public signatures; NumPy-style docstrings in the notation of
-  `docs/how-it-works/model.md`.
+  `docs/reference/notation.md`.
 
 ## Tests
 
@@ -100,12 +102,13 @@ All code reaches `main` through a pull request that closes an issue (DECISIONS #
 
 ## Agents
 
-- Follow the `github-flow` skill (`<Dropbox>/.agents/skills/github-flow/SKILL.md`) before modifying tracked files (`>10` lines).
+- Personal tooling (skills, voice files, local paths) goes in `CLAUDE.local.md`, which is
+  not committed.
 - Subagents get self-contained briefs and never commit. Read every line a subagent writes
   before committing it. Parallel writers get separate worktrees.
 
 ## Writing
 
-- Follow the Synergistic Prose Register (`<Dropbox>/.agents/memory/writing-and-voice.md` and `<Dropbox>/.agents/skills/co-writer/SKILL.md`) and `docs/writing.md`.
+- Follow `docs/writing.md`.
 - Plain and exact; literal over metaphor. Replies lead with the answer, then the reason,
   then the next step.
