@@ -35,8 +35,8 @@ pytest --cov=binference         # coverage report
 
 * `ruff check` and `ruff format` (line length 99) run through the pre-commit hooks
   (`pre-commit run --all-files`), locally and in CI.
-* Use the notation of the specification ([`docs/design/spec.md`](docs/design/spec.md) §3) in code,
-  docstrings and docs:
+* Use the notation of the [notation page](docs/reference/notation.md) in code, docstrings
+  and docs:
   * $L_{ik}$ for bin-averaged likelihoods;
   * $\rho$ for fractions and $\lambda$ for rates;
   * $\pi$ for interim priors and $r_{ik}$ for responsibilities.

@@ -107,3 +107,6 @@ venv.bak/
 docs/reference/api/generated/
 docs/jupyter_execute/
 .jupyter_cache/
+
+# Personal Claude Code instructions
+CLAUDE.local.md
