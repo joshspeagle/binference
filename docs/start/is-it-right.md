@@ -50,10 +50,8 @@ divides out ([pitfalls](../guides/troubleshooting.md#passing-posteriors-as-likel
   ({doc}`../fields/neural`).
 - **Let the population depend on other variables.** All objects share one population;
   binference has no covariate-dependent populations.
-- **Check that the per-object likelihoods are calibrated.** Likelihoods that are too
-  narrow or too wide for every object are matched by a population that is wider or
-  narrower, so checks against the same data cannot detect them. Checking calibration
-  needs objects with known true values.
+- **Check that the per-object likelihoods are calibrated**
+  ([why](../how-it-works/model.md#assumptions)).
 - **Model variation between fields.** The uncertainty in the population comes from the
   finite number of objects and their measurement errors. Variation of the population
   from one field or sample to another is not modelled, and one field alone cannot

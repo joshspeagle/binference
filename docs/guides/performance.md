@@ -10,13 +10,16 @@ dense $N\times K$ matrix costs $O(NK)$ per pass. A sparse one costs O(number of 
 entries).
 
 These timings come from `python benchmarks/bench_kernels.py --engines`, run on
-2026-10-27 on one thread (`OMP_NUM_THREADS=1`) of an Intel Xeon at 2.1 GHz. The engine
+2026-10-27 (the two larger dense rows with `bench_kernels(N, K)` on 2026-11-15) on one
+thread (`OMP_NUM_THREADS=1`) of an Intel Xeon at 2.1 GHz. The engine
 fits use `mock_1d(2000)` in 30 bins. Raw time misleads for samplers, so the table gives
 each fit's smallest bulk effective sample size (ESS) too.
 
 | operation | $N$ | $K$ | time | smallest bulk ESS |
 |---|---|---|---|---|
 | log-likelihood and its gradient, dense | 20,000 | 80 | 1.3 ms | |
+| the same, dense | 200,000 | 100 | 18 ms | |
+| the same, dense | 1,000,000 | 50 | 64 ms | |
 | the same, sparse (`rtol=1e-6`, 56% of entries non-zero) | 20,000 | 80 | 1.7 ms | |
 | one Gibbs sweep (a bin for every object) | 20,000 | 80 | 10 ms | |
 | all per-object responsibilities | 20,000 | 80 | 8 ms | |
@@ -26,10 +29,7 @@ each fit's smallest bulk effective sample size (ESS) too.
 | a MAP fit | 2000 | 30 | 0.01 s | |
 | a Laplace fit | 2000 | 30 | 0.4 s | |
 
-Larger problems cost in proportion to $NK$, about 1 ns per entry of $L$. On 2026-11-15,
-on the same processor and thread setting, `bench_kernels(N, K)` from the same script took
-18 ms for the dense log-likelihood and gradient at $N = 200{,}000$, $K = 100$, and 64 ms at
-$N = 1{,}000{,}000$, $K = 50$.
+Larger problems cost in proportion to $NK$, about 1 ns per entry of $L$.
 
 At 56% non-zero entries, sparse storage is slower than dense; it pays only when far
 fewer entries are non-zero.

@@ -53,8 +53,7 @@ binference measures this in three places:
 - `result.check()` warns when $\sum_i V_i$ at the fitted population exceeds its limit
   ({doc}`defaults <../../reference/defaults>`). That sum is roughly
   the bias the sample noise puts into the total log-likelihood. Each $V_i$ falls like
-  $1/S$ with $S$ samples per object, so the sum grows like $N/S$: ten times as many
-  objects need ten times as many samples each for the same bias.
+  $1/S$ with $S$ samples per object, so the sum grows like $N/S$.
 
 Bins that no sample reached get zero likelihood. If an object's samples miss bins its
 likelihood should cover, pass `floor=a`. It adds `a` pseudo-samples per object, spread
