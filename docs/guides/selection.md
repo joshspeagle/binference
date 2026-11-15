@@ -195,7 +195,9 @@ non-detections. The catalogue informs only the ratios between the $S_k$: its
 likelihood does not change when all of them are scaled together. Their level, and with
 it the total, comes from the injections. The draws of $S$ are in
 `result.selection_draws()`, an `(n_draws, K)` array, and the total and the per-object methods use them
-draw by draw.
+draw by draw. binference does not offer the alternative, averaging the likelihood over
+draws of $S$ taken from the injections alone: the catalogue then cannot update $S$, the
+intervals come out too narrow, and each evaluation costs one likelihood pass per draw.
 
 ```python
 rng = np.random.default_rng(3)
