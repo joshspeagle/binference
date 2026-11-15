@@ -1,0 +1,27 @@
+k 16 seed 0 reparam True time 77 ebfmi [0.26 0.32] ess min 445 step [0.046 0.051] maxdepth 0.0
+  centring: n 256 ==1: 0 <0.1: 174 q [0.    0.014 0.051 0.132 0.552]
+   amplitude (2, 300) q [4.2478 5.4731 7.1099] ess 308
+   length_scale_0 (2, 300) q [0.2673 0.3778 0.5007] ess 127
+   length_scale_1 (2, 300) q [0.2435 0.3248 0.4328] ess 177
+k 16 seed 0 reparam False time 124 ebfmi [0.97 0.75] ess min 351 step [0.027 0.02 ] maxdepth 0.0
+   amplitude (2, 300) q [4.3082 5.573  7.2739] ess 339
+   length_scale_0 (2, 300) q [0.2912 0.3956 0.5343] ess 119
+   length_scale_1 (2, 300) q [0.2283 0.3167 0.425 ] ess 123
+k 16 seed 1 reparam True time 157 ebfmi [0.17 0.32] ess min 292 step [0.023 0.029] maxdepth 0.0
+  centring: n 256 ==1: 0 <0.1: 180 q [0.    0.015 0.046 0.114 0.397]
+   amplitude (2, 300) q [4.3387 5.7582 7.4476] ess 235
+   length_scale_0 (2, 300) q [0.2753 0.3778 0.5229] ess 96
+   length_scale_1 (2, 300) q [0.2591 0.3422 0.459 ] ess 188
+k 16 seed 1 reparam False time 109 ebfmi [1.04 0.97] ess min 177 step [0.036 0.032] maxdepth 0.0
+   amplitude (2, 300) q [4.5601 5.7009 7.2985] ess 293
+   length_scale_0 (2, 300) q [0.2915 0.4008 0.5297] ess 93
+   length_scale_1 (2, 300) q [0.2487 0.341  0.461 ] ess 96
+k 16 seed 2 reparam True time 162 ebfmi [0.27 0.28] ess min 431 step [0.026 0.029] maxdepth 0.0
+  centring: n 256 ==1: 0 <0.1: 119 q [0.    0.03  0.118 0.321 0.808]
+   amplitude (2, 300) q [4.1437 5.3813 7.2199] ess 173
+   length_scale_0 (2, 300) q [0.3219 0.4321 0.5829] ess 176
+   length_scale_1 (2, 300) q [0.2394 0.3247 0.4446] ess 194
+k 16 seed 2 reparam False time 125 ebfmi [0.89 0.97] ess min 363 step [0.027 0.04 ] maxdepth 0.0
+   amplitude (2, 300) q [3.9401 5.2564 6.8695] ess 312
+   length_scale_0 (2, 300) q [0.3034 0.4142 0.546 ] ess 153
+   length_scale_1 (2, 300) q [0.2422 0.3266 0.4561] ess 132

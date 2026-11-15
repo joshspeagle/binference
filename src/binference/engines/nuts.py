@@ -27,7 +27,8 @@ _TARGET_ACCEPT = 0.8
 _TARGET_ACCEPT_LOGISTIC = 0.9
 #: Up to this many dimensions, ``metric="auto"`` is dense for logistic priors and warm-up
 #: starts their metric from the curvature averaged over every chain's position; above it,
-#: the metric is diagonal and the centring weights come from one chain's curvature.
+#: ``"auto"`` is diagonal, the metric starts from the identity and the centring weights
+#: come from one chain's curvature.
 _DENSE_MAX_DIM = 500
 # Partial centring re-creates a funnel when the field itself pins the scale
 # hyperparameters down poorly (few modes per hyperparameter). In validation runs 0.28

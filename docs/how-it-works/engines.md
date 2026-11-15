@@ -34,7 +34,8 @@ candidate of `method="auto"`.
   it holds. The metric is diagonal, or dense for logistic priors. The dense metric has a
   dimension limit in the [defaults](../reference/defaults.md#engines).
 - **Curvature.** For logistic priors, early in warm-up the engine also starts the
-  metric from the finite-difference curvature $H$ of the log density. Each later window
+  metric from the finite-difference curvature $H$ of the log density, up to the dense
+  metric's dimension limit. Each later window
   then shrinks its estimate towards the previous metric. Simplex and rate priors keep
   Stan's adaptation unchanged: at single points their curvature is a poor guide to the
   scales of nearly empty bins.
