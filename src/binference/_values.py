@@ -1,7 +1,8 @@
 """Values drawn inside bins from each input's own within-bin information.
 
-``PopulationResult.sample_values`` draws a value for each object inside the bin it is
-assigned to; :func:`_value_drawer` chooses how from what the likelihoods kept.
+``sample_values``, on a ``PopulationResult`` or a ``PointEstimate``, draws a value for each
+object inside the bin it is assigned to; :func:`_value_drawer` chooses how from what the
+likelihoods kept.
 """
 
 from __future__ import annotations
@@ -13,6 +14,8 @@ import numpy as np
 from scipy import special
 
 from . import _kernels as kern
+from .density import _log_nonneg
+from .likelihoods import _log_interim, _rows_logpdf
 from .measure import Measure
 
 
@@ -39,8 +42,6 @@ def _value_drawer(model, loglike, n_sub: int, n_sweeps: int) -> tuple[Callable, 
         direct = model.likelihoods.basis.is_identity and data[0] == model.K
         return partial(_draw_samples, measures, flat, direct, row, *data), True
     if kind == "dists":  # one family's parameters are packed once, not per call
-        from .likelihoods import _rows_logpdf
-
         dists, interim = data
         evaluate = partial(_dists_logl, row, _rows_logpdf(dists, 1), interim)
     else:
@@ -55,8 +56,6 @@ EVAL_BUDGET = 2**24
 
 def _dists_logl(row, logpdf, interim, objects, labels, zz):
     # distributions of from_density: one vectorised call for the rows' own points
-    from .likelihoods import _log_interim
-
     with np.errstate(invalid="ignore"):  # -inf - -inf where the interim vanishes: NaN
         return logpdf(zz, row[objects]) - _log_interim(interim, zz)
 
@@ -64,9 +63,6 @@ def _dists_logl(row, logpdf, interim, objects, labels, zz):
 def _rows_logl(row, n_in, fn, log, interim, objects, labels, zz):
     # a density function of from_density returns every input row at common points: it
     # is called on the sub-points of a few bins at a time, at most EVAL_BUDGET values
-    from .density import _log_nonneg
-    from .likelihoods import _log_interim
-
     out = np.empty(zz.shape)
     _, first, inverse = np.unique(labels, return_index=True, return_inverse=True)
     inverse = inverse.ravel()
