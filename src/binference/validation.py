@@ -96,6 +96,7 @@ class ExactPosterior:
 def exact_posterior(
     model: PopulationModel | Likelihoods | Any,
     prior: PopulationPrior | None = None,
+    *,
     n_grid: int = 200,
     max_elements: int = MAX_ELEMENTS,
 ) -> ExactPosterior:

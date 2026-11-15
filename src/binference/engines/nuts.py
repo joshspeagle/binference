@@ -360,8 +360,9 @@ class NUTS(MarkovEngine):
             )
         self.n_chains = check_positive_integers(n_chains, "n_chains")[0]
         self.max_depth = check_positive_integers(max_depth, "max_depth")[0]
-        if n_warmup < 0 or jitter < 0:
-            raise ValueError("n_warmup and jitter must be non-negative.")
+        for name, value in (("n_warmup", n_warmup), ("jitter", jitter)):
+            if value < 0:
+                raise ValueError(f"{name} must be non-negative; got {value}.")
         if not isinstance(n_jobs, bool) and n_jobs == -1:
             n_jobs = _cpu_count()
         try:

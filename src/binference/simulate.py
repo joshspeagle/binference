@@ -128,7 +128,7 @@ def _as_density(density: Any, bins: Bins) -> Density:
     return Density.coerce(density, "mass", name="density")
 
 
-def population(bins: Bins, density: Any = "bimodal", tol: float = 1e-6) -> np.ndarray:
+def population(bins: Bins, density: Any = "bimodal", *, tol: float = 1e-6) -> np.ndarray:
     """Population fractions per bin from a density name, :class:`Density`, callable or masses.
 
     Parameters

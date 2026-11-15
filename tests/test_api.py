@@ -1,6 +1,7 @@
 """Tests for the high-level API: infer(), PopulationEstimator, namespace (spec 8)."""
 
 import importlib
+import inspect
 from pathlib import Path
 
 import numpy as np
@@ -190,3 +191,53 @@ def test_method_em_on_a_joint_model_runs_its_optimiser():
     z = np.linspace(0.05, 0.95, 40)
     sel = binference.Selection.from_injections(z, np.tile([True, False], 20), lk.bins, "on_truth")
     assert binference.infer(lk, selection=sel, method="em").info["space"] == "unconstrained"
+
+
+# the reviewed API (#238): the primary data by position, every option by keyword
+POSITIONAL = {
+    "results.PopulationResult.cov": [],
+    "results.PopulationResult.corr": [],
+    "results.PopulationResult.check": [],
+    "results.PointEstimate.check": [],
+    "results.PopulationResult.quantile": ["q"],
+    "results.PopulationResult.interval": ["level"],
+    "results.PopulationResult.functional": ["func"],
+    "results.PopulationResult.rebin": ["groups"],
+    "results.PopulationResult.summary": ["level"],
+    "results.PointEstimate.laplace": ["n_samples"],
+    "results.PopulationResult.assignment_probabilities": ["idx"],
+    "results.PopulationResult.assignment_probabilities_loo": ["idx"],
+    "results.PopulationResult.sample_assignments": ["idx"],
+    "results.PopulationResult.sample_values": ["idx"],
+    "results.PopulationResult.realized_counts": ["n_draws"],
+    "results.PopulationResult.predict_proba": ["likelihoods"],
+    "results.PopulationResult.log_predictive": ["likelihoods"],
+    "likelihoods.Likelihoods.with_weights": ["weights"],
+    "likelihoods.Likelihoods.with_selection": ["selection", "selection_mode"],
+    "likelihoods.Likelihoods.stack": ["interim"],
+    "model.PopulationModel.kkt_gap": ["value"],
+    "model.PopulationModel.missing_information": ["value"],
+    "model.PopulationModel.log_likelihood": ["value"],
+    "validation.exact_posterior": ["model", "prior"],
+    "simulate.population": ["bins", "density"],
+    "plotting.plot_individual": ["result", "i", "ax"],
+    "plotting.plot_sbc": ["sbc_result"],
+    "priors.LogisticNormal": ["mean"],
+    "priors.LogisticRandomWalk": ["order"],
+    "priors.LogisticGP": ["kernel"],
+}
+
+
+@pytest.mark.parametrize("path", POSITIONAL)
+def test_options_after_the_primary_arguments_are_keyword_only(path):
+    module, *attrs = path.split(".")
+    obj = importlib.import_module(f"binference.{module}")
+    for a in attrs:
+        obj = getattr(obj, a)
+    params = list(inspect.signature(obj).parameters.values())
+    positional = [
+        p.name
+        for p in params
+        if p.kind is p.POSITIONAL_OR_KEYWORD and p.name not in ("self", "cls")
+    ]
+    assert positional == POSITIONAL[path]

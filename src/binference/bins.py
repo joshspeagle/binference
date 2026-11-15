@@ -270,12 +270,12 @@ class Bins(SetOnce):
         """
         if isinstance(labels, int | np.integer):
             if labels < 2:
-                raise ValueError("Need at least two categories.")
+                raise ValueError(f"labels must give at least two categories; got {labels}.")
             labs = tuple(range(int(labels)))
         elif np.iterable(labels) and not isinstance(labels, str):
             labs = tuple(labels)
             if len(labs) < 2:
-                raise ValueError("Need at least two categories.")
+                raise ValueError(f"labels must give at least two categories; got {len(labs)}.")
             if len(set(labs)) != len(labs):
                 raise ValueError("Category labels must be unique.")
         else:

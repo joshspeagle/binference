@@ -437,9 +437,9 @@ def test_which_takes_both_spellings_everywhere():
     mpl.use("Agg")
     _, res = fit_with_selection()
     np.testing.assert_allclose(
-        res.rebin([0, 0, 1, 1], which="rate"), res.rebin([[0, 1], [2, 3]], "rates")
+        res.rebin([0, 0, 1, 1], which="rate"), res.rebin([[0, 1], [2, 3]], which="rates")
     )
-    assert res.cov("rates").shape == (4, 4)
+    assert res.cov(which="rates").shape == (4, 4)
     np.testing.assert_allclose(res.functional(np.sum, which="rates"), res.total)
     res.plot(which="fractions")
     res.plot_corner(which="rates")

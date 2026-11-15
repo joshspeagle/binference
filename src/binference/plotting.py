@@ -445,8 +445,8 @@ def plot_individual(
     result: Any,
     i: int,
     ax: Any = None,
-    n_draws: int = 200,
     *,
+    n_draws: int = 200,
     color: Any = None,
     sample_color: Any = None,
 ):
@@ -521,10 +521,10 @@ def plot_individual(
 
 def plot_sbc(
     sbc_result: Any,
+    *,
     n_bins: int | None = None,
     max_panels: int = 12,
     fig: Any = None,
-    *,
     color: Any = None,
 ):
     """Rank histograms from :func:`binference.validation.sbc` with a 99% uniformity band.

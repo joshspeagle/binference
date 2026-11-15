@@ -625,6 +625,7 @@ class PopulationModel:
     def log_likelihood(
         self,
         value: np.ndarray,
+        *,
         absolute: bool = True,
         S: np.ndarray | None = None,
         response: np.ndarray | None = None,
@@ -757,7 +758,7 @@ class PopulationModel:
         return self.prior.sample(int(n), as_generator(rng))
 
     # -------------------------------------------------------- diagnostics
-    def kkt_gap(self, value: np.ndarray, include_prior: bool = True) -> float:
+    def kkt_gap(self, value: np.ndarray, *, include_prior: bool = True) -> float:
         r"""Violation of the first-order optimality conditions at ``value``.
 
         Zero (to numerical precision) at the maximum-likelihood / MAP estimate
@@ -801,6 +802,7 @@ class PopulationModel:
     def missing_information(
         self,
         value: np.ndarray,
+        *,
         max_objects: int = 20000,
         rng: RNGLike = 0,
         include_prior: bool = False,

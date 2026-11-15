@@ -110,7 +110,9 @@ def _as_chains(x: Any) -> np.ndarray:
     if a.ndim == 1:
         a = a[None, :]
     if a.ndim != 2:
-        raise ValueError("Expected an array of shape (n_draws,) or (n_chains, n_draws).")
+        raise ValueError(
+            f"x must have shape (n_draws,) or (n_chains, n_draws); got shape {a.shape}."
+        )
     return a
 
 

@@ -24,6 +24,7 @@ import numpy as np
 from scipy import stats
 
 from ._utils import (
+    RNGLike,
     SetOnce,
     as_generator,
     check_nonnegative,
@@ -443,7 +444,7 @@ class Response(SetOnce):
         # column sums may exceed one by rounding (Response allows 1e-6)
         return None if np.allclose(eff, 1.0) else Selection(np.minimum(eff, 1.0), "on_measurement")
 
-    def draw(self, n: int, rng: Any = None) -> np.ndarray:
+    def draw(self, n: int, rng: RNGLike = None) -> np.ndarray:
         """``(n, J, K)`` posterior draws of the matrix given the tallies alone.
 
         Parameters

@@ -53,7 +53,9 @@ class Engine:
 
     def __init__(self, model: PopulationModel, *, rng: RNGLike = None, progress: bool = False):
         if not isinstance(model, PopulationModel):
-            raise TypeError("Engines operate on a binference.PopulationModel.")
+            raise TypeError(
+                f"model must be a binference.PopulationModel; got {type(model).__name__}."
+            )
         reason = self.unsupported(model)
         if reason is not None:
             raise ValueError(reason)
