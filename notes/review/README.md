@@ -1,9 +1,8 @@
 # Project notes
 
-The working record of binference's design: what was decided, why, and what is still
-open. These notes are not part of the documentation site. The walkthrough and teardown
-that produced most of them (October 2026) are finished; their briefings, audit reports,
-design drafts and the research notes behind the landscape census are kept at commit
+These notes are not part of the documentation site. The walkthrough and teardown of
+October 2026 are finished; their briefings, audit reports, design drafts and research
+notes are kept at commit
 [`3c12aa3`](https://github.com/joshspeagle/binference/tree/3c12aa3d174bc335edadceb3d4cfeed25e62c94d)
 (DECISIONS #134, #135).
 
@@ -16,8 +15,5 @@ design drafts and the research notes behind the landscape census are kept at com
 | `api-ledger.md` | Public arguments and their defaults, as reviewed | Rows added when an argument is reviewed |
 | `experiments/` | The scripts and outputs that decisions and docs cite | Add a script with the decision that uses it |
 
-## Rules for a new session
-
-1. Read `PLAN.md`, the last entries of `LOG.md`, and the open items in `QUESTIONS.md`.
-2. Do not re-open a decision recorded in `DECISIONS.md` unless Josh does.
-3. Record as you go: a log entry per piece of work, a decision entry per decision.
+Start and record as `CLAUDE.md` says. Do not re-open a decision in `DECISIONS.md` unless
+Josh does.
