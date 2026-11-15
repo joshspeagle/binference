@@ -3,9 +3,10 @@ message: "If you use binference, please cite it as below, together with the meth
 title: "binference: population and hierarchical inference with PDFs"
 abstract: >-
   binference infers population distributions over bins, and the posteriors of
-  individual objects, from heteroscedastic per-object likelihoods, posteriors
-  or posterior samples, using an exact hierarchical Bayesian model with
-  smoothness priors, selection effects and built-in validation.
+  individual objects, from per-object likelihoods, posteriors, posterior
+  samples, binned measurements or classifier outputs, using an exact
+  hierarchical Bayesian model with smoothness priors, selection effects and
+  built-in validation.
 type: software
 authors:
   - family-names: Speagle
