@@ -22,16 +22,16 @@ from scipy import special
 
 from .. import _kernels as kern
 from .._simplex import helmert_basis, log_softmax, softmax
-from .._utils import check_nonnegative, check_positive, warn
+from .._utils import check_nonnegative, check_positive
 from ..bins import Bins, _bin_labels
-from ..density import Density, _equal_volumes
-from ..warnings import InputWarning
+from ..density import Density
 from .base import (
     _TINY,
     BoundPrior,
     PopulationPrior,
     _log_gamma_variates,
     _per_item,
+    _warn_if_equal_fractions,
 )
 
 __all__ = ["Dirichlet", "DirichletTree", "GeneralizedDirichlet", "PolyaTree"]
@@ -174,16 +174,12 @@ class Dirichlet(PopulationPrior):
         return _per_item(self.alpha, K, "alpha").astype(float)
 
     def bind(self, bins: Bins) -> _BoundDirichlet:
-        symmetric = self._base is None and (
-            isinstance(self.alpha, str) or np.ndim(self.alpha) == 0
-        )
-        if symmetric and not _equal_volumes(Density.flat().masses(bins)):
-            warn(
-                "Dirichlet with one concentration for every bin, on bins of unequal width in "
-                "the measure coordinate: its prior mean gives each bin the same fraction, not "
-                "a flat density. Dirichlet.from_base_measure(concentration) spreads the "
-                "concentration by width; an array alpha is used as given.",
-                InputWarning,
+        if self._base is None and (isinstance(self.alpha, str) or np.ndim(self.alpha) == 0):
+            _warn_if_equal_fractions(
+                "A Dirichlet with one concentration for every bin",
+                "Dirichlet.from_base_measure spreads the concentration by width; an array "
+                "alpha is used as given.",
+                bins,
             )
         return _BoundDirichlet(self, bins, self.resolve_alpha(bins))
 

@@ -352,3 +352,18 @@ class BoundPrior:
             What :meth:`vb_update` returned.
         """
         raise NotImplementedError
+
+
+def _warn_if_equal_fractions(what: str, fix: str, bins: Bins) -> None:
+    """Warn that ``what`` gives every bin the same prior mean fraction on bins of unequal
+    width in the measure coordinate, where that is not a flat density."""
+    from .._utils import warn
+    from ..density import Density, _equal_volumes
+    from ..warnings import InputWarning
+
+    if not _equal_volumes(Density.flat().masses(bins)):
+        warn(
+            f"{what} gives every bin the same prior mean fraction, which on bins of unequal "
+            f"width in the measure coordinate is not a flat density. {fix}",
+            InputWarning,
+        )

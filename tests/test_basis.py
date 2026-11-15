@@ -237,7 +237,7 @@ def test_values_on_log_bins_are_flat_in_log_within_bins():
     assert stats.kstest(v, cdf).pvalue > 1e-3
 
 
-@pytest.mark.filterwarnings("ignore:Dirichlet with one concentration:binference.InputWarning")
+@pytest.mark.filterwarnings("ignore:A Dirichlet with one concentration:binference.InputWarning")
 def test_a_reloaded_result_attaches_on_a_transform_axis(tmp_path):
     tb = Bins(np.linspace(0, 3, 7), measure=binference.Measure.transform(np.arcsinh, np.sinh))
     mock = binference.simulate.mock_1d(100, tb, rng=7)
@@ -251,7 +251,7 @@ def test_a_reloaded_result_attaches_on_a_transform_axis(tmp_path):
     assert back.to_dict()["meta"]["basis"]["order"] == 1
 
 
-@pytest.mark.filterwarnings("ignore:Dirichlet with one concentration:binference.InputWarning")
+@pytest.mark.filterwarnings("ignore:A Dirichlet with one concentration:binference.InputWarning")
 def test_a_reloaded_result_with_a_selection_attaches_on_a_transform_axis(tmp_path):
     # the saved selection's basis loads with a tabulated measure, as the result's does
     tb = Bins(np.linspace(0, 3, 7), measure=binference.Measure.transform(np.arcsinh, np.sinh))

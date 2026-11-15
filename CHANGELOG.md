@@ -26,7 +26,7 @@ releases may break the API).
 - A `Dirichlet` with one concentration for every bin (a scalar `alpha`, the default, or
   `Dirichlet.reference()`) raises an `InputWarning` on bins of unequal width in the measure
   coordinate, where its prior mean is not a flat density, and points to
-  `Dirichlet.from_base_measure`.
+  `Dirichlet.from_base_measure`. `GammaRates` with one `shape` for every bin warns there too.
 - `PolyaTree`'s error for a base measure with an empty bin reads as `Dirichlet`'s.
 
 ## [0.2.0] - 2026-11-07

@@ -28,9 +28,9 @@ shape of their tree.
 
 - **`Dirichlet(alpha)`** is a tree with one node. The {term}`Dirichlet prior` with every
   {term}`concentration` $\alpha_k=1$ is uniform on the simplex and is the default. A
-  scalar $\alpha$ gives every bin the same concentration, and so the same prior mean
-  fraction; on bins of unequal width in the measure coordinate that is not a flat density,
-  and binding the prior raises an `InputWarning` that points to `from_base_measure`. Its
+  scalar $\alpha$ gives every bin the same concentration and the same prior mean
+  fraction. On bins of unequal width in the measure coordinate that is not a flat density.
+  Binding the prior there raises an `InputWarning` that points to `from_base_measure`. Its
   correlation between any two bins is $-1/(K-1)$ when the concentrations are equal,
   whatever their value. Explainer {ref}`explainer-v8` on the
   [concepts page](../concepts/priors-on-the-simplex.md#smoothness-priors) maps it beside

@@ -910,22 +910,32 @@ def test_a_first_order_random_walk_steps_in_the_measure_coordinate(seed):
 
 
 def test_a_second_order_random_walk_leaves_lines_in_u_unpenalised():
-    from binference.priors.logistic import _rw_precision, _rw_steps
+    from binference.priors.logistic import _rw_differences, _rw_steps
 
     x = _rw_steps(np.array([0.0, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2]))
-    Q = _rw_precision(x, 2)
-    np.testing.assert_allclose(Q @ np.ones(6), 0.0, atol=1e-12)
-    np.testing.assert_allclose(Q @ x, 0.0, atol=1e-12)
-    assert np.linalg.matrix_rank(Q) == 4
+    D = _rw_differences(x, 2)
+    np.testing.assert_allclose(D @ np.ones(6), 0.0, atol=1e-12)
+    np.testing.assert_allclose(D @ x, 0.0, atol=1e-12)
 
 
 @pytest.mark.parametrize("order", [1, 2, 3])
-def test_a_random_walk_on_equal_bins_steps_by_bin(order):
-    from binference.priors.logistic import _rw_precision, _rw_steps
+def test_a_random_walk_on_equal_bins_is_the_one_of_unit_steps(order):
+    from binference.priors.logistic import _rw_differences, _rw_steps
 
-    D = np.diff(np.eye(9), n=order, axis=0)
     x = _rw_steps(Bins.log(1.0, 100.0, 9).u_edges[0])
-    np.testing.assert_allclose(_rw_precision(x, order), D.T @ D, atol=1e-12)
+    np.testing.assert_array_equal(x, np.arange(9.0))
+    np.testing.assert_allclose(
+        _rw_differences(x, order), np.diff(np.eye(9), n=order, axis=0), atol=1e-12
+    )
+
+
+def test_a_random_walk_on_very_unequal_bins_has_finite_scales():
+    with pytest.warns(binference.InputWarning, match="geometrically spaced"):
+        bins = Bins(np.geomspace(1e-2, 1e4, 49))  # widths spanning six decades, linear axis
+    for order in (1, 2, 3):
+        bound = P.LogisticRandomWalk(order=order).bind(bins)
+        log_s, _ = bound.log_scales(np.ones(len(bound.hypers)))
+        assert np.all(np.isfinite(log_s))
 
 
 def test_a_dirichlet_with_one_concentration_warns_on_bins_of_unequal_width():
@@ -938,6 +948,9 @@ def test_a_dirichlet_with_one_concentration_warns_on_bins_of_unequal_width():
     P.Dirichlet(1.0).bind(Bins.linear(1000.0, 1001.0, 50))
     P.Dirichlet([1.0, 2.0, 3.0]).bind(unequal)
     P.Dirichlet.from_base_measure(3.0).bind(unequal)
+    with pytest.warns(binference.InputWarning, match="GammaRates"):
+        P.GammaRates(1.0).bind(unequal)
+    P.GammaRates([0.1, 0.2, 0.7]).bind(unequal)
 
 
 def test_the_default_gp_basis_resolves_the_narrowest_bin_up_to_four_per_bin():

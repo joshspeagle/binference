@@ -81,7 +81,6 @@ class _KronBasis:
 
 def _orthonormal_polys(x: np.ndarray, degree: int) -> np.ndarray:
     """Orthonormal basis of polynomials of degree < ``degree`` at the points ``x`` (columns)."""
-    x = np.asarray(x, dtype=float)
     x = (x - x.mean()) / max(1.0, x.std())
     P = np.stack([x**p for p in range(degree)], axis=1)
     q, _ = np.linalg.qr(P)
@@ -109,7 +108,6 @@ def _rw_differences(x: np.ndarray, order: int) -> np.ndarray:
     ``x[i]..x[i+order]``, weighted by ``sqrt((x[i+order] - x[i]) / order)``: on unit spacing
     this is ``np.diff`` of that order, and an increment's variance grows with its span.
     """
-    x = np.asarray(x, dtype=float)
     n = x.size
     if n <= order:
         raise ValueError(f"A random walk of order {order} needs more than {order} bins per axis.")
@@ -120,12 +118,6 @@ def _rw_differences(x: np.ndarray, order: int) -> np.ndarray:
     return D * (math.factorial(order) * np.sqrt(span / order))[:, None]
 
 
-def _rw_precision(x: np.ndarray, order: int) -> np.ndarray:
-    """The 1-D random-walk precision ``D^T D`` at positions ``x``."""
-    D = _rw_differences(x, order)
-    return D.T @ D
-
-
 def _rw_eigen(x: np.ndarray, order: int) -> tuple[np.ndarray, np.ndarray]:
     """Eigen-decomposition of the 1-D random-walk precision ``D_r^T D_r``.
 
@@ -133,15 +125,22 @@ def _rw_eigen(x: np.ndarray, order: int) -> tuple[np.ndarray, np.ndarray]:
     polynomial basis of the null space (constant first), with eigenvalue 0.
     """
     n = len(x)
-    D = _rw_differences(x, order)
-    # the right singular vectors of D, not the eigenvectors of D^T D, which squares the
-    # condition number on very unequal spacing
-    U_rest = np.linalg.svd(D)[2][: n - order].T
+    if n <= order:
+        raise ValueError(f"A random walk of order {order} needs more than {order} bins per axis.")
     null = _orthonormal_polys(x, order)
-    # project the non-null vectors off the polynomial null space for safety
-    U_rest = U_rest - null @ (null.T @ U_rest)
-    U_rest, _ = np.linalg.qr(U_rest)
-    eig_rest = np.sum((D @ U_rest) ** 2, axis=0)  # Rayleigh quotients, never negative
+    if np.array_equal(x, np.arange(n)):  # equal bins: as before, and faster than an SVD
+        Q = np.diff(np.eye(n), n=order, axis=0)
+        Q = Q.T @ Q
+        _, U = np.linalg.eigh(Q)
+        # project the non-null eigenvectors off the polynomial null space for safety
+        U_rest = U[:, order:]
+        U_rest = U_rest - null @ (null.T @ U_rest)
+        U_rest, _ = np.linalg.qr(U_rest)
+        U_rest = U_rest[:, : n - order]
+        eig_rest = np.sum(U_rest * (Q @ U_rest), axis=0)  # Rayleigh quotients
+    else:  # an SVD of D: the eigenvectors of D^T D square its condition number
+        _, s, Vt = np.linalg.svd(_rw_differences(x, order))
+        U_rest, eig_rest = Vt[: n - order].T, s[: n - order] ** 2
     return np.concatenate([np.zeros(order), eig_rest]), np.concatenate([null, U_rest], axis=1)
 
 
@@ -436,11 +435,10 @@ class LogisticRandomWalk(PopulationPrior):
     the surface :math:`xy` is unpenalised too (and :math:`x^2y^2` for
     ``order=3``).
 
-    Differences are taken in the measure coordinate :math:`u`, at the bin centres, in
-    units of the mean spacing of the centres along each axis: on bins of equal width in
-    :math:`u` they are the differences between adjacent bins, and on unequal bins a step
-    over a wider gap may be larger. The natural size of ``scale`` therefore depends on
-    the number of bins per axis.
+    Differences are taken at the bin centres in the measure coordinate :math:`u`, in units
+    of their mean spacing along each axis. On bins of equal width they are the differences
+    between adjacent bins. On unequal bins a step over a wider gap may be larger. The
+    natural size of ``scale`` depends on the number of bins per axis.
 
     Parameters
     ----------
@@ -456,8 +454,8 @@ class LogisticRandomWalk(PopulationPrior):
     trend_scale : float
         Prior size of the unpenalised polynomial trends. It is the standard
         deviation of the root-mean-square size, across the grid, of each such
-        mode: a linear trend of root-mean-square size ``t`` changes the log-density by
-        about ``3.5 t`` end to end on bins of equal width, whatever their number.
+        mode. On bins of equal width, a linear trend of root-mean-square size ``t`` changes
+        the log-density by about ``3.5 t`` end to end, whatever their number.
     """
 
     def __init__(
@@ -575,11 +573,11 @@ class LogisticGP(PopulationPrior):
         a density flat in the measure coordinate: the GP acts on the
         log-density.
     n_basis : int or sequence, optional
-        Basis functions per axis. Default: as many as the axis's narrowest bin fits across
-        its range in the measure coordinate, which is one per bin on bins of equal width,
-        but at most four per bin on the axis and 1024 in all (``floor(1024 ** (1 / D))``
-        per axis: 1024 on 1-D grids, 32 per axis on 2-D grids); increase it for shorter
-        length scales, which also lowers the default length-scale prior.
+        Basis functions per axis. By default, as many as the axis's narrowest bin fits
+        across its range in the measure coordinate: one per bin on bins of equal width. The
+        default is at most four per bin and 1024 in all (``floor(1024 ** (1 / D))`` per
+        axis: 1024 on 1-D grids, 32 per axis on 2-D grids). Raise it for shorter length
+        scales; that also lowers the default length-scale prior.
     boundary_factor : float
         Ratio of the approximation box to the grid half-width. With the default
         3, the centred covariance is within 4% of the exact kernel's for length
@@ -626,11 +624,11 @@ class LogisticGP(PopulationPrior):
         D = bins.ndim
         if self.n_basis is None:  # the narrowest bin's resolution, within the caps
             cap = int(_MAX_BASIS ** (1 / D) + 1e-9)
-            nb = []
-            for u in bins.u_edges:
-                k = len(u) - 1
-                fits = int(np.ceil((u[-1] - u[0]) / np.diff(u).min() - 1e-9))
-                nb.append(min(cap, _BASIS_PER_BIN * k, max(k, fits)))
+            widths = [np.diff(u) for u in bins.u_edges]
+            nb = [
+                min(cap, _BASIS_PER_BIN * w.size, int(np.ceil(w.sum() / w.min() - 1e-9)))
+                for w in widths
+            ]
         else:
             nb = list(check_positive_integers(self.n_basis, "n_basis", D))
         factors, omegas = [], []
