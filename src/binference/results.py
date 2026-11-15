@@ -228,9 +228,12 @@ class _IndividualMixin:
 
     def _injection_problems(self) -> tuple[list[str], list[str]]:
         spec = self.model.selection_spec if self.model is not None else None
-        if spec is None or spec.injections is None:
+        if spec is None:
             return [], []
-        sparse = spec.injections.recovered < INJECTIONS_MIN_RECOVERED
+        recovered = spec._recovered if spec.injections is None else spec.injections.recovered
+        if recovered is None:
+            return [], []
+        sparse = recovered < INJECTIONS_MIN_RECOVERED
         share = float(self._rho_draws().mean(axis=0)[sparse].sum())
         if share <= INJECTIONS_SPARSE_SHARE_MAX:
             return [], []
@@ -1663,7 +1666,8 @@ class PopulationResult(_IndividualMixin):
 
         Sampler problems raise a :class:`~binference.ConvergenceWarning`; problems
         with the inputs (Monte Carlo noise of sample likelihoods, binned counts
-        the response does not describe) an :class:`~binference.InputWarning`.
+        the response does not describe, injections too few where much of the population
+        lies) an :class:`~binference.InputWarning`.
         For binned inputs with more measured than truth bins, the counts are
         tested with :meth:`Response.predictive_pvalue` over ``predictive_draws``
         draws, and flagged below ``predictive_p_min``. With ``support_min``, bins whose
@@ -2142,8 +2146,9 @@ class PointEstimate(_IndividualMixin):
 
     def check(self, kkt_max: float = 1e-4, strict: bool = False) -> list[str]:
         """Warn (or raise with ``strict=True``) when the optimiser did not converge, when the
-        KKT gap (per object; see :meth:`PopulationModel.kkt_gap`) exceeds ``kkt_max``, or
-        when sample likelihoods carry too much Monte Carlo noise.
+        KKT gap (per object; see :meth:`PopulationModel.kkt_gap`) exceeds ``kkt_max``, when
+        sample likelihoods carry too much Monte Carlo noise, or when injections are too few
+        where much of the population lies.
 
         Estimates found by L-BFGS in unconstrained coordinates have no KKT gap (NaN); for
         them the check is ``converged`` (see ``tol`` of :class:`~binference.engines.MAP`).

@@ -111,7 +111,7 @@ class Selection(SetOnce):
 
     # DECISIONS #30, #80
 
-    __slots__ = ("basis", "injections", "row", "scale", "values")
+    __slots__ = ("_recovered", "basis", "injections", "row", "scale", "values")
 
     def __init__(self, values: Any, mode: str, *, scale: str = "probability") -> None:
         _check_mode(mode)
@@ -121,6 +121,7 @@ class Selection(SetOnce):
         self.scale = scale
         self.basis = None
         self.injections = None
+        self._recovered: np.ndarray | None = None  # injection counts kept by fixed()
 
     def _parts(self) -> tuple:
         # the arguments of _rebuild; row as "values" when it is the values (on the truth)
@@ -244,7 +245,9 @@ class Selection(SetOnce):
     def fixed(self) -> Selection:
         """This selection taken as known at its :attr:`values`, a plug-in that ignores their
         uncertainty."""
-        return _rebuild(*self._parts()[:4])
+        # the injection counts stay for the check of few recoveries
+        recovered = None if self.injections is None else self.injections.recovered
+        return _rebuild(*self._parts()[:4], recovered=recovered)
 
     @property
     def mode(self) -> str:
@@ -481,7 +484,13 @@ def _on_basis(sel: Selection, basis: Basis, M: Any) -> Selection:
 
 
 def _rebuild(
-    values: np.ndarray, row: Any, scale: str, basis: Basis | None = None, injections: Any = None
+    values: np.ndarray,
+    row: Any,
+    scale: str,
+    basis: Basis | None = None,
+    injections: Any = None,
+    *,
+    recovered: np.ndarray | None = None,
 ) -> Selection:
     # a Selection from its arrays; row is None, "values" (on the truth) or an array
     out = Selection.__new__(Selection)
@@ -495,6 +504,7 @@ def _rebuild(
     )
     out.scale = scale
     out.basis = None if basis is None or basis.is_identity else basis
+    out._recovered = recovered
     out.injections = (
         None
         if injections is None

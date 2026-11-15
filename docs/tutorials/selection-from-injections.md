@@ -183,6 +183,11 @@ assert tot["joint"].std() > tot["plug-in injections"].std()
 assert frac["joint"].std() > frac["plug-in injections"].std()
 z_tot = {k: (n_mergers - tot[k].mean()) / tot[k].std() for k in ("plug-in injections", "joint")}
 assert 0 < z_tot["joint"] < z_tot["plug-in injections"]
+import warnings
+
+with warnings.catch_warnings():  # the text below names the injection warning
+    warnings.simplefilter("ignore")
+    assert any("recovered injections" in m for m in fits["joint"].check())
 assert abs(tot["exact selection"].mean() - n_mergers) < 3 * tot["exact selection"].std()
 ```
 

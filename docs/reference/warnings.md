@@ -147,6 +147,11 @@ result may be biased.
   - `<n> bins have data support below <support_min> objects ...: their fractions are set by the prior`:
     raised only with `support_min=`. Merge sparse bins, or read their fractions as the
     prior's.
+  - `bins with fewer than <n> recovered injections hold <x>% of the population, so the total is poorly determined and the prior pulls it low`:
+    a selection from injections, inferred or `fixed()`, leaves the total uncertain, and
+    the prior on the fractions pulls it low. The hint names the bins; inject more objects
+    there. The thresholds are `INJECTIONS_MIN_RECOVERED` and
+    `INJECTIONS_SPARSE_SHARE_MAX` ({doc}`defaults`).
   - `the measured counts disagree with the fitted population and the response (posterior predictive p = <p>)`:
     the response may not describe the data. For a classifier, label shift may be
     violated.

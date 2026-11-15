@@ -78,6 +78,7 @@ def _problem(mode="on_truth", seed=0, smooth=None):
     return mock.likelihoods.with_selection(None), sel
 
 
+@pytest.mark.filterwarnings("ignore:Diagnostics. bins with fewer than:binference.InputWarning")
 def test_engines_that_cannot_infer_a_selection_refuse_and_name_those_that_can():
     lk, sel = _problem()
     m = binference.PopulationModel(lk, selection=sel)
@@ -140,6 +141,7 @@ def test_map_and_laplace_infer_the_selection_in_unconstrained_coordinates():
     np.testing.assert_allclose(res.info["mode"], est.x, atol=1e-4)
 
 
+@pytest.mark.filterwarnings("ignore:Diagnostics. bins with fewer than:binference.InputWarning")
 def test_a_selection_on_the_measurement_is_only_a_plug_in():
     # the likelihoods' cut fixes S; with S free the catalogue adds only missed objects and
     # drove S to zero in a first version (DECISIONS #79)
@@ -164,7 +166,8 @@ def test_joint_inference_of_population_and_selection_is_calibrated():
         lk = Likelihoods.from_gaussian(
             z + 0.15 * rng.standard_normal(100), 0.15, bins, warn_outside=False
         )
-        sel = Selection.from_injections(*_injections(S, bins, 30, rng), bins, "on_truth")
+        injections = _injections(S, bins, 30, rng)  # the prior of the S_k drawn above
+        sel = Selection.from_injections(*injections, bins, "on_truth", prior=(1.0, 1.0))
         res = Gibbs(
             binference.PopulationModel(lk, selection=sel), n_chains=2, n_warmup=200, rng=rng
         ).run(500)
@@ -191,7 +194,7 @@ def test_equal_means_from_different_injections_are_different_selections():
     bins = Bins.linear(0, 1, 2)
     a = Selection.from_injections([0.2, 0.2, 0.7, 0.7], [1, 0, 1, 0], bins, "on_truth")
     b = Selection.from_injections([0.2] * 4 + [0.7] * 4, [1, 0] * 4, bins, "on_truth")
-    assert np.allclose(a.values, b.values) and a != b  # Beta(2, 2) against Beta(3, 3)
+    assert np.allclose(a.values, b.values) and a != b  # Beta(1.5, 1.5) against Beta(2.5, 2.5)
     back = pickle.loads(pickle.dumps(a))
     assert back == a and not back.injections[0].flags.writeable
 
@@ -220,7 +223,8 @@ def test_joint_inference_with_a_logistic_prior_and_nuts_is_calibrated():
         lk = Likelihoods.from_gaussian(
             z + 0.15 * rng.standard_normal(100), 0.15, bins, warn_outside=False
         )
-        sel = Selection.from_injections(*_injections(S, bins, 30, rng), bins, "on_truth")
+        injections = _injections(S, bins, 30, rng)  # the prior of the S_k drawn above
+        sel = Selection.from_injections(*injections, bins, "on_truth", prior=(1.0, 1.0))
         m = binference.PopulationModel(lk, prior, selection=sel)
         res = NUTS(m, n_chains=2, n_warmup=200, rng=rng).run(150)
         idx = np.linspace(0, res.n_draws - 1, n_draws).round().astype(int)
@@ -320,17 +324,33 @@ def test_selection_draws_are_the_flattened_chains_and_refuse_a_fit_without_them(
 
 def test_check_asks_for_more_injections_where_few_are_recovered_and_much_of_the_population_lies():
     bins = Bins.linear(0, 1, 4)
-    S = np.array([0.02, 0.3, 0.6, 0.9])
     mock = binference.simulate.mock_1d(800, bins, noise=0.05, rng=1)
     lk = mock.likelihoods.with_selection(None)
     rng = np.random.default_rng(2)
-    for n_per_bin, warns in ((100, True), (2000, False)):  # 2 or 40 recoveries in bin 0
-        sel = Selection.from_injections(*_injections(S, bins, n_per_bin, rng), bins, "on_truth")
-        res = MAP(binference.PopulationModel(lk, selection=sel), space="unconstrained").run()
-        if warns:
-            with pytest.warns(
-                binference.InputWarning, match="inject more objects in bins \\[0\\]"
-            ):
-                res.check()
-        else:
-            assert not any("recovered injections" in m for m in res.check())
+    # bin 0, a third of the population, with 2 or 40 recoveries; then only bin 3 has under
+    # 20 recoveries (about 9), and it holds about 1% of the population
+    for S, n_per_bin, warns in (
+        ([0.02, 0.3, 0.6, 0.9], 100, True),
+        ([0.02, 0.3, 0.6, 0.9], 2000, False),
+        ([0.9, 0.9, 0.9, 0.3], 30, False),
+    ):
+        injected = _injections(np.array(S), bins, n_per_bin, rng)
+        sel = Selection.from_injections(*injected, bins, "on_truth")
+        for selection in (sel, sel.fixed()):  # a plug-in keeps the counts for the check
+            res = binference.infer(
+                lk, selection=selection, method="map", space="unconstrained", check=False
+            )
+            if warns:
+                with pytest.warns(
+                    binference.InputWarning, match=r"inject more objects in bins \["
+                ):
+                    res.check()
+            else:
+                assert not any("recovered injections" in m for m in res.check())
+
+
+def test_injections_take_jeffreys_prior_by_default():
+    bins = Bins.linear(0, 1, 2)
+    sel = Selection.from_injections([0.2, 0.2, 0.7], [1, 0, 0], bins, "on_truth")
+    assert sel.injections.prior == (0.5, 0.5)
+    np.testing.assert_allclose(sel.values, [(1 + 0.5) / (2 + 1), 0.5 / (1 + 1)])
