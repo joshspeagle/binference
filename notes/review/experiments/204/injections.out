@@ -1,0 +1,69 @@
+== i1: n=200 s/fit 19.5 | max Rhat med 1.003 worst 1.006 | min ESS med 1726 worst 884 | fits w/ div 0% | fits w/ warnings 0
+  total  z -1.35±0.07 sd 0.94 | cov68 0.35 cov95 0.84 | bias -11.9±0.5% | sd/truth 9.9%
+  S0     z +0.96±0.04 sd 0.58 | cov68 0.46 cov95 0.89 | bias +68.1±3.2% | sd/truth 64.9%
+  S1     z +0.72±0.06 sd 0.80 | cov68 0.59 cov95 0.91 | bias +40.1±3.1% | sd/truth 47.6%
+  S2     z +0.39±0.07 sd 0.94 | cov68 0.66 cov95 0.94 | bias +17.6±2.2% | sd/truth 34.1%
+  S3     z +0.43±0.06 sd 0.86 | cov68 0.67 cov95 0.94 | bias +13.6±1.7% | sd/truth 26.3%
+  S0-3 from injections alone (values): bias +32.0% +20.1% +8.4% +9.1%
+  rate0  z -1.41±0.07 sd 0.94 | cov68 0.30 cov95 0.86 | bias -37.0±1.4% | sd/truth 31.0%
+  rate1  z -0.81±0.07 sd 0.94 | cov68 0.59 cov95 0.95 | bias -23.3±2.0% | sd/truth 38.6%
+  rate2  z -0.59±0.07 sd 1.03 | cov68 0.65 cov95 0.94 | bias -14.9±2.4% | sd/truth 41.1%
+  rate3  z -0.26±0.07 sd 0.99 | cov68 0.70 cov95 0.97 | bias -2.6±2.4% | sd/truth 39.2%
+== i2: n=200 s/fit 17.7 | max Rhat med 1.003 worst 1.008 | min ESS med 1735 worst 786 | fits w/ div 0% | fits w/ warnings 2
+  total  z -0.68±0.07 sd 1.03 | cov68 0.61 cov95 0.90 | bias -4.0±0.5% | sd/truth 7.1%
+  S0     z +0.41±0.06 sd 0.90 | cov68 0.70 cov95 0.94 | bias +8.9±1.2% | sd/truth 18.3%
+  S1     z +0.19±0.07 sd 0.99 | cov68 0.69 cov95 0.95 | bias +3.6±1.0% | sd/truth 13.9%
+  S2     z +0.07±0.07 sd 1.01 | cov68 0.69 cov95 0.96 | bias +1.3±0.8% | sd/truth 10.6%
+  S3     z +0.10±0.07 sd 0.99 | cov68 0.73 cov95 0.94 | bias +1.1±0.6% | sd/truth 8.2%
+  S0-3 from injections alone (values): bias +3.7% +0.9% +0.4% +0.6%
+  rate0  z -0.70±0.08 sd 1.09 | cov68 0.59 cov95 0.93 | bias -15.9±2.0% | sd/truth 31.3%
+  rate1  z -0.23±0.06 sd 0.91 | cov68 0.70 cov95 0.98 | bias -4.8±2.3% | sd/truth 39.2%
+  rate2  z -0.31±0.07 sd 1.04 | cov68 0.68 cov95 0.95 | bias -6.7±2.5% | sd/truth 37.3%
+  rate3  z -0.02±0.07 sd 0.99 | cov68 0.68 cov95 0.97 | bias +2.2±2.4% | sd/truth 34.7%
+  warn e.g. ['Diagnostics: max R-hat of the selection = 1.011 > 1.01.']
+== i3: n=200 s/fit 17.6 | max Rhat med 1.003 worst 1.007 | min ESS med 1767 worst 997 | fits w/ div 0% | fits w/ warnings 1
+  total  z -1.01±0.06 sd 0.89 | cov68 0.48 cov95 0.91 | bias -9.3±0.6% | sd/truth 10.7%
+  S0     z +0.79±0.05 sd 0.66 | cov68 0.58 cov95 0.91 | bias +55.6±3.2% | sd/truth 62.0%
+  S1     z +0.56±0.06 sd 0.86 | cov68 0.64 cov95 0.93 | bias +32.2±3.1% | sd/truth 46.3%
+  S2     z +0.24±0.07 sd 1.00 | cov68 0.69 cov95 0.96 | bias +12.7±2.2% | sd/truth 33.4%
+  S3     z +0.32±0.06 sd 0.89 | cov68 0.69 cov95 0.94 | bias +10.6±1.7% | sd/truth 26.0%
+  S0-3 from injections alone (values): bias +16.2% +10.8% +3.1% +6.0%
+  rate0  z -1.15±0.06 sd 0.87 | cov68 0.41 cov95 0.92 | bias -32.1±1.5% | sd/truth 33.9%
+  rate1  z -0.65±0.06 sd 0.91 | cov68 0.64 cov95 0.97 | bias -18.6±2.2% | sd/truth 41.5%
+  rate2  z -0.48±0.07 sd 1.01 | cov68 0.68 cov95 0.93 | bias -10.9±2.5% | sd/truth 43.3%
+  rate3  z -0.19±0.07 sd 0.98 | cov68 0.71 cov95 0.97 | bias +0.4±2.5% | sd/truth 40.7%
+  warn e.g. ['Diagnostics: min tail ESS = 391 (97.7 per chain < 100).']
+== i4: n=200 s/fit 19.9 | max Rhat med 1.002 worst 1.010 | min ESS med 1758 worst 999 | fits w/ div 0% | fits w/ warnings 0
+  total  z -0.93±0.06 sd 0.88 | cov68 0.52 cov95 0.94 | bias -8.5±0.6% | sd/truth 10.9%
+  S0     z +0.78±0.05 sd 0.66 | cov68 0.61 cov95 0.90 | bias +54.3±3.2% | sd/truth 61.7%
+  S1     z +0.54±0.06 sd 0.87 | cov68 0.65 cov95 0.93 | bias +31.1±3.1% | sd/truth 45.7%
+  S2     z +0.22±0.07 sd 1.01 | cov68 0.69 cov95 0.96 | bias +11.8±2.2% | sd/truth 33.3%
+  S3     z +0.28±0.06 sd 0.89 | cov68 0.70 cov95 0.94 | bias +9.7±1.7% | sd/truth 25.9%
+  S0-3 from injections alone (values): bias +15.3% +10.0% +2.2% +5.2%
+  rate0  z -1.12±0.06 sd 0.88 | cov68 0.43 cov95 0.94 | bias -31.5±1.5% | sd/truth 34.2%
+  rate1  z -0.63±0.06 sd 0.90 | cov68 0.65 cov95 0.97 | bias -17.9±2.2% | sd/truth 41.9%
+  rate2  z -0.46±0.07 sd 1.01 | cov68 0.68 cov95 0.94 | bias -10.2±2.6% | sd/truth 43.7%
+  rate3  z -0.16±0.07 sd 0.98 | cov68 0.72 cov95 0.97 | bias +1.4±2.5% | sd/truth 41.1%
+== i5: n=200 s/fit 37.3 | max Rhat med 1.002 worst 1.004 | min ESS med 2351 worst 1547 | fits w/ div 0% | fits w/ warnings 0
+  total  z -1.85±0.08 sd 1.07 | cov68 0.20 cov95 0.63 | bias -14.4±0.5% | sd/truth 8.6%
+  S0     z +1.27±0.04 sd 0.50 | cov68 0.27 cov95 0.76 | bias +54.6±1.9% | sd/truth 41.2%
+  S1     z +1.42±0.05 sd 0.64 | cov68 0.23 cov95 0.71 | bias +37.0±1.3% | sd/truth 25.2%
+  S2     z +1.33±0.05 sd 0.74 | cov68 0.31 cov95 0.75 | bias +23.9±1.0% | sd/truth 17.3%
+  S3     z +1.06±0.06 sd 0.80 | cov68 0.42 cov95 0.87 | bias +14.6±0.8% | sd/truth 13.2%
+  S0-3 from injections alone (values): bias +26.2% +19.2% +13.4% +9.0%
+  rate0  z -1.53±0.07 sd 1.02 | cov68 0.28 cov95 0.81 | bias -36.3±1.4% | sd/truth 27.2%
+  rate1  z -0.93±0.08 sd 1.07 | cov68 0.51 cov95 0.90 | bias -24.6±2.0% | sd/truth 33.4%
+  rate2  z -0.86±0.08 sd 1.15 | cov68 0.55 cov95 0.89 | bias -21.8±2.2% | sd/truth 32.4%
+  rate3  z -0.40±0.07 sd 1.02 | cov68 0.67 cov95 0.96 | bias -8.9±2.1% | sd/truth 32.2%
+== i6: n=200 s/fit 15.3 | max Rhat med 1.003 worst 1.014 | min ESS med 1546 worst 738 | fits w/ div 0% | fits w/ warnings 2
+  total  z -1.53±0.13 sd 1.90 | cov68 0.32 cov95 0.58 | bias -6.9±0.8% | sd/truth 6.4%
+  S0     z  (fixed) | cov68 0.00 cov95 0.00 | bias +32.0±3.6% | sd/truth 0.0%
+  S1     z  (fixed) | cov68 0.00 cov95 0.00 | bias +20.1±3.3% | sd/truth 0.0%
+  S2     z  (fixed) | cov68 0.00 cov95 0.00 | bias +8.4±2.3% | sd/truth 0.0%
+  S3     z  (fixed) | cov68 0.00 cov95 0.00 | bias +9.1±1.8% | sd/truth 0.0%
+  S0-3 from injections alone (values): bias +32.0% +20.1% +8.4% +9.1%
+  rate0  z -1.43±0.11 sd 1.60 | cov68 0.34 cov95 0.67 | bias -23.6±2.5% | sd/truth 26.6%
+  rate1  z -0.66±0.09 sd 1.26 | cov68 0.56 cov95 0.90 | bias -11.1±2.9% | sd/truth 36.2%
+  rate2  z -0.54±0.09 sd 1.33 | cov68 0.57 cov95 0.89 | bias -8.3±3.2% | sd/truth 36.3%
+  rate3  z -0.23±0.09 sd 1.25 | cov68 0.62 cov95 0.90 | bias -1.0±2.7% | sd/truth 32.6%
+  warn e.g. ['Diagnostics: 1 divergent transitions (0.025% of draws). Hint: try a higher target_accept, e.g. 0.95; divergences that pe']

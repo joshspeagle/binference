@@ -24,6 +24,8 @@ explain behaviour, not as settings to change.
 | `EBFMI_MIN` | `0.3` | `binference.results` | `PopulationResult.check` warns when a NUTS chain's E-BFMI is below this. |
 | `MAX_DEPTH_SHARE` | `0.05` | `binference.results` | `PopulationResult.check` warns when a larger share of NUTS iterations hit `max_depth`. |
 | `SAMPLE_VARIANCE_MAX` | `1` | `binference.results` | `PopulationResult.check` warns when the summed Monte Carlo variance of likelihoods from samples exceeds this. |
+| `INJECTIONS_MIN_RECOVERED` | `20` | `binference.results` | Fewest recovered injections per bin before a selection from injections widens the total enough that the prior pulls it low. |
+| `INJECTIONS_SPARSE_SHARE_MAX` | `0.1` | `binference.results` | Largest share of the population allowed in bins with fewer recoveries than `INJECTIONS_MIN_RECOVERED`. |
 
 ## Engines
 

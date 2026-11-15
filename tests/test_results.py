@@ -18,7 +18,7 @@ from binference import (
 from binference import priors as P
 from binference.engines import Gibbs
 
-from .conftest import fit_with_selection, selection_mock, small_mock
+from .conftest import fit_with_selection, ignore_few_recoveries, selection_mock, small_mock
 
 
 @pytest.fixture(scope="module")
@@ -366,6 +366,7 @@ def test_check_flags_chains_too_short_or_constant_to_diagnose():
     assert PopulationResult(model, short, method="bootstrap").check() == []  # independent
 
 
+@ignore_few_recoveries
 def test_check_reads_the_tail_ess_of_an_inferred_selection_and_keeps_its_own_draws():
     # the selection's tail ESS was never computed, so its check could not fire
     bins = Bins.linear(0, 1, 4)

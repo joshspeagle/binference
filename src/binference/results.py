@@ -61,6 +61,14 @@ MAX_DEPTH_SHARE = 0.05
 #: likelihoods from samples exceeds this.
 SAMPLE_VARIANCE_MAX = 1.0
 
+#: Fewest recovered injections per bin before a selection from injections widens the
+#: total enough that the prior pulls it low.
+INJECTIONS_MIN_RECOVERED = 20
+
+#: Largest share of the population allowed in bins with fewer recoveries than
+#: :data:`INJECTIONS_MIN_RECOVERED`.
+INJECTIONS_SPARSE_SHARE_MAX = 0.1
+
 
 # ----------------------------------------------------------------------------
 # Summary table
@@ -212,8 +220,35 @@ class _IndividualMixin:
         return plot_individual(self, i, **kwargs)
 
     def _input_problems(self) -> tuple[list[str], list[str]]:
-        """The problems with the inputs, and hints: the sample noise at the fit, for every
-        engine."""
+        """The problems with the inputs, and hints: the sample noise at the fit, and
+        injections too few where much of the population lies, for every engine."""
+        problems, hints = self._injection_problems()
+        noise, noise_hints = self._sample_noise_problems()
+        return problems + noise, hints + noise_hints
+
+    def _injection_problems(self) -> tuple[list[str], list[str]]:
+        spec = self.model.selection_spec if self.model is not None else None
+        recovered = None if spec is None else spec._recovered
+        if recovered is None or not np.any(sparse := recovered < INJECTIONS_MIN_RECOVERED):
+            return [], []
+        share = float(self._rho_draws().mean(axis=0)[sparse].sum())
+        if share <= INJECTIONS_SPARSE_SHARE_MAX:
+            return [], []
+        where = (
+            f"bins with fewer than {INJECTIONS_MIN_RECOVERED} recovered injections "
+            f"(first: {np.flatnonzero(sparse)[:5].tolist()}) hold {share:.0%} of the population"
+        )
+        if spec.injections is None:  # a plug-in: S taken as exact
+            return (
+                [f"{where}, and the fixed selection ignores the uncertainty of their S_k"],
+                ["infer the selection with the population, or inject more objects in those bins"],
+            )
+        return (
+            [f"{where}, so the total is poorly determined and the prior pulls it low"],
+            ["inject more objects in those bins"],
+        )
+
+    def _sample_noise_problems(self) -> tuple[list[str], list[str]]:
         lk = self.model.likelihoods if self.model is not None else None
         if lk is None or "sample_sum" not in lk.meta:
             return [], []
@@ -1633,7 +1668,8 @@ class PopulationResult(_IndividualMixin):
 
         Sampler problems raise a :class:`~binference.ConvergenceWarning`; problems
         with the inputs (Monte Carlo noise of sample likelihoods, binned counts
-        the response does not describe) an :class:`~binference.InputWarning`.
+        the response does not describe, injections too few where much of the population
+        lies) an :class:`~binference.InputWarning`.
         For binned inputs with more measured than truth bins, the counts are
         tested with :meth:`Response.predictive_pvalue` over ``predictive_draws``
         draws, and flagged below ``predictive_p_min``. With ``support_min``, bins whose
@@ -2112,8 +2148,9 @@ class PointEstimate(_IndividualMixin):
 
     def check(self, kkt_max: float = 1e-4, strict: bool = False) -> list[str]:
         """Warn (or raise with ``strict=True``) when the optimiser did not converge, when the
-        KKT gap (per object; see :meth:`PopulationModel.kkt_gap`) exceeds ``kkt_max``, or
-        when sample likelihoods carry too much Monte Carlo noise.
+        KKT gap (per object; see :meth:`PopulationModel.kkt_gap`) exceeds ``kkt_max``, when
+        sample likelihoods carry too much Monte Carlo noise, or when injections are too few
+        where much of the population lies.
 
         Estimates found by L-BFGS in unconstrained coordinates have no KKT gap (NaN); for
         them the check is ``converged`` (see ``tol`` of :class:`~binference.engines.MAP`).

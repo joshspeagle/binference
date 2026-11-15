@@ -111,7 +111,7 @@ class Selection(SetOnce):
 
     # DECISIONS #30, #80
 
-    __slots__ = ("basis", "injections", "row", "scale", "values")
+    __slots__ = ("_recovered", "basis", "injections", "row", "scale", "values")
 
     def __init__(self, values: Any, mode: str, *, scale: str = "probability") -> None:
         _check_mode(mode)
@@ -121,6 +121,7 @@ class Selection(SetOnce):
         self.scale = scale
         self.basis = None
         self.injections = None
+        self._recovered: np.ndarray | None = None  # recovered injections per bin, if any
 
     def _parts(self) -> tuple:
         # the arguments of _rebuild; row as "values" when it is the values (on the truth)
@@ -128,7 +129,8 @@ class Selection(SetOnce):
         return self.values, row, self.scale, self.basis, self.injections
 
     def __reduce__(self) -> tuple:
-        return _rebuild, self._parts()
+        recovered = self._recovered if self.injections is None else None
+        return _rebuild, (*self._parts(), recovered)
 
     @classmethod
     def from_injections(
@@ -138,7 +140,7 @@ class Selection(SetOnce):
         bins: Bins,
         mode: str,
         *,
-        prior: tuple[float, float] = (1.0, 1.0),
+        prior: tuple[float, float] = (0.5, 0.5),
         smooth: float | None = None,
     ) -> Selection:
         """A selection measured by injecting objects of known true value ``z``.
@@ -171,7 +173,8 @@ class Selection(SetOnce):
         mode : {"on_truth", "on_measurement"}
             As for :class:`Selection`.
         prior : (float, float)
-            Beta prior :math:`(a, b)` of every :math:`S_k`, both positive.
+            Beta prior :math:`(a, b)` of every :math:`S_k`, both positive; Jeffreys'
+            :math:`(1/2, 1/2)` by default.
         smooth : float, optional
             Step scale :math:`\\tau_S` of the random walk, in logit per bin (1-D bins
             only); ``None`` (default) keeps the :math:`S_k` independent.
@@ -220,6 +223,7 @@ class Selection(SetOnce):
             S = special.expit(_logit_mode(special.logit(S), injections))
         sel = cls(S, mode)
         object.__setattr__(sel, "injections", injections)
+        object.__setattr__(sel, "_recovered", injections.recovered)
         return sel
 
     def draw(self, n: int, rng: Any = None) -> np.ndarray:
@@ -243,7 +247,7 @@ class Selection(SetOnce):
     def fixed(self) -> Selection:
         """This selection taken as known at its :attr:`values`, a plug-in that ignores their
         uncertainty."""
-        return _rebuild(*self._parts()[:4])
+        return _rebuild(*self._parts()[:4], None, self._recovered)  # counts kept for check()
 
     @property
     def mode(self) -> str:
@@ -480,7 +484,12 @@ def _on_basis(sel: Selection, basis: Basis, M: Any) -> Selection:
 
 
 def _rebuild(
-    values: np.ndarray, row: Any, scale: str, basis: Basis | None = None, injections: Any = None
+    values: np.ndarray,
+    row: Any,
+    scale: str,
+    basis: Basis | None = None,
+    injections: Any = None,
+    recovered: np.ndarray | None = None,
 ) -> Selection:
     # a Selection from its arrays; row is None, "values" (on the truth) or an array
     out = Selection.__new__(Selection)
@@ -504,6 +513,7 @@ def _rebuild(
             injections[3],
         )
     )
+    out._recovered = recovered if out.injections is None else out.injections.recovered
     return out
 
 

@@ -122,7 +122,7 @@ data and count how many the pipeline recovers. For each bin,
 `Selection.from_injections(z, detected, bins, "on_truth")` counts the injections
 $n^{\rm inj}_k$ and the recoveries $n^{\rm rec}_k$. Each $S_k$ then gets a
 $\mathrm{Beta}(a+n^{\rm rec}_k,\ b+n^{\rm inj}_k-n^{\rm rec}_k)$ posterior, with
-`prior=(a, b)` of `(1, 1)` by default.
+`prior=(a, b)` of `(0.5, 0.5)`, Jeffreys' prior, by default.
 
 ```{code-cell} python
 ---
@@ -259,6 +259,16 @@ The total inherits the prior on the fractions, which biases the total low when i
 poorly determined, for example when some bins hold few detections
 ([theory](../how-it-works/model.md#selection-effects)). Check a total's calibration on simulations
 ({doc}`checking`) before you quote it from such data.
+
+A selection from injections widens the total further where few injections are recovered.
+The test below used the injections tutorial's population and detection probability: 16
+bins, a Poisson number of objects with mean 6000, and about 1250 detected. 3000 injections,
+uniform in $\ln m$, gave about 3 to 14 recoveries in each of the four least complete bins.
+Over 200 simulations with NUTS, the derived total came out 9% low under the default Jeffreys
+prior on each $S_k$. It came out 12% low under a uniform prior, and 3% low with $S$ known.
+With 30,000 injections and the uniform prior it was 4% low. `check()` warns when bins with
+few recoveries hold much of the population ([defaults](../reference/defaults.md)); inject
+more objects in those bins.
 
 ### The objects the catalogue missed
 
