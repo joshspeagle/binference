@@ -151,7 +151,9 @@ changing the prior ([partial centring](engines.md#partial-centring)).
 The gradient-based engines need coordinates in which every real vector is a valid
 population, the {term}`unconstrained coordinates` $x$.
 
-- **Simplex priors** use the isometric log-ratio {cite:p}`egozcue2003`. With $Q$ the
+- **Simplex priors** use the isometric log-ratio {cite:p}`egozcue2003`. It treats
+  every bin alike, and its basis is orthonormal; stick-breaking coordinates, by
+  contrast, depend on the order of the bins. With $Q$ the
   orthonormal Helmert basis of the vectors that sum to zero, $\eta=Qx$ for
   $x\in\mathbb R^{K-1}$ and $\rho=\mathrm{softmax}(\eta)$. The density of $x$ gains the
   Jacobian

@@ -56,13 +56,20 @@ open-ended score bins, the columns have no lost share.
 - **Gibbs**, **NUTS**, **Laplace** and `MAP(space="unconstrained")` infer the
   response with $\rho$. `method="auto"` chooses Gibbs for a conjugate prior.
 - **The draws** are in `result.response_draws()`, of shape
-  `(chain, draw, J, K)`. The total and the per-object methods use them draw by draw.
+  `(n_draws, J, K)`. The total and the per-object methods use them draw by draw.
 - **A fixed response.** `response.fixed()` takes the tallied matrix as known. VB and
   the bootstrap need that. A `Response(matrix)` is always fixed.
 
-With few events the choice matters. With tens of validation objects per class,
-intervals from a fixed response covered the truth far less often than their nominal
-68%. The inferred response came much closer.
+With few events the choice matters. In a test with three classes, Gaussian scores
+$N(\mu_k, 1)$ with $\mu = (0, 1, 2)$, a response tallied into 10 score bins from $n$
+labelled objects per class, and 1000 target objects, nominal 68% intervals for $\rho$
+covered the truth this often (100 simulations, Gibbs; Monte Carlo error about 0.03):
+
+| labelled objects per class | fixed response | inferred response |
+|---|---|---|
+| 30 | 0.23 | 0.57 |
+| 100 | 0.34 | 0.60 |
+| 1000 | 0.62 | 0.67 |
 
 ## Classifiers: two routes
 

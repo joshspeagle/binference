@@ -26,6 +26,11 @@ each fit's smallest bulk effective sample size (ESS) too.
 | a MAP fit | 2000 | 30 | 0.01 s | |
 | a Laplace fit | 2000 | 30 | 0.4 s | |
 
+Larger problems cost in proportion to $NK$, about 1 ns per entry of $L$. On 2026-11-15,
+on the same processor and thread setting, `bench_kernels(N, K)` from the same script took
+18 ms for the dense log-likelihood and gradient at $N = 200{,}000$, $K = 100$, and 64 ms at
+$N = 1{,}000{,}000$, $K = 50$.
+
 At 56% non-zero entries, sparse storage is slower than dense; it pays only when far
 fewer entries are non-zero.
 

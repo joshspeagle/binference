@@ -246,7 +246,8 @@ show how to check it or what to do when it fails.
    independent draws from it. Each object's data depend only on its own true value.
 2. **Correct likelihoods.** $\ell_i(z)$ is the probability of the observed data given
    $z$. With a selection, it is not renormalised over the data that could have been
-   detected.
+   detected. The data alone cannot test this
+   ([what binference does not do](../start/is-it-right.md#what-binference-does-not-do)).
 3. **Bins that cover the true values.** Every true value lies in one of the bins.
    Likelihood outside the bins is dropped, and binference warns when many objects lose
    most of theirs ([warnings](../reference/warnings.md)).
