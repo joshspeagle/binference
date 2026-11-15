@@ -2,7 +2,7 @@
 
 This page is the locked design of the binference documentation site. Josh locked it on
 2026-10-27 (issue #99) from the round-2 design sheet; the rounds that led to it are kept in
-`notes/review/docs-design/`. Every number here lives in one place,
+[`notes/review/docs-design/`](https://github.com/joshspeagle/binference/tree/3c12aa3d174bc335edadceb3d4cfeed25e62c94d/notes/review/docs-design) (archived). Every number here lives in one place,
 [`docs/_scripts/brand.py`](https://github.com/joshspeagle/binference/blob/main/docs/_scripts/brand.py),
 which draws the marks, writes the theme's tokens and fills in the tables below; CI fails if
 any of them is stale or the served fonts disagree with it. A change to the design changes `brand.py` first, then this page.
