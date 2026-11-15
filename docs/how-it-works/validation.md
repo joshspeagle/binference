@@ -115,16 +115,14 @@ compares it with two other solvers on four problems. The other solvers' solution
 stored with the scripts that wrote them, in `tests/data/golden/`.
 
 - **mixsqp** {cite:p}`kim2020`: its own simulated normal scale mixture, and the
-  Gaussian-location problem of REBayes's `GLmix` on REBayes's baseball data. MAP
-  matches the log-likelihood to $10^{-10}$ relative, and the weights and fitted values
-  to $10^{-5}$.
+  Gaussian-location problem of REBayes's `GLmix` on REBayes's baseball data. REBayes
+  needs a solver that is not free ([the software landscape](../fields/software.md#comparison)),
+  so mixsqp solves that problem too. MAP matches the log-likelihood to $10^{-10}$
+  relative, and the weights and fitted values to $10^{-5}$.
 - **Empirikos**, with the Hypatia interior-point solver: Bichsel's Poisson claim counts
   and Beckett and Diaconis's thumbtack data. MAP's log-likelihood is never lower beyond
   round-off, and is at most $10^{-6}$ relative higher. Hypatia stops near, not at, the
   optimum, so its weights are not compared.
-
-REBayes itself needs the commercial Mosek solver, so `GLmix`'s problem is solved by
-mixsqp.
 
 ### Binning bias
 
