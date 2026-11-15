@@ -106,6 +106,25 @@ run these checks on the engines themselves. The {doc}`contributing guide
   ([likelihoods versus posteriors](model.md#likelihoods-versus-posteriors)). Mean-field
   VB's standard deviations are less than half those of NUTS when $f$ exceeds 0.9.
 
+### Other NPMLE solvers
+
+With the flat Dirichlet, the MAP estimate is the NPMLE on the grid
+([the empirical Bayes tutorial](../tutorials/empirical-bayes.md)). A fast test,
+[tests/test_golden.py](https://github.com/joshspeagle/binference/blob/main/tests/test_golden.py),
+compares it with two other solvers on four problems. The other solvers' solutions are
+stored with the scripts that wrote them, in `tests/data/golden/`.
+
+- **mixsqp** {cite:p}`kim2020`: its own simulated normal scale mixture, and the
+  Gaussian-location problem of REBayes's `GLmix` on REBayes's baseball data
+  {cite:p}`brown2008`. REBayes
+  needs a solver that is not free ([the software landscape](../fields/software.md#comparison)),
+  so mixsqp solves that problem too. MAP matches the log-likelihood to $10^{-10}$
+  relative, and the weights and fitted values to $10^{-5}$.
+- **Empirikos**, with the Hypatia interior-point solver: Bichsel's Poisson claim counts
+  and Beckett and Diaconis's thumbtack data. MAP's log-likelihood is never lower beyond
+  round-off, and is at most $10^{-6}$ relative higher. Hypatia stops near, not at, the
+  optimum, so its weights are not compared.
+
 ### Binning bias
 
 One recovery test shows the [binning bias](model.md#binning-bias). It fits a continuous
