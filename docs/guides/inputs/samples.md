@@ -88,7 +88,9 @@ It has three costs.
   `sample_variance` and `check()` measure only the noise.
 - **Several peaks.** Silverman's rule takes its width from the whole sample, so a
   posterior with two peaks is blurred: in the test, posteriors with peaks at $d$ and
-  $1-d$ gave a fitted population spread of 0.17 to 0.18 against a true 0.21.
-- **Time.** Building the likelihoods takes about four times as long as the histogram.
+  $1-d$ gave a fitted population spread of 0.15 to 0.18 against a true 0.21.
+- **Time.** On one thread, building the likelihoods took 6 to 7 times as long as the
+  histogram with 100 to 1000 samples on 20 bins, and 16 times with 30 samples on 100
+  bins (1.5 s against 0.2 s for 1000 objects with 1000 samples each).
 
 The scripts are in the repository's `notes/review/experiments/233`.

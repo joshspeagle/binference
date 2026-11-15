@@ -231,13 +231,35 @@ def test_a_kde_keeps_the_mass_of_samples_at_the_ends_inside_the_bins():
 
 
 def test_kde_arguments_are_checked():
-    x = np.random.default_rng(3).uniform(0, 1, (2, 10))
+    x = np.random.default_rng(3).uniform(0, 1, (2, 30))
+    bins = Bins.linear(0, 1, 3)
     with pytest.raises(ValueError, match="smooth"):
-        Likelihoods.from_samples(x, Bins.linear(0, 1, 3), kind="likelihood", smooth="hist")
-    with pytest.raises(ValueError, match="bandwidth"):
-        Likelihoods.from_samples(
-            x, Bins.linear(0, 1, 3), kind="likelihood", smooth="kde", bandwidth=0.0
-        )
+        Likelihoods.from_samples(x, bins, kind="likelihood", smooth="hist")
+    for bad in (0.0, [0.1, 0.2], "scott"):
+        with pytest.raises(ValueError, match="bandwidth"):
+            Likelihoods.from_samples(x, bins, kind="likelihood", smooth="kde", bandwidth=bad)
+    with pytest.raises(ValueError, match="needs smooth"):
+        Likelihoods.from_samples(x, bins, kind="likelihood", bandwidth=0.1)
     grid = Bins.grid([0, 0.5, 1], [0, 0.5, 1])
     with pytest.raises(ValueError, match="1-D bins"):
         Likelihoods.from_samples(np.stack([x, x], axis=-1), grid, kind="likelihood", smooth="kde")
+    masked = Bins.linear(0, 1, 4, mask=[True, False, True, True])
+    with pytest.raises(ValueError, match="without a mask"):
+        Likelihoods.from_samples(x, masked, kind="likelihood", smooth="kde")
+
+
+def test_a_kde_leaves_the_noise_of_the_samples_to_the_histogram():
+    bins = Bins.linear(0, 1, 50)
+    x = 0.5 + 0.08 * np.random.default_rng(4).standard_normal((40, 30))
+    hist = Likelihoods.from_samples(x, bins, kind="likelihood", warn_outside=False)
+    kde = Likelihoods.from_samples(x, bins, kind="likelihood", smooth="kde", warn_outside=False)
+    rho = np.full(50, 1 / 50)
+    for a, b in zip(kde.sample_variance(rho), hist.sample_variance(rho), strict=True):
+        np.testing.assert_allclose(a, b)
+
+
+def test_a_kde_runs_on_the_cells_of_a_basis():
+    basis = binference.Basis(Bins.linear(0, 1, 6), order=1)
+    x = np.random.default_rng(5).uniform(0.1, 0.9, (3, 200))
+    lk = Likelihoods.from_samples(x, basis, kind="likelihood", smooth="kde")
+    assert lk.K == basis.K and np.all(lk.toarray() > 0)
