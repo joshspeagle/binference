@@ -102,8 +102,6 @@ Measures and masks are in `tests/test_measures_masks.py` (§2.14).
 
 ### 2.4 `tests/test_priors.py` (§5)
 
-More prior tests, from the audit, are in `tests/test_prior_fixes.py` (§2.14).
-
 **Every prior, parametrised over the families**
 - The density integrates to 1 on the 2-simplex (K = 3 quadrature), and sample moments match.
 - The unconstrained log-density and its gradient agree with finite differences at random points.
@@ -135,8 +133,6 @@ More prior tests, from the audit, are in `tests/test_prior_fixes.py` (§2.14).
 - `GammaRates`: moments and conjugate update.
 
 ### 2.5 `tests/test_model.py` (§3, §6.1)
-
-More model tests, from the audit, are in `tests/test_model_fixes.py` (§2.14).
 
 **Likelihood**
 - `log_likelihood(rho)` equals the direct formula, for dense and sparse inputs and with and without weights.
@@ -198,11 +194,9 @@ More model tests, from the audit, are in `tests/test_model_fixes.py` (§2.14).
 - At N = 2000 the bootstrap spread is within 20% of the posterior s.d.
 - A logistic prior refits each reweighted catalogue.
 
-The NUTS and Laplace audit fixes are in `tests/test_nuts_fixes.py`, the MAP fixes in `tests/test_map_fixes.py` and the Gibbs, bootstrap and validation fixes in `tests/test_gibbs_fixes.py` (§2.14).
-
 ### 2.7 `tests/test_results.py` (§7)
 
-More result tests are in `tests/test_results_audit.py`, `tests/test_results_outputs.py`, `tests/test_best_loo.py`, `tests/test_values.py` and `tests/test_derived_rates.py` (§2.14).
+More result tests are in `tests/test_results_outputs.py`, `tests/test_best_loo.py`, `tests/test_values.py` and `tests/test_derived_rates.py` (§2.14).
 
 **Summaries and intervals**
 - `mean`, `std`, `quantile`, `interval` (central and HDI) and `cov` agree with NumPy on known arrays.
@@ -222,7 +216,7 @@ More result tests are in `tests/test_results_audit.py`, `tests/test_results_outp
 - `predict_proba` and `log_predictive` on new objects; `log_predictive` beats a deliberately wrong population on held-out data.
 
 **Diagnostics**
-- `check()` warns on synthetic bad chains (stuck chains → R̂ warning). E-BFMI and the other thresholds are in `tests/test_results_audit.py`.
+- `check()` warns on synthetic bad chains (stuck chains → R̂ warning). E-BFMI and the other thresholds are tested in the same file.
 
 **Point estimates, external draws and rates**
 - `PointEstimate` outputs and `laplace()`; `from_samples` and `attach`; rate results; a result without a model keeps its bins.
@@ -319,6 +313,8 @@ The spec's §10 targets (NUTS ESS/s, Gibbs iterations/s, MAP and Laplace times) 
 
 ### 2.14 Tests added with later decisions and audits
 
+The tests that the audits and the v0.1 code review added live in the file of the module they test (#229).
+
 | File | What it covers |
 |---|---|
 | `test_api_docs.py` | every public name appears exactly once in the API reference pages (DECISIONS #99) |
@@ -332,19 +328,12 @@ The spec's §10 targets (NUTS ESS/s, Gibbs iterations/s, MAP and Laplace times) 
 | `test_density.py` | `Density`, interim priors and explicit stacking (DECISIONS #11, #24, #26) |
 | `test_derived_rates.py` | totals and rates derived from fraction draws (DECISIONS #9, #78) |
 | `test_explainers.py` | the docs' explainers reproduce binference's numbers; needs Node.js (DECISIONS #102) |
-| `test_gibbs_fixes.py` | Gibbs, bootstrap and validation fixes (audit G-1–G-12, DECISIONS #75) |
 | `test_hygiene.py` | `Likelihoods` validation, storage and `compress` (DECISIONS #1) |
 | `test_injections.py` | selections from injections inferred with the population (DECISIONS #10, #30, #79, #80) |
 | `test_joint_response.py` | tallied responses inferred with the population (DECISIONS #28, #81) |
-| `test_map_fixes.py` | MAP fixes (audit M-5, M-6, M-8, M-9, M-13, T-4) |
 | `test_measures_masks.py` | measures and masked grids (DECISIONS #19, #21) |
-| `test_model_fixes.py` | model fixes (DECISIONS #15, #56, #57; audit M-1–M-4, M-7, M-14) |
-| `test_nuts_fixes.py` | NUTS and Laplace fixes (audit N-1–N-15, DECISIONS #74) |
-| `test_prior_fixes.py` | prior fixes (audit P-1–P-22, DECISIONS #72, #73) |
 | `test_response.py` | binned measurements and the classifier routes (DECISIONS #27, #29) |
-| `test_results_audit.py` | results, io and plotting fixes (audit O-1–O-21) |
 | `test_results_outputs.py` | the selected population, full-sample counts, KKT checks, data support and the prior-vs-data ratio |
-| `test_review_regressions.py` | findings of the independent v0.1 code review |
 | `test_samples.py` | the samples estimator (DECISIONS #31, audit I-23) |
 | `test_selection.py` | selection functions (DECISIONS #7, #8, #10, #46, #47, #48) |
 | `test_values.py` | value draws from each input's within-bin information (DECISIONS #50) |
