@@ -341,7 +341,8 @@ realised histogram
   `result.realized_counts()` returns its draws.
 
 reference prior
-  `Dirichlet.reference()`, with every concentration $1/K$ {cite:p}`berger2015`.
+  `Dirichlet.reference()`, with every concentration $1/K$ on bins of equal width
+  {cite:p}`berger2015`.
   It adds one pseudo-object in all, rather than $K$.
 
 representation

@@ -926,3 +926,17 @@ def test_a_random_walk_on_equal_bins_steps_by_bin(order):
     D = np.diff(np.eye(9), n=order, axis=0)
     x = _rw_steps(Bins.log(1.0, 100.0, 9).u_edges[0])
     np.testing.assert_allclose(_rw_precision(x, order), D.T @ D, atol=1e-12)
+
+
+def test_a_scalar_dirichlet_alpha_is_spread_over_the_bins_by_width():
+    widths = np.array([0.1, 0.2, 0.7])
+    alpha = P.Dirichlet(2.0).resolve_alpha(Bins([0.0, 0.1, 0.3, 1.0]))
+    np.testing.assert_allclose(alpha, 2.0 * 3 * widths)
+    np.testing.assert_allclose(
+        P.Dirichlet.reference().resolve_alpha(Bins([0.0, 0.1, 0.3, 1.0])), widths
+    )
+    # an array is used as given, and equal widths give alpha exactly
+    np.testing.assert_array_equal(
+        P.Dirichlet([1.0, 2.0, 3.0]).resolve_alpha(Bins([0.0, 0.1, 0.3, 1.0])), [1, 2, 3]
+    )
+    np.testing.assert_array_equal(P.Dirichlet(1.0).resolve_alpha(Bins.linear(0, 1, 10)), 1.0)

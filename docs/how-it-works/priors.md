@@ -26,19 +26,24 @@ mean-field VB in closed form for every member of the family. Bins under the same
 share that node's split, so they can vary together. The four priors differ only in the
 shape of their tree.
 
-- **`Dirichlet(alpha)`** is a tree with one node. The {term}`Dirichlet prior` with every
-  {term}`concentration` $\alpha_k=1$ is uniform on the simplex and is the default. Its
+- **`Dirichlet(alpha)`** is a tree with one node. A scalar $\alpha$ is spread over the bins
+  by their widths in the measure coordinate, $\alpha_k=\alpha K v_k/\sum_j v_j$, so the
+  prior mean is flat in $u$; on bins of equal width every $\alpha_k=\alpha$. An array is
+  used as given. The {term}`Dirichlet prior` with every {term}`concentration` $\alpha_k=1$
+  is uniform on the simplex and is the default. Its
   correlation between any two bins is $-1/(K-1)$ when the concentrations are equal,
   whatever their value. Explainer {ref}`explainer-v8` on the
   [concepts page](../concepts/priors-on-the-simplex.md#smoothness-priors) maps it beside
   the correlations of a Pólya tree, a random walk and a Gaussian process.
-  - `Dirichlet.reference()` sets $\alpha_k=1/K$, the {term}`reference prior`
+  - `Dirichlet.reference()` sets $\alpha_k=1/K$ on bins of equal width, the
+    {term}`reference prior`
     {cite:p}`berger2015`. It adds one pseudo-object in all rather than $K$, which
     matters when there are many bins and few objects.
   - `Dirichlet.from_base_measure` makes $\alpha_k$ proportional to the bin masses of a
     base measure $G_0$. The default $G_0$ is flat in the measure coordinate, so
-    $\alpha_k\propto v_k$ on linear bins. This prior stays consistent when bins are
-    merged; equal concentrations on unequal bins do not.
+    $\alpha_k\propto v_k$ on linear bins. Its total concentration is fixed, so the prior
+    stays the same when bins are merged; a scalar $\alpha$ has the total $\alpha K$, which
+    changes with $K$.
   - `Dirichlet.from_counts` encodes a reference sample with counts $n^{\rm ref}_k$ as
     $\alpha_k=1+\kappa\,n^{\rm ref}_k$ (with the default base of one). A weight
     $\kappa<1$ down-weights a reference that may not represent the population.
