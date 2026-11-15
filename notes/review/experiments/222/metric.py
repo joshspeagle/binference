@@ -1,7 +1,8 @@
 """Issue #222: LogisticGP with the default basis on a k x k grid, diagonal (auto)
 against dense metric. Mock and run lengths as experiments/103_gp_basis_on_grids.py.
 Run with OPENBLAS_NUM_THREADS=1; arguments: number of worker processes, grid size k
-(default 16), seeds (default 3)."""
+(default 16), seeds (default 3), metrics (default diag,dense). The .out files of 16 and 20
+were written under the old limit of 200, when "auto" was diagonal there."""
 import multiprocessing as mp, sys, time, warnings
 import numpy as np
 import binference
@@ -23,7 +24,8 @@ def one(a):
 if __name__ == "__main__":
     k = int(sys.argv[2]) if len(sys.argv) > 2 else 16
     n_seeds = int(sys.argv[3]) if len(sys.argv) > 3 else 3
-    jobs = [(k, m, s) for m in ("auto", "dense") for s in range(n_seeds)]
+    metrics = sys.argv[4].split(",") if len(sys.argv) > 4 else ["diag", "dense"]
+    jobs = [(k, m, s) for m in metrics for s in range(n_seeds)]
     with mp.get_context("spawn").Pool(int(sys.argv[1])) as p:
         res = p.map(one, jobs, chunksize=1)
     for x in res:
