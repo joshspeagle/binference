@@ -928,22 +928,22 @@ def test_a_random_walk_on_equal_bins_steps_by_bin(order):
     np.testing.assert_allclose(_rw_precision(x, order), D.T @ D, atol=1e-12)
 
 
-def test_a_scalar_dirichlet_alpha_is_spread_over_the_bins_by_width():
-    widths = np.array([0.1, 0.2, 0.7])
-    alpha = P.Dirichlet(2.0).resolve_alpha(Bins([0.0, 0.1, 0.3, 1.0]))
-    np.testing.assert_allclose(alpha, 2.0 * 3 * widths)
-    np.testing.assert_allclose(
-        P.Dirichlet.reference().resolve_alpha(Bins([0.0, 0.1, 0.3, 1.0])), widths
-    )
-    # an array is used as given, and equal widths give alpha exactly
-    np.testing.assert_array_equal(
-        P.Dirichlet([1.0, 2.0, 3.0]).resolve_alpha(Bins([0.0, 0.1, 0.3, 1.0])), [1, 2, 3]
-    )
-    np.testing.assert_array_equal(P.Dirichlet(1.0).resolve_alpha(Bins.linear(0, 1, 10)), 1.0)
+def test_a_dirichlet_with_one_concentration_warns_on_bins_of_unequal_width():
+    unequal = Bins([0.0, 0.1, 0.3, 1.0])
+    for prior in (P.Dirichlet(1.0), P.Dirichlet.reference()):
+        with pytest.warns(binference.InputWarning, match="from_base_measure"):
+            bound = prior.bind(unequal)
+        assert np.ptp(bound.alpha) == 0.0  # still one concentration for every bin
+    # equal widths, an array alpha or a base measure stay silent
+    P.Dirichlet(1.0).bind(Bins.linear(1000.0, 1001.0, 50))
+    P.Dirichlet([1.0, 2.0, 3.0]).bind(unequal)
+    P.Dirichlet.from_base_measure(3.0).bind(unequal)
 
 
-def test_the_default_gp_basis_resolves_the_narrowest_bin():
-    # 0.1-wide bins on a range of 3.2 need 32 sines; equal bins keep one per bin
-    bound = P.LogisticGP().bind(Bins([0.0, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2]))
-    assert bound.basis.J == 32
+def test_the_default_gp_basis_resolves_the_narrowest_bin_up_to_four_per_bin():
+    # 0.25-wide bins on a range of 3 need 12 sines for 6 bins
+    assert P.LogisticGP().bind(Bins([0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0])).basis.J == 12
+    # 0.1-wide bins on a range of 3.2 would need 32: capped at 4 per bin, 24
+    assert P.LogisticGP().bind(Bins([0.0, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2])).basis.J == 24
+    # equal bins keep one per bin
     assert P.LogisticGP().bind(Bins.log(1.0, 100.0, 16)).basis.J == 16

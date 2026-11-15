@@ -32,7 +32,7 @@ from scipy import special
 from .._simplex import helmert_basis, softmax
 from .._utils import check_positive, check_positive_integers, warn
 from ..bins import Bins
-from ..density import Density
+from ..density import Density, _equal_volumes
 from ..warnings import InputWarning
 from .base import BoundPrior, PopulationPrior
 from .hyper import Fixed, HalfNormal, Hyperprior, InverseGamma, LogNormal, as_hyperprior
@@ -91,15 +91,21 @@ def _orthonormal_polys(x: np.ndarray, degree: int) -> np.ndarray:
 
 
 def _rw_steps(u_edges: np.ndarray) -> np.ndarray:
-    """Bin centres in ``u``, in units of their mean spacing: the random walk's positions."""
+    """Bin centres in ``u``, in units of their mean spacing: the random walk's positions.
+
+    Bins of equal width give exactly ``0, 1, ..., K - 1``.
+    """
+    n = len(u_edges) - 1
+    if n < 2 or _equal_volumes(np.diff(u_edges)):
+        return np.arange(n, dtype=float)
     c = 0.5 * (u_edges[1:] + u_edges[:-1])
-    return (c - c[0]) / ((c[-1] - c[0]) / (c.size - 1)) if c.size > 1 else c - c[0]
+    return (c - c[0]) / ((c[-1] - c[0]) / (n - 1))
 
 
-def _rw_precision(x: np.ndarray, order: int) -> np.ndarray:
-    """The 1-D random-walk precision ``D^T D`` at positions ``x``.
+def _rw_differences(x: np.ndarray, order: int) -> np.ndarray:
+    """The random walk's difference matrix ``D`` at positions ``x``.
 
-    Row ``i`` of ``D`` is ``order!`` times the ``order``-th divided difference over
+    Row ``i`` is ``order!`` times the ``order``-th divided difference over
     ``x[i]..x[i+order]``, weighted by ``sqrt((x[i+order] - x[i]) / order)``: on unit spacing
     this is ``np.diff`` of that order, and an increment's variance grows with its span.
     """
@@ -111,7 +117,12 @@ def _rw_precision(x: np.ndarray, order: int) -> np.ndarray:
     for k in range(1, order + 1):
         D = (D[1:] - D[:-1]) / (x[k:] - x[:-k])[:, None]
     span = x[order:] - x[:-order]
-    D *= math.factorial(order) * np.sqrt(span / order)[:, None]
+    return D * (math.factorial(order) * np.sqrt(span / order))[:, None]
+
+
+def _rw_precision(x: np.ndarray, order: int) -> np.ndarray:
+    """The 1-D random-walk precision ``D^T D`` at positions ``x``."""
+    D = _rw_differences(x, order)
     return D.T @ D
 
 
@@ -122,15 +133,15 @@ def _rw_eigen(x: np.ndarray, order: int) -> tuple[np.ndarray, np.ndarray]:
     polynomial basis of the null space (constant first), with eigenvalue 0.
     """
     n = len(x)
-    Q = _rw_precision(x, order)
-    _, U = np.linalg.eigh(Q)
+    D = _rw_differences(x, order)
+    # the right singular vectors of D, not the eigenvectors of D^T D, which squares the
+    # condition number on very unequal spacing
+    U_rest = np.linalg.svd(D)[2][: n - order].T
     null = _orthonormal_polys(x, order)
-    # project the non-null eigenvectors off the polynomial null space for safety
-    U_rest = U[:, order:]
+    # project the non-null vectors off the polynomial null space for safety
     U_rest = U_rest - null @ (null.T @ U_rest)
     U_rest, _ = np.linalg.qr(U_rest)
-    U_rest = U_rest[:, : n - order]
-    eig_rest = np.sum(U_rest * (Q @ U_rest), axis=0)  # Rayleigh quotients
+    eig_rest = np.sum((D @ U_rest) ** 2, axis=0)  # Rayleigh quotients, never negative
     return np.concatenate([np.zeros(order), eig_rest]), np.concatenate([null, U_rest], axis=1)
 
 
@@ -445,9 +456,8 @@ class LogisticRandomWalk(PopulationPrior):
     trend_scale : float
         Prior size of the unpenalised polynomial trends. It is the standard
         deviation of the root-mean-square size, across the grid, of each such
-        mode (a linear trend of root-mean-square
-        size ``t`` changes the log-density by about ``3.5 t`` end to end),
-        whatever the number of bins.
+        mode: a linear trend of root-mean-square size ``t`` changes the log-density by
+        about ``3.5 t`` end to end on bins of equal width, whatever their number.
     """
 
     def __init__(
@@ -521,6 +531,10 @@ _KERNELS = {
     "matern32": (1.5, 2.2),
     "matern12": (0.5, 8.5),
 }
+#: Most basis functions of :class:`LogisticGP` per bin on each axis when ``n_basis`` is
+#: ``None``.
+_BASIS_PER_BIN = 4
+
 #: Most basis functions of :class:`LogisticGP` in all when ``n_basis`` is ``None``.
 _MAX_BASIS = 1024
 
@@ -563,9 +577,9 @@ class LogisticGP(PopulationPrior):
     n_basis : int or sequence, optional
         Basis functions per axis. Default: as many as the axis's narrowest bin fits across
         its range in the measure coordinate, which is one per bin on bins of equal width,
-        up to a total of 1024 (``floor(1024 ** (1 / D))`` per axis: 1024 on 1-D grids, 32
-        per axis on 2-D grids); increase it for shorter length scales, which also lowers
-        the default length-scale prior.
+        but at most four per bin on the axis and 1024 in all (``floor(1024 ** (1 / D))``
+        per axis: 1024 on 1-D grids, 32 per axis on 2-D grids); increase it for shorter
+        length scales, which also lowers the default length-scale prior.
     boundary_factor : float
         Ratio of the approximation box to the grid half-width. With the default
         3, the centred covariance is within 4% of the exact kernel's for length
@@ -610,12 +624,13 @@ class LogisticGP(PopulationPrior):
     def bind(self, bins: Bins) -> _BoundGP:
         _require_full_grid(bins)
         D = bins.ndim
-        if self.n_basis is None:  # the narrowest bin's resolution, at most _MAX_BASIS in all
+        if self.n_basis is None:  # the narrowest bin's resolution, within the caps
             cap = int(_MAX_BASIS ** (1 / D) + 1e-9)
-            nb = [
-                min(cap, max(len(u) - 1, int(np.ceil((u[-1] - u[0]) / np.diff(u).min() - 1e-9))))
-                for u in bins.u_edges
-            ]
+            nb = []
+            for u in bins.u_edges:
+                k = len(u) - 1
+                fits = int(np.ceil((u[-1] - u[0]) / np.diff(u).min() - 1e-9))
+                nb.append(min(cap, _BASIS_PER_BIN * k, max(k, fits)))
         else:
             nb = list(check_positive_integers(self.n_basis, "n_basis", D))
         factors, omegas = [], []

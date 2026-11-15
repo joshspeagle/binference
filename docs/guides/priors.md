@@ -11,7 +11,7 @@ What each prior means is in the [theory](../how-it-works/priors.md).
 | about as many bins as objects | `Dirichlet.reference()` |
 | a jagged fit, with errors as wide as the bins | `LogisticGP()` or `LogisticRandomWalk(order=2)` |
 | a reference sample of the same population | `Dirichlet.from_counts(counts, strength)` |
-| a prior that stays the same when bins are merged | `Dirichlet.from_base_measure(...)` |
+| unequal bins, with a Dirichlet | `Dirichlet.from_base_measure(...)` |
 | expected numbers of objects, with prior information on them | `GammaRates(shape, rate)` |
 
 binference's priors fall into three families. The {term}`Dirichlet prior` family is
@@ -45,13 +45,11 @@ for p in (flat, sparse, informed):
     print(p, binference.infer(lk, p, method="map").rho[:3].round(4))
 ```
 
-- **`Dirichlet(1.0)`**: use it unless you have a reason not to. On bins of unequal width
-  its concentration is spread by width, so the prior mean is flat in the measure
-  coordinate.
+- **`Dirichlet(1.0)`**: use it unless you have a reason not to.
 - **`Dirichlet.reference()`**: use it when the number of bins $K$ is comparable to the
   number of objects $N$. There the default biases the fit toward equal fractions.
-- **`Dirichlet.from_base_measure(a)`**: use it for a fixed total concentration `a`, so
-  the prior stays the same however you merge bins.
+- **`Dirichlet.from_base_measure(a)`**: use it on unequal bins, so the prior means the
+  same density however you bin.
 - **`Dirichlet.from_counts(counts, strength)`**: use it when you have the counts
   $n^{\rm ref}_k$ of a reference sample. `strength` is $\kappa$: 1 trusts the sample
   fully, and smaller values trust it less.

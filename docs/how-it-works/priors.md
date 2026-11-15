@@ -26,24 +26,23 @@ mean-field VB in closed form for every member of the family. Bins under the same
 share that node's split, so they can vary together. The four priors differ only in the
 shape of their tree.
 
-- **`Dirichlet(alpha)`** is a tree with one node. A scalar $\alpha$ is spread over the bins
-  by their widths in the measure coordinate, $\alpha_k=\alpha K v_k/\sum_j v_j$, so the
-  prior mean is flat in $u$; on bins of equal width every $\alpha_k=\alpha$. An array is
-  used as given. The {term}`Dirichlet prior` with every {term}`concentration` $\alpha_k=1$
-  is uniform on the simplex and is the default. Its
+- **`Dirichlet(alpha)`** is a tree with one node. The {term}`Dirichlet prior` with every
+  {term}`concentration` $\alpha_k=1$ is uniform on the simplex and is the default. A
+  scalar $\alpha$ gives every bin the same concentration, and so the same prior mean
+  fraction; on bins of unequal width in the measure coordinate that is not a flat density,
+  and binding the prior raises an `InputWarning` that points to `from_base_measure`. Its
   correlation between any two bins is $-1/(K-1)$ when the concentrations are equal,
   whatever their value. Explainer {ref}`explainer-v8` on the
   [concepts page](../concepts/priors-on-the-simplex.md#smoothness-priors) maps it beside
   the correlations of a Pólya tree, a random walk and a Gaussian process.
-  - `Dirichlet.reference()` sets $\alpha_k=1/K$ on bins of equal width, the
-    {term}`reference prior`
+  - `Dirichlet.reference()` sets $\alpha_k=1/K$, the {term}`reference prior`
     {cite:p}`berger2015`. It adds one pseudo-object in all rather than $K$, which
     matters when there are many bins and few objects.
   - `Dirichlet.from_base_measure` makes $\alpha_k$ proportional to the bin masses of a
     base measure $G_0$. The default $G_0$ is flat in the measure coordinate, so
-    $\alpha_k\propto v_k$ on linear bins. Its total concentration is fixed, so the prior
-    stays the same when bins are merged; a scalar $\alpha$ has the total $\alpha K$, which
-    changes with $K$.
+    $\alpha_k\propto v_k$ on linear bins. This prior stays consistent when bins are
+    merged; equal concentrations on unequal bins do not. Narrow bins get $\alpha_k<1$, so
+    the prior density is unbounded at their zeros and the MAP leaves the simplex.
   - `Dirichlet.from_counts` encodes a reference sample with counts $n^{\rm ref}_k$ as
     $\alpha_k=1+\kappa\,n^{\rm ref}_k$ (with the default base of one). A weight
     $\kappa<1$ down-weights a reference that may not represent the population.
@@ -147,8 +146,8 @@ unchanged, so the constant mode is dropped wherever the basis contains it.
     bins. Grids of several dimensions use products of the per-axis sines.
   - The amplitude and one length scale per axis are inferred. By default there are
     $n_{\rm basis}$ sines per axis: as many as the narrowest bin fits across the axis's
-    range in $u$, which is one per bin on bins of equal width, up to a total in the
-    [defaults](../reference/defaults.md#priors).
+    range in $u$, which is one per bin on bins of equal width, up to a number per bin and
+    a total in the [defaults](../reference/defaults.md#priors).
   - $n_{\rm basis}$ sines resolve length scales down to $f_{\rm ker}\,c_{\rm box}\Delta/n_{\rm basis}$,
     with a resolution factor $f_{\rm ker}$ per kernel from the
     [defaults](../reference/defaults.md#priors). The default length-scale prior keeps

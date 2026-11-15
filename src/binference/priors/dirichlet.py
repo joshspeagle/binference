@@ -22,9 +22,10 @@ from scipy import special
 
 from .. import _kernels as kern
 from .._simplex import helmert_basis, log_softmax, softmax
-from .._utils import check_nonnegative, check_positive
+from .._utils import check_nonnegative, check_positive, warn
 from ..bins import Bins, _bin_labels
-from ..density import Density
+from ..density import Density, _equal_volumes
+from ..warnings import InputWarning
 from .base import (
     _TINY,
     BoundPrior,
@@ -80,23 +81,18 @@ class _SimplexBound(BoundPrior):
 class Dirichlet(PopulationPrior):
     r"""Dirichlet prior :math:`\rho \sim \mathrm{Dir}(\alpha)` on bin fractions.
 
-    The default prior of binference (``alpha=1``, uniform on the simplex on bins of
-    equal width).
+    The default prior of binference (``alpha=1``, uniform on the simplex).
 
     Parameters
     ----------
     alpha : float or array_like (K,)
-        Concentration parameters (strictly positive). A scalar is spread over the bins in
-        proportion to their widths in the measure coordinate: bin :math:`k` gets
-        :math:`\alpha K v_k / \sum_j v_j`, which is ``alpha`` on bins of equal width and on
-        categories. An array is used as given.
+        Concentration parameters (strictly positive).
 
     Notes
     -----
-    With a scalar ``alpha`` the prior mean is flat in the measure coordinate. Its total
-    concentration, :math:`\alpha K`, grows with the number of bins; for a prior that is
-    unchanged when bins are merged, :meth:`from_base_measure` fixes the total and spreads
-    it by any base measure.
+    A symmetric ``alpha`` over bins of unequal volume is *not* consistent under
+    merging bins; :meth:`from_base_measure` makes ``alpha`` proportional to a
+    base measure (flat in the measure coordinate by default) instead.
     """
 
     def __init__(self, alpha: float | Sequence[float] | np.ndarray = 1.0) -> None:
@@ -116,9 +112,8 @@ class Dirichlet(PopulationPrior):
     def reference(cls) -> Dirichlet:
         """Reference prior ``alpha = 1/K`` (Berger, Bernardo & Sun 2015).
 
-        ``K`` is the number of bins the prior is bound to; on bins of unequal width the
-        total of one is spread by width, as for a scalar ``alpha``. Adding one pseudo-object
-        in all rather than ``K``, it avoids swamping sparse problems with many bins.
+        ``K`` is the number of bins the prior is bound to. Adding one pseudo-object in all
+        rather than ``K``, it avoids swamping sparse problems with many bins.
         """
         obj = cls()
         obj.alpha = "reference"  # 1/K, set at binding
@@ -174,15 +169,22 @@ class Dirichlet(PopulationPrior):
         if self._base is not None:
             conc, base = self._base
             return conc * _base_masses(base, bins)
-        if isinstance(self.alpha, str) or np.ndim(self.alpha) == 0:
-            per_bin = 1.0 / K if isinstance(self.alpha, str) else float(self.alpha)
-            v = Density.flat().masses(bins)
-            if np.ptp(v) <= 1e-12 * v.max():  # equal widths: exactly per_bin, no round-off
-                return np.full(K, per_bin)
-            return per_bin * K * v
+        if isinstance(self.alpha, str):
+            return np.full(K, 1.0 / K)
         return _per_item(self.alpha, K, "alpha").astype(float)
 
     def bind(self, bins: Bins) -> _BoundDirichlet:
+        symmetric = self._base is None and (
+            isinstance(self.alpha, str) or np.ndim(self.alpha) == 0
+        )
+        if symmetric and not _equal_volumes(Density.flat().masses(bins)):
+            warn(
+                "Dirichlet with one concentration for every bin, on bins of unequal width in "
+                "the measure coordinate: its prior mean gives each bin the same fraction, not "
+                "a flat density. Dirichlet.from_base_measure(concentration) spreads the "
+                "concentration by width; an array alpha is used as given.",
+                InputWarning,
+            )
         return _BoundDirichlet(self, bins, self.resolve_alpha(bins))
 
     def describe(self, bins: Bins, counts: Any = None) -> str:
