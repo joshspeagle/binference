@@ -20,8 +20,7 @@ likelihoods, posteriors, samples, binned measurements or classifier outputs.
 | `tests/` | the pytest suite; `slow` marks statistical tests |
 | `docs/` | the Sphinx site in MyST Markdown; `docs/tutorials/` are executed notebooks; `docs/design/` holds the spec and plans |
 | `benchmarks/` | timing scripts, run by hand |
-| `notes/review/` | walkthrough plan, log, decisions, questions, briefings, experiments, audit reports; not part of the site |
-| `research_notes/`, `reports/` | the landscape census behind the design |
+| `notes/review/` | plan, log, decisions, questions and the experiments they cite; not part of the site |
 
 ## Commands
 

@@ -93,7 +93,7 @@ exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "@overload"]
 [tool.ruff]
 line-length = 99
 src = ["src", "tests"]
-extend-exclude = ["docs/_build", "research_notes", "notes", "*.md"]
+extend-exclude = ["docs/_build", "notes", "*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "NPY", "RUF", "SIM", "C4", "PT", "PIE", "PERF"]
