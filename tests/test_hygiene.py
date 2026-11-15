@@ -115,16 +115,26 @@ def test_scipy_gaussians_keep_precision_near_the_mean_too():
     np.testing.assert_allclose(lk.toarray(), 1.0, rtol=1e-12)
 
 
-def test_review_regressions_for_grids_scalars_and_copies():
+def test_a_grid_has_one_axis_per_edge_array_and_a_scalar_gaussian_is_one_object():
+    assert Bins.grid([np.linspace(0, 1, 4), np.linspace(0, 1, 3)]).shape == (3, 2)
+    assert Likelihoods.from_gaussian(0.5, 0.1, Bins.linear(0, 1, 4)).N == 1
+
+
+def test_sparse_likelihoods_compress_rounded_rows_as_dense_ones_do():
+    lk = Likelihoods(sp.csr_array(np.array([[1, 1e-9, 0], [1, 0, 0]])), Bins.linear(0, 1, 3))
+    assert lk.compress(decimals=3).N == 1
+
+
+def test_pickled_and_copied_sparse_likelihoods_stay_read_only():
     import copy
     import pickle
 
-    assert Bins.grid([np.linspace(0, 1, 4), np.linspace(0, 1, 3)]).shape == (3, 2)
-    assert Likelihoods.from_gaussian(0.5, 0.1, Bins.linear(0, 1, 4)).N == 1
     lk = Likelihoods(sp.csr_array(np.array([[1, 1e-9, 0], [1, 0, 0]])), Bins.linear(0, 1, 3))
-    assert lk.compress(decimals=3).N == 1  # as for dense storage
     for c in (pickle.loads(pickle.dumps(lk)), copy.deepcopy(lk)):
         assert not c.values.data.flags.writeable and not c.weights.flags.writeable
+
+
+def test_likelihoods_copy_broadcast_weights_rather_than_view_them():
     base = np.array([2.0])
     held = Likelihoods(np.ones((2, 3)), Bins.linear(0, 1, 3), weights=np.broadcast_to(base, (2,)))
     base[0] = 7.0
