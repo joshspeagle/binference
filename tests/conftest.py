@@ -158,3 +158,9 @@ def res1d(small_1d):
         check=False,
         store_labels=[0, 1],
     )
+
+
+#: For tests that fit selections from few injections on purpose.
+ignore_few_recoveries = pytest.mark.filterwarnings(
+    "ignore:Diagnostics.*recovered injections:binference.InputWarning"
+)

@@ -261,14 +261,14 @@ poorly determined, for example when some bins hold few detections
 ({doc}`checking`) before you quote it from such data.
 
 A selection from injections widens the total further where few injections are recovered.
-In a test with the injections tutorial's population and detection probability (16 bins,
-a Poisson number of objects with mean 6000, about 1250 detected) and 3000 injections
-uniform in $\ln m$, the four least complete bins recovered about 3 to 14 injections each.
-The derived total came out 9% low on average
-under the default Jeffreys prior on each $S_k$, and 12% under a uniform one (200 simulations
-each, NUTS; 3% with the selection known). With 30,000 injections and the uniform prior it
-was 4% low. `check()` warns when bins with fewer than 20 recoveries hold more than a tenth of the
-population ([defaults](../reference/defaults.md)); inject more objects in those bins.
+The test below used the injections tutorial's population and detection probability: 16
+bins, a Poisson number of objects with mean 6000, and about 1250 detected. 3000 injections,
+uniform in $\ln m$, gave about 3 to 14 recoveries in each of the four least complete bins.
+Over 200 simulations with NUTS, the derived total came out 9% low under the default Jeffreys
+prior on each $S_k$. It came out 12% low under a uniform prior, and 3% low with $S$ known.
+With 30,000 injections and the uniform prior it was 4% low. `check()` warns when bins with
+few recoveries hold much of the population ([defaults](../reference/defaults.md)); inject
+more objects in those bins.
 
 ### The objects the catalogue missed
 

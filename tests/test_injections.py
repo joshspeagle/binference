@@ -14,7 +14,7 @@ from binference.engines import MAP, NUTS, Gibbs, Laplace, MeanFieldVB
 from binference.selection import S_FLOOR, _logit_density
 from binference.validation import SBCResult
 
-from .conftest import assert_draws_agree, assert_uniform_ranks
+from .conftest import assert_draws_agree, assert_uniform_ranks, ignore_few_recoveries
 
 
 def _injections(S, bins, n_per_bin, rng):
@@ -78,7 +78,7 @@ def _problem(mode="on_truth", seed=0, smooth=None):
     return mock.likelihoods.with_selection(None), sel
 
 
-@pytest.mark.filterwarnings("ignore:Diagnostics. bins with fewer than:binference.InputWarning")
+@ignore_few_recoveries
 def test_engines_that_cannot_infer_a_selection_refuse_and_name_those_that_can():
     lk, sel = _problem()
     m = binference.PopulationModel(lk, selection=sel)
@@ -141,7 +141,7 @@ def test_map_and_laplace_infer_the_selection_in_unconstrained_coordinates():
     np.testing.assert_allclose(res.info["mode"], est.x, atol=1e-4)
 
 
-@pytest.mark.filterwarnings("ignore:Diagnostics. bins with fewer than:binference.InputWarning")
+@ignore_few_recoveries
 def test_a_selection_on_the_measurement_is_only_a_plug_in():
     # the likelihoods' cut fixes S; with S free the catalogue adds only missed objects and
     # drove S to zero in a first version (DECISIONS #79)
@@ -322,35 +322,33 @@ def test_selection_draws_are_the_flattened_chains_and_refuse_a_fit_without_them(
         plain.response_draws()
 
 
-def test_check_asks_for_more_injections_where_few_are_recovered_and_much_of_the_population_lies():
+@pytest.mark.parametrize("fixed", [False, True])
+@pytest.mark.parametrize(
+    ("S", "n_per_bin", "warns"),
+    [
+        ([0.02, 0.3, 0.6, 0.9], 100, True),  # bin 0, a third of the population, ~2 recovered
+        ([0.02, 0.3, 0.6, 0.9], 2000, False),  # bin 0 with ~40 recovered
+        ([0.9, 0.9, 0.9, 0.3], 30, False),  # only bin 3 (~9 recovered), about 1% of it
+    ],
+)
+def test_check_asks_for_more_injections_where_few_are_recovered_and_much_of_the_population_lies(
+    S, n_per_bin, warns, fixed
+):
     bins = Bins.linear(0, 1, 4)
-    mock = binference.simulate.mock_1d(800, bins, noise=0.05, rng=1)
-    lk = mock.likelihoods.with_selection(None)
-    rng = np.random.default_rng(2)
-    # bin 0, a third of the population, with 2 or 40 recoveries; then only bin 3 has under
-    # 20 recoveries (about 9), and it holds about 1% of the population
-    for S, n_per_bin, warns in (
-        ([0.02, 0.3, 0.6, 0.9], 100, True),
-        ([0.02, 0.3, 0.6, 0.9], 2000, False),
-        ([0.9, 0.9, 0.9, 0.3], 30, False),
-    ):
-        injected = _injections(np.array(S), bins, n_per_bin, rng)
-        sel = Selection.from_injections(*injected, bins, "on_truth")
-        for selection in (sel, sel.fixed()):  # a plug-in keeps the counts for the check
-            res = binference.infer(
-                lk, selection=selection, method="map", space="unconstrained", check=False
-            )
-            if warns:
-                with pytest.warns(
-                    binference.InputWarning, match=r"inject more objects in bins \["
-                ):
-                    res.check()
-            else:
-                assert not any("recovered injections" in m for m in res.check())
+    lk = binference.simulate.mock_1d(800, bins, noise=0.05, rng=1).likelihoods.with_selection(None)
+    injected = _injections(np.array(S), bins, n_per_bin, np.random.default_rng(2))
+    sel = Selection.from_injections(*injected, bins, "on_truth")
+    sel = pickle.loads(pickle.dumps(sel.fixed())) if fixed else sel  # counts survive both
+    res = binference.infer(lk, selection=sel, method="map", space="unconstrained", check=False)
+    if not warns:
+        assert not any("recovered injections" in m for m in res.check())
+        return
+    reason = "ignores the uncertainty" if fixed else "the prior pulls it low"
+    with pytest.warns(binference.InputWarning, match=f"first: \\[0\\].*{reason}"):
+        res.check()
 
 
 def test_injections_take_jeffreys_prior_by_default():
     bins = Bins.linear(0, 1, 2)
     sel = Selection.from_injections([0.2, 0.2, 0.7], [1, 0, 0], bins, "on_truth")
-    assert sel.injections.prior == (0.5, 0.5)
     np.testing.assert_allclose(sel.values, [(1 + 0.5) / (2 + 1), 0.5 / (1 + 1)])

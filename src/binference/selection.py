@@ -121,7 +121,7 @@ class Selection(SetOnce):
         self.scale = scale
         self.basis = None
         self.injections = None
-        self._recovered: np.ndarray | None = None  # injection counts kept by fixed()
+        self._recovered: np.ndarray | None = None  # recovered injections per bin, if any
 
     def _parts(self) -> tuple:
         # the arguments of _rebuild; row as "values" when it is the values (on the truth)
@@ -129,7 +129,8 @@ class Selection(SetOnce):
         return self.values, row, self.scale, self.basis, self.injections
 
     def __reduce__(self) -> tuple:
-        return _rebuild, self._parts()
+        recovered = self._recovered if self.injections is None else None
+        return _rebuild, (*self._parts(), recovered)
 
     @classmethod
     def from_injections(
@@ -222,6 +223,7 @@ class Selection(SetOnce):
             S = special.expit(_logit_mode(special.logit(S), injections))
         sel = cls(S, mode)
         object.__setattr__(sel, "injections", injections)
+        object.__setattr__(sel, "_recovered", injections.recovered)
         return sel
 
     def draw(self, n: int, rng: Any = None) -> np.ndarray:
@@ -245,9 +247,7 @@ class Selection(SetOnce):
     def fixed(self) -> Selection:
         """This selection taken as known at its :attr:`values`, a plug-in that ignores their
         uncertainty."""
-        # the injection counts stay for the check of few recoveries
-        recovered = None if self.injections is None else self.injections.recovered
-        return _rebuild(*self._parts()[:4], recovered=recovered)
+        return _rebuild(*self._parts()[:4], None, self._recovered)  # counts kept for check()
 
     @property
     def mode(self) -> str:
@@ -489,7 +489,6 @@ def _rebuild(
     scale: str,
     basis: Basis | None = None,
     injections: Any = None,
-    *,
     recovered: np.ndarray | None = None,
 ) -> Selection:
     # a Selection from its arrays; row is None, "values" (on the truth) or an array
@@ -504,7 +503,6 @@ def _rebuild(
     )
     out.scale = scale
     out.basis = None if basis is None or basis.is_identity else basis
-    out._recovered = recovered
     out.injections = (
         None
         if injections is None
@@ -515,6 +513,7 @@ def _rebuild(
             injections[3],
         )
     )
+    out._recovered = recovered if out.injections is None else out.injections.recovered
     return out
 
 

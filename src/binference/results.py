@@ -228,22 +228,24 @@ class _IndividualMixin:
 
     def _injection_problems(self) -> tuple[list[str], list[str]]:
         spec = self.model.selection_spec if self.model is not None else None
-        if spec is None:
+        recovered = None if spec is None else spec._recovered
+        if recovered is None or not np.any(sparse := recovered < INJECTIONS_MIN_RECOVERED):
             return [], []
-        recovered = spec._recovered if spec.injections is None else spec.injections.recovered
-        if recovered is None:
-            return [], []
-        sparse = recovered < INJECTIONS_MIN_RECOVERED
         share = float(self._rho_draws().mean(axis=0)[sparse].sum())
         if share <= INJECTIONS_SPARSE_SHARE_MAX:
             return [], []
+        where = (
+            f"bins with fewer than {INJECTIONS_MIN_RECOVERED} recovered injections "
+            f"(first: {np.flatnonzero(sparse)[:5].tolist()}) hold {share:.0%} of the population"
+        )
+        if spec.injections is None:  # a plug-in: S taken as exact
+            return (
+                [f"{where}, and the fixed selection ignores the uncertainty of their S_k"],
+                ["infer the selection with the population, or inject more objects in those bins"],
+            )
         return (
-            [
-                f"bins with fewer than {INJECTIONS_MIN_RECOVERED} recovered injections hold "
-                f"{share:.0%} of the population, so the total is poorly determined and the "
-                "prior pulls it low"
-            ],
-            [f"inject more objects in bins {np.flatnonzero(sparse).tolist()}"],
+            [f"{where}, so the total is poorly determined and the prior pulls it low"],
+            ["inject more objects in those bins"],
         )
 
     def _sample_noise_problems(self) -> tuple[list[str], list[str]]:
