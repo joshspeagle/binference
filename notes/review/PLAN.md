@@ -14,9 +14,9 @@ Each item is an issue labelled `0.3.0` and a sub-issue of #225. Stages 1 and 2 c
 | | #229 | Tests grouped by module, not by the review that added them | done (#245) |
 | | #230 | Split `results.py` along its seams, if the split is clean (optional) | done (#246): no split, value drawing moved out |
 | | #231 | Public-repository hygiene: conduct, security, DOI, the old name | done (#247) |
-| 2 API and defaults | #204 | Derived totals under a flat Dirichlet | in review: Jeffreys default and a check (Josh) |
+| 2 API and defaults | #204 | Derived totals under a flat Dirichlet | done (#252) |
 | | #232 | Every prior takes its geometry from the bins' measure | done (#251) |
-| | #233 | Samples constructor: kind and smoothing | open |
+| | #233 | Samples constructor: kind and smoothing | in review |
 | | #234 | Selection draws: parameters only, or averaging as an opt-in | done (#249) |
 | | #235 | `GeneralizedDirichlet` from a target mean; Pólya tree split points | done (#250) |
 | 3 Samplers | #222 | NUTS on `LogisticGP` with large grids; ships if its acceptance is met, otherwise documented as a known limitation | open |

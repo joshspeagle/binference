@@ -1,0 +1,36 @@
+# case g20n: K=20 sigma=0.02 bimodal=False
+N=1000 exact: KL(MAP||truth)=0.01712 KL5=0.00458  sd(MAP)=0.2173  sd(truth)=0.2131
+N= 1000 S=  30 hist      relerr 0.619  dlogL truth     -2.02 (sd   1.88)  far    -13.39 (sd   5.70)  KL 0.01639  KL5 0.00371  sd(MAP) 0.2176
+N= 1000 S=  30 kde-silv  relerr 0.589  dlogL truth     -1.41 (sd   1.40)  far     -0.15 (sd   4.39)  KL 0.02006  KL5 0.00476  sd(MAP) 0.2173
+N= 1000 S=  30 kde-scott relerr 0.636  dlogL truth     -1.47 (sd   1.24)  far     +3.54 (sd   4.51)  KL 0.02146  KL5 0.00517  sd(MAP) 0.2172
+   hist sum V_i at truth (package): 2.37
+   kde-silv bias only (h=0.0091, width x1.099): relerr 0.254  dlogL truth -0.32  far +10.02  KL 0.02109  KL5 0.00575  sd(MAP) 0.2171
+   kde-scott bias only (h=0.0101, width x1.121): relerr 0.314  dlogL truth -0.40  far +12.41  KL 0.02230  KL5 0.00607  sd(MAP) 0.2170
+N= 1000 S= 100 hist      relerr 0.345  dlogL truth     -0.56 (sd   0.67)  far    -10.89 (sd   3.58)  KL 0.01583  KL5 0.00407  sd(MAP) 0.2173
+N= 1000 S= 100 kde-silv  relerr 0.343  dlogL truth     -0.45 (sd   0.53)  far     -0.79 (sd   2.50)  KL 0.01758  KL5 0.00470  sd(MAP) 0.2172
+N= 1000 S= 100 kde-scott relerr 0.369  dlogL truth     -0.52 (sd   0.52)  far     +1.90 (sd   2.59)  KL 0.01824  KL5 0.00491  sd(MAP) 0.2172
+   hist sum V_i at truth (package): 0.74
+   kde-silv bias only (h=0.0072, width x1.062): relerr 0.156  dlogL truth -0.20  far +6.15  KL 0.01938  KL5 0.00527  sd(MAP) 0.2172
+   kde-scott bias only (h=0.0080, width x1.076): relerr 0.193  dlogL truth -0.24  far +7.61  KL 0.01999  KL5 0.00545  sd(MAP) 0.2172
+N= 1000 S=1000 hist      relerr 0.106  dlogL truth     +0.04 (sd   0.27)  far     -2.86 (sd   1.98)  KL 0.01732  KL5 0.00463  sd(MAP) 0.2173
+N= 1000 S=1000 kde-silv  relerr 0.112  dlogL truth     -0.07 (sd   0.25)  far     +0.40 (sd   1.96)  KL 0.01809  KL5 0.00487  sd(MAP) 0.2173
+N= 1000 S=1000 kde-scott relerr 0.121  dlogL truth     -0.10 (sd   0.25)  far     +1.13 (sd   1.97)  KL 0.01831  KL5 0.00494  sd(MAP) 0.2173
+   hist sum V_i at truth (package): 0.07
+   kde-silv bias only (h=0.0045, width x1.025): relerr 0.061  dlogL truth -0.08  far +2.43  KL 0.01795  KL5 0.00485  sd(MAP) 0.2173
+   kde-scott bias only (h=0.0050, width x1.031): relerr 0.076  dlogL truth -0.10  far +3.00  KL 0.01816  KL5 0.00491  sd(MAP) 0.2173
+N=10000 exact: KL(MAP||truth)=0.00433 KL5=0.00132  sd(MAP)=0.2134  sd(truth)=0.2131
+N=10000 S=  30 hist      relerr 0.631  dlogL truth    -12.43 (sd   4.70)  far   -257.95 (sd  18.10)  KL 0.00343  KL5 0.00120  sd(MAP) 0.2135
+N=10000 S=  30 kde-silv  relerr 0.608  dlogL truth    -12.43 (sd   4.06)  far     -4.81 (sd   3.36)  KL 0.00430  KL5 0.00148  sd(MAP) 0.2133
+N=10000 S=  30 kde-scott relerr 0.655  dlogL truth    -13.00 (sd   3.87)  far    +61.35 (sd   4.77)  KL 0.00476  KL5 0.00164  sd(MAP) 0.2132
+   kde-silv bias only (h=0.0091, width x1.099): relerr 0.254  dlogL truth -2.63  far +132.41  KL 0.00566  KL5 0.00173  sd(MAP) 0.2132
+   kde-scott bias only (h=0.0101, width x1.121): relerr 0.315  dlogL truth -3.39  far +162.63  KL 0.00602  KL5 0.00184  sd(MAP) 0.2131
+N=10000 S= 100 hist      relerr 0.342  dlogL truth     -5.52 (sd   0.54)  far   -118.89 (sd   5.35)  KL 0.00388  KL5 0.00123  sd(MAP) 0.2134
+N=10000 S= 100 kde-silv  relerr 0.336  dlogL truth     -5.34 (sd   0.43)  far    +18.63 (sd   3.94)  KL 0.00458  KL5 0.00145  sd(MAP) 0.2133
+N=10000 S= 100 kde-scott relerr 0.361  dlogL truth     -5.78 (sd   0.52)  far    +49.64 (sd   4.32)  KL 0.00483  KL5 0.00153  sd(MAP) 0.2133
+   kde-silv bias only (h=0.0072, width x1.062): relerr 0.156  dlogL truth -1.49  far +82.60  KL 0.00511  KL5 0.00156  sd(MAP) 0.2132
+   kde-scott bias only (h=0.0080, width x1.076): relerr 0.193  dlogL truth -1.90  far +101.58  KL 0.00531  KL5 0.00162  sd(MAP) 0.2132
+N=10000 S=1000 hist      relerr 0.108  dlogL truth     +0.36 (sd   0.04)  far    -17.66 (sd   7.04)  KL 0.00425  KL5 0.00132  sd(MAP) 0.2134
+N=10000 S=1000 kde-silv  relerr 0.115  dlogL truth     -0.42 (sd   0.49)  far    +20.64 (sd   4.29)  KL 0.00454  KL5 0.00141  sd(MAP) 0.2133
+N=10000 S=1000 kde-scott relerr 0.124  dlogL truth     -0.59 (sd   0.50)  far    +29.51 (sd   4.02)  KL 0.00461  KL5 0.00143  sd(MAP) 0.2133
+   kde-silv bias only (h=0.0045, width x1.025): relerr 0.062  dlogL truth -0.53  far +33.24  KL 0.00463  KL5 0.00142  sd(MAP) 0.2133
+   kde-scott bias only (h=0.0050, width x1.031): relerr 0.076  dlogL truth -0.67  far +40.96  KL 0.00470  KL5 0.00144  sd(MAP) 0.2133

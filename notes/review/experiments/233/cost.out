@@ -1,0 +1,1 @@
+from_density(KDE callable) N=1000 S=1000: 11.1 s, 4 calls, 160 points

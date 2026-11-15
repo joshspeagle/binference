@@ -17,7 +17,9 @@ from . import _kernels as kern
 from ._quadrature import bin_log_average
 from ._utils import (
     check_nonnegative,
+    check_positive,
     check_positive_weights,
+    chunk_slices,
     frozen,
     is_integer_array,
     read_only,
@@ -880,8 +882,11 @@ class Likelihoods:
         cls,
         samples: Any,
         bins: Bins,
-        interim: InterimPrior,
+        interim: InterimPrior | None = None,
         *,
+        kind: Literal["likelihood"] | None = None,
+        smooth: Literal["kde"] | None = None,
+        bandwidth: float | Literal["silverman"] = "silverman",
         sample_weights: Any = None,
         interim_representation: Representation | None = None,
         weights: Any = None,
@@ -923,10 +928,23 @@ class Likelihoods:
         bins : Bins or Basis
             Target bins (grids only).
             With a :class:`~binference.Basis`, likelihoods of its components.
-        interim : Density, "flat", callable, distribution or array_like (K,)
+        interim : Density, "flat", callable, distribution or array_like (K,), optional
             Prior under which the samples were drawn, read by
             :meth:`Density.coerce`. There is deliberately no default: samples
-            drawn under an informative prior must have it divided out.
+            drawn under an informative prior must have it divided out. Give this or
+            ``kind``.
+        kind : {"likelihood"}, optional
+            Samples drawn in proportion to each object's likelihood, the same as
+            ``interim=Density.flat("z")``.
+        smooth : {"kde"}, optional
+            Spread each sample over the bins by a Gaussian kernel in the measure coordinate,
+            reflected at the ends of the range, instead of counting it in its bin (1-D bins
+            only). It helps on bins much narrower than the posteriors. It also widens each
+            posterior by the bandwidth, a bias that :meth:`sample_variance` does not measure,
+            and it blurs posteriors with several peaks.
+        bandwidth : float or "silverman", optional
+            The kernel's standard deviation in the measure coordinate with ``smooth="kde"``:
+            a number for every object, or Silverman's rule per object (the default).
         interim_representation : {"mass", "density"}, optional
             How an array ``interim`` is read (see :meth:`from_table`).
         sample_weights : array_like or sequence of arrays, optional
@@ -961,9 +979,17 @@ class Likelihoods:
         fractional_weights : bool, optional
             Accept non-integer weights, which give a pseudo-likelihood.
         """
-        # DECISIONS #31, #76, #77, #50
+        # DECISIONS #31, #76, #77, #50, #145
+        if _check_kind(kind, interim) is False:
+            interim = Density.flat("z")
         if bins.is_categorical:
             raise ValueError("from_samples needs ordered (grid) bins.")
+        if smooth not in (None, "kde"):
+            raise ValueError(f"smooth must be None or 'kde'; got {smooth!r}.")
+        if smooth is not None and (bins.ndim > 1 or not as_basis(bins).is_identity):
+            raise ValueError("smooth='kde' needs 1-D bins (not a grid or a Basis).")
+        if smooth is not None and bandwidth != "silverman":
+            check_positive(bandwidth, "bandwidth")
         if not floor >= 0:
             raise ValueError(f"floor must be non-negative; got {floor}.")
         flat, obj_ids, idx, sw, n_obj = _bin_samples(samples, bins, sample_weights)
@@ -1009,7 +1035,12 @@ class Likelihoods:
         )
         # scale each row to counts: sum_k S1_k Pi_k = number of samples inside, so the
         # floor is in pseudo-samples whatever the scale of sample_weights
-        S1 = sp.csr_array((s1 / du[ec], (er, ec)), shape=shape)
+        if smooth is None:
+            S1 = sp.csr_array((s1 / du[ec], (er, ec)), shape=shape)
+        else:  # kernel masses per bin in place of the counts
+            u = bins.measures[0].forward(flat[inside].reshape(-1))
+            masses = _kde_masses(u, rows, w, n_obj, bins.u_edges[0], bandwidth)
+            S1 = sp.csr_array(masses / du)
         tot = S1 @ Pi
         scale = np.bincount(rows, minlength=n_obj) / np.where(tot > 0, tot, 1.0)
         S1 = sp.diags_array(scale) @ S1
@@ -1056,8 +1087,8 @@ class Likelihoods:
 
         Returns the per-object relative variance :math:`V_i(\rho)` of the
         estimate of :math:`L_i\cdot\rho` and the effective number of samples
-        under ``rho``. Summed over objects, :math:`\sum_i V_i` is about the bias
-        it puts in the total log-likelihood (Jensen); values above about one
+        under ``rho``. Summed over objects, :math:`\sum_i V_i` is about twice the
+        downward bias it puts in the total log-likelihood (Jensen); values above about one
         call for more samples.
 
         Parameters
@@ -1683,6 +1714,41 @@ def _ess(tot: np.ndarray, tot2: np.ndarray) -> np.ndarray:
     # effective number of samples from the sums of the weights and of their squares
     with np.errstate(invalid="ignore", divide="ignore"):
         return np.where(tot2 > 0, tot**2 / tot2, 0.0)
+
+
+def _kde_masses(
+    u: np.ndarray, rows: np.ndarray, w: np.ndarray, n_obj: int, edges: np.ndarray, bandwidth: Any
+) -> np.ndarray:
+    """``(n_obj, K)`` masses of Gaussian kernels at the samples ``u`` (in the measure
+    coordinate) with weights ``w``, reflected at the ends of ``edges``."""
+    lo, hi = edges[0], edges[-1]
+    if bandwidth == "silverman":  # 0.9 min(sd, IQR / 1.34) n_eff^(-1/5), per object
+        h = np.full(n_obj, (hi - lo) * 1e-6)
+        order = np.lexsort((u, rows))
+        starts = np.searchsorted(rows[order], np.arange(n_obj + 1))
+        for i in range(n_obj):
+            sel = order[starts[i] : starts[i + 1]]
+            if sel.size < 2:
+                continue
+            x, wi = u[sel], w[sel] / w[sel].sum()
+            sd = np.sqrt(wi @ (x - wi @ x) ** 2)
+            cw = np.cumsum(wi) - 0.5 * wi
+            iqr = np.diff(np.interp([0.25, 0.75], cw, x))[0]
+            spread = min(sd, iqr / 1.34) if iqr > 0 else sd
+            h[i] = max(h[i], 0.9 * spread / (1.0 / (wi @ wi)) ** 0.2)
+        h = h[rows]
+    else:
+        h = np.full(u.size, float(bandwidth))
+    out = np.zeros((n_obj, edges.size - 1))
+    for c in chunk_slices(u.size, max(1, 2**22 // edges.size)):
+        m = np.zeros((c.stop - c.start, edges.size - 1))
+        for centre in (u[c], 2 * lo - u[c], 2 * hi - u[c]):  # the sample and its reflections
+            m += np.diff(special.ndtr((edges[None, :] - centre[:, None]) / h[c, None]), axis=1)
+        pick = sp.csr_array(
+            (w[c], (rows[c], np.arange(c.stop - c.start))), shape=(n_obj, m.shape[0])
+        )
+        out += pick @ m
+    return out
 
 
 def _bin_samples(samples: Any, bins: Bins, sample_weights: Any):
