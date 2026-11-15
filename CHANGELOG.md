@@ -21,6 +21,12 @@ releases may break the API).
 
 ### Changed
 
+- NUTS uses a dense metric for logistic priors up to 500 dimensions (from 200), and
+  starts it from the curvature at every chain's position. With `LogisticGP`'s default
+  basis, two chains and one thread each, this cut the time per fit by two to five times
+  on a 16 × 16 grid, about three on 20 × 20 and five on 22 × 22. Above 500 dimensions,
+  `metric="auto"` is diagonal and starts from the identity. The low E-BFMI of `LogisticGP`
+  fits on large grids remains; the engines page documents it.
 - **Breaking:** `LogisticRandomWalk` takes its differences at the bin centres in the
   measure coordinate, in units of their mean spacing, and its unpenalised trends are
   polynomials in that coordinate. On bins of equal width in the measure coordinate

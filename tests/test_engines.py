@@ -354,7 +354,7 @@ def test_step_size_adaptation_reaches_the_target_acceptance_on_a_standard_gaussi
     assert all(np.mean(a) >= 0.8 - 4 * mcse(np.asarray(a)) for a in acc)
 
 
-def test_above_the_dense_limit_the_warm_up_curvature_is_taken_at_one_chain(monkeypatch, seed):
+def test_above_the_dense_limit_warm_up_uses_one_chain_and_no_metric_start(monkeypatch, seed):
     from binference.engines import nuts
 
     calls = []
@@ -368,13 +368,13 @@ def test_above_the_dense_limit_the_warm_up_curvature_is_taken_at_one_chain(monke
     for limit in (nuts._DENSE_MAX_DIM, 0):  # 6 bins, then as if above the limit
         monkeypatch.setattr(nuts, "_DENSE_MAX_DIM", limit)
         calls.clear()
-        eng = NUTS(model, n_chains=3, n_warmup=0, rng=seed)
+        eng = NUTS(model, n_chains=3, n_warmup=0, metric="dense", rng=seed)
         eng._setup()
         eng._adapt_geometry()
         counts.append((calls.count("fd_hessian_diag"), calls.count("fd_hessian")))
-    # the field's diagonal, then the hyperparameters' and the whole model's Hessians, at
-    # every chain's position and then at one
-    assert counts == [(3, 6), (1, 2)]
+    # the field's diagonal, the hyperparameters' and the whole model's Hessians at every
+    # chain's position; above the limit the first two at one, and no whole-model Hessian
+    assert counts == [(3, 6), (1, 1)]
 
 
 def test_weak_data_smoothness_fits_stay_non_centred():

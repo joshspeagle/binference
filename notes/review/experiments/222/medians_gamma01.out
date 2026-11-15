@@ -1,0 +1,5 @@
+k 16 seed 0 reparam True time 101 ebfmi [0.5  0.39] ess min 169 step [0.043 0.038] maxdepth 0.0
+  centring: n 256 ==1: 82 <0.1: 174 q [0.    0.014 0.051 1.    1.   ]
+   amplitude (2, 300) q [4.2375 5.5952 7.2762] ess 159
+   length_scale_0 (2, 300) q [0.2762 0.3825 0.5074] ess 40
+   length_scale_1 (2, 300) q [0.2296 0.3132 0.4181] ess 128

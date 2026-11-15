@@ -1,0 +1,6 @@
+16x16 auto   seed 0 s   588.1 ebfmi 0.26 div    0 ess    323 rhat 1.011
+16x16 auto   seed 1 s   583.3 ebfmi 0.26 div    0 ess    369 rhat 1.013
+16x16 auto   seed 2 s   587.6 ebfmi 0.23 div    0 ess    321 rhat 1.016
+16x16 dense  seed 0 s   165.8 ebfmi 0.26 div    0 ess    445 rhat 1.014
+16x16 dense  seed 1 s   278.8 ebfmi 0.17 div    0 ess    292 rhat 1.023
+16x16 dense  seed 2 s   288.1 ebfmi 0.27 div    0 ess    431 rhat 1.014

@@ -1,0 +1,4 @@
+20x20 auto   seed 0 s   933.4 ebfmi 0.20 div    0 ess    254 rhat 1.022
+20x20 auto   seed 1 s   956.7 ebfmi 0.23 div    0 ess    337 rhat 1.017
+20x20 dense  seed 0 s   293.7 ebfmi 0.15 div    0 ess    165 rhat 1.022
+20x20 dense  seed 1 s   353.3 ebfmi 0.17 div    0 ess    249 rhat 1.019
