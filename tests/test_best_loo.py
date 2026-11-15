@@ -16,7 +16,7 @@ def _lk():
     # 30 objects in the first three bins and one (object 0) alone in the last
     rng = np.random.default_rng(0)
     z = np.concatenate([[0.92], rng.uniform(0.0, 0.6, 29)])
-    return Likelihoods.from_gaussian(z, 0.12, BINS, warn_outside=False)
+    return Likelihoods.from_gaussian(z, BINS, 0.12, warn_outside=False)
 
 
 def test_every_result_carries_its_best_fit_and_best_outputs():
@@ -92,7 +92,7 @@ def test_leave_one_out_of_a_rate_model_includes_the_total():
     # and rho are dependent, so leaving Lambda out of the weights biases the answer
     rng = np.random.default_rng(0)
     z = np.concatenate([[0.92], rng.uniform(0.0, 0.6, 8)])
-    lk = Likelihoods.from_gaussian(z, 0.15, BINS, warn_outside=False)
+    lk = Likelihoods.from_gaussian(z, BINS, 0.15, warn_outside=False)
     exposure = Selection(np.array([0.05, 0.05, 1.0, 1.0, 0.05]), "on_truth", scale="exposure")
 
     def fit(lk, seed):

@@ -162,8 +162,8 @@ def test_invalid_masks_are_rejected():
 def test_gaussian_likelihoods_on_a_masked_grid_are_the_active_columns(masked):
     rng = np.random.default_rng(1)
     mu, sig = rng.uniform(0, 3, (20, 2)), np.full((20, 2), 0.7)
-    full = Likelihoods.from_gaussian(mu, sig, Bins.grid(*masked.edges)).toarray()[:, masked.cells]
-    part = Likelihoods.from_gaussian(mu, sig, masked).toarray()
+    full = Likelihoods.from_gaussian(mu, Bins.grid(*masked.edges), sig).toarray()[:, masked.cells]
+    part = Likelihoods.from_gaussian(mu, masked, sig).toarray()
     np.testing.assert_allclose(part, full / full.max(axis=1, keepdims=True), rtol=1e-12)
 
 
@@ -220,7 +220,7 @@ def test_mock_posterior_samples_avoid_masked_bins(interim):
     mask = np.ones(30, dtype=bool)
     mask[10:15] = False
     b = Bins.linear(0, 3, 30, mask=mask)
-    mock = binference.simulate.mock_1d(300, b, interim=interim, n_samples=50, rng=3)
+    mock = binference.simulate.mock_1d(300, b, interim=interim, samples_per_object=50, rng=3)
     assert np.all(b.contains(mock.samples.ravel()))
 
 

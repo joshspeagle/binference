@@ -193,7 +193,7 @@ def mock_1d(
     density: Any = "bimodal",
     noise: Any = (0.05, 0.2),
     interim: Any = None,
-    n_samples: int = 0,
+    samples_per_object: int = 0,
     selection: Any = None,
     measured_range: tuple[float | None, float | None] | None = None,
     outlier_fraction: float = 0.0,
@@ -219,8 +219,8 @@ def mock_1d(
         ``mock.posteriors`` with masses ``mock.interim``. Masses and ``"flat"``
         are flat in ``u`` within each bin, as :meth:`Likelihoods.from_samples`
         reads them.
-    n_samples : int
-        If positive, also return ``n_samples`` posterior samples per object
+    samples_per_object : int
+        If positive, also return that many posterior samples per object
         as ``mock.samples``, under the interim prior; without one, under
         ``Density.flat()``, whose masses ``mock.interim`` then holds.
     selection : array_like (K,), optional
@@ -267,12 +267,12 @@ def mock_1d(
         P = lk.toarray() * Pi[None, :]  # row scales are irrelevant after normalising
         mock.posteriors = P / P.sum(axis=1, keepdims=True)
         mock.interim = Pi
-    if n_samples != 0:
-        n_samples = check_positive_integers(n_samples, "n_samples")[0]
+    if samples_per_object != 0:
+        samples_per_object = check_positive_integers(samples_per_object, "samples_per_object")[0]
         if interim is None:
             interim = Density.flat()
             mock.interim = interim.masses(bins)
-        mock.samples = _posterior_samples_1d(obs, sigma, bins, interim, n_samples, gen)
+        mock.samples = _posterior_samples_1d(obs, sigma, bins, interim, samples_per_object, gen)
     return mock
 
 
@@ -340,8 +340,8 @@ def _gaussian_mock(
     values, labels, sigma, obs = (np.concatenate(a) for a in zip(*parts, strict=True))
     lk = Likelihoods.from_gaussian(
         obs,
-        sigma,
         bins,
+        sigma,
         selection=sel if selection is None else selection,
         warn_outside=False,  # observations near the edges spill past them by construction
     )
@@ -498,8 +498,8 @@ def _class_fractions(value: Any, C: int, name: str) -> np.ndarray:
 
 def mock_unfolding(
     n_objects: int = 5000,
-    n_true: int = 20,
-    n_reco: int = 25,
+    n_truth: int = 20,
+    n_measured: int = 25,
     *,
     slope: float = 3.0,
     resolution: float = 0.08,
@@ -513,7 +513,7 @@ def mock_unfolding(
     (``mock.truth.counts.sum()``). True values on [0, 1] follow
     ``exp(-slope * z)``; events are detected with an efficiency rising linearly
     across the range, smeared with Gaussian ``resolution`` and histogrammed in
-    ``n_reco`` bins on [-0.1, 1.1]. The response matrix is computed for a
+    ``n_measured`` bins on [-0.1, 1.1]. The response matrix is computed for a
     population uniform within each true bin, ``mock.response`` is a
     :class:`Response` and ``mock.likelihoods`` is built with
     :meth:`Likelihoods.from_binned` (its efficiency becomes the selection function).
@@ -522,9 +522,9 @@ def mock_unfolding(
     ----------
     n_objects : int, optional
         Number of events before detection.
-    n_true : int, optional
+    n_truth : int, optional
         Number of true bins.
-    n_reco : int, optional
+    n_measured : int, optional
         Number of measured bins.
     slope : float, optional
         Decay rate of the exponential spectrum.
@@ -537,18 +537,18 @@ def mock_unfolding(
     """
     gen = as_generator(rng)
     n_objects = check_positive_integers(n_objects, "n_objects")[0]
-    n_true = check_positive_integers(n_true, "n_true")[0]
-    n_reco = check_positive_integers(n_reco, "n_reco")[0]
-    tb = Bins.linear(0.0, 1.0, n_true)
-    re = np.linspace(-0.1, 1.1, n_reco + 1)
+    n_truth = check_positive_integers(n_truth, "n_truth")[0]
+    n_measured = check_positive_integers(n_measured, "n_measured")[0]
+    tb = Bins.linear(0.0, 1.0, n_truth)
+    re = np.linspace(-0.1, 1.1, n_measured + 1)
     density = lambda z: np.exp(-slope * np.asarray(z))  # noqa: E731
     rho = population(tb, density)
     eff = lambda z: efficiency[0] + (efficiency[1] - efficiency[0]) * np.asarray(z)  # noqa: E731
     # response R[j, k] = P(reco j, detected | true bin k), population uniform within bin k
     u, wq = np.polynomial.legendre.leggauss(16)
     e = tb.edges[0]
-    R = np.zeros((n_reco, n_true))
-    for k in range(n_true):
+    R = np.zeros((n_measured, n_truth))
+    for k in range(n_truth):
         zk = e[k] + (e[k + 1] - e[k]) * 0.5 * (u + 1.0)
         wk = 0.5 * wq
         cdf = stats.norm.cdf((re[None, :] - zk[:, None]) / resolution)
@@ -560,13 +560,13 @@ def mock_unfolding(
     observed = det & (reco >= re[0]) & (reco <= re[-1])
     response = Response(R, tb, Bins(re))
     lk = Likelihoods.from_binned(response, values=reco[observed])
-    counts = np.bincount(lk.meta["measured_bin"], weights=lk.weights, minlength=n_reco)
+    counts = np.bincount(lk.meta["measured_bin"], weights=lk.weights, minlength=n_measured)
     true_lab = tb.index(z[observed])
     truth = Truth(
         rho=rho,
         labels=true_lab,
         values=z[observed],
-        counts=np.bincount(true_lab, minlength=n_true).astype(float),
+        counts=np.bincount(true_lab, minlength=n_truth).astype(float),
         n_drawn=n_objects,
     )
     return Mock(tb, lk, truth, {"reco_counts": counts}, response=response)

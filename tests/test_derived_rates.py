@@ -71,7 +71,7 @@ def test_saved_results_keep_their_totals(tmp_path):
 def test_rates_with_a_basis_are_per_bin():
     mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 6), rng=2)
     basis = binference.Basis(mock.likelihoods.bins, order=1, resolution=2)
-    lk = Likelihoods.from_gaussian(mock.measurements["mean"], mock.measurements["sigma"], basis)
+    lk = Likelihoods.from_gaussian(mock.measurements["mean"], basis, mock.measurements["sigma"])
     res = Gibbs(PopulationModel(lk), n_warmup=20, rng=0).run(20)
     assert res.rates.shape == (20 * 4, 6)
     np.testing.assert_allclose(res.rates.sum(axis=1), res.total)

@@ -172,7 +172,7 @@ rng_fig = np.random.default_rng(5)
 fine = binference.Bins.linear(0.0, 3.0, 15)
 z_fig = rng_fig.uniform(0.0, 3.0, 450)
 found = rng_fig.random(450) < edge(z_fig)
-S_draws = binference.Selection.from_injections(z_fig, found, fine, "on_truth").draw(4000, rng=1)
+S_draws = binference.Selection.from_injections(z_fig, found, fine, "on_truth").sample(4000, rng=1)
 e = fine.edges[0]
 fig, (top, bottom) = plt.subplots(2, 1, sharex=True)
 fig.set_figheight(6.4)
@@ -303,7 +303,7 @@ z_all = rng_fig.uniform(e[labels], e[labels + 1])
 seen = rng_fig.random(3000) < S10[labels]
 err = rng_fig.uniform(0.05, 0.2, seen.sum())
 lk_seen = binference.Likelihoods.from_gaussian(
-    z_all[seen] + err * rng_fig.standard_normal(seen.sum()), err, coarse, warn_outside=False
+    z_all[seen] + err * rng_fig.standard_normal(seen.sum()), coarse, err, warn_outside=False
 )
 fit_seen = binference.infer(lk_seen, selection=binference.Selection(S10, "on_truth"), rng=1)
 detected = np.median(fit_seen.realized_counts(rng=2), axis=0)

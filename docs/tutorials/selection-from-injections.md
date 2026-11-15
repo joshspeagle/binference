@@ -62,7 +62,7 @@ mock = binference.simulate.mock_1d(n_mergers, bins, density=population, noise=(0
 rho_true = mock.truth.rho
 detected = rng.random(n_mergers) < S(np.exp(mock.truth.values))
 lk = binference.Likelihoods.from_gaussian(
-    mock.measurements["mean"][detected], mock.measurements["sigma"][detected], bins,
+    mock.measurements["mean"][detected], bins, mock.measurements["sigma"][detected],
     warn_outside=False,                  # measurements near the edges spill past them
 )
 print(f"{n_mergers} mergers, {detected.sum()} detected")

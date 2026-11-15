@@ -118,7 +118,6 @@ Which objects enter the sample, given their true or measured values; pass a
    :toctree: generated
    :nosignatures:
 
-   as_selection
    SELECTION_MODES
    SELECTION_SCALES
 ```

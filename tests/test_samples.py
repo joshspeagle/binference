@@ -27,7 +27,7 @@ def test_a_pointwise_interim_is_divided_out_exactly_within_bins():
     like = stats.norm(0.45, 0.3).pdf
     interim = lambda z: np.exp(-3 * z)  # noqa: E731  varies strongly within the bins
     samples = _posterior_samples(rng, 20, 20000, like, interim, 0.0, 1.0)
-    exact = Likelihoods.from_gaussian([0.45], 0.3, bins).toarray()[0]
+    exact = Likelihoods.from_gaussian([0.45], bins, 0.3).toarray()[0]
     pointwise = Likelihoods.from_samples(samples, bins, interim).toarray().mean(axis=0)
     per_bin = (
         Likelihoods.from_samples(
@@ -45,7 +45,7 @@ def test_likelihood_samples_are_averaged_in_the_measure_coordinate():
     bins = Bins.log(1.0, 100.0, 4)
     samples = [stats.norm(7.0, 3.0).rvs(40000, random_state=rng) for _ in range(10)]
     est = Likelihoods.from_samples(samples, bins, Density.flat("z")).toarray().mean(axis=0)
-    exact = Likelihoods.from_gaussian([7.0], [3.0], bins, tol=1e-8).toarray()[0]
+    exact = Likelihoods.from_gaussian([7.0], bins, [3.0], tol=1e-8).toarray()[0]
     np.testing.assert_allclose(est, exact, atol=0.01)
 
 

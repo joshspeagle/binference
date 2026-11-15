@@ -62,8 +62,8 @@ def test_refine_and_coarsen_are_inverse():
 def test_the_flat_basis_at_resolution_one_changes_nothing():
     mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 8), rng=1)
     d, s = mock.measurements["mean"], mock.measurements["sigma"]
-    plain = Likelihoods.from_gaussian(d, s, mock.likelihoods.bins)
-    on_basis = Likelihoods.from_gaussian(d, s, Basis(mock.likelihoods.bins))
+    plain = Likelihoods.from_gaussian(d, mock.likelihoods.bins, s)
+    on_basis = Likelihoods.from_gaussian(d, Basis(mock.likelihoods.bins), s)
     np.testing.assert_array_equal(on_basis.values, plain.values)
     np.testing.assert_array_equal(
         MAP(PopulationModel(on_basis)).run().rho, MAP(PopulationModel(plain)).run().rho
@@ -75,7 +75,7 @@ def test_flat_components_are_the_refined_bins_summed_back():
     d, s = mock.measurements["mean"], mock.measurements["sigma"]
     basis = Basis(mock.likelihoods.bins, resolution=3)
     fine, fmap = mock.likelihoods.bins.refine(3)
-    lk, lk_fine = Likelihoods.from_gaussian(d, s, basis), Likelihoods.from_gaussian(d, s, fine)
+    lk, lk_fine = Likelihoods.from_gaussian(d, basis, s), Likelihoods.from_gaussian(d, fine, s)
     np.testing.assert_allclose(lk.values, lk_fine.values, rtol=1e-12)
     prior = P.LogisticGP(length_scale=1.0)
     rho = MAP(PopulationModel(lk, prior)).run().rho
@@ -100,8 +100,8 @@ def test_resolution_and_hats_remove_the_binning_bias():
         basis = Basis(bins, order=order, resolution=res)
         lk = Likelihoods.from_gaussian(
             d,
-            np.full(d.size, s),
             basis,
+            np.full(d.size, s),
             weights=1e4 * pd / pd.sum(),
             fractional_weights=True,
             warn_outside=False,  # data beyond the range, as the population convolved
@@ -123,11 +123,11 @@ def test_a_selection_function_is_averaged_with_each_component_as_weight():
     np.testing.assert_allclose(sel.values, brute, atol=1e-3)
     assert sel.basis == basis
     per_bin = np.linspace(0.2, 0.9, 8)
-    sel = binference.selection.as_selection(per_bin, "on_measurement", basis)
+    sel = binference.selection._as_selection(per_bin, "on_measurement", basis)
     np.testing.assert_allclose(sel.values, basis.matrix.T @ per_bin)
-    assert binference.selection.as_selection(sel, None, basis) is sel  # not mapped twice
+    assert binference.selection._as_selection(sel, None, basis) is sel  # not mapped twice
     with pytest.raises(ValueError, match="different basis"):
-        binference.selection.as_selection(sel, None, Basis(bins, order=1, resolution=2))
+        binference.selection._as_selection(sel, None, Basis(bins, order=1, resolution=2))
 
 
 def test_per_bin_likelihoods_move_onto_a_basis_as_flat_within_bins():
@@ -150,7 +150,7 @@ def test_values_drawn_inside_hats_follow_the_population(route):
     bins = Bins.linear(0, 3, 6)
     basis = Basis(bins, order=1)
     n = 4000
-    lk = Likelihoods.from_gaussian(np.full(n, 1.5), np.full(n, 50.0), basis, warn_outside=False)
+    lk = Likelihoods.from_gaussian(np.full(n, 1.5), basis, np.full(n, 50.0), warn_outside=False)
     w = np.array([0.0, 0.7, 0.0, 0.0, 0.3, 0.0])  # separate hats: triangles, not boxes
     est = binference.PointEstimate(PopulationModel(lk), w)
     loglike = (lambda z, i: -0.5 * ((z - 1.5) / 50.0) ** 2) if route == "loglike" else None
@@ -165,7 +165,7 @@ def test_hat_labels_are_shared_among_bins_by_mass():
     bins = Bins.linear(0, 3, 6)
     basis = Basis(bins, order=1)
     n = 20000
-    lk = Likelihoods.from_gaussian(np.full(n, 1.5), np.full(n, 50.0), basis, warn_outside=False)
+    lk = Likelihoods.from_gaussian(np.full(n, 1.5), basis, np.full(n, 50.0), warn_outside=False)
     w = np.array([0.05, 0.3, 0.25, 0.2, 0.15, 0.05])
     labels = binference.PointEstimate(PopulationModel(lk), w).sample_assignments(rng=1)[0]
     p = basis.to_bins(w)
@@ -177,7 +177,7 @@ def test_results_report_bins_and_keep_component_draws(tmp_path):
     mock = binference.simulate.mock_1d(300, Bins.linear(0, 3, 6), rng=3)
     d, s = mock.measurements["mean"], mock.measurements["sigma"]
     basis = Basis(mock.likelihoods.bins, order=1, resolution=2)
-    lk = Likelihoods.from_gaussian(d, s, basis)
+    lk = Likelihoods.from_gaussian(d, basis, s)
     res = binference.infer(lk, method="gibbs", n_samples=100, n_warmup=50, rng=0, check=False)
     assert res.bins == basis.bins and res.samples.shape[1] == 6
     np.testing.assert_allclose(res.samples, basis.to_bins(res.component_draws.reshape(-1, 12)))
@@ -191,7 +191,7 @@ def test_results_report_bins_and_keep_component_draws(tmp_path):
     np.testing.assert_allclose(back.mean, res.mean)
     back.attach(lk).assignment_probabilities(idx=[0])
     with pytest.raises(ValueError, match="basis"):
-        back.attach(Likelihoods.from_gaussian(d, s, mock.likelihoods.bins))
+        back.attach(Likelihoods.from_gaussian(d, mock.likelihoods.bins, s))
 
 
 def test_sample_likelihoods_moved_onto_a_basis_keep_their_monte_carlo_error():
@@ -219,7 +219,7 @@ def test_an_interim_array_per_bin_works_with_a_basis():
 def test_the_stack_on_a_basis_is_in_the_model_parameters():
     mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 6), rng=6)
     basis = Basis(mock.likelihoods.bins, order=1, resolution=2)
-    lk = Likelihoods.from_gaussian(mock.measurements["mean"], mock.measurements["sigma"], basis)
+    lk = Likelihoods.from_gaussian(mock.measurements["mean"], basis, mock.measurements["sigma"])
     st = lk.stack()
     assert st.shape == (12,)
     assert np.isfinite(PopulationModel(lk).kkt_gap(st))
@@ -229,7 +229,7 @@ def test_values_on_log_bins_are_flat_in_log_within_bins():
     # broad likelihoods: values follow the population, flat in log z within each bin
     bins = Bins.log(1.0, 100.0, 4)
     n = 4000
-    lk = Likelihoods.from_gaussian(np.full(n, 50.0), np.full(n, 1e4), bins, warn_outside=False)
+    lk = Likelihoods.from_gaussian(np.full(n, 50.0), bins, np.full(n, 1e4), warn_outside=False)
     rho = np.array([0.1, 0.4, 0.3, 0.2])
     v = binference.PointEstimate(PopulationModel(lk), rho).sample_values(rng=0)[0]
     e = np.log(bins.edges[0])
@@ -242,7 +242,7 @@ def test_a_reloaded_result_attaches_on_a_transform_axis(tmp_path):
     tb = Bins(np.linspace(0, 3, 7), measure=binference.Measure.transform(np.arcsinh, np.sinh))
     mock = binference.simulate.mock_1d(100, tb, rng=7)
     lk = Likelihoods.from_gaussian(
-        mock.measurements["mean"], mock.measurements["sigma"], Basis(tb, order=1)
+        mock.measurements["mean"], Basis(tb, order=1), mock.measurements["sigma"]
     )
     res = binference.infer(lk, method="gibbs", n_samples=20, n_warmup=10, rng=0, check=False)
     res.save(str(tmp_path / "r.npz"))
@@ -257,7 +257,7 @@ def test_a_reloaded_result_with_a_selection_attaches_on_a_transform_axis(tmp_pat
     tb = Bins(np.linspace(0, 3, 7), measure=binference.Measure.transform(np.arcsinh, np.sinh))
     mock = binference.simulate.mock_1d(100, tb, rng=7)
     lk = Likelihoods.from_gaussian(
-        mock.measurements["mean"], mock.measurements["sigma"], Basis(tb, order=1)
+        mock.measurements["mean"], Basis(tb, order=1), mock.measurements["sigma"]
     )
     sel = np.linspace(0.5, 1.0, tb.K)
     res = binference.infer(
@@ -326,7 +326,7 @@ def test_categories_take_only_the_identity_basis(options):
 
 def test_categories_have_no_geometry_for_a_constructor_to_use():
     with pytest.raises(ValueError, match="ordered"):
-        Likelihoods.from_gaussian([0.5], [0.1], Basis(Bins.categories(3)))
+        Likelihoods.from_gaussian([0.5], Basis(Bins.categories(3)), [0.1])
 
 
 @pytest.mark.filterwarnings("ignore::binference.warnings.InputWarning")  # raw values
@@ -340,7 +340,7 @@ def test_an_explicit_identity_basis_gives_the_fit_of_its_plain_bins(kind):
     S = np.linspace(0.3, 0.9, bins.K)
     selection = {"selection": S, "selection_mode": "on_truth"}
     make = {
-        "gaussian": lambda b: Likelihoods.from_gaussian(mean, sigma, b, **selection),
+        "gaussian": lambda b: Likelihoods.from_gaussian(mean, b, sigma, **selection),
         "samples": lambda b: Likelihoods.from_samples(
             samples, b, "flat", drop_empty=True, **selection
         ),
@@ -368,7 +368,7 @@ def test_a_selection_on_an_identity_basis_is_a_selection_per_bin():
     plain = binference.Selection.from_function(S, bins, "on_truth")
     assert binference.Selection.from_function(S, Basis(bins), "on_truth") == plain
     assert plain.basis is None
-    assert binference.selection.as_selection(plain, None, Basis(bins)) is plain
+    assert binference.selection._as_selection(plain, None, Basis(bins)) is plain
 
 
 def test_a_selection_from_injections_passes_an_identity_basis_unchanged():
@@ -457,7 +457,7 @@ def test_a_saved_plain_fit_round_trips_without_basis_metadata(tmp_path, kind):
 def test_a_saved_oversampled_identity_basis_keeps_its_oversampling(tmp_path):
     bins = Bins.linear(0, 3, 6)
     basis = Basis(bins, oversample=2)
-    lk = Likelihoods.from_gaussian([1.0, 2.0], [0.3, 0.3], basis)
+    lk = Likelihoods.from_gaussian([1.0, 2.0], basis, [0.3, 0.3])
     res = binference.infer(lk, method="gibbs", n_samples=20, n_warmup=10, rng=0, check=False)
     path = tmp_path / "r.npz"
     res.save(str(path))

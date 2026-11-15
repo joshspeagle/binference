@@ -15,7 +15,7 @@ from binference import _quadrature as quadrature
 def test_adaptive_averages_of_narrow_gaussians_match_the_exact_ones():
     bins = Bins.linear(0, 1, 10)
     mu, sig = np.array([0.33, 0.71]), np.array([0.002, 0.01])  # 2% and 10% of a bin
-    exact = Likelihoods.from_gaussian(mu, sig, bins).toarray()
+    exact = Likelihoods.from_gaussian(mu, bins, sig).toarray()
     logf = lambda z: stats.norm.logpdf(z[None, :], mu[:, None], sig[:, None])  # noqa: E731
     adaptive = Likelihoods.from_density(logf, bins, kind="likelihood", log=True, tol=1e-5)
     np.testing.assert_allclose(adaptive.toarray(), exact, atol=1e-5)
@@ -103,7 +103,7 @@ def test_likelihoods_on_log_bins_are_averaged_in_log_z():
         for a, b in pairwise(e)
     ]
     for lk in (
-        Likelihoods.from_gaussian([mu], [sig], bins, tol=1e-8),
+        Likelihoods.from_gaussian([mu], bins, [sig], tol=1e-8),
         Likelihoods.from_density([stats.norm(mu, sig)], bins, kind="likelihood", tol=1e-8),
     ):
         np.testing.assert_allclose(lk.toarray()[0], np.array(want) / max(want), atol=1e-7)
@@ -115,7 +115,7 @@ def test_distributions_far_below_the_bins_keep_finite_rows():
     with pytest.warns(InputWarning, match="outside the bins"):
         via_dist = Likelihoods.from_density(dists, bins, kind="likelihood")
     with pytest.warns(InputWarning, match="outside the bins"):
-        exact = Likelihoods.from_gaussian([-0.35, -0.6], 0.05, bins)
+        exact = Likelihoods.from_gaussian([-0.35, -0.6], bins, 0.05)
     np.testing.assert_allclose(via_dist.toarray(), exact.toarray(), rtol=1e-9, atol=1e-300)
     assert np.all(via_dist.toarray()[:, 1] > 0)
 
@@ -128,7 +128,7 @@ def test_a_logpdf_only_object_far_from_the_bins_keeps_a_finite_row():
     bins = Bins.linear(0, 1, 5)
     lk = Likelihoods.from_density([OnlyLogpdf()], bins, kind="likelihood")
     with pytest.warns(InputWarning, match="outside the bins"):
-        exact = Likelihoods.from_gaussian([-0.8], 0.02, bins)
+        exact = Likelihoods.from_gaussian([-0.8], bins, 0.02)
     flat = np.full(5, 0.2)
     np.testing.assert_allclose(
         lk.log_evidence_terms(flat), exact.log_evidence_terms(flat), rtol=1e-6
@@ -138,7 +138,7 @@ def test_a_logpdf_only_object_far_from_the_bins_keeps_a_finite_row():
 
 def test_outside_fractions_are_recorded_per_object():
     bins = Bins.linear(0, 1, 4)
-    lk = Likelihoods.from_gaussian([0.5, 1.0], 0.1, bins)
+    lk = Likelihoods.from_gaussian([0.5, 1.0], bins, 0.1)
     np.testing.assert_allclose(lk.meta["outside_fraction"], [0.0, 0.5], atol=1e-6)
 
 
@@ -146,7 +146,7 @@ def test_a_peak_the_first_estimate_misses_does_not_warn():
     bins = Bins.log(0.1, 10.0, 50)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        lk = Likelihoods.from_gaussian([8.588], [0.01], bins)
+        lk = Likelihoods.from_gaussian([8.588], bins, [0.01])
     assert np.isfinite(lk.log_scale).all()
 
 
@@ -178,21 +178,21 @@ def test_n_dimensional_distributions_receive_points_as_rows():
 
 def test_a_non_positive_tolerance_is_refused():
     with pytest.raises(ValueError, match="tol must be positive"):
-        Likelihoods.from_gaussian([5.0], [1.0], Bins.log(1, 10, 4), tol=0)
+        Likelihoods.from_gaussian([5.0], Bins.log(1, 10, 4), [1.0], tol=0)
 
 
 def test_refining_rows_in_blocks_gives_the_same_averages(monkeypatch):
     bins = Bins.log(1.0, 100.0, 10)
     mu = np.linspace(2, 90, 7)
-    whole = Likelihoods.from_gaussian(mu, 0.05 * mu, bins).toarray()
+    whole = Likelihoods.from_gaussian(mu, bins, 0.05 * mu).toarray()
     monkeypatch.setattr(quadrature, "MAX_ELEMENTS", 200)
-    blocked = Likelihoods.from_gaussian(mu, 0.05 * mu, bins).toarray()
+    blocked = Likelihoods.from_gaussian(mu, bins, 0.05 * mu).toarray()
     np.testing.assert_allclose(blocked, whole, rtol=1e-12)
 
 
 def test_the_outside_warning_points_at_the_caller():
     with pytest.warns(InputWarning, match="outside the bins") as record:
-        Likelihoods.from_gaussian([0.5, 50.0], [0.1, 0.1], Bins.linear(0, 1, 5))
+        Likelihoods.from_gaussian([0.5, 50.0], Bins.linear(0, 1, 5), [0.1, 0.1])
     assert record[0].filename == __file__
 
 

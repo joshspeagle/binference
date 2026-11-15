@@ -21,6 +21,19 @@ changes" section sets out.
 
 ### Changed
 
+- **Breaking:** renames from the API review, each to the spelling its siblings use:
+  - `Likelihoods.from_gaussian(mean, bins, sigma)`: `bins` is second and required, as in
+    every other constructor (it was `from_gaussian(mean, sigma, bins)`).
+  - `Auto(gibbs_max_missing=, nnz_limit=)` → `max_gibbs_missing=`, `max_nnz=`.
+  - `Selection.from_function(function=)` → `func=`, as in `Density.from_function`.
+  - `Basis.masses(grid)` and `axis_masses(grid)` → `bins`, as in `Density.masses`.
+  - `Selection.draw` and `Response.draw` → `sample`.
+  - `simulate.mock_1d(n_samples=)` → `samples_per_object=`, since `n_samples` names the
+    draws an engine makes.
+  - `check(predictive_draws=)` → `n_predictive=`.
+  - `simulate.mock_unfolding(n_true=, n_reco=)` → `n_truth=`, `n_measured=`, as in
+    `Response`'s `truth_bins` and `measured_bins`.
+  - `selection.as_selection` is private: it was an internal helper.
 - **Breaking:** options after a method's primary arguments are keyword-only, so a
   positional call means the same on sibling methods (`check(True)` set `strict` on one
   result type and `kkt_max` on the other). This covers the result and per-object methods

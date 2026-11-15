@@ -35,7 +35,7 @@ z_obs, z_err = mock.measurements["mean"], mock.measurements["sigma"]
 probability of the measurement if the true value lay in each bin.
 
 ```{code-cell} python
-lk = binference.Likelihoods.from_gaussian(z_obs, z_err, bins)
+lk = binference.Likelihoods.from_gaussian(z_obs, bins, z_err)
 lk
 ```
 

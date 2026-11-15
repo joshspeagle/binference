@@ -115,7 +115,7 @@ def _samples(S: int):
     def build(rng):
         bins = Bins.linear(0.0, 1.0, 20)
         rho = _bimodal(bins)
-        m = mock_1d(1000, bins, density=rho, noise=1 / 20, n_samples=S, rng=rng)
+        m = mock_1d(1000, bins, density=rho, noise=1 / 20, samples_per_object=S, rng=rng)
         return Likelihoods.from_samples(m.samples, bins, interim="flat"), rho
 
     return build

@@ -68,7 +68,7 @@ bins = binference.Bins.linear(0.0, 3.0, 10)
 basis = binference.Basis(bins, order=1, resolution=4)
 mock = binference.simulate.mock_1d(500, bins, rng=1)
 lk = binference.Likelihoods.from_gaussian(
-    mock.measurements["mean"], mock.measurements["sigma"], basis
+    mock.measurements["mean"], basis, mock.measurements["sigma"]
 )
 res = binference.infer(lk, binference.priors.LogisticRandomWalk(order=2), method="map")
 print(lk.K, basis.C, res.rho.shape)   # 40 components, reported in 10 bins

@@ -30,14 +30,14 @@ def test_rtol_outside_zero_to_one_is_refused(lk):
 
 def test_gaussian_means_of_the_wrong_shape_are_refused():
     with pytest.raises(ValueError, match="mean must have shape"):
-        Likelihoods.from_gaussian(np.full((3, 2), 0.5), 0.1, Bins.linear(0, 1, 4))
+        Likelihoods.from_gaussian(np.full((3, 2), 0.5), Bins.linear(0, 1, 4), 0.1)
 
 
 def test_an_ambiguous_sigma_is_refused():
     grid = Bins.grid(np.linspace(0, 1, 4), np.linspace(0, 1, 4))
     with pytest.raises(ValueError, match="ambiguous"):
-        Likelihoods.from_gaussian(np.full((2, 2), 0.5), [0.1, 0.3], grid)
-    lk = Likelihoods.from_gaussian(np.full((2, 2), 0.5), [[0.1, 0.3]], grid)
+        Likelihoods.from_gaussian(np.full((2, 2), 0.5), grid, [0.1, 0.3])
+    lk = Likelihoods.from_gaussian(np.full((2, 2), 0.5), grid, [[0.1, 0.3]])
     np.testing.assert_allclose(lk.meta["gaussian_sigma"], [[0.1, 0.3], [0.1, 0.3]])
 
 
@@ -86,7 +86,7 @@ def test_compress_keeps_sparse_storage_and_always_copies():
 
 def test_broad_gaussians_give_flat_rows():
     with pytest.warns(InputWarning, match="outside the bins"):
-        lk = Likelihoods.from_gaussian([0.5], [1e8], Bins.linear(0, 1, 4))
+        lk = Likelihoods.from_gaussian([0.5], Bins.linear(0, 1, 4), [1e8])
     np.testing.assert_allclose(lk.toarray(), 1.0, rtol=1e-14)
 
 
@@ -100,7 +100,7 @@ def test_grid_explains_a_two_dimensional_array():
 def test_fractional_weights_reach_every_constructor():
     with pytest.warns(InputWarning, match="pseudo-likelihood"):
         lk = Likelihoods.from_gaussian(
-            [0.3, 0.6], 0.1, Bins.linear(0, 1, 4), weights=[0.5, 1.5], fractional_weights=True
+            [0.3, 0.6], Bins.linear(0, 1, 4), 0.1, weights=[0.5, 1.5], fractional_weights=True
         )
     assert lk.W == 2.0
 
@@ -116,7 +116,7 @@ def test_scipy_gaussians_keep_precision_near_the_mean_too():
 
 
 def test_a_scalar_gaussian_is_one_object():
-    assert Likelihoods.from_gaussian(0.5, 0.1, Bins.linear(0, 1, 4)).N == 1
+    assert Likelihoods.from_gaussian(0.5, Bins.linear(0, 1, 4), 0.1).N == 1
 
 
 def test_sparse_likelihoods_compress_rounded_rows_as_dense_ones_do():
@@ -142,7 +142,7 @@ def test_likelihoods_copy_broadcast_weights_rather_than_view_them():
 
 def test_huge_sigmas_keep_finite_rows():
     with pytest.warns(InputWarning, match="outside the bins"):
-        lk = Likelihoods.from_gaussian([0.5], [1e17], Bins.linear(0, 1, 4))
+        lk = Likelihoods.from_gaussian([0.5], Bins.linear(0, 1, 4), [1e17])
     np.testing.assert_allclose(lk.toarray(), 1.0)
 
 

@@ -94,7 +94,7 @@ weights (uncompressed rows) when you need draws for individual objects.
 For **new** objects that were not used in the fit:
 
 ```python
-new = binference.Likelihoods.from_gaussian(np.array([1.0, 2.5]), np.array([0.3, 0.3]), bins)
+new = binference.Likelihoods.from_gaussian(np.array([1.0, 2.5]), bins, np.array([0.3, 0.3]))
 print(result.log_predictive(new).round(3))     # log p(d_new | D), for model comparison
 ```
 

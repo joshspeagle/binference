@@ -61,7 +61,7 @@ $N_\star S_k\lambda_k$. The products $N_\star S_k$ exceed one, so pass them as a
 exposure.
 
 ```{code-cell} python
-lk = binference.Likelihoods.from_gaussian(obs_log_r, sigma, bins)
+lk = binference.Likelihoods.from_gaussian(obs_log_r, bins, sigma)
 fit = binference.infer(
     lk, binference.priors.GammaRates(shape=1.0, rate=1e-3),
     selection=binference.Selection(n_stars * completeness, "on_truth", scale="exposure"),
@@ -138,7 +138,7 @@ z_true = rng.uniform(ze[labels], ze[labels + 1])
 sig_z = 0.12
 z_obs = z_true + sig_z * rng.standard_normal(z_true.size)
 keep = z_obs < 1.6
-lk_z = binference.Likelihoods.from_gaussian(z_obs[keep], sig_z, zbins)
+lk_z = binference.Likelihoods.from_gaussian(z_obs[keep], zbins, sig_z)
 print(f"kept {keep.sum()} of {keep.size}")
 ```
 

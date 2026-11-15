@@ -209,7 +209,7 @@ def test_from_gaussian_exact_1d():
     bins = Bins([0.0, 0.3, 1.0, 1.2])
     mu = np.array([0.5, 0.1])
     sig = np.array([0.2, 0.05])
-    lk = Likelihoods.from_gaussian(mu, sig, bins)
+    lk = Likelihoods.from_gaussian(mu, bins, sig)
     e = bins.edges[0]
     mass = stats.norm.cdf(e[None, 1:], mu[:, None], sig[:, None]) - stats.norm.cdf(
         e[None, :-1], mu[:, None], sig[:, None]
@@ -223,7 +223,7 @@ def test_from_gaussian_exact_1d():
 def test_from_gaussian_far_tails_are_finite():
     bins = Bins.linear(0, 1, 5)
     with pytest.warns(InputWarning, match="outside the bins"):
-        lk = Likelihoods.from_gaussian([40.0], [0.1], bins)
+        lk = Likelihoods.from_gaussian([40.0], bins, [0.1])
     assert lk.meta["outside_fraction"][0] == 1.0
     assert np.all(np.isfinite(lk.log_scale))
     assert np.argmax(lk.toarray()[0]) == 4
@@ -233,22 +233,22 @@ def test_from_gaussian_2d_is_product():
     bins = Bins.grid([0, 0.5, 1.0], [0, 0.3, 1.0])
     mu = np.array([[0.2, 0.6]])
     sig = np.array([[0.1, 0.2]])
-    lk = Likelihoods.from_gaussian(mu, sig, bins)
-    ax = Likelihoods.from_gaussian(mu[:, 0], sig[:, 0], Bins([0, 0.5, 1.0])).toarray()[0]
-    ay = Likelihoods.from_gaussian(mu[:, 1], sig[:, 1], Bins([0, 0.3, 1.0])).toarray()[0]
+    lk = Likelihoods.from_gaussian(mu, bins, sig)
+    ax = Likelihoods.from_gaussian(mu[:, 0], Bins([0, 0.5, 1.0]), sig[:, 0]).toarray()[0]
+    ay = Likelihoods.from_gaussian(mu[:, 1], Bins([0, 0.3, 1.0]), sig[:, 1]).toarray()[0]
     expected = np.outer(ax, ay).ravel()
     np.testing.assert_allclose(lk.toarray()[0], expected / expected.max(), rtol=1e-9)
     # per-axis shared sigma broadcasts
-    lk2 = Likelihoods.from_gaussian(mu, np.array([0.1, 0.2]), bins)
+    lk2 = Likelihoods.from_gaussian(mu, bins, np.array([0.1, 0.2]))
     np.testing.assert_allclose(lk2.toarray(), lk.toarray())
     with pytest.raises(ValueError):
-        Likelihoods.from_gaussian(mu, [[0.0, 0.1]], bins)
+        Likelihoods.from_gaussian(mu, bins, [[0.0, 0.1]])
 
 
 def test_distributions_match_gaussian():
     bins = Bins([0.0, 0.3, 1.0, 1.2])
     mu, sig = np.array([0.5, 0.1]), np.array([0.2, 0.05])
-    a = Likelihoods.from_gaussian(mu, sig, bins)
+    a = Likelihoods.from_gaussian(mu, bins, sig)
     b = Likelihoods.from_density(
         [stats.norm(m, s) for m, s in zip(mu, sig, strict=True)], bins, kind="likelihood"
     )
@@ -275,7 +275,7 @@ def test_distributions_match_gaussian():
 def test_function_quadrature_converges():
     bins = Bins([0.0, 0.3, 1.0, 1.2])
     mu, sig = np.array([0.5, 0.1]), np.array([0.2, 0.05])
-    a = Likelihoods.from_gaussian(mu, sig, bins)
+    a = Likelihoods.from_gaussian(mu, bins, sig)
 
     def f(z):
         return stats.norm.logpdf(z[None, :], mu[:, None], sig[:, None])
@@ -440,6 +440,6 @@ def test_per_object_meta_follows_subsets_and_drops():
     with pytest.warns(InputWarning):
         lk = Likelihoods.from_samples(samples, bins, "flat", drop_empty=True, min_samples=1)
     assert lk.N == 2 and lk.meta["n_eff"].shape == (2,)
-    g = Likelihoods.from_gaussian(np.array([0.2, 0.5, 0.8]), 0.1, bins)
+    g = Likelihoods.from_gaussian(np.array([0.2, 0.5, 0.8]), bins, 0.1)
     assert g[1:].meta["gaussian_mean"].shape == (2, 1)
     assert "gaussian_mean" not in Likelihoods(np.ones((3, 5)), bins).compress().meta

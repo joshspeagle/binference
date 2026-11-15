@@ -62,7 +62,7 @@ mystnb:
       it and the likelihood, peaking near 1.4.
 ---
 fine = binference.Bins.linear(0, 3, 60)
-L = binference.Likelihoods.from_gaussian([1.9], [0.3], fine).toarray()[0]
+L = binference.Likelihoods.from_gaussian([1.9], fine, [0.3]).toarray()[0]
 unit = lambda m: m / (m.sum() * fine.volumes)  # noqa: E731  (masses to unit-area densities)
 fig, axes = plt.subplots(2, 1, sharex=True)
 fig.set_figheight(4.5)

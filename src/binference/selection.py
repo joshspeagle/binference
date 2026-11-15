@@ -48,7 +48,7 @@ from .density import _log_nonneg
 from .priors.logistic import _rw_differences
 from .warnings import ConvergenceWarning, InputWarning
 
-__all__ = ["SELECTION_MODES", "SELECTION_SCALES", "Selection", "as_selection"]
+__all__ = ["SELECTION_MODES", "SELECTION_SCALES", "Selection"]
 
 #: The values of ``Selection.mode``: how objects are selected.
 SELECTION_MODES = ("on_truth", "on_measurement", "combined")
@@ -226,7 +226,7 @@ class Selection(SetOnce):
         object.__setattr__(sel, "_recovered", injections.recovered)
         return sel
 
-    def draw(self, n: int, *, rng: RNGLike = None) -> np.ndarray:
+    def sample(self, n: int, *, rng: RNGLike = None) -> np.ndarray:
         """``(n, K)`` posterior draws of :math:`S` given the injections alone
         (independent Betas), floored at :data:`S_FLOOR` so that none underflows to zero.
 
@@ -259,7 +259,7 @@ class Selection(SetOnce):
     @classmethod
     def from_function(
         cls,
-        function: Callable[[np.ndarray], Any],
+        func: Callable[[np.ndarray], Any],
         bins: Bins,
         mode: str,
         *,
@@ -269,7 +269,7 @@ class Selection(SetOnce):
     ) -> Selection:
         """A selection given as a function of the true value, averaged over each bin.
 
-        ``function(z)`` returns the detection probability (or exposure) at
+        ``func(z)`` returns the detection probability (or exposure) at
         points ``z`` (shape ``(M,)`` in 1-D, ``(M, ndim)`` on grids, labels for
         categories). Each bin takes its average in the measure coordinate, the
         within-bin shape of the population, by adaptive
@@ -285,10 +285,10 @@ class Selection(SetOnce):
 
         Parameters
         ----------
-        function : callable
+        func : callable
             Detection probability or exposure at points ``z``.
         bins : Bins or Basis
-            Bins over which ``function`` is averaged.
+            Bins over which ``func`` is averaged.
         mode : {"on_measurement", "on_truth"}
             How selection enters the likelihood, as for :class:`Selection`.
         scale : {"probability", "exposure", "relative"}, optional
@@ -303,7 +303,7 @@ class Selection(SetOnce):
         _check_mode(mode)
         _check_values(np.ones(2), scale, "selection")  # the scale, before any quadrature
         basis = as_basis(bins)
-        values = _bin_average(function, basis.grid, tol=tol, max_depth=max_depth)[0]
+        values = _bin_average(func, basis.grid, tol=tol, max_depth=max_depth)[0]
         if basis.is_plain:
             return cls(values, mode, scale=scale)
         return _on_basis(cls(values, mode, scale=scale), basis, basis.grid_masses)
@@ -607,7 +607,7 @@ def _warn_if_steep(values: np.ndarray, bins: Bins) -> None:
         )
 
 
-def as_selection(selection: Any, mode: str | None, basis: Basis) -> Selection | None:
+def _as_selection(selection: Any, mode: str | None, basis: Basis) -> Selection | None:
     """Normalise user input: ``None``, a :class:`Selection`, a callable or an array plus mode.
 
     A raw array is checked for steep changes between neighbouring bins; a

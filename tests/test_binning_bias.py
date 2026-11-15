@@ -15,7 +15,7 @@ N = 5_000
 
 def _fit(z):
     mu = z + np.random.default_rng(0).normal(0, 0.1, z.size)
-    lk = Likelihoods.from_gaussian(mu, 0.1, BINS, warn_outside=False)
+    lk = Likelihoods.from_gaussian(mu, BINS, 0.1, warn_outside=False)
     return Gibbs(binference.PopulationModel(lk), n_chains=2, n_warmup=100, rng=0).run(200)
 
 
@@ -40,7 +40,7 @@ def test_inputs_without_their_measurements_need_build():
         res.binning_bias()
     with warnings.catch_warnings():  # other data than the fit's: the shift may be flagged
         warnings.simplefilter("ignore", binference.InputWarning)
-        check = res.binning_bias(lambda b: Likelihoods.from_gaussian(np.full(5, 0.5), 0.1, b))
+        check = res.binning_bias(lambda b: Likelihoods.from_gaussian(np.full(5, 0.5), b, 0.1))
     assert check.z.shape == (8,)
     cat = Gibbs(binference.PopulationModel(Likelihoods(np.ones((5, 3)))), n_warmup=5, rng=0)
     with pytest.raises(ValueError, match="grid bins"):
@@ -48,7 +48,7 @@ def test_inputs_without_their_measurements_need_build():
 
 
 def test_the_check_refuses_what_it_cannot_compare():
-    lk = Likelihoods.from_gaussian(np.linspace(0.05, 0.95, 40), 0.1, BINS, warn_outside=False)
+    lk = Likelihoods.from_gaussian(np.linspace(0.05, 0.95, 40), BINS, 0.1, warn_outside=False)
     res = Gibbs(binference.PopulationModel(lk), n_warmup=10, rng=0).run(20)
     with pytest.raises(ValueError, match="on the basis it is given"):
         res.binning_bias(lambda b: lk)  # the closure ignores the basis
@@ -66,7 +66,7 @@ def test_the_check_refuses_what_it_cannot_compare():
 
 
 def test_bins_without_spread_are_not_compared_and_inf_prints_as_inf():
-    lk = Likelihoods.from_gaussian(np.linspace(0.05, 0.6, 40), 0.05, BINS, warn_outside=False)
+    lk = Likelihoods.from_gaussian(np.linspace(0.05, 0.6, 40), BINS, 0.05, warn_outside=False)
     draws = np.random.default_rng(0).dirichlet(np.ones(8), 100)
     draws[:, -1] = 0.0  # no spread in the last bin
     draws /= draws.sum(1, keepdims=True)

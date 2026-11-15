@@ -131,17 +131,19 @@ arguments) in these ways only:
 
 - A change that breaks a call that worked before goes into a minor release (`0.4.0`),
   never a patch release (`0.3.1`).
-- A renamed or removed public name or argument keeps its old spelling working for at least
-  one minor release, with a `FutureWarning` that names the replacement.
 - Every breaking change has a CHANGELOG entry starting **Breaking:** that says how to
-  migrate: the argument value that restores the old behaviour, or why there is none.
+  migrate: the new name, the argument value that restores the old behaviour, or why there
+  is none.
+- Before 1.0 a rename takes effect at once, without keeping the old spelling.
 - Saved results from the previous minor release still load.
 
 Options after a function's primary arguments are keyword-only, and so is `rng`.
 `tests/test_api.py` checks `rng` on every public callable and the other options on the
 functions reviewed for 0.3.0; give a new function the same shape.
 
-After 1.0, the same rules apply with major releases in place of minor ones.
+From 1.0 on, the same rules apply with major releases in place of minor ones, and a
+renamed or removed name keeps its old spelling for one major release, with a
+`FutureWarning` that names the replacement.
 
 ## Releasing
 

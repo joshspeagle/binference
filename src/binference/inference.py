@@ -63,10 +63,10 @@ class Auto(Engine):
     target_ess : float
         Smallest bulk ESS that Gibbs's run length aims for and that Laplace's
         importance ESS must reach.
-    gibbs_max_missing : float
+    max_gibbs_missing : float
         Largest missing-information fraction for which Gibbs is chosen (0.98: an
         integrated autocorrelation time of 99 iterations).
-    nnz_limit : float
+    max_nnz : float
         Above this many stored likelihood entries Laplace is kept even when its check
         fails, rather than running NUTS.
     max_gibbs_draws : int
@@ -96,8 +96,8 @@ class Auto(Engine):
         model: PopulationModel,
         *,
         target_ess: float = 400.0,
-        gibbs_max_missing: float = 0.98,
-        nnz_limit: float = 2e7,
+        max_gibbs_missing: float = 0.98,
+        max_nnz: float = 2e7,
         max_gibbs_draws: int = 25_000,
         extend_target: float = 1.2,
         extend_max_factor: float = 3.0,
@@ -111,10 +111,10 @@ class Auto(Engine):
     ) -> None:
         super().__init__(model, rng=rng, progress=progress)
         self.target_ess = float(check_positive(target_ess, "target_ess"))
-        if not 0.0 <= gibbs_max_missing < 1.0:
-            raise ValueError(f"gibbs_max_missing must be in [0, 1); got {gibbs_max_missing}.")
-        self.gibbs_max_missing = float(gibbs_max_missing)
-        self.nnz_limit = float(check_positive(nnz_limit, "nnz_limit"))
+        if not 0.0 <= max_gibbs_missing < 1.0:
+            raise ValueError(f"max_gibbs_missing must be in [0, 1); got {max_gibbs_missing}.")
+        self.max_gibbs_missing = float(max_gibbs_missing)
+        self.max_nnz = float(check_positive(max_nnz, "max_nnz"))
         self.max_gibbs_draws = check_positive_integers(max_gibbs_draws, "max_gibbs_draws")[0]
         self.extend_target = float(check_positive(extend_target, "extend_target"))
         self.extend_max_factor = float(check_positive(extend_max_factor, "extend_max_factor"))
@@ -179,7 +179,7 @@ class Auto(Engine):
                     keep = est if not caught else None
                     self._map = keep, m.missing_information(est.value)  # component weights
                 f = self._map[1]
-                if f <= self.gibbs_max_missing:
+                if f <= self.max_gibbs_missing:
                     chains = kw.get("n_chains", _options(Gibbs)["n_chains"].default)
                     n = max(
                         _default_draws(Gibbs),
@@ -196,7 +196,7 @@ class Auto(Engine):
                 else:
                     left_out.append(
                         f"Gibbs would mix too slowly (missing information {f:.3f} > "
-                        f"gibbs_max_missing={self.gibbs_max_missing:g})"
+                        f"max_gibbs_missing={self.max_gibbs_missing:g})"
                     )
         out += [(key, "", None) for key in self._may_run if key != "gibbs"]
         if not out:  # only Gibbs takes the options, and a rule left it out
@@ -300,7 +300,7 @@ class Auto(Engine):
         below ``probe_ess_share`` of ``target_ess``.
         """
         failed = None, "the Laplace importance check failed"
-        big = self.model.likelihoods.nnz > self.nnz_limit  # kept whatever its check
+        big = self.model.likelihoods.nnz > self.max_nnz  # kept whatever its check
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             try:
@@ -320,7 +320,7 @@ class Auto(Engine):
         if self._passed(res):
             reason = "the Laplace importance check passed"
         elif big:
-            reason = f"more than {self.nnz_limit:.0e} likelihood entries"
+            reason = f"more than {self.max_nnz:.0e} likelihood entries"
         else:
             return failed
         for w in caught:
@@ -402,7 +402,7 @@ def infer(
     >>> rng = np.random.default_rng(1)
     >>> bins = binference.Bins.linear(0.0, 1.0, 5)
     >>> z = rng.uniform(0, 1, 300)
-    >>> lk = binference.Likelihoods.from_gaussian(z + rng.normal(0, 0.05, 300), 0.05, bins)
+    >>> lk = binference.Likelihoods.from_gaussian(z + rng.normal(0, 0.05, 300), bins, 0.05)
     >>> res = binference.infer(lk, rng=0)
     >>> res.mean.shape
     (5,)

@@ -100,7 +100,7 @@ def limit(target):
     with warnings.catch_warnings():  # the fractional weights warn; that is intended here
         warnings.simplefilter("ignore", binference.InputWarning)
         lk = binference.Likelihoods.from_gaussian(
-            d, np.full(d.size, sig), target, weights=w, fractional_weights=True,
+            d, target, np.full(d.size, sig), weights=w, fractional_weights=True,
             warn_outside=False,
         )
         return binference.infer(lk, method="map")  # flat Dirichlet: the maximum-likelihood fit

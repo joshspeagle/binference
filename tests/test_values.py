@@ -100,7 +100,7 @@ def test_correlated_gaussians_draw_jointly_within_the_box():
 
 
 def test_only_inputs_without_within_bin_information_warn():
-    gauss = Likelihoods.from_gaussian(MU, SD, BINS)
+    gauss = Likelihoods.from_gaussian(MU, BINS, SD)
     with pytest.warns(binference.InputWarning, match=r"\(table\) keep no information"):
         _draw(Likelihoods.from_table(gauss.values, BINS, kind="likelihood"))
     samples = np.random.default_rng(0).normal(0.5, 0.1, (3, 500))
@@ -238,7 +238,7 @@ def test_loglike_values_need_support_in_the_bin_and_call_loglike_once_per_object
 
 def test_sample_values_follow_the_likelihood_within_bins():
     bins = Bins([0.0, 0.5, 1.0])
-    lk = Likelihoods.from_gaussian(np.array([0.26, 0.7]), np.array([0.02, 0.3]), bins)
+    lk = Likelihoods.from_gaussian(np.array([0.26, 0.7]), bins, np.array([0.02, 0.3]))
     res = PopulationResult(PopulationModel(lk), np.tile([0.5, 0.5], (400, 1)), method="test")
     v = res.sample_values(rng=1)
     assert v[:, 0].mean() == pytest.approx(0.26, abs=0.005)

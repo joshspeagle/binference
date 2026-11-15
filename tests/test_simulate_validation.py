@@ -44,7 +44,7 @@ def test_mock_1d_posteriors_round_trip():
 
 
 def test_mock_1d_samples():
-    mock = mock_1d(50, interim="gaussian", n_samples=300, rng=3)
+    mock = mock_1d(50, interim="gaussian", samples_per_object=300, rng=3)
     assert mock.samples.shape == (50, 300)
     lk = Likelihoods.from_samples(mock.samples, mock.bins, mock.interim)
     # histogrammed likelihoods correlate with the exact ones
@@ -61,7 +61,7 @@ def test_mock_1d_posteriors_and_samples_follow_the_interim_prior_given(kind):
     else:
         interim = Pi = np.arange(1.0, 7.0)  # masses: flat within each bin
     Pi = Pi / Pi.sum()
-    mock = mock_1d(200, bins, noise=(0.1, 0.4), interim=interim, n_samples=200, rng=8)
+    mock = mock_1d(200, bins, noise=(0.1, 0.4), interim=interim, samples_per_object=200, rng=8)
     np.testing.assert_allclose(mock.interim, Pi, rtol=1e-6)
     post = mock.likelihoods.toarray() * Pi
     np.testing.assert_allclose(mock.posteriors, post / post.sum(1, keepdims=True), rtol=1e-6)
@@ -84,7 +84,7 @@ def test_mock_1d_samples_weigh_each_grid_step_by_its_width_on_unequal_bins():
     # without an interim prior the samples follow the likelihood, flat in u (here z); a
     # narrow bin's 50 steps are short and must carry little mass
     bins = Bins([0.0, 0.1, 3.0])
-    mock = mock_1d(200, bins, density=[0.5, 0.5], noise=1.0, n_samples=500, rng=0)
+    mock = mock_1d(200, bins, density=[0.5, 0.5], noise=1.0, samples_per_object=500, rng=0)
     obs, sig = mock.measurements["mean"], mock.measurements["sigma"]
     cdf = stats.norm.cdf((bins.edges[0][:, None] - obs) / sig)
     p = (cdf[1] - cdf[0]) / (cdf[2] - cdf[0])  # each object's posterior mass in bin 0
@@ -99,7 +99,7 @@ def test_mock_samples_are_flat_in_the_measure_coordinate_within_bins(interim):
     # (and Density.flat(), the default) flat in u: on log bins from_samples was biased
     bins = Bins.log(1.0, 10.0, 5)
     Pi = binference.Density.flat().masses(bins) if interim is None else interim
-    mock = mock_1d(300, bins, noise=(1, 2), interim=interim, n_samples=2000, rng=0)
+    mock = mock_1d(300, bins, noise=(1, 2), interim=interim, samples_per_object=2000, rng=0)
     np.testing.assert_allclose(mock.interim, Pi)
     # each object's posterior mass per bin: Pi_k times its likelihood averaged over u
     p = mock.likelihoods.toarray() * Pi
@@ -418,7 +418,7 @@ def test_sbc_ranks_rates_for_rate_models():
         lam = rng.gamma(20.0, 1.0, size=3)
         n = rng.poisson(lam)
         z = np.concatenate([rng.uniform(k / 3, (k + 1) / 3, c) for k, c in enumerate(n)])
-        lk = Likelihoods.from_gaussian(z + 0.05 * rng.standard_normal(z.size), 0.05, bins)
+        lk = Likelihoods.from_gaussian(z + 0.05 * rng.standard_normal(z.size), bins, 0.05)
         return lk, lam
 
     def fit(lk, rng):

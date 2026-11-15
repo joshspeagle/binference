@@ -60,7 +60,7 @@ edges = bins.edges[0]
 rho_true = 0.4 * np.diff(stats.norm.cdf(edges, 2.5, 0.7))
 rho_true[bins.index(0.0)] += 0.6
 rho_true /= rho_true.sum()             # the Gaussian's tails beyond the grid are dropped
-lk = binference.Likelihoods.from_gaussian(d, sigma, bins)
+lk = binference.Likelihoods.from_gaussian(d, bins, sigma)
 ```
 
 ## The NPMLE and the posterior of the population

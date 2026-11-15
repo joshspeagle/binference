@@ -546,3 +546,4 @@ Append-only. One entry per working session (or per step within a long session).
 - #77 (PR #255) merged.
 - #238: the API review found sibling methods reading one positional call differently (`check(True)`, `which`); options after the primary arguments are keyword-only (DECISIONS #148), the breaking-change policy is in `CONTRIBUTING.md`, and the proposed renames wait for Josh in `QUESTIONS.md`.
 - #238 (PR #256) merged. Left before 0.3.0: Josh's call on the renames in `QUESTIONS.md`, and #239 (docs pass and release), which waits for Josh's go-ahead to tag and his Zenodo set-up.
+- #257: Josh approved the review's renames and ruled out shims while the package is alpha; they land directly (DECISIONS #149), and the policy now starts the `FutureWarning` period at 1.0.
