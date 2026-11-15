@@ -137,8 +137,9 @@ arguments) in these ways only:
   migrate: the argument value that restores the old behaviour, or why there is none.
 - Saved results from the previous minor release still load.
 
-Options after a function's primary arguments are keyword-only, and so is `rng`;
-`tests/test_api.py` checks both.
+Options after a function's primary arguments are keyword-only, and so is `rng`.
+`tests/test_api.py` checks `rng` on every public callable and the other options on the
+functions reviewed for 0.3.0; give a new function the same shape.
 
 After 1.0, the same rules apply with major releases in place of minor ones.
 

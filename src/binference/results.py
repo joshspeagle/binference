@@ -551,7 +551,7 @@ class _IndividualMixin:
         )
 
     def realized_counts(
-        self, n_draws: int | None = N_DRAWS, *, rng: RNGLike = None, full: bool = False
+        self, *, n_draws: int | None = N_DRAWS, rng: RNGLike = None, full: bool = False
     ) -> np.ndarray:
         """Draws of the realised histogram of the observed objects' true bins.
 

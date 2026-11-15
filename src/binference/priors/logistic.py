@@ -359,7 +359,7 @@ class LogisticNormal(PopulationPrior):
         (inferred) when ``cov`` is ``None`` and to ``Fixed(1.0)`` otherwise.
     """
 
-    def __init__(self, mean: Any = None, *, cov: Any = None, scale: Any = None) -> None:
+    def __init__(self, mean: Any = None, cov: Any = None, *, scale: Any = None) -> None:
         self.mean = _check_mean(mean)
         self.cov = cov
         # basis and scales of a covariance matrix, or None (i.i.d. with a common variance)

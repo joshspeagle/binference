@@ -1291,8 +1291,11 @@ def test_bootstrap_replicates_are_optimal_for_their_own_weights(monkeypatch, see
     assert max(gaps) < 1e-5
 
 
-@pytest.mark.parametrize("option", ["n_warmup", "jitter"])
-def test_nuts_refuses_a_nan_warm_up_length_or_jitter(option):
-    # NaN passed the old `value < 0` check
-    with pytest.raises(ValueError, match=f"{option} must be finite"):
-        NUTS(PopulationModel(Likelihoods(np.eye(2))), **{option: np.nan})
+@pytest.mark.parametrize(
+    ("option", "value", "message"),
+    [("n_warmup", np.nan, "finite"), ("jitter", np.nan, "finite"), ("n_warmup", 10.5, "whole")],
+)
+def test_nuts_refuses_a_nan_or_fractional_warm_up_and_a_nan_jitter(option, value, message):
+    # NaN passed the old `value < 0` check, and a fraction was truncated
+    with pytest.raises(ValueError, match=f"{option} must be .*{message}"):
+        NUTS(PopulationModel(Likelihoods(np.eye(2))), **{option: value})

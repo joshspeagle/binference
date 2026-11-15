@@ -23,11 +23,15 @@ changes" section sets out.
 
 - **Breaking:** options after a method's primary arguments are keyword-only, so a
   positional call means the same on sibling methods (`check(True)` set `strict` on one
-  result type and `kkt_max` on the other). This covers the result and per-object methods,
-  `PointEstimate.laplace`, `Likelihoods.with_weights` and `stack`, `PopulationModel`'s
-  methods, `exact_posterior`, `SBCResult.passed`, `simulate.population`,
-  `plot_individual`, `plot_sbc`, the logistic priors and `Bins(mask=)`; and `rng` everywhere a user passes it. Passing one of these by
-  position raises a `TypeError`; pass it by name.
+  result type and `kkt_max` on the other). This covers the result and per-object methods
+  (`realized_counts` takes only keywords), `PointEstimate.laplace`,
+  `Likelihoods.with_weights` and `stack`, `PopulationModel`'s methods, `exact_posterior`,
+  `SBCResult.passed`, `simulate.population`, `plot_individual`, `plot_sbc`,
+  `LogisticRandomWalk`, `LogisticGP`, `LogisticNormal` after `cov`, and `Bins(mask=)`;
+  and `rng` everywhere a user passes it. Passing one of these by position raises a
+  `TypeError`; pass it by name.
+- `NUTS` refuses a NaN `n_warmup` or `jitter` and a fractional `n_warmup`, which it
+  truncated.
 - NUTS uses a dense metric for logistic priors up to 500 dimensions (from 200), and
   starts it from the curvature at every chain's position. With `LogisticGP`'s default
   basis, two chains and one thread each, this cut the time per fit by two to five times

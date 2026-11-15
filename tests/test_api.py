@@ -20,6 +20,8 @@ from binference import (
     simulate,
     validation,
 )
+from binference.priors.base import BoundPrior
+from binference.priors.hyper import Hyperprior
 
 from .conftest import ignore_few_recoveries, selection_mock
 
@@ -221,7 +223,7 @@ POSITIONAL = {
     R.assignment_probabilities_loo: ["idx"],
     R.sample_assignments: ["idx"],
     R.sample_values: ["idx"],
-    R.realized_counts: ["n_draws"],
+    R.realized_counts: [],
     R.predict_proba: ["likelihoods"],
     R.log_predictive: ["likelihoods"],
     L.with_weights: ["weights"],
@@ -234,7 +236,7 @@ POSITIONAL = {
     simulate.population: ["bins", "density"],
     plotting.plot_individual: ["result", "i", "ax"],
     plotting.plot_sbc: ["sbc_result"],
-    priors.LogisticNormal: ["mean"],
+    priors.LogisticNormal: ["mean", "cov"],
     priors.LogisticRandomWalk: ["order"],
     priors.LogisticGP: ["kernel"],
 }
@@ -254,24 +256,30 @@ def test_options_after_the_primary_arguments_are_keyword_only(func):
 
 
 def _public_callables():
+    """Every public function, class and method (inherited ones too) in each `__all__`."""
     for module in ("", ".priors", ".engines", ".simulate", ".validation", ".plotting", ".io"):
         mod = importlib.import_module(f"binference{module}")
         for name in mod.__all__:
             obj = getattr(mod, name)
-            if inspect.isclass(obj) and issubclass(obj, Exception):
+            if not callable(obj) or (inspect.isclass(obj) and issubclass(obj, Exception)):
                 continue
             yield obj
             if inspect.isclass(obj):
-                yield from (getattr(obj, k) for k in vars(obj) if not k.startswith("_"))
+                for attr, member in inspect.getmembers(obj, callable):
+                    # the sample(n, rng) protocol prior authors implement is exempt (#238)
+                    protocol = attr in ("sample", "posterior_sample", "vb_sample") and issubclass(
+                        obj, (BoundPrior, Hyperprior)
+                    )
+                    if not attr.startswith("_") and not protocol:
+                        yield member
 
 
 def test_no_public_callable_takes_rng_by_position():
-    # the protocol prior authors implement, sample(n, rng) and kin, is exempt (#238)
-    funcs = [
-        f
-        for f in _public_callables()
-        if callable(f)
-        and not f.__module__.startswith(("binference.priors.base", "binference.priors.hyper"))
-    ]
+    funcs = list(_public_callables())
     assert len(funcs) > 100
     assert [f.__qualname__ for f in funcs if "rng" in _positional(f)] == []
+
+
+def test_argument_checks_name_the_argument_even_for_ragged_input():
+    with pytest.raises(ValueError, match="x must be finite"):
+        binference._utils.check_positive([[1.0], [1.0, 2.0]], "x")
