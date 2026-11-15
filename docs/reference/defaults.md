@@ -40,8 +40,7 @@ explain behaviour, not as settings to change.
 | `EIGEN_FLOOR` | `1e-08` | `binference.engines.laplace` | Eigenvalues of a Hessian that is not positive definite are raised to this times the largest (at least one). |
 | `_TARGET_ACCEPT` | `0.8` | `binference.engines.nuts` | `target_accept` when it is `None`, except for logistic priors. |
 | `_TARGET_ACCEPT_LOGISTIC` | `0.9` | `binference.engines.nuts` | `target_accept` for logistic priors when it is `None`. |
-| `_DENSE_MAX_DIM` | `200` | `binference.engines.nuts` | `metric="auto"` is dense for logistic priors up to this many dimensions, and up to this many the warm-up curvature is averaged over every chain's point, not taken at one. |
-| `_HESSIAN_MAX_DIM` | `500` | `binference.engines.nuts` | Up to this many dimensions, warm-up starts a logistic prior's metric from the curvature early in warm-up, at the chains' positions (at one chain's above `_DENSE_MAX_DIM`). |
+| `_DENSE_MAX_DIM` | `500` | `binference.engines.nuts` | Up to this many dimensions, `metric="auto"` is dense for logistic priors and warm-up starts their metric from the curvature averaged over every chain's position; above it, the metric is diagonal and the centring weights come from one chain's curvature. |
 | `_CENTRING_MAX_SD` | `0.28` | `binference.engines.nuts` | Logistic priors stay non-centred when the median spread of the modes' log-scales given the field exceeds this. |
 | `_GEOMETRY_ITER` | `25` | `binference.engines.nuts` | Warm-up iteration of the partial centring of logistic priors, or the first slow window's start if that is earlier. |
 | `_DUAL_AVERAGING` | `(10, 0.05, 0.75)` | `binference.engines.nuts` | `t0`, `gamma` and `kappa` of the dual-averaging step-size adaptation. |

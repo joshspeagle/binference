@@ -25,12 +25,10 @@ __all__ = ["NUTS"]
 _TARGET_ACCEPT = 0.8
 #: ``target_accept`` for logistic priors when it is ``None``.
 _TARGET_ACCEPT_LOGISTIC = 0.9
-#: ``metric="auto"`` is dense for logistic priors up to this many dimensions, and up to
-#: this many the warm-up curvature is averaged over every chain's point, not taken at one.
-_DENSE_MAX_DIM = 200
-#: Up to this many dimensions, warm-up starts a logistic prior's metric from the curvature
-#: early in warm-up, at the chains' positions (at one chain's above ``_DENSE_MAX_DIM``).
-_HESSIAN_MAX_DIM = 500
+#: Up to this many dimensions, ``metric="auto"`` is dense for logistic priors and warm-up
+#: starts their metric from the curvature averaged over every chain's position; above it,
+#: the metric is diagonal and the centring weights come from one chain's curvature.
+_DENSE_MAX_DIM = 500
 # Partial centring re-creates a funnel when the field itself pins the scale
 # hyperparameters down poorly (few modes per hyperparameter). In validation runs 0.28
 # separated K <= 6, N <= 40 (0.33-0.62; divergences when centred) from K >= 10
@@ -276,14 +274,14 @@ class NUTS(MarkovEngine):
         evaluations per draw).
     metric : {"auto", "diag", "dense"}
         Adapted Euclidean metric. ``"auto"`` uses a dense metric for logistic
-        (smoothness) priors with at most 200 unconstrained dimensions, whose
+        (smoothness) priors with at most 500 unconstrained dimensions, whose
         hyperparameters correlate with the field, and a diagonal one otherwise.
     reparametrize : bool
         Partially centre the basis coefficients of logistic priors during warm-up.
         For logistic priors, switch each basis coefficient between the
         non-centred and centred forms according to how strongly the data
         constrain it (partial non-centring with weights ``1 / -H_jj`` from the
-        curvature early in warm-up, at one chain's position above 200 dimensions and at
+        curvature early in warm-up, at one chain's position above 500 dimensions and at
         every chain's below). If the field
         pins the hyperparameters down poorly (few basis coefficients per
         hyperparameter, e.g. a handful of bins), the coefficients stay
@@ -323,7 +321,7 @@ class NUTS(MarkovEngine):
     adaptation) the engine reparametrises the prior (``reparametrize``) and,
     for at most 500 dimensions, initialises the metric from the
     finite-difference curvature of the log posterior at the chains'
-    positions (at one chain's above 200 dimensions). Each later adaptation
+    positions. Each later adaptation
     window shrinks its estimate toward the previous window's metric, starting
     from that curvature-based one.
     Simplex and rate priors use Stan's windowed adaptation unchanged.
@@ -477,8 +475,8 @@ class NUTS(MarkovEngine):
         self.model = model
         fn = model.log_density_unconstrained_and_grad
         inv_m = None
-        if d <= _HESSIAN_MAX_DIM:
-            H = np.mean([fd_hessian(fn, x) for x in pts[:n_pts]], axis=0)
+        if d <= _DENSE_MAX_DIM:
+            H = np.mean([fd_hessian(fn, x) for x in pts], axis=0)
             cov = covariance_from_hessian(H)
             if cov is not None:
                 inv_m = cov if self.metric == "dense" else np.diag(cov).copy()
