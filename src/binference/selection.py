@@ -45,7 +45,7 @@ from ._utils import SetOnce, as_generator, check_positive, frozen, warn
 from .basis import Basis, as_basis
 from .bins import Bins
 from .density import _log_nonneg
-from .priors.logistic import _rw_precision
+from .priors.logistic import _rw_differences
 from .warnings import ConvergenceWarning, InputWarning
 
 __all__ = ["SELECTION_MODES", "SELECTION_SCALES", "Selection", "as_selection"]
@@ -437,7 +437,8 @@ def _logit_density(y: np.ndarray, injections: _Injections) -> tuple[float, np.nd
 def _logit_mode(y: np.ndarray, injections: _Injections) -> np.ndarray:
     """The mode of :func:`_logit_density` (strictly concave), by damped Newton steps from ``y``."""
     s, f = _beta_posterior(injections)
-    Q = _rw_precision(s.size, 2) / injections.smooth**2
+    D = _rw_differences(np.arange(s.size, dtype=float), 2)  # bin steps: tau_S is per bin
+    Q = D.T @ D / injections.smooth**2
     lp, g = _logit_density(y, injections)
     for _ in range(100):
         S = special.expit(y)

@@ -31,6 +31,7 @@ from .base import (
     PopulationPrior,
     _log_gamma_variates,
     _per_item,
+    _warn_if_equal_fractions,
 )
 
 __all__ = ["Dirichlet", "DirichletTree", "GeneralizedDirichlet", "PolyaTree"]
@@ -173,6 +174,13 @@ class Dirichlet(PopulationPrior):
         return _per_item(self.alpha, K, "alpha").astype(float)
 
     def bind(self, bins: Bins) -> _BoundDirichlet:
+        if self._base is None and (isinstance(self.alpha, str) or np.ndim(self.alpha) == 0):
+            _warn_if_equal_fractions(
+                "A Dirichlet with one concentration for every bin",
+                "Dirichlet.from_base_measure spreads the concentration by width; an array "
+                "alpha is used as given.",
+                bins,
+            )
         return _BoundDirichlet(self, bins, self.resolve_alpha(bins))
 
     def describe(self, bins: Bins, counts: Any = None) -> str:

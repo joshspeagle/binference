@@ -156,6 +156,7 @@ def test_representation_warning_on_unequal_bins():
         Likelihoods.from_table(dens, bins, interim="flat", representation="mass")
 
 
+@pytest.mark.filterwarnings("ignore:A Dirichlet with one concentration:binference.InputWarning")
 def test_unequal_bins_representation_matters():
     """Unequal bins: the right representation recovers the population, the wrong one biases it."""
     rng = np.random.default_rng(0)

@@ -22,6 +22,7 @@ mode is dropped wherever it is explicit.
 from __future__ import annotations
 
 import copy
+import math
 from collections.abc import Sequence
 from typing import Any
 
@@ -31,7 +32,7 @@ from scipy import special
 from .._simplex import helmert_basis, softmax
 from .._utils import check_positive, check_positive_integers, warn
 from ..bins import Bins
-from ..density import Density
+from ..density import Density, _equal_volumes
 from ..warnings import InputWarning
 from .base import BoundPrior, PopulationPrior
 from .hyper import Fixed, HalfNormal, Hyperprior, InverseGamma, LogNormal, as_hyperprior
@@ -78,9 +79,8 @@ class _KronBasis:
         return t.reshape(self.J)
 
 
-def _orthonormal_polys(n: int, degree: int) -> np.ndarray:
-    """Orthonormal basis of polynomials of degree < ``degree`` on 0..n-1 (columns)."""
-    x = np.arange(n, dtype=float)
+def _orthonormal_polys(x: np.ndarray, degree: int) -> np.ndarray:
+    """Orthonormal basis of polynomials of degree < ``degree`` at the points ``x`` (columns)."""
     x = (x - x.mean()) / max(1.0, x.std())
     P = np.stack([x**p for p in range(degree)], axis=1)
     q, _ = np.linalg.qr(P)
@@ -89,29 +89,58 @@ def _orthonormal_polys(n: int, degree: int) -> np.ndarray:
     return q
 
 
-def _rw_precision(n: int, order: int) -> np.ndarray:
-    """The 1-D random-walk precision ``D_r^T D_r`` of the ``order``-th differences."""
+def _rw_steps(u_edges: np.ndarray) -> np.ndarray:
+    """Bin centres in ``u``, in units of their mean spacing: the random walk's positions.
+
+    Bins of equal width give exactly ``0, 1, ..., K - 1``.
+    """
+    n = len(u_edges) - 1
+    if n < 2 or _equal_volumes(np.diff(u_edges)):
+        return np.arange(n, dtype=float)
+    c = 0.5 * (u_edges[1:] + u_edges[:-1])
+    return (c - c[0]) / ((c[-1] - c[0]) / (n - 1))
+
+
+def _rw_differences(x: np.ndarray, order: int) -> np.ndarray:
+    """The random walk's difference matrix ``D`` at positions ``x``.
+
+    Row ``i`` is ``order!`` times the ``order``-th divided difference over
+    ``x[i]..x[i+order]``, weighted by ``sqrt((x[i+order] - x[i]) / order)``: on unit spacing
+    this is ``np.diff`` of that order, and an increment's variance grows with its span.
+    """
+    n = x.size
     if n <= order:
         raise ValueError(f"A random walk of order {order} needs more than {order} bins per axis.")
-    D = np.diff(np.eye(n), n=order, axis=0)
-    return D.T @ D
+    D = np.eye(n)
+    for k in range(1, order + 1):
+        D = (D[1:] - D[:-1]) / (x[k:] - x[:-k])[:, None]
+    span = x[order:] - x[:-order]
+    return D * (math.factorial(order) * np.sqrt(span / order))[:, None]
 
 
-def _rw_eigen(n: int, order: int) -> tuple[np.ndarray, np.ndarray]:
+def _rw_eigen(x: np.ndarray, order: int) -> tuple[np.ndarray, np.ndarray]:
     """Eigen-decomposition of the 1-D random-walk precision ``D_r^T D_r``.
 
     The first ``order`` eigenvectors are replaced by an explicit orthonormal
     polynomial basis of the null space (constant first), with eigenvalue 0.
     """
-    Q = _rw_precision(n, order)
-    _, U = np.linalg.eigh(Q)
-    null = _orthonormal_polys(n, order)
-    # project the non-null eigenvectors off the polynomial null space for safety
-    U_rest = U[:, order:]
-    U_rest = U_rest - null @ (null.T @ U_rest)
-    U_rest, _ = np.linalg.qr(U_rest)
-    U_rest = U_rest[:, : n - order]
-    eig_rest = np.sum(U_rest * (Q @ U_rest), axis=0)  # Rayleigh quotients
+    n = len(x)
+    if n <= order:
+        raise ValueError(f"A random walk of order {order} needs more than {order} bins per axis.")
+    null = _orthonormal_polys(x, order)
+    if np.array_equal(x, np.arange(n)):  # equal bins: as before, and faster than an SVD
+        Q = np.diff(np.eye(n), n=order, axis=0)
+        Q = Q.T @ Q
+        _, U = np.linalg.eigh(Q)
+        # project the non-null eigenvectors off the polynomial null space for safety
+        U_rest = U[:, order:]
+        U_rest = U_rest - null @ (null.T @ U_rest)
+        U_rest, _ = np.linalg.qr(U_rest)
+        U_rest = U_rest[:, : n - order]
+        eig_rest = np.sum(U_rest * (Q @ U_rest), axis=0)  # Rayleigh quotients
+    else:  # an SVD of D: the eigenvectors of D^T D square its condition number
+        _, s, Vt = np.linalg.svd(_rw_differences(x, order))
+        U_rest, eig_rest = Vt[: n - order].T, s[: n - order] ** 2
     return np.concatenate([np.zeros(order), eig_rest]), np.concatenate([null, U_rest], axis=1)
 
 
@@ -406,8 +435,10 @@ class LogisticRandomWalk(PopulationPrior):
     the surface :math:`xy` is unpenalised too (and :math:`x^2y^2` for
     ``order=3``).
 
-    Smoothness is measured per bin step, so the natural scale of ``scale``
-    depends on the binning.
+    Differences are taken at the bin centres in the measure coordinate :math:`u`, in units
+    of their mean spacing along each axis. On bins of equal width they are the differences
+    between adjacent bins. On unequal bins a step over a wider gap may be larger. The
+    natural size of ``scale`` depends on the number of bins per axis.
 
     Parameters
     ----------
@@ -423,9 +454,8 @@ class LogisticRandomWalk(PopulationPrior):
     trend_scale : float
         Prior size of the unpenalised polynomial trends. It is the standard
         deviation of the root-mean-square size, across the grid, of each such
-        mode (a linear trend of root-mean-square
-        size ``t`` changes the log-density by about ``3.5 t`` end to end),
-        whatever the number of bins.
+        mode. On bins of equal width, a linear trend of root-mean-square size ``t`` changes
+        the log-density by about ``3.5 t`` end to end, whatever their number.
     """
 
     def __init__(
@@ -445,7 +475,7 @@ class LogisticRandomWalk(PopulationPrior):
 
     def bind(self, bins: Bins) -> _BoundRandomWalk:
         _require_full_grid(bins)
-        per_axis = [_rw_eigen(n, self.order) for n in bins.shape]
+        per_axis = [_rw_eigen(_rw_steps(u), self.order) for u in bins.u_edges]
         basis = _KronBasis([U for _, U in per_axis])
         eig = np.zeros(1)
         null = np.ones(1, dtype=bool)
@@ -499,6 +529,10 @@ _KERNELS = {
     "matern32": (1.5, 2.2),
     "matern12": (0.5, 8.5),
 }
+#: Most basis functions of :class:`LogisticGP` per bin on each axis when ``n_basis`` is
+#: ``None``.
+_BASIS_PER_BIN = 4
+
 #: Most basis functions of :class:`LogisticGP` in all when ``n_basis`` is ``None``.
 _MAX_BASIS = 1024
 
@@ -539,10 +573,11 @@ class LogisticGP(PopulationPrior):
         a density flat in the measure coordinate: the GP acts on the
         log-density.
     n_basis : int or sequence, optional
-        Basis functions per axis. Default: one per bin, up to a total of 1024
-        (``min(K_d, floor(1024 ** (1 / D)))``: up to 1024 on 1-D grids, 32 per
-        axis on 2-D grids); increase it for shorter length scales, which also
-        lowers the default length-scale prior.
+        Basis functions per axis. By default, as many as the axis's narrowest bin fits
+        across its range in the measure coordinate: one per bin on bins of equal width. The
+        default is at most four per bin and 1024 in all (``floor(1024 ** (1 / D))`` per
+        axis: 1024 on 1-D grids, 32 per axis on 2-D grids). Raise it for shorter length
+        scales; that also lowers the default length-scale prior.
     boundary_factor : float
         Ratio of the approximation box to the grid half-width. With the default
         3, the centred covariance is within 4% of the exact kernel's for length
@@ -587,8 +622,13 @@ class LogisticGP(PopulationPrior):
     def bind(self, bins: Bins) -> _BoundGP:
         _require_full_grid(bins)
         D = bins.ndim
-        if self.n_basis is None:  # one per bin, at most _MAX_BASIS modes in all
-            nb = [min(n, int(_MAX_BASIS ** (1 / D) + 1e-9)) for n in bins.shape]
+        if self.n_basis is None:  # the narrowest bin's resolution, within the caps
+            cap = int(_MAX_BASIS ** (1 / D) + 1e-9)
+            widths = [np.diff(u) for u in bins.u_edges]
+            nb = [
+                min(cap, _BASIS_PER_BIN * w.size, int(np.ceil(w.sum() / w.min() - 1e-9)))
+                for w in widths
+            ]
         else:
             nb = list(check_positive_integers(self.n_basis, "n_basis", D))
         factors, omegas = [], []

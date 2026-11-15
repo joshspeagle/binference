@@ -21,7 +21,14 @@ from scipy import special
 
 from .._utils import check_positive
 from ..bins import Bins
-from .base import _TINY, BoundPrior, PopulationPrior, _log_gamma_variates, _per_item
+from .base import (
+    _TINY,
+    BoundPrior,
+    PopulationPrior,
+    _log_gamma_variates,
+    _per_item,
+    _warn_if_equal_fractions,
+)
 
 __all__ = ["GammaRates"]
 
@@ -59,6 +66,13 @@ class GammaRates(PopulationPrior):
         self.rate = rate
 
     def bind(self, bins: Bins) -> _BoundGammaRates:
+        if np.ndim(self.shape) == 0:
+            _warn_if_equal_fractions(
+                "GammaRates with one shape for every bin",
+                "Give shape one value per bin, in proportion to the bin widths, for a flat "
+                "density.",
+                bins,
+            )
         a = _per_item(self.shape, bins.K, "shape").astype(float)
         b = _per_item(self.rate, bins.K, "rate").astype(float)
         return _BoundGammaRates(self, bins, a, b)

@@ -5,6 +5,30 @@ All notable changes to binference are recorded here. The format follows
 [Semantic Versioning](https://semver.org/) (with the usual 0.x caveat that minor
 releases may break the API).
 
+## [Unreleased]
+
+### Added
+
+- `GeneralizedDirichlet.from_base_measure(concentration, base, order)` sets each stick's
+  Beta so that the prior mean is the base measure's bin masses, with the same
+  concentration `a + b` on every stick.
+
+### Changed
+
+- **Breaking:** `LogisticRandomWalk` takes its differences at the bin centres in the
+  measure coordinate, in units of their mean spacing, and its unpenalised trends are
+  polynomials in that coordinate. On bins of equal width in the measure coordinate
+  (`Bins.linear`, `Bins.log`) nothing changes; on unequal bins a step over a wider gap may
+  be larger. Results saved on unequal bins by 0.2 attach under the new prior.
+- **Breaking:** `LogisticGP` with `n_basis=None` gives each axis as many sines as its
+  narrowest bin fits across the axis, at most four per bin; on bins of equal width this is
+  one per bin, as before.
+- A `Dirichlet` with one concentration for every bin (a scalar `alpha`, the default, or
+  `Dirichlet.reference()`) raises an `InputWarning` on bins of unequal width in the measure
+  coordinate, where its prior mean is not a flat density, and points to
+  `Dirichlet.from_base_measure`. `GammaRates` with one `shape` for every bin warns there too.
+- `PolyaTree`'s error for a base measure with an empty bin reads as `Dirichlet`'s.
+
 ## [0.2.0] - 2026-11-07
 
 ### Added

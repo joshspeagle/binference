@@ -27,7 +27,10 @@ share that node's split, so they can vary together. The four priors differ only 
 shape of their tree.
 
 - **`Dirichlet(alpha)`** is a tree with one node. The {term}`Dirichlet prior` with every
-  {term}`concentration` $\alpha_k=1$ is uniform on the simplex and is the default. Its
+  {term}`concentration` $\alpha_k=1$ is uniform on the simplex and is the default. A
+  scalar $\alpha$ gives every bin the same concentration and the same prior mean
+  fraction. On bins of unequal width in the measure coordinate that is not a flat density.
+  Binding the prior there raises an `InputWarning` that points to `from_base_measure`. Its
   correlation between any two bins is $-1/(K-1)$ when the concentrations are equal,
   whatever their value. Explainer {ref}`explainer-v8` on the
   [concepts page](../concepts/priors-on-the-simplex.md#smoothness-priors) maps it beside
@@ -38,7 +41,8 @@ shape of their tree.
   - `Dirichlet.from_base_measure` makes $\alpha_k$ proportional to the bin masses of a
     base measure $G_0$. The default $G_0$ is flat in the measure coordinate, so
     $\alpha_k\propto v_k$ on linear bins. This prior stays consistent when bins are
-    merged; equal concentrations on unequal bins do not.
+    merged; equal concentrations on unequal bins do not. Narrow bins get $\alpha_k<1$, so
+    the prior density is unbounded at their zeros and the MAP leaves the simplex.
   - `Dirichlet.from_counts` encodes a reference sample with counts $n^{\rm ref}_k$ as
     $\alpha_k=1+\kappa\,n^{\rm ref}_k$ (with the default base of one). A weight
     $\kappa<1$ down-weights a reference that may not represent the population.
@@ -111,6 +115,11 @@ unchanged, so the constant mode is dropped wherever the basis contains it.
   covariance the components are independent, with an inferred common scale.
 - **`LogisticRandomWalk(order)`** makes the order-$r$ differences of $\eta$ between
   adjacent bins independent $\mathcal N(0,\tau^2)$ {cite:p}`rue2005`.
+  - Positions are the bin centres in the measure coordinate, $x_k$, in units of their mean
+    spacing along the axis. Row $i$ of $\mathcal D_r$ is $r!$ times the order-$r$ divided
+    difference over $x_i,\dots,x_{i+r}$, weighted by $\sqrt{(x_{i+r}-x_i)/r}$. On equal
+    spacing this is the plain difference of adjacent bins. On unequal spacing an
+    order-1 step has variance in proportion to its gap, as for Brownian motion in $u$.
   - The basis holds the eigenvectors of the difference precision $\mathcal D_r^\top\mathcal D_r$, with
     eigenvalues $e_j$ and scales $s_j=\tau/\sqrt{e_j}$.
   - The polynomial modes the differences do not penalise, such as the linear trend for
@@ -119,8 +128,8 @@ unchanged, so the constant mode is dropped wherever the basis contains it.
   - On grids of several dimensions the precision is the Kronecker sum of the per-axis
     precisions. Its unpenalised modes are the products of the per-axis ones, so for
     $r=2$ in two dimensions the surface $u_1u_2$ is not penalised either.
-  - Smoothness is measured per bin step, so the natural size of $\tau$ depends on the
-    binning.
+  - The unpenalised polynomials are polynomials in $x$, so a trend linear in $u$ is free
+    for $r=2$. The natural size of $\tau$ depends on the number of bins per axis.
 - **`LogisticGP(kernel)`** is a Hilbert-space reduced-rank Gaussian process
   {cite:p}`solin2020,riutortmayol2023`.
   - Let an axis have half-range $\Delta$ and centre $\bar u$ in the measure coordinate.
@@ -136,8 +145,9 @@ unchanged, so the constant mode is dropped wherever the basis contains it.
   - The prior on $\eta$ is stationary in the measure coordinate, such as $\log z$ on logarithmic
     bins. Grids of several dimensions use products of the per-axis sines.
   - The amplitude and one length scale per axis are inferred. By default there are
-    $n_{\rm basis}$ sines per axis, one per bin up to a total in the
-    [defaults](../reference/defaults.md#priors).
+    $n_{\rm basis}$ sines per axis: as many as the narrowest bin fits across the axis's
+    range in $u$, which is one per bin on bins of equal width, up to a number per bin and
+    a total in the [defaults](../reference/defaults.md#priors).
   - $n_{\rm basis}$ sines resolve length scales down to $f_{\rm ker}\,c_{\rm box}\Delta/n_{\rm basis}$,
     with a resolution factor $f_{\rm ker}$ per kernel from the
     [defaults](../reference/defaults.md#priors). The default length-scale prior keeps

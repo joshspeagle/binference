@@ -83,7 +83,7 @@ print({k: np.quantile(v, [0.16, 0.5, 0.84]).round(2)
 ```
 
 Ten sines per axis (`n_basis=10`) keep the fit small; the default, one sine per bin,
-would give 144 modes.
+on these equal bins, would give 144 modes.
 
 ```{code-cell} python
 ---

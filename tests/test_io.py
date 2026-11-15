@@ -210,6 +210,7 @@ def test_a_saved_result_keeps_integer_labels_and_hyperparameter_draws(tmp_path):
         np.testing.assert_array_equal(back.info["hyperparameters"][name], draws)
 
 
+@pytest.mark.filterwarnings("ignore:A Dirichlet with one concentration:binference.InputWarning")
 def test_a_reloaded_fit_on_a_transform_axis_attaches_without_a_basis(tmp_path):
     # the axis loads as a table, which compares unequal to the transform
     tb = Bins(np.linspace(0, 3, 7), measure=binference.Measure.transform(np.arcsinh, np.sinh))

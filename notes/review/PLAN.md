@@ -15,10 +15,10 @@ Each item is an issue labelled `0.3.0` and a sub-issue of #225. Stages 1 and 2 c
 | | #230 | Split `results.py` along its seams, if the split is clean (optional) | done (#246): no split, value drawing moved out |
 | | #231 | Public-repository hygiene: conduct, security, DOI, the old name | done (#247) |
 | 2 API and defaults | #204 | Derived totals under a flat Dirichlet | default kept (Josh); measuring the injection-selection bias |
-| | #232 | Every prior takes its geometry from the bins' measure | open |
+| | #232 | Every prior takes its geometry from the bins' measure | in review |
 | | #233 | Samples constructor: kind and smoothing | open |
-| | #234 | Selection draws: parameters only, or averaging as an opt-in | in review: no averaging (Josh) |
-| | #235 | `GeneralizedDirichlet` from a target mean; Pólya tree split points | in review |
+| | #234 | Selection draws: parameters only, or averaging as an opt-in | done (#249) |
+| | #235 | `GeneralizedDirichlet` from a target mean; Pólya tree split points | done (#250) |
 | 3 Samplers | #222 | NUTS on `LogisticGP` with large grids; ships if its acceptance is met, otherwise documented as a known limitation | open |
 | 4 Release | #77 | Golden values against mixsqp, REBayes and Empirikos, tried in a cloud session first | open |
 | | #238 | Review of the public API and the policy for breaking changes | open |

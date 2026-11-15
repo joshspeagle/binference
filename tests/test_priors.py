@@ -894,3 +894,69 @@ def test_a_generalized_dirichlet_from_a_base_measure_checks_its_arguments():
     assert repr(P.GeneralizedDirichlet.from_base_measure(2)) == repr(
         P.GeneralizedDirichlet.from_base_measure(2.0)
     )
+
+
+def test_a_first_order_random_walk_steps_in_the_measure_coordinate(seed):
+    # on bins unequal in u, a neighbour difference has variance in proportion to its spacing
+    edges = np.array([0.0, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2])
+    bins = Bins(edges)
+    prior = P.LogisticRandomWalk(order=1, scale=Fixed(1.0))
+    r = prior.bind(bins).sample(20_000, np.random.default_rng(seed))
+    log_density = np.log(r / np.diff(edges))
+    centres = 0.5 * (edges[1:] + edges[:-1])
+    ratio = np.var(np.diff(log_density, axis=1), axis=0) / np.diff(centres)
+    # each variance has a Monte Carlo error of about 1% (sqrt(2 / 20000))
+    np.testing.assert_allclose(ratio, np.mean(ratio), rtol=0.06)
+
+
+def test_a_second_order_random_walk_leaves_lines_in_u_unpenalised():
+    from binference.priors.logistic import _rw_differences, _rw_steps
+
+    x = _rw_steps(np.array([0.0, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2]))
+    D = _rw_differences(x, 2)
+    np.testing.assert_allclose(D @ np.ones(6), 0.0, atol=1e-12)
+    np.testing.assert_allclose(D @ x, 0.0, atol=1e-12)
+
+
+@pytest.mark.parametrize("order", [1, 2, 3])
+def test_a_random_walk_on_equal_bins_is_the_one_of_unit_steps(order):
+    from binference.priors.logistic import _rw_differences, _rw_steps
+
+    x = _rw_steps(Bins.log(1.0, 100.0, 9).u_edges[0])
+    np.testing.assert_array_equal(x, np.arange(9.0))
+    np.testing.assert_allclose(
+        _rw_differences(x, order), np.diff(np.eye(9), n=order, axis=0), atol=1e-12
+    )
+
+
+def test_a_random_walk_on_very_unequal_bins_has_finite_scales():
+    with pytest.warns(binference.InputWarning, match="geometrically spaced"):
+        bins = Bins(np.geomspace(1e-2, 1e4, 49))  # widths spanning six decades, linear axis
+    for order in (1, 2, 3):
+        bound = P.LogisticRandomWalk(order=order).bind(bins)
+        log_s, _ = bound.log_scales(np.ones(len(bound.hypers)))
+        assert np.all(np.isfinite(log_s))
+
+
+def test_a_dirichlet_with_one_concentration_warns_on_bins_of_unequal_width():
+    unequal = Bins([0.0, 0.1, 0.3, 1.0])
+    for prior in (P.Dirichlet(1.0), P.Dirichlet.reference()):
+        with pytest.warns(binference.InputWarning, match="from_base_measure"):
+            bound = prior.bind(unequal)
+        assert np.ptp(bound.alpha) == 0.0  # still one concentration for every bin
+    # equal widths, an array alpha or a base measure stay silent
+    P.Dirichlet(1.0).bind(Bins.linear(1000.0, 1001.0, 50))
+    P.Dirichlet([1.0, 2.0, 3.0]).bind(unequal)
+    P.Dirichlet.from_base_measure(3.0).bind(unequal)
+    with pytest.warns(binference.InputWarning, match="GammaRates"):
+        P.GammaRates(1.0).bind(unequal)
+    P.GammaRates([0.1, 0.2, 0.7]).bind(unequal)
+
+
+def test_the_default_gp_basis_resolves_the_narrowest_bin_up_to_four_per_bin():
+    # 0.25-wide bins on a range of 3 need 12 sines for 6 bins
+    assert P.LogisticGP().bind(Bins([0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0])).basis.J == 12
+    # 0.1-wide bins on a range of 3.2 would need 32: capped at 4 per bin, 24
+    assert P.LogisticGP().bind(Bins([0.0, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2])).basis.J == 24
+    # equal bins keep one per bin
+    assert P.LogisticGP().bind(Bins.log(1.0, 100.0, 16)).basis.J == 16

@@ -52,6 +52,7 @@ explain behaviour, not as settings to change.
 |---|---|---|---|
 | `_TINY` | `1e-300` | `binference.priors.base` | Floor of drawn fractions and rates, so that their logarithms stay finite. |
 | `_KERNELS` | `{'rbf': (None, 1.3), 'matern52': (2.5, 1.8), 'matern32': (1.5, 2.2), 'matern12': (0.5, 8.5)}` | `binference.priors.logistic` | Smoothness `nu` (`None` for the RBF) and resolution factor `f` of each kernel of `LogisticGP`: `m` sines resolve length scales down to `f` times the box half-width over `m`. |
+| `_BASIS_PER_BIN` | `4` | `binference.priors.logistic` | Most basis functions of `LogisticGP` per bin on each axis when `n_basis` is `None`. |
 | `_MAX_BASIS` | `1024` | `binference.priors.logistic` | Most basis functions of `LogisticGP` in all when `n_basis` is `None`. |
 
 ## Inputs
