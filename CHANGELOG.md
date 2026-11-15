@@ -25,7 +25,7 @@ releases may break the API).
   starts it from the curvature at every chain's position. With `LogisticGP`'s default
   basis this cuts the time per fit by two to five times on a 16 × 16 grid and about three
   on 20 × 20. Above 500 dimensions the metric is diagonal and starts from the identity.
-  The low E-BFMI of such fits remains, documented on the engines page.
+  Their low E-BFMI remains; the engines page documents it.
 - **Breaking:** `LogisticRandomWalk` takes its differences at the bin centres in the
   measure coordinate, in units of their mean spacing, and its unpenalised trends are
   polynomials in that coordinate. On bins of equal width in the measure coordinate

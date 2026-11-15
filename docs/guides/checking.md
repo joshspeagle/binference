@@ -61,7 +61,8 @@ hyperprior rather than ignore them.
 A low E-BFMI means that NUTS moves slowly through the energy distribution, so it may
 under-explore the tails. A longer warm-up or another prior may help; a higher
 `target_accept` does not. Otherwise compare the fit with a longer run before you rely
-on its tails.
+on its tails. `LogisticGP` fits on large grids have a low E-BFMI that a longer warm-up
+does not fix ([engines](../how-it-works/engines.md#partial-centring)).
 
 Problems with the inputs raise an `InputWarning` instead. Three are checked:
 

@@ -354,9 +354,7 @@ def test_step_size_adaptation_reaches_the_target_acceptance_on_a_standard_gaussi
     assert all(np.mean(a) >= 0.8 - 4 * mcse(np.asarray(a)) for a in acc)
 
 
-def test_above_the_dense_limit_warm_up_takes_one_chains_curvature_and_no_metric_start(
-    monkeypatch, seed
-):
+def test_above_the_dense_limit_the_warm_up_curvature_is_taken_at_one_chain(monkeypatch, seed):
     from binference.engines import nuts
 
     calls = []

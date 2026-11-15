@@ -281,12 +281,11 @@ class NUTS(MarkovEngine):
         For logistic priors, switch each basis coefficient between the
         non-centred and centred forms according to how strongly the data
         constrain it (partial non-centring with weights ``1 / -H_jj`` from the
-        curvature early in warm-up, at one chain's position above 500 dimensions and at
-        every chain's below). If the field
-        pins the hyperparameters down poorly (few basis coefficients per
-        hyperparameter, e.g. a handful of bins), the coefficients stay
-        non-centred, which avoids funnels. This changes the sampling
-        coordinates, not the posterior.
+        curvature early in warm-up, at the chains' positions; one chain's above
+        500 dimensions). If the field pins the hyperparameters down poorly (few
+        basis coefficients per hyperparameter, e.g. a handful of bins), the
+        coefficients stay non-centred, which avoids funnels. This changes the
+        sampling coordinates, not the posterior.
     init : array_like (K,), optional
         Positive fractions or rates to start from, as for the other engines; they
         are converted to one point in unconstrained coordinates
@@ -321,9 +320,8 @@ class NUTS(MarkovEngine):
     adaptation) the engine reparametrises the prior (``reparametrize``) and,
     for at most 500 dimensions, initialises the metric from the
     finite-difference curvature of the log posterior at the chains'
-    positions. Each later adaptation
-    window shrinks its estimate toward the previous window's metric, starting
-    from that curvature-based one.
+    positions. Each later adaptation window shrinks its estimate toward the
+    previous window's metric, starting from that curvature-based one.
     Simplex and rate priors use Stan's windowed adaptation unchanged.
 
     Results (``x``, ``log_density_unconstrained``, ``model``) are in the
@@ -454,18 +452,19 @@ class NUTS(MarkovEngine):
         chains = self._chains
         d = base.dim
         pts = [ch.x for ch in chains]
-        # curvature at every chain's position for small problems, one chain otherwise
-        n_pts = len(chains) if d <= _DENSE_MAX_DIM else 1
+        # up to the dense limit, curvature at every chain's position; above it, at one
+        small = d <= _DENSE_MAX_DIM
+        curv_pts = pts if small else pts[:1]
         model = base
         if self.reparametrize and prior0.n_active > 0:
             fn0 = base.log_density_unconstrained_and_grad
             n_act = prior0.n_active
             # only the field's diagonal curvature is needed here (audit N-10)
-            diag = np.mean([fd_hessian_diag(fn0, x, range(n_act)) for x in pts[:n_pts]], axis=0)
+            diag = np.mean([fd_hessian_diag(fn0, x, range(n_act)) for x in curv_pts], axis=0)
             gamma = np.clip(1.0 / np.maximum(-diag, 1.0), 0.0, 1.0)
             # one decision for all modes that share the hyperparameters: mixing centred
             # and non-centred modes under one length scale mixed worst in validation
-            sd_c = _conditional_log_scale_sd(base, prior0, pts[:n_pts])
+            sd_c = _conditional_log_scale_sd(base, prior0, curv_pts)
             scaled = sd_c > 0.0
             if np.any(scaled) and np.median(sd_c[scaled]) > _CENTRING_MAX_SD:
                 gamma[scaled] = 1.0
@@ -475,7 +474,7 @@ class NUTS(MarkovEngine):
         self.model = model
         fn = model.log_density_unconstrained_and_grad
         inv_m = None
-        if d <= _DENSE_MAX_DIM:
+        if small:
             H = np.mean([fd_hessian(fn, x) for x in pts], axis=0)
             cov = covariance_from_hessian(H)
             if cov is not None:
