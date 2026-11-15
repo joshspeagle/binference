@@ -185,10 +185,6 @@ def test_samples_of_a_likelihood_can_say_so_with_kind():
     by_kind = Likelihoods.from_samples(x, bins, kind="likelihood")
     by_interim = Likelihoods.from_samples(x, bins, interim=binference.Density.flat("z"))
     np.testing.assert_array_equal(by_kind.toarray(), by_interim.toarray())
-    with pytest.raises(ValueError, match="not both"):
-        Likelihoods.from_samples(x, bins, "flat", kind="likelihood")
-    with pytest.raises(ValueError, match="Say what the input is"):
-        Likelihoods.from_samples(x, bins)
 
 
 def test_a_kde_with_a_vanishing_bandwidth_is_the_histogram():

@@ -939,11 +939,9 @@ class Likelihoods:
         smooth : {"kde"}, optional
             Spread each sample over the bins by a Gaussian kernel in the measure coordinate,
             reflected at the ends of the range, instead of counting it in its bin (1-D bins
-            only). It helps on bins much narrower than the posteriors. It also widens each
-            posterior by the bandwidth, a bias that :meth:`sample_variance` does not measure,
-            and it blurs posteriors with several peaks. :meth:`sample_variance` and the
-            values drawn by :meth:`PopulationResult.sample_values` still use the samples
-            themselves.
+            only). The samples guide gives its measured gains and costs.
+            :meth:`sample_variance` and :meth:`PopulationResult.sample_values` still use the
+            samples themselves.
         bandwidth : float or "silverman", optional
             The kernel's standard deviation in the measure coordinate with ``smooth="kde"``:
             a number for every object, or Silverman's rule per object (the default).
@@ -988,12 +986,10 @@ class Likelihoods:
             raise ValueError("from_samples needs ordered (grid) bins.")
         if smooth not in (None, "kde"):
             raise ValueError(f"smooth must be None or 'kde'; got {smooth!r}.")
+        if bandwidth != "silverman" if isinstance(bandwidth, str) else np.ndim(bandwidth) != 0:
+            raise ValueError(f"bandwidth must be 'silverman' or one number; got {bandwidth!r}.")
         if not isinstance(bandwidth, str):
-            if np.ndim(bandwidth) != 0:
-                raise ValueError("bandwidth must be 'silverman' or one positive number.")
             check_positive(bandwidth, "bandwidth")
-        elif bandwidth != "silverman":
-            raise ValueError(f"bandwidth must be 'silverman' or a number; got {bandwidth!r}.")
         if smooth is None and bandwidth != "silverman":
             raise ValueError("bandwidth needs smooth='kde'.")
         if smooth is not None and (bins.ndim > 1 or bins.is_masked):
@@ -1044,19 +1040,22 @@ class Likelihoods:
         # scale each row to counts: sum_k S1_k Pi_k = number of samples inside, so the
         # floor is in pseudo-samples whatever the scale of sample_weights
         n_inside = np.bincount(rows, minlength=n_obj)
+
+        def to_counts(M):  # the row scale with sum_k M_k Pi_k = samples inside
+            tot = M @ Pi
+            return n_inside / np.where(tot > 0, tot, 1.0)
+
         S1 = sp.csr_array((s1 / du[ec], (er, ec)), shape=shape)
-        tot = S1 @ Pi
-        scale = n_inside / np.where(tot > 0, tot, 1.0)
+        scale = to_counts(S1)
         S1 = sp.diags_array(scale) @ S1
         S2 = sp.diags_array(scale**2) @ sp.csr_array((s2 / du[ec] ** 2, (er, ec)), shape=shape)
         if smooth is None:
             est = S1 if floor == 0 else S1.toarray() + floor  # proportional to bin averages
         else:  # kernel masses per bin in place of the counts; S1 and S2 keep the noise
             u = bins.measures[0].forward(flat[inside].reshape(-1))
-            est = _kde_masses(u, rows, w, n_obj, bins.u_edges[0], bandwidth)
-            est /= du
-            tot = est @ Pi
-            est *= (n_inside / np.where(tot > 0, tot, 1.0))[:, None]
+            h = _silverman(u, rows, w, n_eff) if bandwidth == "silverman" else bandwidth
+            est = _kde_masses(u, rows, w, n_obj, bins.u_edges[0], h) / du
+            est *= to_counts(est)[:, None]
             est += floor
         if sparse is None:
             sparse = smooth is None and floor == 0 and S1.nnz < kern.SPARSE_FILL * n_obj * bins.K
@@ -1728,47 +1727,46 @@ def _ess(tot: np.ndarray, tot2: np.ndarray) -> np.ndarray:
         return np.where(tot2 > 0, tot**2 / tot2, 0.0)
 
 
+def _silverman(u: np.ndarray, rows: np.ndarray, w: np.ndarray, n_eff: np.ndarray) -> np.ndarray:
+    """Silverman's bandwidth, ``0.9 min(sd, IQR / 1.34) n_eff^(-1/5)``, per sample's object,
+    from the weighted samples ``u`` of each object (``rows`` ascending, every row present
+    in ``n_eff``)."""
+    n_obj = n_eff.size
+    p = w / np.bincount(rows, weights=w, minlength=n_obj)[rows]
+    mean = np.bincount(rows, weights=p * u, minlength=n_obj)
+    sd = np.sqrt(np.bincount(rows, weights=p * (u - mean[rows]) ** 2, minlength=n_obj))
+    lo, hi = u.min(), u.max()
+    order = np.argsort(rows + (u - lo) / ((hi - lo) * 1.001 or 1.0), kind="stable")
+    c = np.cumsum(p[order])  # each non-empty object's shares fill (k, k + 1]
+    occupied = np.unique(rows)
+    at = np.searchsorted(c, np.arange(occupied.size)[:, None] + [0.25, 0.75])
+    q = u[order][np.minimum(at, u.size - 1)]
+    iqr = np.zeros(n_obj)
+    iqr[occupied] = (q[:, 1] - q[:, 0]) / 1.34
+    spread = np.where(iqr > 0, np.minimum(sd, iqr), sd)
+    return np.maximum(0.9 * spread * np.maximum(n_eff, 1.0) ** -0.2, (hi - lo) * 1e-6)[rows]
+
+
 def _kde_masses(
-    u: np.ndarray, rows: np.ndarray, w: np.ndarray, n_obj: int, edges: np.ndarray, bandwidth: Any
+    u: np.ndarray, rows: np.ndarray, w: np.ndarray, n_obj: int, edges: np.ndarray, h: Any
 ) -> np.ndarray:
-    """``(n_obj, K)`` masses of Gaussian kernels at the samples ``u`` (in the measure
-    coordinate) with weights ``w``, reflected at the ends of ``edges``; ``rows`` ascend."""
+    """``(n_obj, K)`` masses of Gaussian kernels of width ``h`` at the samples ``u`` (in the
+    measure coordinate) with weights ``w``, reflected at the ends of ``edges``; ``rows``
+    ascend."""
     lo, hi = edges[0], edges[-1]
-    if bandwidth == "silverman":  # 0.9 min(sd, IQR / 1.34) n_eff^(-1/5), per object
-        tw = np.bincount(rows, weights=w, minlength=n_obj)
-        p = w / tw[rows]
-        mean = np.bincount(rows, weights=p * u, minlength=n_obj)
-        sd = np.sqrt(np.bincount(rows, weights=p * (u - mean[rows]) ** 2, minlength=n_obj))
-        order = np.lexsort((u, rows))
-        key = (
-            rows[order]
-            + np.cumsum(p[order])
-            - np.repeat(  # row + cumulative share
-                np.concatenate([[0.0], np.cumsum(tw / np.where(tw > 0, tw, 1))[:-1]]),
-                np.bincount(rows, minlength=n_obj),
-            )
-        )
-        q = [
-            u[order][np.minimum(np.searchsorted(key, np.arange(n_obj) + f), u.size - 1)]
-            for f in (0.25, 0.75)
-        ]
-        iqr = (q[1] - q[0]) / 1.34
-        spread = np.where(iqr > 0, np.minimum(sd, iqr), sd)
-        n_eff = 1.0 / np.maximum(np.bincount(rows, weights=p**2, minlength=n_obj), 1e-300)
-        h = np.maximum(0.9 * spread * n_eff**-0.2, (hi - lo) * 1e-6)[rows]
-    else:
-        h = np.full(u.size, float(bandwidth))
+    h = np.broadcast_to(np.asarray(h, dtype=float), u.shape)
+
+    def cell(centre, width):
+        return np.diff(special.ndtr((edges - centre[:, None]) / width[:, None]), axis=1)
+
     out = np.zeros((n_obj, edges.size - 1))
     for c in chunk_slices(u.size, max(1, 2**22 // edges.size)):
         uc, hc = u[c], h[c]
-        m = np.diff(special.ndtr((edges[None, :] - uc[:, None]) / hc[:, None]), axis=1)
+        m = cell(uc, hc)
         for edge in (lo, hi):  # reflections, only for samples within reach of an end
             near = np.abs(uc - edge) < 8 * hc
             if near.any():
-                v = 2 * edge - uc[near]
-                m[near] += np.diff(
-                    special.ndtr((edges[None, :] - v[:, None]) / hc[near, None]), axis=1
-                )
+                m[near] += cell(2 * edge - uc[near], hc[near])
         r = rows[c]  # ascending: add each object's run of samples into its row
         starts = np.flatnonzero(np.r_[True, r[1:] != r[:-1]])
         out[r[starts]] += np.add.reduceat(m * w[c, None], starts, axis=0)

@@ -70,27 +70,26 @@ If the variance is too large, draw more samples per object, or widen the bins.
 
 ## Smoothing the samples
 
-`smooth="kde"` spreads each sample over the bins by a Gaussian kernel in the measure
-coordinate, reflected at the ends of the range, instead of counting it in one bin.
-`bandwidth=` sets the kernel's width: Silverman's rule per object by default, or one
-number for every object. It works on 1-D bins.
+`smooth="kde"` spreads each sample over the bins by a Gaussian kernel. The kernel lives in
+the measure coordinate and is reflected at the ends of the range. `bandwidth=` sets its
+width: Silverman's rule per object by default, or one number for every object. It works
+on 1-D bins.
 
-It pays when the bins are much narrower than the posteriors. In a test with Gaussian
-posteriors of width 0.08 on 100 bins over $[0, 1]$, the per-object error of the bin
-masses fell from 1.11 to 0.30 with 30 samples, and from 0.19 to 0.08 with 1000. On 20
-bins it was 0.42 against 0.32 with 100 samples, and on bins wider than the posteriors
-the two tied.
+It pays when the bins are much narrower than the posteriors. In a test, Gaussian
+posteriors had width 0.08 on 100 bins over $[0, 1]$. With 30 samples, the per-object
+error of the bin masses fell from 1.11 to 0.30; with 1000 samples, from 0.19 to 0.08. On
+20 bins with 100 samples it was 0.42 against 0.32. On bins wider than the posteriors the
+two tied.
 
 It has three costs.
 
-- **A bias.** The kernel widens each posterior by its bandwidth, by about 10% with 30
-  samples and 3% with 1000. That bias falls more slowly than the histogram's noise, and
+- **A bias.** The kernel widens each posterior by its bandwidth: by about 10% with 30
+  samples and 3% with 1000. That bias falls more slowly than the histogram's noise.
   `sample_variance` and `check()` measure only the noise.
 - **Several peaks.** Silverman's rule takes its width from the whole sample, so a
-  posterior with two peaks is blurred: in the test, posteriors with peaks at $d$ and
+  posterior with two peaks is blurred. In the test, posteriors with peaks at $d$ and
   $1-d$ gave a fitted population spread of 0.15 to 0.18 against a true 0.21.
-- **Time.** On one thread, building the likelihoods took 6 to 7 times as long as the
-  histogram with 100 to 1000 samples on 20 bins, and 16 times with 30 samples on 100
-  bins (1.5 s against 0.2 s for 1000 objects with 1000 samples each).
+- **Time.** On one thread, 10,000 objects with 1000 samples each on 20 bins took 11.5 s,
+  against 2.3 s for the histogram. With 30 samples on 100 bins the ratio was about 16.
 
 The scripts are in the repository's `notes/review/experiments/233`.
