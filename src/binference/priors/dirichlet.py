@@ -825,14 +825,14 @@ class GeneralizedDirichlet(_TreePrior):
         Stick :math:`k` takes the share :math:`\bar\nu_k = B_k / \sum_{j \ge k} B_j` of the
         stick left, in stick order, with ``B`` the bin masses of ``base``, and
         :math:`a_k + b_k` = ``concentration``. Every stick then has the same concentration,
-        unlike a Dirichlet, whose sticks lose concentration as they break. The prior's ``a``
-        and ``b`` are ``None``; they are set from the base measure when it is bound to bins.
+        unlike a Dirichlet, whose sticks lose concentration as they break. ``a`` and ``b``
+        are ``None``; binding derives them from the base.
 
         Parameters
         ----------
         concentration : float or array_like (K-1,), optional
-            :math:`a_k + b_k` of each stick. The default, 2, gives a stick whose mean is
-            1/2 a uniform Beta.
+            :math:`a_k + b_k` of each stick. The default, 2, matches a uniform Beta when the
+            stick's mean is 1/2.
         base : Density, str, callable or array_like, optional
             Base measure whose bin masses are the prior mean, as for
             :meth:`Dirichlet.from_base_measure`; flat in the measure coordinate by default.
@@ -840,13 +840,10 @@ class GeneralizedDirichlet(_TreePrior):
             Stick-breaking order, as for the class.
         """
         check_positive(concentration, "concentration")
-        if np.ndim(concentration) > 1:
+        conc = np.array(concentration, dtype=float)
+        if conc.ndim > 1:
             raise ValueError("concentration must be a scalar or one value per stick (K - 1).")
-        conc = (
-            float(concentration)
-            if np.ndim(concentration) == 0
-            else np.array(concentration, dtype=float)
-        )
+        conc = float(conc) if conc.ndim == 0 else conc
         obj = cls(1.0, 1.0, order)
         obj.a = obj.b = None  # set at binding, from the base measure
         obj._base = (conc, Density.coerce(base, "mass", name="base"))
@@ -866,8 +863,8 @@ class GeneralizedDirichlet(_TreePrior):
             conc, base = self._base
             m = _base_masses(base, bins)[order]
             tail = np.cumsum(m[::-1])[::-1]  # the mass left when stick k breaks
-            c = _per_item(conc, K - 1, "concentration (one per stick)").astype(float)
-            a, b = c * m[:-1] / tail[:-1], c * tail[1:] / tail[:-1]
+            w = _per_item(conc, K - 1, "concentration (one per stick)") / tail[:-1]
+            a, b = w * m[:-1], w * tail[1:]
         else:
             a = _per_item(self.a, K - 1, "a").astype(float)
             if self.b is None:
@@ -887,7 +884,7 @@ class PolyaTree(_TreePrior):
     r"""Finite Polya-tree prior on an ordered 1-D grid (a balanced binary Dirichlet-tree).
 
     Bins are split recursively into halves by bin index (the larger half first when a
-    group has an odd number of bins), whatever the base measure: with a base far from
+    group has an odd number of bins), whatever the base measure. With a base far from
     flat, the two halves of a split can carry very different masses. A split at level :math:`h`
     (root = 1) has Beta concentrations
     :math:`c_{\rm PT}\,h^{p_{\rm PT}}\cdot 2 G_0(\text{child})/G_0(\text{parent})`, so the prior
@@ -928,9 +925,7 @@ class PolyaTree(_TreePrior):
         K = bins.K
         if K < 2:
             raise ValueError("PolyaTree needs at least two bins.")
-        g0 = self.base.masses(bins)
-        if np.any(g0 <= 0):
-            raise ValueError("base must give a positive mass for every bin.")
+        g0 = _base_masses(self.base, bins)
         cum = np.concatenate(([0.0], np.cumsum(g0)))
         nodes: list[list[tuple[str, int]]] = []
         alphas: list[np.ndarray] = []
