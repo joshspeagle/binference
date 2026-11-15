@@ -1,0 +1,162 @@
+"""Smoke tests of the plots."""
+
+import numpy as np
+import pytest
+
+import binference
+from binference import Bins, PopulationResult
+
+mpl = pytest.importorskip("matplotlib")
+mpl.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+
+
+def test_plot_1d_2d_categorical(res1d, small_1d):
+    ax = res1d.plot(truth=small_1d.truth.rho, stack=small_1d.likelihoods.stack())
+    assert ax.get_ylabel() == "density"
+    res1d.plot(which="fraction", step=False)
+    binference.infer(small_1d.likelihoods, method="map").plot()
+    m2 = binference.simulate.mock_2d(
+        200, Bins.grid(np.linspace(0, 1, 6), np.linspace(0, 1, 5)), rng=1
+    )
+    r2 = binference.infer(m2.likelihoods, method="gibbs", rng=1, n_samples=50, check=False)
+    axes = r2.plot(color="#123456")
+    assert len(axes) == 2
+    from matplotlib.colors import same_color
+
+    assert same_color(axes[0].collections[0].get_cmap()(1.0), "#123456")  # ramp to color
+    mc = binference.simulate.mock_categorical(200, 3, rng=1)
+    rc = binference.infer(mc.likelihoods, method="gibbs", rng=1, n_samples=50, check=False)
+    rc.plot(truth=mc.truth.rho)
+    assert res1d.plot(which="rate").get_ylabel() == "rate"  # derived rates (DECISIONS #78)
+    plt.close("all")
+
+
+def test_corner_trace_individual_sbc(res1d):
+    fig = res1d.plot_corner()
+    assert fig is not None
+    res1d.plot_trace(idx=[0, 1])
+    from binference.plotting import plot_individual, plot_sbc
+
+    plot_individual(res1d, 0)
+    sbc = binference.validation.SBCResult(
+        np.random.default_rng(1).integers(0, 20, (30, 3)), 19, ["a", "b", "c"]
+    )
+    fig = plot_sbc(sbc)
+    # the uniformity band spans whole bins, the outer halves of the end bins included
+    band = fig.axes[0].patches[0].get_data()
+    assert band.edges[0] == -0.5 and band.edges[-1] == len(band.values) - 0.5
+    sbc.plot()
+    plt.close("all")
+
+
+def test_plot_individual_shows_the_own_likelihood_per_bin_on_a_basis():
+    # flat components at resolution 2 sum back to the bins: the flat-prior posterior per bin
+    bins = Bins.linear(0, 3, 6)
+    mock = binference.simulate.mock_1d(50, bins, rng=0)
+    d, s = mock.measurements["mean"], mock.measurements["sigma"]
+    lk = binference.Likelihoods.from_gaussian(d, s, binference.Basis(bins, resolution=2))
+    est = binference.PointEstimate(binference.PopulationModel(lk), np.full(12, 1 / 12))
+    own = est.plot_individual(1).get_lines()[0].get_ydata()[:-1] * bins.volumes
+    plain = mock.likelihoods.toarray()[1] * bins.volumes
+    np.testing.assert_allclose(own, plain / plain.sum(), rtol=1e-12)
+    plt.close("all")
+
+
+@pytest.mark.parametrize("shape", [{"order": 1}, {"resolution": 2}])
+def test_a_stack_over_a_basis_is_drawn_per_bin(shape):
+    # Likelihoods.stack weighs the components: as many as the bins for hats, twice as many
+    bins = Bins.linear(0, 3, 6)
+    mock = binference.simulate.mock_1d(50, bins, rng=0)
+    basis = binference.Basis(bins, **shape)
+    d, s = mock.measurements["mean"], mock.measurements["sigma"]
+    lk = binference.Likelihoods.from_gaussian(d, s, basis)
+    est = binference.PointEstimate(binference.PopulationModel(lk), np.full(basis.C, 1 / basis.C))
+    stack = lk.stack()
+    drawn = est.plot(which="fractions", stack=stack).get_lines()[-1].get_ydata()[:-1]
+    np.testing.assert_allclose(drawn, basis.to_bins(stack), rtol=1e-12)
+    with pytest.raises(ValueError, match=rf"stack must have shape \({basis.C},\)"):
+        est.plot(stack=stack[:-1])
+    with pytest.raises(ValueError, match=r"truth must have shape \(6,\)"):
+        est.plot(truth=np.ones(5))
+    plt.close("all")
+
+
+def test_plot_refuses_a_credible_level_outside_zero_and_one(res1d):
+    # 1.5 failed in np.quantile naming no argument, and 0 drew an empty band
+    for levels in ((1.5,), (0.0, 0.68)):
+        with pytest.raises(ValueError, match="levels must be in"):
+            res1d.plot(levels=levels)
+
+
+def test_the_sbc_plot_always_shows_the_joint_log_likelihood():
+    names = ["a", "b", "c", "loglike"]
+    ranks = np.random.default_rng(1).integers(0, 20, (30, 4))
+    sbc = binference.validation.SBCResult(ranks, 19, names)
+    shown = [a for a in sbc.plot(max_panels=2).axes if a.get_visible()]
+    assert [a.get_title() for a in shown] == ["a", "loglike"]
+    with pytest.raises(ValueError, match="max_panels"):
+        sbc.plot(max_panels=0)
+    np.testing.assert_array_equal(shown[-1].containers[0].datavalues, sbc.histogram()[-1])
+    plt.close("all")
+
+
+def test_plots_take_population_and_sample_colours_from_the_style_cycle(res1d, small_1d):
+    from matplotlib.colors import same_color
+
+    from binference.plotting import plot_individual
+
+    cycle = mpl.cycler(color=["#123456", "#abcdef"])
+    with plt.rc_context({"axes.prop_cycle": cycle, "text.color": "#654321"}):
+        ax = res1d.plot(truth=small_1d.truth.rho, stack=small_1d.likelihoods.stack())
+        median, truth, stack = ax.get_lines()
+        assert same_color(median.get_color(), "#123456")
+        assert same_color(stack.get_color(), "#abcdef")
+        assert same_color(truth.get_color(), "#654321") and truth.get_linestyle() == "--"
+        own, shrunk = plot_individual(res1d, 0).get_lines()
+        assert same_color(own.get_color(), "#abcdef")
+        assert same_color(shrunk.get_color(), "#123456")
+    plt.close("all")
+
+
+def test_sample_color_and_color_override_the_style(res1d, small_1d):
+    from matplotlib.colors import same_color
+
+    ax = res1d.plot(stack=small_1d.likelihoods.stack(), color="red", sample_color="green")
+    median, stack = ax.get_lines()
+    assert same_color(median.get_color(), "red") and same_color(stack.get_color(), "green")
+    with plt.rc_context({"axes.prop_cycle": mpl.cycler(color=["#123456", "#abcdef"])}):
+        ax = res1d.plot(color="C1")  # resolved inside the style, not when drawn later
+    assert same_color(ax.get_lines()[0].get_color(), "#abcdef")
+    with pytest.raises(ValueError, match="sample_color"):
+        res1d.plot(sample_color="not a colour")
+    plt.close("all")
+
+
+def test_a_list_of_colours_is_for_the_bars_of_categories_only(res1d):
+    from matplotlib.colors import same_color
+
+    with pytest.raises(ValueError, match="color must be a matplotlib colour or None"):
+        res1d.plot(color=["red", "blue"])
+    cats = PopulationResult(
+        None, np.full((5, 3), 1 / 3), method="external", bins=Bins.categories(3)
+    )
+    with pytest.raises(ValueError, match="a list of 3 of them"):
+        cats.plot(color=["red", "green"])
+    rgb = ["red", "lime", "blue"]
+    for colors in (rgb, np.eye(3)):  # names, or rows as from a colormap
+        ax = cats.plot(color=colors)
+        assert same_color([bar.get_facecolor()[:3] for bar in ax.patches], rgb)
+    plt.close("all")
+
+
+def test_plots_refuse_three_axes_and_warn_when_two_drop_overlays():
+    grid3 = Bins.grid([0, 1, 2], [0, 1, 2], [0, 1, 2])
+    cube = PopulationResult(None, np.full((5, 8), 1 / 8), method="external", bins=grid3)
+    with pytest.raises(ValueError, match="1-D and 2-D"):
+        cube.plot()
+    grid2 = Bins.grid([0, 1, 2], [0, 1, 2])
+    square = PopulationResult(None, np.full((5, 4), 1 / 4), method="external", bins=grid2)
+    with pytest.warns(binference.InputWarning, match="2-D plots"):
+        square.plot(truth=np.full(4, 0.25))
+    plt.close("all")

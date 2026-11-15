@@ -221,7 +221,7 @@ More result tests are in `tests/test_results_outputs.py`, `tests/test_best_loo.p
 **Point estimates, external draws and rates**
 - `PointEstimate` outputs and `laplace()`; `from_samples` and `attach`; rate results; a result without a model keeps its bins.
 
-**Persistence and plots** (`tests/test_plotting_io.py`)
+**Persistence and plots** (`tests/test_io.py` and `tests/test_plotting.py`)
 - `save` / `load` round-trip, including the metadata, the schema version and the bins.
 - Plot smoke tests on the Agg backend; `to_datatree` is skipped when xarray is not installed.
 

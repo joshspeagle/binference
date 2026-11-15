@@ -7,12 +7,7 @@ import numpy as np
 import pytest
 
 import binference
-from binference import (
-    Bins,
-    PopulationEstimator,
-    PopulationModel,
-    Selection,
-)
+from binference import Bins, PopulationEstimator, PopulationModel, Selection
 
 from .conftest import fit_with_selection
 
@@ -201,9 +196,3 @@ def test_method_em_on_a_joint_model_runs_its_optimiser():
     z = np.linspace(0.05, 0.95, 40)
     sel = binference.Selection.from_injections(z, np.tile([True, False], 20), lk.bins, "on_truth")
     assert binference.infer(lk, selection=sel, method="em").info["space"] == "unconstrained"
-
-
-def test_a_star_import_leaves_the_standard_io_module_alone():
-    ns: dict = {}
-    exec("import io\nfrom binference import *", ns)
-    assert hasattr(ns["io"], "BytesIO")

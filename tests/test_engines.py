@@ -10,13 +10,7 @@ import scipy.sparse as sp
 from scipy import optimize
 
 import binference
-from binference import (
-    Bins,
-    ConvergenceWarning,
-    Likelihoods,
-    PopulationModel,
-    Selection,
-)
+from binference import Bins, ConvergenceWarning, Likelihoods, PopulationModel, Selection
 from binference import _kernels as kern
 from binference import priors as P
 from binference.engines import MAP, NUTS, Bootstrap, Gibbs, Laplace, MeanFieldVB
@@ -262,6 +256,179 @@ def test_nuts_with_a_logistic_prior_matches_a_long_run(seed):
     assert_matches_reference(res, mean, sd)
 
 
+def _gp_model(n=3000, K=12, seed=2):
+    mock = binference.simulate.mock_1d(n, Bins.linear(0, 3, K), noise=(0.05, 0.1), rng=seed)
+    return PopulationModel(mock.likelihoods, P.LogisticRandomWalk(order=1))
+
+
+def test_nuts_refuses_a_model_whose_prior_is_already_centred():
+    m = _gp_model()
+    centred = m._with_bound_prior(m.prior.with_centering(np.zeros(m.prior.n_active)))
+    with pytest.raises(ValueError, match="non-centred"):
+        NUTS(centred)
+
+
+def test_positions_from_sample_are_in_the_model_coordinates(seed):
+    m = _gp_model()
+    eng = NUTS(m, n_chains=2, n_warmup=150, rng=seed + 1)
+    draws = eng.sample(1)
+    x = next(draws)
+    draws.close()  # records the draw
+    assert not np.all(eng.model.prior.gamma == 1.0)  # sampled partly centred
+    np.testing.assert_allclose(m.to_value(x[0]), eng.result.chains[0, -1])
+
+
+def test_nuts_arguments_are_checked():
+    m = _gp_model(n=200, K=6)
+    for kwargs in ({"max_depth": 0}, {"n_warmup": -1}, {"jitter": -0.1}):
+        with pytest.raises(ValueError):
+            NUTS(m, **kwargs)
+    with pytest.raises(ValueError, match="init_x"):
+        NUTS(m, init_x=np.full(m.dim, np.nan))
+
+
+def test_an_error_in_a_worker_is_raised_not_hidden_by_a_serial_rerun(seed):
+    eng = NUTS(_gp_model(n=200, K=6), n_chains=2, n_warmup=0, n_jobs=2, rng=seed + 0)
+    eng._setup()
+
+    class Pool:  # a pool whose workers report the model's own error
+        def map(self, f, payloads):
+            return [ValueError("from the model")] * len(payloads)
+
+        def shutdown(self):
+            pass
+
+    eng._pool = Pool()
+    with pytest.raises(ValueError, match="from the model"):
+        eng._parallel(1, adapt=False, record=False)
+    assert eng.n_jobs == 2
+
+
+def test_a_dense_metric_draws_momenta_with_the_inverse_covariance(seed):
+    inv_m = np.array([[2.0, 0.6, 0.0], [0.6, 1.0, 0.3], [0.0, 0.3, 0.5]])
+    rng = np.random.default_rng(seed + 0)
+    p = np.array([Metric(inv_m).draw_momentum(rng) for _ in range(40000)])
+    # entries of a sample covariance from 40,000 draws are within about 2% of the truth
+    np.testing.assert_allclose(np.cov(p.T), np.linalg.inv(inv_m), atol=0.08)
+
+
+def test_warm_up_alone_leaves_no_worker_processes(seed):
+    eng = NUTS(_gp_model(n=200, K=6), n_chains=2, n_warmup=30, n_jobs=2, rng=seed + 0)
+    eng.warmup()
+    assert eng._pool is None
+
+
+def _standard_gaussian(x):
+    return -0.5 * float(x @ x), -x
+
+
+def test_a_step_that_overflows_the_energy_is_a_silent_divergence():
+    # a momentum of 1e200 overflows p @ M^-1 p; the tree marks the leaf divergent, and the
+    # overflow warning is not raised (it failed the joint-selection SBC as an error)
+    x, p = np.zeros(2), np.full(2, 1e200)
+    m = Metric(np.ones(2))
+    t = _leaf(x, p, -x, 1, 1e-300, 0.0, m, _standard_gaussian, _MAX_ENERGY_ERROR)
+    assert t.diverging
+
+
+def test_adaptation_windows_match_stan_except_one_window_for_151_to_199_iterations():
+    assert adaptation_windows(1000) == [(75, 100), (100, 150), (150, 250), (250, 450), (450, 950)]
+    assert adaptation_windows(175) == [(75, 125)]  # Stan: (75, 100) and (100, 125)
+    # at the edges of that range, which pin the comparisons of the buffers and the window
+    assert adaptation_windows(150) == [(75, 100)]
+    assert adaptation_windows(200) == [(75, 100), (100, 150)]
+
+
+def test_step_size_adaptation_reaches_the_target_acceptance_on_a_standard_gaussian(seed):
+    acc = []
+    for rng in np.random.default_rng(seed + 0).spawn(4):
+        chain = _Chain(rng.standard_normal(10), _standard_gaussian, rng, 1000, 0.8, dense=False)
+        for _ in range(1000):
+            chain.step(10, adapt=True)
+        acc.append([chain.step(10, adapt=False)[0] for _ in range(1000)])
+    # Stan's averaged step size accepts more often than the target (0.87-0.90 with seeds
+    # 0-19), so the bound is one-sided, at four Monte Carlo errors of the mean accept
+    # statistic of each chain: pooled, the error grows when broken adaptation splits them
+    mcse = binference.diagnostics.mcse
+    assert all(np.mean(a) >= 0.8 - 4 * mcse(np.asarray(a)) for a in acc)
+
+
+def test_above_the_dense_limit_the_warm_up_curvature_is_taken_at_one_chain(monkeypatch, seed):
+    from binference.engines import nuts
+
+    calls = []
+    for name in ("fd_hessian_diag", "fd_hessian"):
+        real = getattr(nuts, name)
+        monkeypatch.setattr(
+            nuts, name, lambda *a, _f=real, _n=name, **k: calls.append(_n) or _f(*a, **k)
+        )
+    model = _gp_model(n=200, K=6)
+    counts = []
+    for limit in (nuts._DENSE_MAX_DIM, 0):  # 6 bins, then as if above the limit
+        monkeypatch.setattr(nuts, "_DENSE_MAX_DIM", limit)
+        calls.clear()
+        eng = NUTS(model, n_chains=3, n_warmup=0, rng=seed + 0)
+        eng._setup()
+        eng._adapt_geometry()
+        counts.append((calls.count("fd_hessian_diag"), calls.count("fd_hessian")))
+    # the field's diagonal, then the hyperparameters' and the whole model's Hessians, at
+    # every chain's position and then at one
+    assert counts == [(3, 6), (1, 2)]
+
+
+def test_weak_data_smoothness_fits_stay_non_centred(seed):
+    """Poorly constrained scales: partial centring would create a funnel."""
+    bins = Bins.linear(0.0, 3.0, 6)
+    density = binference.simulate.population(bins, "bimodal")
+    mock = binference.simulate.mock_1d(30, bins, density=density, noise=(0.2, 0.4), rng=seed + 6)
+    # the centring is decided once, at warm-up iteration 25 (from 150 warm-up iterations,
+    # as by default; shorter warm-ups decide earlier), so one draw after it suffices
+    model = PopulationModel(mock.likelihoods, P.LogisticRandomWalk(order=2))
+    eng = NUTS(model, rng=seed + 1, n_chains=2, n_warmup=150)
+    eng.run(1)
+    penalised = ~eng.model.prior.null
+    assert np.all(eng.model.prior.gamma[penalised] == 1.0)
+
+
+def test_parallel_chains_fall_back_when_the_model_cannot_be_pickled(seed):
+    mock = binference.simulate.mock_1d(100, Bins.linear(0, 3, 8), rng=seed + 1)
+    model = PopulationModel(mock.likelihoods, P.PolyaTree(base=lambda z: np.exp(-z)))
+    with pytest.raises((pickle.PicklingError, AttributeError, TypeError)):
+        pickle.dumps(model)
+    eng = NUTS(model, n_chains=2, n_warmup=30, rng=seed + 1, n_jobs=2)
+    with pytest.warns(RuntimeWarning, match="serially"):
+        res = eng.run(10)
+    assert res.chains.shape == (2, 10, 8)
+    assert eng.n_jobs == 1
+    assert eng.run(5).chains.shape == (2, 15, 8)  # still usable
+
+
+def test_parallel_chain_workers_share_blas_threads():
+    from concurrent.futures import ProcessPoolExecutor
+
+    from threadpoolctl import threadpool_info, threadpool_limits
+
+    from binference.engines.nuts import _init_worker, _worker_threads
+
+    with ProcessPoolExecutor(1, initializer=_init_worker, initargs=(None, 1)) as ex:
+        info = ex.submit(threadpool_info).result()
+    assert all(lib["num_threads"] == 1 for lib in info)
+    with threadpool_limits(1):  # a limit set by the user is never raised (audit N-3)
+        if threadpool_info():  # nothing to respect where no thread pool is visible
+            assert _worker_threads(1) == 1
+
+
+def test_data_rich_gp_fits_are_partially_centred(seed):
+    """A weakly identified length scale must not switch centring off (20x slower)."""
+    bins = Bins.linear(0.0, 3.0, 40)
+    lk = binference.simulate.mock_1d(400, bins, noise=(0.05, 0.15), rng=seed + 21).likelihoods[
+        :300
+    ]
+    eng = NUTS(PopulationModel(lk, P.LogisticGP()), rng=seed + 2, n_warmup=40)
+    eng.run(1)
+    assert np.mean(eng.model.prior.gamma < 0.5) > 0.1
+
+
 # -------------------------------------------------------------------- Gibbs
 def test_gibbs_matches_exact(k3_problem, seed):
     mock, exact = k3_problem
@@ -406,6 +573,87 @@ def test_label_sampling_dense_sparse_agree(rng):
     assert np.all(L[np.arange(5000), b] > 0)
 
 
+def test_weighted_label_counts_on_sparse_likelihoods_stay_sparse_and_correct(seed):
+    rng = np.random.default_rng(seed + 0)
+    N, K = 20000, 2500
+    cols = rng.integers(0, K, size=(N, 10))
+    L = sp.csr_array((rng.random(N * 10), (np.repeat(np.arange(N), 10), cols.ravel())), (N, K))
+    L = sp.csr_array(sp.vstack([L, np.ones((1, K))]))  # one flat object must not densify the rest
+    N += 1
+    rho = np.full(K, 1.0 / K)
+    w = rng.integers(1, 1000, size=N).astype(float)
+    t = time.perf_counter()
+    counts, _ = kern.sample_counts(L, w, rho, rng, unit_weights=False)
+    # the dense path took 13 s and 1.5 GB here (audit G-2); a label per object exceeded 2 s
+    assert time.perf_counter() - t < 2.0
+    assert counts.sum() == w.sum()
+    # each count is binomial: its expectation from the responsibilities
+    expected = rho * (L.T @ (w / (L @ rho)))  # no N x K array
+    assert np.max(np.abs(counts - expected) / np.sqrt(expected + 1)) < 6
+
+
+def _model(n=200, K=4):
+    mock = binference.simulate.mock_1d(n, Bins.linear(0, 3, K), rng=1)
+    return PopulationModel(mock.likelihoods)
+
+
+def test_gibbs_inputs_are_checked_when_the_engine_is_made():
+    m = _model()
+    Gibbs(m, chunk=None).run(2)  # no chunking, as the kernels allow
+    with pytest.raises(ValueError, match="store_labels"):
+        Gibbs(m, store_labels=[0, 5000])
+    with pytest.raises(ValueError, match="init"):
+        Gibbs(m, init=[0.5, 0.5, 0.0, 0.0])
+    with pytest.raises(ValueError, match="n_warmup"):
+        Gibbs(m, n_warmup=-1)
+    compressed = PopulationModel(Likelihoods(np.eye(2)[[0, 0, 1]], Bins.categories(2)).compress())
+    for store_labels in (True, [0]):
+        with pytest.raises(ValueError, match="store_labels needs unit object weights"):
+            Gibbs(compressed, store_labels=store_labels)
+
+
+def test_gibbs_chains_from_one_init_start_apart(seed):
+    eng = Gibbs(_model(), init=[0.25, 0.25, 0.25, 0.25], n_chains=3, rng=seed + 0)
+    eng._setup()
+    starts = np.array(eng._state)
+    assert not np.allclose(starts[0], starts[1])  # R-hat needs overdispersed starts
+
+
+def test_gibbs_starts_correct_for_the_objects_a_selection_missed(seed):
+    mock = binference.simulate.mock_1d(
+        3000, Bins.linear(0, 3, 3), selection=[1.0, 0.5, 0.2], noise=0.3, rng=seed + 3
+    )
+    m = PopulationModel(mock.likelihoods)
+    eng = Gibbs(m, n_chains=20, rng=seed + 0)
+    eng._setup()
+    # starts drawn around the observed composition were 0.1 or more off in a fraction;
+    # the start posterior SD is about 0.01, so the mean of 20 is within 0.01
+    np.testing.assert_allclose(np.mean(eng._state, axis=0), MAP(m).run().rho, atol=0.02)
+
+
+def test_label_draws_do_not_depend_on_the_chunk_size(seed):
+    L = np.random.default_rng(seed + 0).random((50, 6)) * (
+        np.random.default_rng(seed + 1).random((50, 6)) > 0.4
+    )
+    L[:, 0] += 0.1  # every object possible
+    rho = np.random.default_rng(seed + 2).dirichlet(np.ones(6))
+    for M in (L, sp.csr_array(L)):
+        whole = kern.sample_labels(M, rho, np.random.default_rng(seed + 3), chunk=None)
+        np.testing.assert_array_equal(
+            kern.sample_labels(M, rho, np.random.default_rng(seed + 3), chunk=7), whole
+        )
+
+
+def test_gibbs_says_why_a_model_is_unsupported_and_refuses_it_with_that_reason(seed):
+    lk = binference.simulate.mock_1d(50, Bins.linear(0, 1, 4), rng=seed + 0).likelihoods
+    assert Gibbs.unsupported(PopulationModel(lk)) is None
+    logistic = PopulationModel(lk, binference.priors.LogisticNormal())
+    reason = Gibbs.unsupported(logistic)
+    assert "conjugate" in reason
+    with pytest.raises(ValueError, match=reason[:30]):
+        Gibbs(logistic)
+
+
 # ---------------------------------------------------------------------- MAP
 def test_map_mle_matches_scipy(k3_problem):
     mock, _ = k3_problem
@@ -547,239 +795,6 @@ def test_map_unconstrained_and_logistic(seed):
     assert auto.info["space"] == "unconstrained"
     with pytest.raises(ValueError):
         MAP(PopulationModel(mock.likelihoods, P.LogisticNormal()), space="simplex").run()
-
-
-# ------------------------------------------------------------------ Laplace
-def test_laplace_with_importance(k3_problem, seed):
-    mock, exact = k3_problem
-    res = binference.infer(mock.likelihoods, method="laplace", rng=seed + 4, n_samples=4000)
-    assert "k_hat" in res.info
-    assert_matches_reference(res, exact.mean, exact.std)
-
-
-def test_a_widened_gaussian_laplace_proposal_recovers_the_exact_posterior(onehot, seed):
-    # one-hot likelihoods: the posterior is Dirichlet(1 + counts), close to Gaussian in
-    # log-ratio coordinates
-    lk, counts = onehot
-    m = PopulationModel(lk)
-    res = Laplace(m, df=None, inflate=1.5, rng=seed).run(4000)
-    assert not res.approximate  # k-hat passed
-    # a wrong sign of log q narrows the draws by about a quarter
-    assert_matches_reference(res, *dirichlet_moments(1.0 + counts))
-    # without importance the draws are the proposals, which inflate widens
-    with pytest.warns(ApproximationWarning):
-        raw = Laplace(m, inflate=1.5, importance=False, rng=seed).run(8000)
-    ratio = raw.x[0].std(axis=0) / (1.5 * np.sqrt(np.diag(raw.info["cov"])))
-    np.testing.assert_allclose(ratio, 1.0, atol=5 / np.sqrt(2 * 8000))
-
-
-def test_laplace_uncorrected_is_flagged(k3_problem, seed):
-    mock, _ = k3_problem
-    with pytest.warns(ApproximationWarning):
-        res = Laplace(PopulationModel(mock.likelihoods), importance=False, rng=seed + 1).run(500)
-    assert res.approximate
-
-
-def test_laplace_clips_negative_curvature_to_a_wide_positive_variance(k3_problem, monkeypatch):
-    from binference.engines import laplace
-
-    real = laplace.fd_hessian
-
-    def indefinite(fn, x, h):  # flip the curvature along the first eigenvector of -H
-        lam, U = np.linalg.eigh(-real(fn, x, h=h))
-        lam[0] = -lam[0]
-        return -(U * lam) @ U.T
-
-    monkeypatch.setattr(laplace, "fd_hessian", indefinite)
-    with pytest.warns(ApproximationWarning, match="not positive definite; clipping"):
-        _, cov, H = Laplace(PopulationModel(k3_problem[0].likelihoods)).mode_and_covariance()
-    lam, U = np.linalg.eigh(-H)
-    assert lam[0] < 0 < lam[1]
-    floor = 1e-8 * max(1.0, lam[1])
-    np.testing.assert_allclose(cov @ U[:, 0], U[:, 0] / floor, rtol=1e-6)
-    np.testing.assert_allclose(cov @ U[:, 1], U[:, 1] / lam[1], rtol=1e-6)
-
-
-# ----------------------------------------------------------------------- VB
-def test_vb_exact_for_onehot_and_overconfident_otherwise(onehot, k3_problem, seed):
-    lk, counts = onehot
-    with pytest.warns(ApproximationWarning):
-        res = MeanFieldVB(PopulationModel(lk), rng=seed + 1).run(20000)
-    assert_matches_reference(res, *dirichlet_moments(1.0 + counts))
-    mock, exact = k3_problem
-    with pytest.warns(ApproximationWarning):
-        vb = MeanFieldVB(PopulationModel(mock.likelihoods), rng=seed + 1).run(4000)
-    assert vb.approximate
-    assert np.all(vb.std < 0.8 * exact.std)
-    with pytest.raises(ValueError, match="conjugate"):
-        MeanFieldVB(PopulationModel(lk, P.LogisticNormal()))
-
-
-def test_vb_means_with_a_selection_are_close_to_the_exact_posterior(k3_selection_problem, seed):
-    mock, exact = k3_selection_problem
-    with pytest.warns(ApproximationWarning):
-        vb = MeanFieldVB(PopulationModel(mock.likelihoods), rng=seed + 1).run(4000)
-    # VB's means carry a bias of a few 1e-3 here (the plug-in of the missed objects and
-    # the mean-field factorisation; measured 0.003); its Monte Carlo error is 0.025 /
-    # sqrt(4000) = 4e-4. Ignoring the selection moves the means by 0.2.
-    np.testing.assert_allclose(vb.mean, exact.mean, atol=0.01)
-
-
-def test_vb_rates_with_a_selection_match_gibbs(seed):
-    # likelihoods much narrower than the bins: the mean-field factorisation is nearly
-    # exact (exact for one-hot likelihoods); the plug-in of the missed objects adds a bias
-    # of at most 0.5% of the rate (three seeds), allowed for at 1% beside the MC error
-    bins = Bins([0.0, 1.0, 2.0, 3.0])
-    S = np.array([0.9, 0.5, 0.25])
-    mock = binference.simulate.mock_1d(
-        250,
-        bins,
-        density=np.array([0.4, 0.35, 0.25]),
-        noise=(0.05, 0.2),
-        selection=S,
-        rng=seed + 777,
-    )
-    m = PopulationModel(mock.likelihoods, P.GammaRates(1.0, 1e-3))
-    with pytest.warns(ApproximationWarning):
-        vb = MeanFieldVB(m, rng=seed + 1).run(4000)
-    g = Gibbs(m, n_warmup=200, rng=seed + 6).run(2000)
-    R = g.rates.reshape(g.n_chains, -1, 3)
-    se = np.hypot(
-        [binference.diagnostics.mcse(R[:, :, k]) for k in range(3)],
-        vb.rates.std(0) / np.sqrt(4000),
-    )
-    assert np.all(np.abs(vb.rates.mean(0) - g.rates.mean(0)) <= 4 * se + 0.01 * g.rates.mean(0))
-
-
-# ---------------------------------------------------------------- Bootstrap
-def test_bootstrap(k3_problem, seed):
-    mock, _ = k3_problem
-    with pytest.warns(ApproximationWarning):
-        res = Bootstrap(PopulationModel(mock.likelihoods), rng=seed + 1).run(60)
-    assert res.samples.shape == (60, 3) and res.approximate
-    # At large N the bootstrap sd matches the posterior sd. With B = 200 replicates the
-    # sd has relative MC error ~ 1/sqrt(2B) = 5% (ratios 0.91-1.10 over 8 seeds), so
-    # |log ratio| < 0.2 is 4 sigma and catches a factor sqrt(2) either way (0.35).
-    big = binference.simulate.mock_1d(
-        2000, mock.bins, density=np.array([0.5, 0.15, 0.35]), noise=(0.3, 1.2), rng=seed + 12345
-    )
-    ref = binference.validation.exact_posterior(big.likelihoods)
-    with pytest.warns(ApproximationWarning):
-        boot = Bootstrap(PopulationModel(big.likelihoods), rng=seed + 1).run(200)
-    assert np.all(np.abs(np.log(boot.std / ref.std)) < 0.2)
-    with pytest.warns(ApproximationWarning):
-        bb = Bootstrap(PopulationModel(mock.likelihoods), scheme="bayesian", rng=seed + 1).run(20)
-    assert bb.info["scheme"] == "bayesian" and bb.info["n_not_converged"] == 0
-    with pytest.raises(ValueError):
-        Bootstrap(PopulationModel(mock.likelihoods), scheme="parametric")
-
-
-def test_bootstrap_of_a_logistic_prior_refits_each_reweighted_catalogue(seed):
-    # a smooth prior has no EM update: each replicate is a weighted L-BFGS fit
-    mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 6), noise=(0.1, 0.3), rng=seed + 9)
-    m = PopulationModel(mock.likelihoods, P.LogisticRandomWalk())
-    with pytest.warns(ApproximationWarning):
-        res = Bootstrap(m, rng=seed + 1).run(20)
-    X = res.samples
-    assert X.shape == (20, 6) and np.all(np.isfinite(X)) and res.info["n_not_converged"] == 0
-    np.testing.assert_allclose(X.sum(1), 1.0)
-    assert np.unique(X.round(8), axis=0).shape[0] == 20  # every replicate is its own fit
-    assert not np.any(np.all(np.isclose(X, res.info["estimate"]), axis=1))
-
-
-def test_weighted_label_counts_on_sparse_likelihoods_stay_sparse_and_correct():
-    rng = np.random.default_rng(0)
-    N, K = 20000, 2500
-    cols = rng.integers(0, K, size=(N, 10))
-    L = sp.csr_array((rng.random(N * 10), (np.repeat(np.arange(N), 10), cols.ravel())), (N, K))
-    L = sp.csr_array(sp.vstack([L, np.ones((1, K))]))  # one flat object must not densify the rest
-    N += 1
-    rho = np.full(K, 1.0 / K)
-    w = rng.integers(1, 1000, size=N).astype(float)
-    t = time.perf_counter()
-    counts, _ = kern.sample_counts(L, w, rho, rng, unit_weights=False)
-    # the dense path took 13 s and 1.5 GB here (audit G-2); a label per object exceeded 2 s
-    assert time.perf_counter() - t < 2.0
-    assert counts.sum() == w.sum()
-    # each count is binomial: its expectation from the responsibilities
-    expected = rho * (L.T @ (w / (L @ rho)))  # no N x K array
-    assert np.max(np.abs(counts - expected) / np.sqrt(expected + 1)) < 6
-
-
-def _model(n=200, K=4):
-    mock = binference.simulate.mock_1d(n, Bins.linear(0, 3, K), rng=1)
-    return PopulationModel(mock.likelihoods)
-
-
-def test_gibbs_inputs_are_checked_when_the_engine_is_made():
-    m = _model()
-    Gibbs(m, chunk=None).run(2)  # no chunking, as the kernels allow
-    with pytest.raises(ValueError, match="store_labels"):
-        Gibbs(m, store_labels=[0, 5000])
-    with pytest.raises(ValueError, match="init"):
-        Gibbs(m, init=[0.5, 0.5, 0.0, 0.0])
-    with pytest.raises(ValueError, match="n_warmup"):
-        Gibbs(m, n_warmup=-1)
-    compressed = PopulationModel(Likelihoods(np.eye(2)[[0, 0, 1]], Bins.categories(2)).compress())
-    for store_labels in (True, [0]):
-        with pytest.raises(ValueError, match="store_labels needs unit object weights"):
-            Gibbs(compressed, store_labels=store_labels)
-
-
-def test_gibbs_chains_from_one_init_start_apart():
-    eng = Gibbs(_model(), init=[0.25, 0.25, 0.25, 0.25], n_chains=3, rng=0)
-    eng._setup()
-    starts = np.array(eng._state)
-    assert not np.allclose(starts[0], starts[1])  # R-hat needs overdispersed starts
-
-
-def test_gibbs_starts_correct_for_the_objects_a_selection_missed():
-    mock = binference.simulate.mock_1d(
-        3000, Bins.linear(0, 3, 3), selection=[1.0, 0.5, 0.2], noise=0.3, rng=3
-    )
-    m = PopulationModel(mock.likelihoods)
-    eng = Gibbs(m, n_chains=20, rng=0)
-    eng._setup()
-    # starts drawn around the observed composition were 0.1 or more off in a fraction;
-    # the start posterior SD is about 0.01, so the mean of 20 is within 0.01
-    np.testing.assert_allclose(np.mean(eng._state, axis=0), MAP(m).run().rho, atol=0.02)
-
-
-def test_bootstrap_counts_replicates_that_did_not_converge():
-    m = PopulationModel(
-        binference.simulate.mock_1d(500, Bins.linear(0, 3, 6), rng=2).likelihoods,
-        binference.priors.Dirichlet(2.0),
-    )
-    with (
-        pytest.warns(binference.ApproximationWarning),  # always: not a posterior
-        pytest.warns(binference.ConvergenceWarning) as rec,
-    ):
-        res = Bootstrap(m, max_iter=1, rng=0).run(5)
-    msgs = [str(r.message) for r in rec]
-    assert any(s.startswith("EM did not converge") for s in msgs)  # the base fit is not silenced
-    assert "5 of 5 bootstrap fits did not converge; raise max_iter." in msgs
-    assert res.info["n_not_converged"] == 5
-
-
-def test_label_draws_do_not_depend_on_the_chunk_size():
-    L = np.random.default_rng(0).random((50, 6)) * (np.random.default_rng(1).random((50, 6)) > 0.4)
-    L[:, 0] += 0.1  # every object possible
-    rho = np.random.default_rng(2).dirichlet(np.ones(6))
-    for M in (L, sp.csr_array(L)):
-        whole = kern.sample_labels(M, rho, np.random.default_rng(3), chunk=None)
-        np.testing.assert_array_equal(
-            kern.sample_labels(M, rho, np.random.default_rng(3), chunk=7), whole
-        )
-
-
-def test_gibbs_says_why_a_model_is_unsupported_and_refuses_it_with_that_reason():
-    lk = binference.simulate.mock_1d(50, Bins.linear(0, 1, 4), rng=0).likelihoods
-    assert Gibbs.unsupported(PopulationModel(lk)) is None
-    logistic = PopulationModel(lk, binference.priors.LogisticNormal())
-    reason = Gibbs.unsupported(logistic)
-    assert "conjugate" in reason
-    with pytest.raises(ValueError, match=reason[:30]):
-        Gibbs(logistic)
 
 
 def test_mixsqp_takes_dirichlet_priors_mixing_flat_and_informative_bins():
@@ -942,16 +957,6 @@ def test_a_zero_weight_row_is_the_same_as_no_row():
     assert with_zero[-1] < 1e-6  # not reset to the uniform vector
 
 
-def test_a_rate_bootstrap_never_collapses_to_zero():
-    L = _one_object_bin()
-    m = PopulationModel(Likelihoods(L, Bins.categories(5)), P.GammaRates(1.0, 1e-3))
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        res = Bootstrap(m, rng=3).run(60)
-    totals = res.rates.sum(axis=1)
-    assert np.all(totals > 0) and np.all(np.isfinite(res.samples))
-
-
 def test_em_stops_with_a_warning_where_an_object_becomes_impossible():
     L = _one_object_bin(n=8, K=4)
     w = np.ones(L.shape[0])
@@ -971,13 +976,15 @@ def test_em_stops_with_a_warning_where_an_object_becomes_impossible():
         assert np.isfinite(est.log_posterior) and not np.allclose(est.value, 0.25)
 
 
-def test_the_rates_start_is_the_observed_composition_over_the_exposure():
+def test_the_rates_start_is_the_observed_composition_over_the_exposure(seed):
     from binference.engines.base import interior_start
 
     # broad likelihoods, so the composition must be fitted on the columns of L over S: for
     # seeds 0-19 of this mock the start's log posterior is 0.2-2.2 below the mode's (26-47
     # when fitted on L)
-    lk = binference.simulate.mock_1d(1000, Bins.linear(0, 3, 6), noise=0.8, rng=3).likelihoods
+    lk = binference.simulate.mock_1d(
+        1000, Bins.linear(0, 3, 6), noise=0.8, rng=seed + 3
+    ).likelihoods
     S = np.linspace(0.9, 0.3, 6)
     for mode in ("on_truth", "on_measurement"):
         m = PopulationModel(lk, P.GammaRates(1.0, 1e-9), selection=Selection(S, mode))
@@ -1003,60 +1010,90 @@ def test_squarem_rejects_an_extrapolation_that_makes_an_object_impossible():
     np.testing.assert_allclose(s, m._L @ r2)  # the evidences at the point returned
 
 
-def _gp_model(n=3000, K=12, seed=2):
-    mock = binference.simulate.mock_1d(n, Bins.linear(0, 3, K), noise=(0.05, 0.1), rng=seed)
-    return PopulationModel(mock.likelihoods, P.LogisticRandomWalk(order=1))
+def test_polya_tree_map_avoids_boundary_zeros(seed):
+    bins = Bins.linear(0, 1, 16)
+    rho = np.r_[np.full(12, 1 / 12), np.zeros(4)]
+    mock = binference.simulate.mock_1d(300, bins, density=rho, noise=0.02, rng=seed + 8)
+    m = PopulationModel(mock.likelihoods, P.PolyaTree(c=1.0))
+    assert m.prior.unbounded_density()
+    est = MAP(m).run()
+    assert est.info["space"] == "unconstrained"
+    assert np.all(est.rho > 0)
+    with pytest.warns(InputWarning, match="unbounded"):
+        MAP(m, space="simplex").run()
 
 
-def test_nuts_refuses_a_model_whose_prior_is_already_centred():
-    m = _gp_model()
-    centred = m._with_bound_prior(m.prior.with_centering(np.zeros(m.prior.n_active)))
-    with pytest.raises(ValueError, match="non-centred"):
-        NUTS(centred)
+@pytest.mark.parametrize("K", [8, 32])
+def test_map_of_a_bounded_polya_tree_converges_when_half_its_bins_are_empty(K, seed):
+    # c = K/2 gives the root's branches exponent zero; as the empty half goes to zero the
+    # KKT gap in rho cancels terms of order 1/rho (a gap of 1e5 at K = 8), so it is
+    # checked in branch coordinates
+    bins = Bins.linear(0, 1, K)
+    rho = np.r_[np.full(K // 2, 2 / K), np.zeros(K // 2)]
+    mock = binference.simulate.mock_1d(300, bins, density=rho, noise=0.02, rng=seed + 8)
+    m = PopulationModel(mock.likelihoods, P.PolyaTree(c=K / 2))
+    est = MAP(m).run()  # a ConvergenceWarning fails the test
+    assert est.info["space"] == "simplex" and est.converged
+    assert m.kkt_gap(est.rho) < 1e-12
 
 
-def test_positions_from_sample_are_in_the_model_coordinates():
-    m = _gp_model()
-    eng = NUTS(m, n_chains=2, n_warmup=150, rng=1)
-    draws = eng.sample(1)
-    x = next(draws)
-    draws.close()  # records the draw
-    assert not np.all(eng.model.prior.gamma == 1.0)  # sampled partly centred
-    np.testing.assert_allclose(m.to_value(x[0]), eng.result.chains[0, -1])
+def test_em_convergence_warning_reports_missing_information(seed):
+    mock = binference.simulate.mock_1d(500, Bins.linear(0, 3, 15), noise=(0.4, 0.6), rng=seed + 1)
+    S = np.linspace(1.0, 0.5, 15)
+    m = PopulationModel(mock.likelihoods, P.Dirichlet(2.0), selection=S, selection_mode="on_truth")
+    with pytest.warns(binference.ConvergenceWarning, match="missing information"):
+        MAP(m, max_iter=5).run()
 
 
-def test_nuts_arguments_are_checked():
-    m = _gp_model(n=200, K=6)
-    for kwargs in ({"max_depth": 0}, {"n_warmup": -1}, {"jitter": -0.1}):
-        with pytest.raises(ValueError):
-            NUTS(m, **kwargs)
-    with pytest.raises(ValueError, match="init_x"):
-        NUTS(m, init_x=np.full(m.dim, np.nan))
+# ------------------------------------------------------------------ Laplace
+def test_laplace_with_importance(k3_problem, seed):
+    mock, exact = k3_problem
+    res = binference.infer(mock.likelihoods, method="laplace", rng=seed + 4, n_samples=4000)
+    assert "k_hat" in res.info
+    assert_matches_reference(res, exact.mean, exact.std)
 
 
-def test_an_error_in_a_worker_is_raised_not_hidden_by_a_serial_rerun():
-    eng = NUTS(_gp_model(n=200, K=6), n_chains=2, n_warmup=0, n_jobs=2, rng=0)
-    eng._setup()
+def test_a_widened_gaussian_laplace_proposal_recovers_the_exact_posterior(onehot, seed):
+    # one-hot likelihoods: the posterior is Dirichlet(1 + counts), close to Gaussian in
+    # log-ratio coordinates
+    lk, counts = onehot
+    m = PopulationModel(lk)
+    res = Laplace(m, df=None, inflate=1.5, rng=seed).run(4000)
+    assert not res.approximate  # k-hat passed
+    # a wrong sign of log q narrows the draws by about a quarter
+    assert_matches_reference(res, *dirichlet_moments(1.0 + counts))
+    # without importance the draws are the proposals, which inflate widens
+    with pytest.warns(ApproximationWarning):
+        raw = Laplace(m, inflate=1.5, importance=False, rng=seed).run(8000)
+    ratio = raw.x[0].std(axis=0) / (1.5 * np.sqrt(np.diag(raw.info["cov"])))
+    np.testing.assert_allclose(ratio, 1.0, atol=5 / np.sqrt(2 * 8000))
 
-    class Pool:  # a pool whose workers report the model's own error
-        def map(self, f, payloads):
-            return [ValueError("from the model")] * len(payloads)
 
-        def shutdown(self):
-            pass
-
-    eng._pool = Pool()
-    with pytest.raises(ValueError, match="from the model"):
-        eng._parallel(1, adapt=False, record=False)
-    assert eng.n_jobs == 2
+def test_laplace_uncorrected_is_flagged(k3_problem, seed):
+    mock, _ = k3_problem
+    with pytest.warns(ApproximationWarning):
+        res = Laplace(PopulationModel(mock.likelihoods), importance=False, rng=seed + 1).run(500)
+    assert res.approximate
 
 
-def test_a_dense_metric_draws_momenta_with_the_inverse_covariance():
-    inv_m = np.array([[2.0, 0.6, 0.0], [0.6, 1.0, 0.3], [0.0, 0.3, 0.5]])
-    rng = np.random.default_rng(0)
-    p = np.array([Metric(inv_m).draw_momentum(rng) for _ in range(40000)])
-    # entries of a sample covariance from 40,000 draws are within about 2% of the truth
-    np.testing.assert_allclose(np.cov(p.T), np.linalg.inv(inv_m), atol=0.08)
+def test_laplace_clips_negative_curvature_to_a_wide_positive_variance(k3_problem, monkeypatch):
+    from binference.engines import laplace
+
+    real = laplace.fd_hessian
+
+    def indefinite(fn, x, h):  # flip the curvature along the first eigenvector of -H
+        lam, U = np.linalg.eigh(-real(fn, x, h=h))
+        lam[0] = -lam[0]
+        return -(U * lam) @ U.T
+
+    monkeypatch.setattr(laplace, "fd_hessian", indefinite)
+    with pytest.warns(ApproximationWarning, match="not positive definite; clipping"):
+        _, cov, H = Laplace(PopulationModel(k3_problem[0].likelihoods)).mode_and_covariance()
+    lam, U = np.linalg.eigh(-H)
+    assert lam[0] < 0 < lam[1]
+    floor = 1e-8 * max(1.0, lam[1])
+    np.testing.assert_allclose(cov @ U[:, 0], U[:, 0] / floor, rtol=1e-6)
+    np.testing.assert_allclose(cov @ U[:, 1], U[:, 1] / lam[1], rtol=1e-6)
 
 
 def _dirichlet_model():
@@ -1064,91 +1101,140 @@ def _dirichlet_model():
     return PopulationModel(mock.likelihoods)
 
 
-def test_an_uncorrected_laplace_returns_every_draw_asked_for():
+def test_an_uncorrected_laplace_returns_every_draw_asked_for(seed):
     with pytest.warns(binference.ApproximationWarning):
-        res = Laplace(_dirichlet_model(), importance=False, n_proposals=100, rng=0).run(400)
+        res = Laplace(_dirichlet_model(), importance=False, n_proposals=100, rng=seed + 0).run(400)
     assert res.n_draws == 400
 
 
-def test_laplace_draws_a_few_samples_from_enough_proposals_to_smooth():
+def test_laplace_draws_a_few_samples_from_enough_proposals_to_smooth(seed):
     # 2 * n_samples = 4 proposals by default; Pareto smoothing needs 5, too few to vouch
     with pytest.warns(binference.ApproximationWarning):
-        res = Laplace(_dirichlet_model(), rng=0).run(2)
+        res = Laplace(_dirichlet_model(), rng=seed + 0).run(2)
     assert res.n_draws == 2 and res.approximate
     with pytest.raises(ValueError, match="n_samples"):
-        Laplace(_dirichlet_model(), rng=0).run(0)
+        Laplace(_dirichlet_model(), rng=seed + 0).run(0)
 
 
-def test_the_laplace_k_hat_threshold_tightens_for_few_proposals():
+def test_the_laplace_k_hat_threshold_tightens_for_few_proposals(seed):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", binference.ApproximationWarning)
-        res = Laplace(_dirichlet_model(), rng=0).run(100)  # 200 proposals
+        res = Laplace(_dirichlet_model(), rng=seed + 0).run(100)  # 200 proposals
     assert res.info["k_hat_threshold"] == pytest.approx(1 - 1 / np.log10(200))
     assert res.approximate == (res.info["k_hat"] >= res.info["k_hat_threshold"])
 
 
-def test_warm_up_alone_leaves_no_worker_processes():
-    eng = NUTS(_gp_model(n=200, K=6), n_chains=2, n_warmup=30, n_jobs=2, rng=0)
-    eng.warmup()
-    assert eng._pool is None
+# ----------------------------------------------------------------------- VB
+def test_vb_exact_for_onehot_and_overconfident_otherwise(onehot, k3_problem, seed):
+    lk, counts = onehot
+    with pytest.warns(ApproximationWarning):
+        res = MeanFieldVB(PopulationModel(lk), rng=seed + 1).run(20000)
+    assert_matches_reference(res, *dirichlet_moments(1.0 + counts))
+    mock, exact = k3_problem
+    with pytest.warns(ApproximationWarning):
+        vb = MeanFieldVB(PopulationModel(mock.likelihoods), rng=seed + 1).run(4000)
+    assert vb.approximate
+    assert np.all(vb.std < 0.8 * exact.std)
+    with pytest.raises(ValueError, match="conjugate"):
+        MeanFieldVB(PopulationModel(lk, P.LogisticNormal()))
 
 
-def _standard_gaussian(x):
-    return -0.5 * float(x @ x), -x
+def test_vb_means_with_a_selection_are_close_to_the_exact_posterior(k3_selection_problem, seed):
+    mock, exact = k3_selection_problem
+    with pytest.warns(ApproximationWarning):
+        vb = MeanFieldVB(PopulationModel(mock.likelihoods), rng=seed + 1).run(4000)
+    # VB's means carry a bias of a few 1e-3 here (the plug-in of the missed objects and
+    # the mean-field factorisation; measured 0.003); its Monte Carlo error is 0.025 /
+    # sqrt(4000) = 4e-4. Ignoring the selection moves the means by 0.2.
+    np.testing.assert_allclose(vb.mean, exact.mean, atol=0.01)
 
 
-def test_a_step_that_overflows_the_energy_is_a_silent_divergence():
-    # a momentum of 1e200 overflows p @ M^-1 p; the tree marks the leaf divergent, and the
-    # overflow warning is not raised (it failed the joint-selection SBC as an error)
-    x, p = np.zeros(2), np.full(2, 1e200)
-    m = Metric(np.ones(2))
-    t = _leaf(x, p, -x, 1, 1e-300, 0.0, m, _standard_gaussian, _MAX_ENERGY_ERROR)
-    assert t.diverging
+def test_vb_rates_with_a_selection_match_gibbs(seed):
+    # likelihoods much narrower than the bins: the mean-field factorisation is nearly
+    # exact (exact for one-hot likelihoods); the plug-in of the missed objects adds a bias
+    # of at most 0.5% of the rate (three seeds), allowed for at 1% beside the MC error
+    bins = Bins([0.0, 1.0, 2.0, 3.0])
+    S = np.array([0.9, 0.5, 0.25])
+    mock = binference.simulate.mock_1d(
+        250,
+        bins,
+        density=np.array([0.4, 0.35, 0.25]),
+        noise=(0.05, 0.2),
+        selection=S,
+        rng=seed + 777,
+    )
+    m = PopulationModel(mock.likelihoods, P.GammaRates(1.0, 1e-3))
+    with pytest.warns(ApproximationWarning):
+        vb = MeanFieldVB(m, rng=seed + 1).run(4000)
+    g = Gibbs(m, n_warmup=200, rng=seed + 6).run(2000)
+    R = g.rates.reshape(g.n_chains, -1, 3)
+    se = np.hypot(
+        [binference.diagnostics.mcse(R[:, :, k]) for k in range(3)],
+        vb.rates.std(0) / np.sqrt(4000),
+    )
+    assert np.all(np.abs(vb.rates.mean(0) - g.rates.mean(0)) <= 4 * se + 0.01 * g.rates.mean(0))
 
 
-def test_adaptation_windows_match_stan_except_one_window_for_151_to_199_iterations():
-    assert adaptation_windows(1000) == [(75, 100), (100, 150), (150, 250), (250, 450), (450, 950)]
-    assert adaptation_windows(175) == [(75, 125)]  # Stan: (75, 100) and (100, 125)
-    # at the edges of that range, which pin the comparisons of the buffers and the window
-    assert adaptation_windows(150) == [(75, 100)]
-    assert adaptation_windows(200) == [(75, 100), (100, 150)]
+# ---------------------------------------------------------------- Bootstrap
+def test_bootstrap(k3_problem, seed):
+    mock, _ = k3_problem
+    with pytest.warns(ApproximationWarning):
+        res = Bootstrap(PopulationModel(mock.likelihoods), rng=seed + 1).run(60)
+    assert res.samples.shape == (60, 3) and res.approximate
+    # At large N the bootstrap sd matches the posterior sd. With B = 200 replicates the
+    # sd has relative MC error ~ 1/sqrt(2B) = 5% (ratios 0.91-1.10 over 8 seeds), so
+    # |log ratio| < 0.2 is 4 sigma and catches a factor sqrt(2) either way (0.35).
+    big = binference.simulate.mock_1d(
+        2000, mock.bins, density=np.array([0.5, 0.15, 0.35]), noise=(0.3, 1.2), rng=seed + 12345
+    )
+    ref = binference.validation.exact_posterior(big.likelihoods)
+    with pytest.warns(ApproximationWarning):
+        boot = Bootstrap(PopulationModel(big.likelihoods), rng=seed + 1).run(200)
+    assert np.all(np.abs(np.log(boot.std / ref.std)) < 0.2)
+    with pytest.warns(ApproximationWarning):
+        bb = Bootstrap(PopulationModel(mock.likelihoods), scheme="bayesian", rng=seed + 1).run(20)
+    assert bb.info["scheme"] == "bayesian" and bb.info["n_not_converged"] == 0
+    with pytest.raises(ValueError):
+        Bootstrap(PopulationModel(mock.likelihoods), scheme="parametric")
 
 
-def test_step_size_adaptation_reaches_the_target_acceptance_on_a_standard_gaussian():
-    acc = []
-    for rng in np.random.default_rng(0).spawn(4):
-        chain = _Chain(rng.standard_normal(10), _standard_gaussian, rng, 1000, 0.8, dense=False)
-        for _ in range(1000):
-            chain.step(10, adapt=True)
-        acc.append([chain.step(10, adapt=False)[0] for _ in range(1000)])
-    # Stan's averaged step size accepts more often than the target (0.87-0.90 with seeds
-    # 0-19), so the bound is one-sided, at four Monte Carlo errors of the mean accept
-    # statistic of each chain: pooled, the error grows when broken adaptation splits them
-    mcse = binference.diagnostics.mcse
-    assert all(np.mean(a) >= 0.8 - 4 * mcse(np.asarray(a)) for a in acc)
+def test_bootstrap_of_a_logistic_prior_refits_each_reweighted_catalogue(seed):
+    # a smooth prior has no EM update: each replicate is a weighted L-BFGS fit
+    mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 6), noise=(0.1, 0.3), rng=seed + 9)
+    m = PopulationModel(mock.likelihoods, P.LogisticRandomWalk())
+    with pytest.warns(ApproximationWarning):
+        res = Bootstrap(m, rng=seed + 1).run(20)
+    X = res.samples
+    assert X.shape == (20, 6) and np.all(np.isfinite(X)) and res.info["n_not_converged"] == 0
+    np.testing.assert_allclose(X.sum(1), 1.0)
+    assert np.unique(X.round(8), axis=0).shape[0] == 20  # every replicate is its own fit
+    assert not np.any(np.all(np.isclose(X, res.info["estimate"]), axis=1))
 
 
-def test_above_the_dense_limit_the_warm_up_curvature_is_taken_at_one_chain(monkeypatch):
-    from binference.engines import nuts
+def test_bootstrap_counts_replicates_that_did_not_converge(seed):
+    m = PopulationModel(
+        binference.simulate.mock_1d(500, Bins.linear(0, 3, 6), rng=seed + 2).likelihoods,
+        binference.priors.Dirichlet(2.0),
+    )
+    with (
+        pytest.warns(binference.ApproximationWarning),  # always: not a posterior
+        pytest.warns(binference.ConvergenceWarning) as rec,
+    ):
+        res = Bootstrap(m, max_iter=1, rng=seed + 0).run(5)
+    msgs = [str(r.message) for r in rec]
+    assert any(s.startswith("EM did not converge") for s in msgs)  # the base fit is not silenced
+    assert "5 of 5 bootstrap fits did not converge; raise max_iter." in msgs
+    assert res.info["n_not_converged"] == 5
 
-    calls = []
-    for name in ("fd_hessian_diag", "fd_hessian"):
-        real = getattr(nuts, name)
-        monkeypatch.setattr(
-            nuts, name, lambda *a, _f=real, _n=name, **k: calls.append(_n) or _f(*a, **k)
-        )
-    model = _gp_model(n=200, K=6)
-    counts = []
-    for limit in (nuts._DENSE_MAX_DIM, 0):  # 6 bins, then as if above the limit
-        monkeypatch.setattr(nuts, "_DENSE_MAX_DIM", limit)
-        calls.clear()
-        eng = NUTS(model, n_chains=3, n_warmup=0, rng=0)
-        eng._setup()
-        eng._adapt_geometry()
-        counts.append((calls.count("fd_hessian_diag"), calls.count("fd_hessian")))
-    # the field's diagonal, then the hyperparameters' and the whole model's Hessians, at
-    # every chain's position and then at one
-    assert counts == [(3, 6), (1, 2)]
+
+def test_a_rate_bootstrap_never_collapses_to_zero(seed):
+    L = _one_object_bin()
+    m = PopulationModel(Likelihoods(L, Bins.categories(5)), P.GammaRates(1.0, 1e-3))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = Bootstrap(m, rng=seed + 3).run(60)
+    totals = res.rates.sum(axis=1)
+    assert np.all(totals > 0) and np.all(np.isfinite(res.samples))
 
 
 def _bootstrap(model, **kw):
@@ -1157,31 +1243,30 @@ def _bootstrap(model, **kw):
         return Bootstrap(model, **kw).run(150)
 
 
-# -------------------------------------------------------------- bootstrap (1-3)
 @pytest.mark.parametrize("scheme", ["nonparametric", "bayesian"])
-def test_bootstrap_resamples_objects_not_rows(scheme):
-    rng = np.random.default_rng(0)
+def test_bootstrap_resamples_objects_not_rows(scheme, seed):
+    rng = np.random.default_rng(seed + 0)
     labels = rng.choice(4, size=2000, p=[0.4, 0.1, 0.4, 0.1])
     L = np.eye(4)[labels] * 0.9 + 0.1 / 4  # only four distinct rows
     raw = Likelihoods(L)
     packed = raw.compress()
     assert packed.N == 4
-    sd_raw = _bootstrap(PopulationModel(raw), scheme=scheme, rng=1).std
-    sd_packed = _bootstrap(PopulationModel(packed), scheme=scheme, rng=1).std
+    sd_raw = _bootstrap(PopulationModel(raw), scheme=scheme, rng=seed + 1).std
+    sd_packed = _bootstrap(PopulationModel(packed), scheme=scheme, rng=seed + 1).std
     np.testing.assert_allclose(sd_packed, sd_raw, rtol=0.3)
     assert np.all(sd_packed < 0.05)  # was ~0.35 when rows were resampled
 
 
-def test_bootstrap_rates_have_a_random_total():
-    mock = binference.simulate.mock_1d(1000, Bins.linear(0, 3, 6), rng=2)
-    res = _bootstrap(PopulationModel(mock.likelihoods, P.GammaRates(1.0, 1e-6)), rng=1)
+def test_bootstrap_rates_have_a_random_total(seed):
+    mock = binference.simulate.mock_1d(1000, Bins.linear(0, 3, 6), rng=seed + 2)
+    res = _bootstrap(PopulationModel(mock.likelihoods, P.GammaRates(1.0, 1e-6)), rng=seed + 1)
     totals = res.rates.sum(axis=1)
     assert totals.std() == pytest.approx(np.sqrt(1000), rel=0.3)
 
 
-def test_bootstrap_replicates_are_optimal_for_their_own_weights(monkeypatch):
+def test_bootstrap_replicates_are_optimal_for_their_own_weights(monkeypatch, seed):
     """A sparse MLE must not trap replicates: each refit is certified optimal (audit T-3)."""
-    mock = binference.simulate.mock_1d(150, Bins.linear(0, 3, 20), noise=(0.05, 0.1), rng=3)
+    mock = binference.simulate.mock_1d(150, Bins.linear(0, 3, 20), noise=(0.05, 0.1), rng=seed + 3)
     # selection with a non-flat Dirichlet routes MAP to EM, which cannot revive the zeros of
     # the sparse full-data mode (mix-SQP, the default without selection, can)
     alpha = np.ones(20)
@@ -1200,96 +1285,8 @@ def test_bootstrap_replicates_are_optimal_for_their_own_weights(monkeypatch):
 
     monkeypatch.setattr(Bootstrap, "_replicate_weights", record)
     with pytest.warns(ApproximationWarning):
-        res = Bootstrap(m, rng=2).run(60)
+        res = Bootstrap(m, rng=seed + 2).run(60)
     assert res.info["n_not_converged"] == 0
     gaps = [m._with_weights(wb).kkt_gap(v) for wb, v in zip(weights, res.samples, strict=True)]
     # converged means gap <= 1e3 * tol (DECISIONS #71); from the full-data MAP: up to 6e-2
     assert max(gaps) < 1e-5
-
-
-# -------------------------------------------------------------- priors (8, 9, 15)
-def test_polya_tree_map_avoids_boundary_zeros():
-    bins = Bins.linear(0, 1, 16)
-    rho = np.r_[np.full(12, 1 / 12), np.zeros(4)]
-    mock = binference.simulate.mock_1d(300, bins, density=rho, noise=0.02, rng=8)
-    m = PopulationModel(mock.likelihoods, P.PolyaTree(c=1.0))
-    assert m.prior.unbounded_density()
-    est = MAP(m).run()
-    assert est.info["space"] == "unconstrained"
-    assert np.all(est.rho > 0)
-    with pytest.warns(InputWarning, match="unbounded"):
-        MAP(m, space="simplex").run()
-
-
-@pytest.mark.parametrize("K", [8, 32])
-def test_map_of_a_bounded_polya_tree_converges_when_half_its_bins_are_empty(K):
-    # c = K/2 gives the root's branches exponent zero; as the empty half goes to zero the
-    # KKT gap in rho cancels terms of order 1/rho (a gap of 1e5 at K = 8), so it is
-    # checked in branch coordinates
-    bins = Bins.linear(0, 1, K)
-    rho = np.r_[np.full(K // 2, 2 / K), np.zeros(K // 2)]
-    mock = binference.simulate.mock_1d(300, bins, density=rho, noise=0.02, rng=8)
-    m = PopulationModel(mock.likelihoods, P.PolyaTree(c=K / 2))
-    est = MAP(m).run()  # a ConvergenceWarning fails the test
-    assert est.info["space"] == "simplex" and est.converged
-    assert m.kkt_gap(est.rho) < 1e-12
-
-
-# ------------------------------------------------------------------- NUTS (7, 11)
-def test_weak_data_smoothness_fits_stay_non_centred():
-    """Poorly constrained scales: partial centring would create a funnel."""
-    bins = Bins.linear(0.0, 3.0, 6)
-    density = binference.simulate.population(bins, "bimodal")
-    mock = binference.simulate.mock_1d(30, bins, density=density, noise=(0.2, 0.4), rng=6)
-    # the centring is decided once, at warm-up iteration 25 (from 150 warm-up iterations,
-    # as by default; shorter warm-ups decide earlier), so one draw after it suffices
-    model = PopulationModel(mock.likelihoods, P.LogisticRandomWalk(order=2))
-    eng = NUTS(model, rng=1, n_chains=2, n_warmup=150)
-    eng.run(1)
-    penalised = ~eng.model.prior.null
-    assert np.all(eng.model.prior.gamma[penalised] == 1.0)
-
-
-def test_parallel_chains_fall_back_when_the_model_cannot_be_pickled():
-    mock = binference.simulate.mock_1d(100, Bins.linear(0, 3, 8), rng=1)
-    model = PopulationModel(mock.likelihoods, P.PolyaTree(base=lambda z: np.exp(-z)))
-    with pytest.raises((pickle.PicklingError, AttributeError, TypeError)):
-        pickle.dumps(model)
-    eng = NUTS(model, n_chains=2, n_warmup=30, rng=1, n_jobs=2)
-    with pytest.warns(RuntimeWarning, match="serially"):
-        res = eng.run(10)
-    assert res.chains.shape == (2, 10, 8)
-    assert eng.n_jobs == 1
-    assert eng.run(5).chains.shape == (2, 15, 8)  # still usable
-
-
-def test_em_convergence_warning_reports_missing_information():
-    mock = binference.simulate.mock_1d(500, Bins.linear(0, 3, 15), noise=(0.4, 0.6), rng=1)
-    S = np.linspace(1.0, 0.5, 15)
-    m = PopulationModel(mock.likelihoods, P.Dirichlet(2.0), selection=S, selection_mode="on_truth")
-    with pytest.warns(binference.ConvergenceWarning, match="missing information"):
-        MAP(m, max_iter=5).run()
-
-
-def test_parallel_chain_workers_share_blas_threads():
-    from concurrent.futures import ProcessPoolExecutor
-
-    from threadpoolctl import threadpool_info, threadpool_limits
-
-    from binference.engines.nuts import _init_worker, _worker_threads
-
-    with ProcessPoolExecutor(1, initializer=_init_worker, initargs=(None, 1)) as ex:
-        info = ex.submit(threadpool_info).result()
-    assert all(lib["num_threads"] == 1 for lib in info)
-    with threadpool_limits(1):  # a limit set by the user is never raised (audit N-3)
-        if threadpool_info():  # nothing to respect where no thread pool is visible
-            assert _worker_threads(1) == 1
-
-
-def test_data_rich_gp_fits_are_partially_centred():
-    """A weakly identified length scale must not switch centring off (20x slower)."""
-    bins = Bins.linear(0.0, 3.0, 40)
-    lk = binference.simulate.mock_1d(400, bins, noise=(0.05, 0.15), rng=21).likelihoods[:300]
-    eng = NUTS(PopulationModel(lk, P.LogisticGP()), rng=2, n_warmup=40)
-    eng.run(1)
-    assert np.mean(eng.model.prior.gamma < 0.5) > 0.1

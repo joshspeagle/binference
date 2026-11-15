@@ -135,3 +135,7 @@ def test_bin_counts_and_factors_must_be_positive_integers():
     for labels in (2.0, "star"):  # a string is one label, not four
         with pytest.raises(TypeError, match="labels must be"):
             Bins.categories(labels)
+
+
+def test_a_grid_has_one_axis_per_edge_array():
+    assert Bins.grid([np.linspace(0, 1, 4), np.linspace(0, 1, 3)]).shape == (3, 2)

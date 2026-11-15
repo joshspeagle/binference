@@ -6,9 +6,7 @@ import scipy.sparse as sp
 from scipy import integrate, stats
 
 import binference
-from binference import (
-    Bins,
-)
+from binference import Bins
 from binference import priors as P
 from binference._simplex import helmert_basis, softmax
 from binference.priors.hyper import Fixed, as_hyperprior

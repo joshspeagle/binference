@@ -115,8 +115,7 @@ def test_scipy_gaussians_keep_precision_near_the_mean_too():
     np.testing.assert_allclose(lk.toarray(), 1.0, rtol=1e-12)
 
 
-def test_a_grid_has_one_axis_per_edge_array_and_a_scalar_gaussian_is_one_object():
-    assert Bins.grid([np.linspace(0, 1, 4), np.linspace(0, 1, 3)]).shape == (3, 2)
+def test_a_scalar_gaussian_is_one_object():
     assert Likelihoods.from_gaussian(0.5, 0.1, Bins.linear(0, 1, 4)).N == 1
 
 

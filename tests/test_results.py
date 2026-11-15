@@ -440,6 +440,7 @@ def test_external_draws_are_checked_and_normalised():
 def test_which_takes_both_spellings_everywhere():
     pytest.importorskip("matplotlib")
     import matplotlib
+    import matplotlib.pyplot
 
     matplotlib.use("Agg")
     _, res = fit_with_selection()
@@ -457,6 +458,7 @@ def test_which_takes_both_spellings_everywhere():
     np.testing.assert_allclose(ax.lines[0].get_ydata()[:-1], est.rates)
     with pytest.raises(ValueError, match="which"):
         est.plot(which="bogus")
+    matplotlib.pyplot.close("all")
 
 
 def test_rebin_takes_integral_floats_and_refuses_others():

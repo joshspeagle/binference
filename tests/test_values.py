@@ -227,7 +227,6 @@ def test_loglike_values_need_support_in_the_bin_and_call_loglike_once_per_object
         res.sample_values(idx=[0], n_draws=20, rng=0, loglike=narrow)
 
 
-# ------------------------------------------------------------- results (6, 12-14)
 def test_sample_values_follow_the_likelihood_within_bins():
     bins = Bins([0.0, 0.5, 1.0])
     lk = Likelihoods.from_gaussian(np.array([0.26, 0.7]), np.array([0.02, 0.3]), bins)

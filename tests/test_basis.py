@@ -9,14 +9,7 @@ import pytest
 from scipy import integrate, stats
 
 import binference
-from binference import (
-    Basis,
-    Bins,
-    Likelihoods,
-    PointEstimate,
-    PopulationModel,
-    PopulationResult,
-)
+from binference import Basis, Bins, Likelihoods, PointEstimate, PopulationModel, PopulationResult
 from binference import priors as P
 from binference.engines import MAP
 
@@ -518,12 +511,3 @@ def test_binning_bias_refuses_a_fit_on_finer_quadrature_cells():
     )
     with pytest.raises(ValueError, match="binning_bias"):
         res.binning_bias(order=1)
-
-
-def test_a_reloaded_fit_on_a_transform_axis_attaches_without_a_basis(tmp_path):
-    # the axis loads as a table, which compares unequal to the transform
-    tb = Bins(np.linspace(0, 3, 7), measure=binference.Measure.transform(np.arcsinh, np.sinh))
-    lk = binference.simulate.mock_1d(80, tb, rng=7).likelihoods
-    res = binference.infer(lk, method="gibbs", n_samples=20, n_warmup=10, rng=0, check=False)
-    res.save(str(tmp_path / "t"))
-    PopulationResult.load(str(tmp_path / "t")).attach(lk).assignment_probabilities(idx=[0])

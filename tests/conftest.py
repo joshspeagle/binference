@@ -140,3 +140,16 @@ def fit_with_selection():
         check=False,
     )
     return lk, res
+
+
+@pytest.fixture(scope="module")
+def res1d(small_1d):
+    return binference.infer(
+        small_1d.likelihoods,
+        method="gibbs",
+        rng=1,
+        n_samples=100,
+        n_warmup=20,
+        check=False,
+        store_labels=[0, 1],
+    )

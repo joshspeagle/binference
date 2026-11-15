@@ -396,7 +396,6 @@ def test_stack_one_em_step():
     np.testing.assert_allclose(lk.stack(), [0.25, 0.5, 0.25])
 
 
-# ------------------------------------------------------------- inputs (4, 5, 10)
 def test_to_sparse_does_not_modify_the_original():
     lk = Likelihoods(np.random.default_rng(0).random((4, 5)) ** 3).to_sparse()
     before, nnz = lk.toarray().copy(), lk.nnz
