@@ -47,7 +47,9 @@ shape of their tree.
   parameters `a` and `b`, and $\rho_k=\nu_k\prod_{j<k}(1-\nu_j)$. With `a` equal to
   $\alpha_k$ and `b` equal to $\sum_{j>k}\alpha_j$ it is $\mathrm{Dir}(\alpha)$. Other
   parameters give variances and correlations, including positive ones, that a Dirichlet
-  cannot express.
+  cannot express. With equal `a` and `b` on every stick, each stick halves the mean.
+  `GeneralizedDirichlet.from_base_measure(c, base)` sets the mean to the base measure's
+  bin masses, with $a_k+b_k=c$ on every stick.
 - **`DirichletTree(tree, alpha)`** takes any tree, written as nested lists of bins or as
   named groups, with one concentration per branch.
 - **`PolyaTree`** {cite:p}`lavine1992` is a balanced binary tree over ordered
