@@ -48,7 +48,7 @@ shape of their tree.
   $\alpha_k$ and `b` equal to $\sum_{j>k}\alpha_j$ it is $\mathrm{Dir}(\alpha)$. Other
   parameters give variances and correlations, including positive ones, that a Dirichlet
   cannot express. With the same `a` and `b` on every stick the mean falls along the chain
-  (by half per bin when `a` equals `b`); `GeneralizedDirichlet.from_base_measure(c, base)`
+  (by half per stick when `a` equals `b`, the last two bins equal); `GeneralizedDirichlet.from_base_measure(c, base)`
   sets each stick's mean so that the prior mean is the base measure's bin masses, with
   $a_k+b_k=c$ on every stick.
 - **`DirichletTree(tree, alpha)`** takes any tree, written as nested lists of bins or as

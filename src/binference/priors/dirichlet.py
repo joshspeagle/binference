@@ -167,10 +167,7 @@ class Dirichlet(PopulationPrior):
         K = bins.K
         if self._base is not None:
             conc, base = self._base
-            b = base.masses(bins)
-            if np.any(b <= 0):
-                raise ValueError("The base measure must give every bin positive mass.")
-            return conc * b
+            return conc * _base_masses(base, bins)
         if isinstance(self.alpha, str):
             return np.full(K, 1.0 / K)
         return _per_item(self.alpha, K, "alpha").astype(float)
@@ -254,6 +251,14 @@ def _sparse_if_thin(membership: np.ndarray) -> np.ndarray | sp.csr_array:
 def _times(x: np.ndarray, membership: Any) -> np.ndarray:
     # (..., n) @ (n, m) as (..., m), since a sparse product takes at most two axes
     return (x.reshape(-1, x.shape[-1]) @ membership).reshape(*x.shape[:-1], membership.shape[1])
+
+
+def _base_masses(base: Density, bins: Bins) -> np.ndarray:
+    """The base measure's bin masses, each positive."""
+    masses = base.masses(bins)
+    if np.any(masses <= 0):
+        raise ValueError("The base measure must give every bin positive mass.")
+    return masses
 
 
 class _TreeStructure:
@@ -773,10 +778,11 @@ class GeneralizedDirichlet(_TreePrior):
 
     Notes
     -----
-    With ``b`` given, the prior mean of bin :math:`k` is
-    :math:`\bar\nu_k\prod_{j<k}(1-\bar\nu_j)` with :math:`\bar\nu_k = a_k/(a_k+b_k)`, so equal
-    ``a`` and ``b`` halve the mean from each bin to the next. :meth:`from_base_measure` sets
-    ``a`` and ``b`` from a target mean instead.
+    The bin taken by stick :math:`k` (in stick order) has prior mean
+    :math:`\bar\nu_k\prod_{j<k}(1-\bar\nu_j)` with :math:`\bar\nu_k = a_k/(a_k+b_k)`, and the
+    last bin :math:`\prod_{j<K}(1-\bar\nu_j)`. Equal ``a`` and ``b`` on every stick therefore
+    halve the mean from each stick to the next, the last two bins equal.
+    :meth:`from_base_measure` sets ``a`` and ``b`` from a target mean instead.
     """
 
     describe = _TreePrior.describe  # documented on this class's API page
@@ -817,9 +823,10 @@ class GeneralizedDirichlet(_TreePrior):
         r"""Sticks whose means give the bin masses of ``base`` as the prior mean.
 
         Stick :math:`k` takes the share :math:`\bar\nu_k = B_k / \sum_{j \ge k} B_j` of the
-        stick left, in stick order, with ``B`` the normalised bin masses of ``base``, and
+        stick left, in stick order, with ``B`` the bin masses of ``base``, and
         :math:`a_k + b_k` = ``concentration``. Every stick then has the same concentration,
-        unlike a Dirichlet, whose sticks lose concentration as they break.
+        unlike a Dirichlet, whose sticks lose concentration as they break. The prior's ``a``
+        and ``b`` are ``None``; they are set from the base measure when it is bound to bins.
 
         Parameters
         ----------
@@ -833,9 +840,16 @@ class GeneralizedDirichlet(_TreePrior):
             Stick-breaking order, as for the class.
         """
         check_positive(concentration, "concentration")
+        if np.ndim(concentration) > 1:
+            raise ValueError("concentration must be a scalar or one value per stick (K - 1).")
+        conc = (
+            float(concentration)
+            if np.ndim(concentration) == 0
+            else np.array(concentration, dtype=float)
+        )
         obj = cls(1.0, 1.0, order)
         obj.a = obj.b = None  # set at binding, from the base measure
-        obj._base = (concentration, Density.coerce(base, "mass", name="base"))
+        obj._base = (conc, Density.coerce(base, "mass", name="base"))
         return obj
 
     def _structure(self, bins: Bins) -> _TreeStructure:
@@ -850,13 +864,10 @@ class GeneralizedDirichlet(_TreePrior):
             raise ValueError(f"order must be a permutation of 0..K-1 with K={K}.")
         if self._base is not None:
             conc, base = self._base
-            masses = base.masses(bins)
-            if np.any(masses <= 0):
-                raise ValueError("The base measure must give every bin positive mass.")
-            m = masses[order] / masses.sum()
-            share = m[:-1] / np.cumsum(m[::-1])[::-1][:-1]  # each stick's share of what is left
-            c = _per_item(conc, K - 1, "concentration").astype(float)
-            a, b = c * share, c * (1.0 - share)
+            m = _base_masses(base, bins)[order]
+            tail = np.cumsum(m[::-1])[::-1]  # the mass left when stick k breaks
+            c = _per_item(conc, K - 1, "concentration (one per stick)").astype(float)
+            a, b = c * m[:-1] / tail[:-1], c * tail[1:] / tail[:-1]
         else:
             a = _per_item(self.a, K - 1, "a").astype(float)
             if self.b is None:

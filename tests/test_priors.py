@@ -875,9 +875,23 @@ def test_a_generalized_dirichlet_from_a_base_measure_has_its_masses_as_mean(seed
     np.testing.assert_array_less(np.abs(draws.mean(0) - base / base.sum()), 4 * se)
 
 
+def test_every_stick_of_a_generalized_dirichlet_from_a_base_measure_has_its_concentration():
+    bins = Bins.linear(0, 1, 5)
+    for conc in (2.0, [1.0, 2.0, 3.0, 4.0]):
+        tree = P.GeneralizedDirichlet.from_base_measure(conc, [1.0, 1e-17, 2.0, 3.0, 1e-20])
+        tree = tree._structure(bins)
+        sticks = np.add.reduceat(tree.slot_alpha, tree.node_start[:-1])
+        np.testing.assert_allclose(sticks, np.broadcast_to(conc, 4), rtol=1e-12)
+        assert np.all(tree.slot_alpha > 0)  # no stick loses its b to round-off
+
+
 def test_a_generalized_dirichlet_from_a_base_measure_checks_its_arguments():
     with pytest.raises(ValueError, match="concentration"):
         P.GeneralizedDirichlet.from_base_measure(0.0)
     with pytest.raises(ValueError, match="positive mass"):
         P.GeneralizedDirichlet.from_base_measure(2.0, [1.0, 0.0, 1.0]).bind(Bins.linear(0, 1, 3))
-    assert "concentration=2.0" in repr(P.GeneralizedDirichlet.from_base_measure())
+    with pytest.raises(ValueError, match="one value per stick"):
+        P.GeneralizedDirichlet.from_base_measure(np.ones((2, 2)))
+    assert repr(P.GeneralizedDirichlet.from_base_measure(2)) == repr(
+        P.GeneralizedDirichlet.from_base_measure(2.0)
+    )
