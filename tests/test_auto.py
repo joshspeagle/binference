@@ -206,6 +206,7 @@ def test_laplace_mode_and_covariance_are_copies_and_follow_the_step():
     assert engine._eigen[0] == 1e-4  # found again for the new step
 
 
+@pytest.mark.filterwarnings("ignore:Diagnostics. bins with fewer than:binference.InputWarning")
 def test_a_gibbs_run_is_extended_until_it_meets_the_target_ess_and_r_hat():
     # a selection inferred jointly mixes more slowly than the default 1000 draws allow
     lk, sel = _problem()

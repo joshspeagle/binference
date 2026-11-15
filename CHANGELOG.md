@@ -28,6 +28,11 @@ releases may break the API).
   coordinate, where its prior mean is not a flat density, and points to
   `Dirichlet.from_base_measure`. `GammaRates` with one `shape` for every bin warns there too.
 - `PolyaTree`'s error for a base measure with an empty bin reads as `Dirichlet`'s.
+- **Breaking:** `Selection.from_injections` takes Jeffreys' prior, `prior=(0.5, 0.5)`, on
+  each bin's detection probability by default; it was `(1, 1)`. With few recoveries it
+  reduced the low bias of derived totals (from 12% to 9% in the injections tutorial's setup).
+- `check()` warns when bins with fewer than 20 recovered injections hold more than a tenth
+  of the population, and names the bins that need more injections.
 
 ## [0.2.0] - 2026-11-07
 

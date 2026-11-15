@@ -184,6 +184,7 @@ def test_estimator_works_with_scikit_learn_model_selection():
     assert model_selection.GridSearchCV(est, grid, cv=3).fit(lk.toarray()).best_params_
 
 
+@pytest.mark.filterwarnings("ignore:Diagnostics. bins with fewer than:binference.InputWarning")
 def test_method_em_on_a_joint_model_runs_its_optimiser():
     lk = selection_mock()
     z = np.linspace(0.05, 0.95, 40)

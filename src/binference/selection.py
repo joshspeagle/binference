@@ -138,7 +138,7 @@ class Selection(SetOnce):
         bins: Bins,
         mode: str,
         *,
-        prior: tuple[float, float] = (1.0, 1.0),
+        prior: tuple[float, float] = (0.5, 0.5),
         smooth: float | None = None,
     ) -> Selection:
         """A selection measured by injecting objects of known true value ``z``.
@@ -171,7 +171,8 @@ class Selection(SetOnce):
         mode : {"on_truth", "on_measurement"}
             As for :class:`Selection`.
         prior : (float, float)
-            Beta prior :math:`(a, b)` of every :math:`S_k`, both positive.
+            Beta prior :math:`(a, b)` of every :math:`S_k`, both positive; Jeffreys'
+            :math:`(1/2, 1/2)` by default.
         smooth : float, optional
             Step scale :math:`\\tau_S` of the random walk, in logit per bin (1-D bins
             only); ``None`` (default) keeps the :math:`S_k` independent.

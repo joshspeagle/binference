@@ -260,6 +260,14 @@ poorly determined, for example when some bins hold few detections
 ([theory](../how-it-works/model.md#selection-effects)). Check a total's calibration on simulations
 ({doc}`checking`) before you quote it from such data.
 
+A selection from injections widens the total further where few injections are recovered.
+In a test with 16 bins, 6000 objects, 1250 detections and 3000 injections, so 3 to 17
+recoveries in the five least complete bins, the derived total came out 9% low on average
+under the default Jeffreys prior on each $S_k$, and 12% under a uniform one (200 simulations
+each, NUTS; 3% with the selection known). With 30,000 injections and the uniform prior it
+was 4% low. `check()` warns when bins with fewer than 20 recoveries hold more than a tenth of the
+population ([defaults](../reference/defaults.md)); inject more objects in those bins.
+
 ### The objects the catalogue missed
 
 `result.realized_counts(full=True)` draws the histogram of the full sample: the

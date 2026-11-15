@@ -61,6 +61,14 @@ MAX_DEPTH_SHARE = 0.05
 #: likelihoods from samples exceeds this.
 SAMPLE_VARIANCE_MAX = 1.0
 
+#: Fewest recovered injections per bin before a selection from injections widens the
+#: total enough that the prior pulls it low.
+INJECTIONS_MIN_RECOVERED = 20
+
+#: Largest share of the population allowed in bins with fewer recoveries than
+#: :data:`INJECTIONS_MIN_RECOVERED`.
+INJECTIONS_SPARSE_SHARE_MAX = 0.1
+
 
 # ----------------------------------------------------------------------------
 # Summary table
@@ -212,8 +220,30 @@ class _IndividualMixin:
         return plot_individual(self, i, **kwargs)
 
     def _input_problems(self) -> tuple[list[str], list[str]]:
-        """The problems with the inputs, and hints: the sample noise at the fit, for every
-        engine."""
+        """The problems with the inputs, and hints: the sample noise at the fit, and
+        injections too few where much of the population lies, for every engine."""
+        problems, hints = self._injection_problems()
+        noise, noise_hints = self._sample_noise_problems()
+        return problems + noise, hints + noise_hints
+
+    def _injection_problems(self) -> tuple[list[str], list[str]]:
+        spec = self.model.selection_spec if self.model is not None else None
+        if spec is None or spec.injections is None:
+            return [], []
+        sparse = spec.injections.recovered < INJECTIONS_MIN_RECOVERED
+        share = float(self._rho_draws().mean(axis=0)[sparse].sum())
+        if share <= INJECTIONS_SPARSE_SHARE_MAX:
+            return [], []
+        return (
+            [
+                f"bins with fewer than {INJECTIONS_MIN_RECOVERED} recovered injections hold "
+                f"{share:.0%} of the population, so the total is poorly determined and the "
+                "prior pulls it low"
+            ],
+            [f"inject more objects in bins {np.flatnonzero(sparse).tolist()}"],
+        )
+
+    def _sample_noise_problems(self) -> tuple[list[str], list[str]]:
         lk = self.model.likelihoods if self.model is not None else None
         if lk is None or "sample_sum" not in lk.meta:
             return [], []

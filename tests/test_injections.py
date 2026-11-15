@@ -316,3 +316,21 @@ def test_selection_draws_are_the_flattened_chains_and_refuse_a_fit_without_them(
         plain.selection_draws()
     with pytest.raises(ValueError, match="no response"):
         plain.response_draws()
+
+
+def test_check_asks_for_more_injections_where_few_are_recovered_and_much_of_the_population_lies():
+    bins = Bins.linear(0, 1, 4)
+    S = np.array([0.02, 0.3, 0.6, 0.9])
+    mock = binference.simulate.mock_1d(800, bins, noise=0.05, rng=1)
+    lk = mock.likelihoods.with_selection(None)
+    rng = np.random.default_rng(2)
+    for n_per_bin, warns in ((100, True), (2000, False)):  # 2 or 40 recoveries in bin 0
+        sel = Selection.from_injections(*_injections(S, bins, n_per_bin, rng), bins, "on_truth")
+        res = MAP(binference.PopulationModel(lk, selection=sel), space="unconstrained").run()
+        if warns:
+            with pytest.warns(
+                binference.InputWarning, match="inject more objects in bins \\[0\\]"
+            ):
+                res.check()
+        else:
+            assert not any("recovered injections" in m for m in res.check())

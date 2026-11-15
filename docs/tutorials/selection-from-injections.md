@@ -189,13 +189,14 @@ assert abs(tot["exact selection"].mean() - n_mergers) < 3 * tot["exact selection
 Without a selection, the total is just the number of detections. The joint fit's error
 bars are larger than the plug-in fit's. They include the uncertainty of the detection
 probability from a finite number of injections, which the plug-in fit treats as exact.
-Both totals fall below the truth: the plug-in total by 2.6 of its standard deviations, the
-joint total by 1.8 of its own.
+Both totals fall below the truth: the plug-in total by 1.9 of its standard deviations, the
+joint total by 1.4 of its own.
 
-A total this poorly determined also depends on the prior, which by default biases it
-low ([selection guide](../guides/selection.md#totals-and-rates)). Before you quote a
-total from such data, check its calibration on simulations
-({doc}`validating-an-analysis`).
+The joint fit warned that the lightest bins, with 3 to 17 recovered injections each, hold
+over half the population. A total that depends on so few recoveries is poorly determined,
+and the prior then pulls it low ([selection guide](../guides/selection.md#totals-and-rates)).
+More injections in those bins are the remedy. Before you quote a total from such data,
+check its calibration on simulations ({doc}`validating-an-analysis`).
 
 The joint fit also returns posterior draws of the detection probability,
 `selection_draws()`. The catalogue informs only the ratios between bins, so the

@@ -366,6 +366,7 @@ def test_check_flags_chains_too_short_or_constant_to_diagnose():
     assert PopulationResult(model, short, method="bootstrap").check() == []  # independent
 
 
+@pytest.mark.filterwarnings("ignore:Diagnostics. bins with fewer than:binference.InputWarning")
 def test_check_reads_the_tail_ess_of_an_inferred_selection_and_keeps_its_own_draws():
     # the selection's tail ESS was never computed, so its check could not fire
     bins = Bins.linear(0, 1, 4)
