@@ -561,10 +561,11 @@ class LogisticGP(PopulationPrior):
         a density flat in the measure coordinate: the GP acts on the
         log-density.
     n_basis : int or sequence, optional
-        Basis functions per axis. Default: one per bin, up to a total of 1024
-        (``min(K_d, floor(1024 ** (1 / D)))``: up to 1024 on 1-D grids, 32 per
-        axis on 2-D grids); increase it for shorter length scales, which also
-        lowers the default length-scale prior.
+        Basis functions per axis. Default: as many as the axis's narrowest bin fits across
+        its range in the measure coordinate, which is one per bin on bins of equal width,
+        up to a total of 1024 (``floor(1024 ** (1 / D))`` per axis: 1024 on 1-D grids, 32
+        per axis on 2-D grids); increase it for shorter length scales, which also lowers
+        the default length-scale prior.
     boundary_factor : float
         Ratio of the approximation box to the grid half-width. With the default
         3, the centred covariance is within 4% of the exact kernel's for length
@@ -609,8 +610,12 @@ class LogisticGP(PopulationPrior):
     def bind(self, bins: Bins) -> _BoundGP:
         _require_full_grid(bins)
         D = bins.ndim
-        if self.n_basis is None:  # one per bin, at most _MAX_BASIS modes in all
-            nb = [min(n, int(_MAX_BASIS ** (1 / D) + 1e-9)) for n in bins.shape]
+        if self.n_basis is None:  # the narrowest bin's resolution, at most _MAX_BASIS in all
+            cap = int(_MAX_BASIS ** (1 / D) + 1e-9)
+            nb = [
+                min(cap, max(len(u) - 1, int(np.ceil((u[-1] - u[0]) / np.diff(u).min() - 1e-9))))
+                for u in bins.u_edges
+            ]
         else:
             nb = list(check_positive_integers(self.n_basis, "n_basis", D))
         factors, omegas = [], []

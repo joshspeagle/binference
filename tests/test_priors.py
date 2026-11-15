@@ -940,3 +940,10 @@ def test_a_scalar_dirichlet_alpha_is_spread_over_the_bins_by_width():
         P.Dirichlet([1.0, 2.0, 3.0]).resolve_alpha(Bins([0.0, 0.1, 0.3, 1.0])), [1, 2, 3]
     )
     np.testing.assert_array_equal(P.Dirichlet(1.0).resolve_alpha(Bins.linear(0, 1, 10)), 1.0)
+
+
+def test_the_default_gp_basis_resolves_the_narrowest_bin():
+    # 0.1-wide bins on a range of 3.2 need 32 sines; equal bins keep one per bin
+    bound = P.LogisticGP().bind(Bins([0.0, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2]))
+    assert bound.basis.J == 32
+    assert P.LogisticGP().bind(Bins.log(1.0, 100.0, 16)).basis.J == 16
