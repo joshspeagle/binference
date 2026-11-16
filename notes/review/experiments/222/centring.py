@@ -1,6 +1,7 @@
 """Issue #222: partial centring (the default) against the fully non-centred form, by
 case. Dense metric throughout, two chains of 300 warm-up plus 300 draws run in
-turn. Run with OPENBLAS_NUM_THREADS=1; arguments: fits at once, then seeds."""
+turn. Run with OPENBLAS_NUM_THREADS=1; arguments: fits at once, seeds, and optionally
+the cases to run (comma-separated)."""
 import multiprocessing as mp, sys, time, warnings
 import numpy as np
 import binference
@@ -33,7 +34,8 @@ def one(a):
 
 if __name__ == "__main__":
     seeds = range(int(sys.argv[2]))
-    jobs = [(c, r, s) for c in CASES for s in seeds for r in (True, False)]
+    cases = sys.argv[3].split(",") if len(sys.argv) > 3 else CASES
+    jobs = [(c, r, s) for c in cases for s in seeds for r in (True, False)]
     with mp.get_context("spawn").Pool(int(sys.argv[1])) as p:
         for x in p.imap(one, jobs):
             print(f"{x[0]:14s} {'partial' if x[1] else 'noncent':8s} seed {x[2]} s {x[3]:6.1f} ebfmi {x[4]:.2f} "

@@ -268,7 +268,8 @@ Over 200 simulations with NUTS, the derived total came out 9% low under the defa
 prior on each $S_k$. It came out 12% low under a uniform prior, and 3% low with $S$ known.
 With 30,000 injections and the uniform prior it was 4% low. `check()` warns when bins with
 few recoveries hold much of the population ([defaults](../reference/defaults.md)); inject
-more objects in those bins.
+more objects in those bins. The scripts are in the repository's
+`notes/review/experiments/204`.
 
 ### The objects the catalogue missed
 

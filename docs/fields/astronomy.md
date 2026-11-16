@@ -142,9 +142,9 @@ Not done:
   [stacking](../guides/inputs/posteriors.md#stacking-is-not-the-answer).
 - **Posteriors used as likelihoods.** A misspecified interim prior was "disastrous" for
   every estimator CHIPPR tested {cite:p}`malz2022`. The stacked PDFs of machine-learning
-  codes "show the imprint of the training sample" {cite:p}`zhang2026`. In the frankenz
-  audit, such posteriors cut the coverage of 68% intervals to 0.29
-  ([pitfalls](../guides/troubleshooting.md#passing-posteriors-as-likelihoods)).
+  codes "show the imprint of the training sample" {cite:p}`zhang2026`. In binference's
+  own tests such a fit is biased by more than eight posterior standard deviations
+  ([validation](../how-it-works/validation.md#the-statistical-tests)).
 - **Shot noise only.** Dirichlet resampling of calibration counts "is only propagating
   shot noise". Sample variance can be "an order of magnitude larger"
   {cite:p}`sanchez2020`. DES Y3's Dirichlet step "only reproduces the variance expected

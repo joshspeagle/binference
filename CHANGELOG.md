@@ -5,7 +5,7 @@ All notable changes to binference are recorded here. The format follows
 [Semantic Versioning](https://semver.org/) as the contributing guide's "Breaking
 changes" section sets out.
 
-## [Unreleased]
+## [0.3.0] - 2026-11-16
 
 ### Added
 

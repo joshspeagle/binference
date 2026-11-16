@@ -189,15 +189,24 @@ with warnings.catch_warnings():  # the text below names the injection warning
     warnings.simplefilter("ignore")
     assert any("recovered injections" in m for m in fits["joint"].check())
 assert abs(tot["exact selection"].mean() - n_mergers) < 3 * tot["exact selection"].std()
+
+from myst_nb import glue
+from binference.results import INJECTIONS_MIN_RECOVERED
+
+glue("z_plugin", z_tot["plug-in injections"], display=False)
+glue("z_joint", z_tot["joint"], display=False)
+few = recovered[recovered < INJECTIONS_MIN_RECOVERED]
+glue("few_min", int(few.min()), display=False)
+glue("few_max", int(few.max()), display=False)
 ```
 
 Without a selection, the total is just the number of detections. The joint fit's error
 bars are larger than the plug-in fit's. They include the uncertainty of the detection
 probability from a finite number of injections, which the plug-in fit treats as exact.
-Both totals fall below the truth: the plug-in total by 1.9 of its standard deviations, the
-joint total by 1.4 of its own.
+Both totals fall below the truth: the plug-in total by {glue:text}`z_plugin:.1f` of its
+standard deviations, the joint total by {glue:text}`z_joint:.1f` of its own.
 
-The joint fit warned that the lightest bins, with 3 to 17 recovered injections each, hold
+The joint fit warned that the lightest bins, with {glue:text}`few_min` to {glue:text}`few_max` recovered injections each, hold
 over half the population. A total that depends on so few recoveries is poorly determined,
 and the prior then pulls it low ([selection guide](../guides/selection.md#totals-and-rates)).
 More injections in those bins are the remedy. Before you quote a total from such data,
