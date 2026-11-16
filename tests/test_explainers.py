@@ -39,7 +39,7 @@ def em_steps(lk, rho, steps):
 @pytest.mark.parametrize(("sigma", "width"), [(0.1, 0.25), (0.45, 0.4)])
 def test_bin_average_explainer_matches_from_gaussian(sigma, width):
     v1 = explainer("v1", sigma=sigma, width=width)
-    lk = binference.Likelihoods.from_gaussian([v1["d"]], [sigma], binference.Bins(v1["edges"]))
+    lk = binference.Likelihoods.from_gaussian([v1["d"]], binference.Bins(v1["edges"]), [sigma])
     L = lk.toarray()[0] * np.exp(lk.log_scale[0])
     # the explainer's normal CDF has error below 1.2e-7
     np.testing.assert_allclose(v1["L"], L, rtol=1e-6, atol=1e-6)
@@ -69,7 +69,7 @@ def test_em_explainer_starts_from_the_stack_and_follows_binference_em():
 def test_shrinkage_explainer_matches_binference_responsibilities():
     v5 = explainer("v5", width=0.3)
     bins = binference.Bins(v5["edges"])
-    one = binference.Likelihoods.from_gaussian([v5["d"]], [v5["sigma"]], bins)
+    one = binference.Likelihoods.from_gaussian([v5["d"]], bins, [v5["sigma"]])
     np.testing.assert_allclose(v5["L"], one.toarray()[0] * np.exp(one.log_scale[0]), atol=1e-6)
     pop = binference.simulate.population(bins, stats.norm(v5["centre"], 0.3))
     np.testing.assert_allclose(v5["rho"], pop, atol=1e-6)

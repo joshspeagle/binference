@@ -18,7 +18,7 @@ from binference.plotting import SAMPLE_COLOR
 bins = binference.Bins.linear(0.0, 3.0, 15)
 mock = binference.simulate.mock_1d(2000, bins, rng=42)
 z_obs, z_err = mock.measurements["mean"], mock.measurements["sigma"]
-lk = binference.Likelihoods.from_gaussian(z_obs, z_err, bins)
+lk = binference.Likelihoods.from_gaussian(z_obs, bins, z_err)
 stack = lk.stack()
 
 flat = binference.infer(lk, rng=1)

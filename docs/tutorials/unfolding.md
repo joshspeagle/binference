@@ -43,9 +43,9 @@ mystnb:
       Bottom, a step histogram of counts that rises to about 490 events in measured bin
       3 and falls to near zero by bin 24.
 ---
-mu = binference.simulate.mock_unfolding(8000, n_true=20, n_reco=25, rng=3)
+mu = binference.simulate.mock_unfolding(8000, n_truth=20, n_measured=25, rng=3)
 R = mu.response.matrix                   # (measured bins, true bins)
-counts = mu.measurements["reco_counts"]
+counts = mu.measurements["measured_counts"]
 
 fig, axes = plt.subplots(2, 1, height_ratios=[1.4, 1])
 fig.set_figheight(5.8)

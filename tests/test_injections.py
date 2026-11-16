@@ -36,7 +36,7 @@ def test_injections_give_a_beta_posterior_per_bin():
     np.testing.assert_array_equal(injected, [2, 1, 3, 1])
     np.testing.assert_array_equal(recovered, [1, 1, 2, 0])
     np.testing.assert_allclose(sel.values, (1 + recovered) / (3 + injected))
-    assert sel.draw(5, rng=0).shape == (5, 4) and sel.fixed().injections is None
+    assert sel.sample(5, rng=0).shape == (5, 4) and sel.fixed().injections is None
 
 
 def test_draws_of_a_selection_never_underflow_to_zero():
@@ -45,7 +45,7 @@ def test_draws_of_a_selection_never_underflow_to_zero():
     bins = Bins.linear(0, 1, 2)
     z, detected = np.array([0.2] * 50 + [0.7] * 50), np.r_[np.zeros(50), np.ones(50)]
     sel = Selection.from_injections(z, detected.astype(bool), bins, "on_truth", prior=(1e-3, 1))
-    assert sel.draw(1000, rng=0).min() >= S_FLOOR
+    assert sel.sample(1000, rng=0).min() >= S_FLOOR
 
 
 def test_injection_inputs_are_checked_by_name():
@@ -164,7 +164,7 @@ def test_joint_inference_of_population_and_selection_is_calibrated():
         k = rng.choice(4, size=100, p=p / p.sum())
         z = bins.edges[0][k] + 0.25 * rng.random(100)
         lk = Likelihoods.from_gaussian(
-            z + 0.15 * rng.standard_normal(100), 0.15, bins, warn_outside=False
+            z + 0.15 * rng.standard_normal(100), bins, 0.15, warn_outside=False
         )
         injections = _injections(S, bins, 30, rng)  # the prior of the S_k drawn above
         sel = Selection.from_injections(*injections, bins, "on_truth", prior=(1.0, 1.0))
@@ -221,7 +221,7 @@ def test_joint_inference_with_a_logistic_prior_and_nuts_is_calibrated():
         k = rng.choice(4, size=100, p=p / p.sum())
         z = bins.edges[0][k] + 0.25 * rng.random(100)
         lk = Likelihoods.from_gaussian(
-            z + 0.15 * rng.standard_normal(100), 0.15, bins, warn_outside=False
+            z + 0.15 * rng.standard_normal(100), bins, 0.15, warn_outside=False
         )
         injections = _injections(S, bins, 30, rng)  # the prior of the S_k drawn above
         sel = Selection.from_injections(*injections, bins, "on_truth", prior=(1.0, 1.0))
@@ -250,7 +250,7 @@ def test_a_smooth_selection_is_refused_where_it_does_not_apply():
     z, detected = np.linspace(0.05, 0.95, 12), np.tile([True, False], 6)
     sel = Selection.from_injections(z, detected, bins, "on_truth", smooth=0.3)
     with pytest.raises(ValueError, match="independent Betas"):
-        sel.draw(3)
+        sel.sample(3)
     m = binference.PopulationModel(Likelihoods(np.ones((5, 6)), bins), selection=sel)
     with pytest.raises(ValueError, match="smooth"):
         Gibbs(m)

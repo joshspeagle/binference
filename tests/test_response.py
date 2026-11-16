@@ -190,7 +190,7 @@ def test_a_truth_bin_the_response_never_observes_is_named():
 
 def test_a_migration_matrix_with_an_efficiency_gives_the_joint_response():
     mu = binference.simulate.mock_unfolding(6000, rng=3)
-    R, counts = mu.response.matrix, mu.measurements["reco_counts"]
+    R, counts = mu.response.matrix, mu.measurements["measured_counts"]
     eps = R.sum(axis=0)
     migration = R / eps
     a = Likelihoods.from_binned(mu.response, counts=counts)

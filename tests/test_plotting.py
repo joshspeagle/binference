@@ -55,7 +55,7 @@ def test_plot_individual_shows_the_own_likelihood_per_bin_on_a_basis():
     bins = Bins.linear(0, 3, 6)
     mock = binference.simulate.mock_1d(50, bins, rng=0)
     d, s = mock.measurements["mean"], mock.measurements["sigma"]
-    lk = binference.Likelihoods.from_gaussian(d, s, binference.Basis(bins, resolution=2))
+    lk = binference.Likelihoods.from_gaussian(d, binference.Basis(bins, resolution=2), s)
     est = binference.PointEstimate(binference.PopulationModel(lk), np.full(12, 1 / 12))
     own = est.plot_individual(1).get_lines()[0].get_ydata()[:-1] * bins.volumes
     plain = mock.likelihoods.toarray()[1] * bins.volumes
@@ -70,7 +70,7 @@ def test_a_stack_over_a_basis_is_drawn_per_bin(shape):
     mock = binference.simulate.mock_1d(50, bins, rng=0)
     basis = binference.Basis(bins, **shape)
     d, s = mock.measurements["mean"], mock.measurements["sigma"]
-    lk = binference.Likelihoods.from_gaussian(d, s, basis)
+    lk = binference.Likelihoods.from_gaussian(d, basis, s)
     est = binference.PointEstimate(binference.PopulationModel(lk), np.full(basis.C, 1 / basis.C))
     stack = lk.stack()
     drawn = est.plot(which="fractions", stack=stack).get_lines()[-1].get_ydata()[:-1]

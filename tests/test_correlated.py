@@ -30,7 +30,7 @@ def test_correlated_bins_match_rectangle_probabilities():
 
 
 def test_a_diagonal_covariance_equals_independent_sigmas():
-    s = Likelihoods.from_gaussian(MU, [[0.1, 0.08]], GRID)
+    s = Likelihoods.from_gaussian(MU, GRID, [[0.1, 0.08]])
     d = Likelihoods.from_gaussian(MU, bins=GRID, cov=np.diag([0.01, 0.0064]))
     np.testing.assert_allclose(d.toarray(), s.toarray(), rtol=1e-14)  # the exact path
     tiny = np.array([[0.01, 1e-12], [1e-12, 0.0064]])  # correlated in name only: cubature
@@ -41,12 +41,12 @@ def test_a_diagonal_covariance_equals_independent_sigmas():
 def test_a_one_dimensional_covariance_is_a_variance():
     bins = Bins.linear(0, 1, 5)
     a = Likelihoods.from_gaussian([0.3], bins=bins, cov=np.array([[[0.04]]]))
-    np.testing.assert_allclose(a.toarray(), Likelihoods.from_gaussian([0.3], 0.2, bins).toarray())
+    np.testing.assert_allclose(a.toarray(), Likelihoods.from_gaussian([0.3], bins, 0.2).toarray())
 
 
 def test_covariances_are_validated():
     with pytest.raises(ValueError, match="exactly one of sigma and cov"):
-        Likelihoods.from_gaussian(MU, 0.1, GRID, cov=COV)
+        Likelihoods.from_gaussian(MU, GRID, 0.1, cov=COV)
     with pytest.raises(ValueError, match="positive definite"):
         Likelihoods.from_gaussian(MU, bins=GRID, cov=np.array([[1.0, 2.0], [2.0, 1.0]]))
     with pytest.raises(ValueError, match="symmetric"):  # small entries, relative check

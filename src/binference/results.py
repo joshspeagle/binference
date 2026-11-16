@@ -1333,7 +1333,7 @@ class PopulationResult(_IndividualMixin):
         # DECISIONS #9, #46, #78
         if self._total is None and self.model is not None:
             S = self._inferred_selection()  # per draw, when inferred with the population
-            total = self.model.draw_total(self._params, rng=_draws_rng(self._params), S=S)
+            total = self.model.sample_total(self._params, rng=_draws_rng(self._params), S=S)
             self._total = None if total is None else frozen(total)
         return None if self._total is None else self._total.ravel()
 
@@ -1667,7 +1667,7 @@ class PopulationResult(_IndividualMixin):
         rhat_max: float = RHAT_MAX,
         ess_min: float = ESS_MIN_PER_CHAIN,
         predictive_p_min: float = 1e-3,
-        predictive_draws: int = 200,
+        n_predictive: int = 200,
         support_min: float | None = None,
     ) -> list[str]:
         """Check diagnostics and warn (or raise with ``strict=True``) about problems.
@@ -1677,7 +1677,7 @@ class PopulationResult(_IndividualMixin):
         the response does not describe, injections too few where much of the population
         lies) an :class:`~binference.InputWarning`.
         For binned inputs with more measured than truth bins, the counts are
-        tested with :meth:`Response.predictive_pvalue` over ``predictive_draws``
+        tested with :meth:`Response.predictive_pvalue` over ``n_predictive``
         draws, and flagged below ``predictive_p_min``. With ``support_min``, bins whose
         :attr:`data_support` is below it (in objects) are flagged as set by the prior.
 
@@ -1693,11 +1693,12 @@ class PopulationResult(_IndividualMixin):
             Smallest bulk or tail ESS per chain that passes.
         predictive_p_min : float, optional
             Smallest posterior predictive p-value of binned counts that passes.
-        predictive_draws : int, optional
+        n_predictive : int, optional
             Draws used for the predictive p-value.
         support_min : float, optional
             Flag bins with less data support than this; ``None`` skips the test.
         """
+        check_positive_integers(n_predictive, "n_predictive")
         d = self.diagnostics
         msgs = self._mixing_problems(rhat_max, ess_min)
         hints = []
@@ -1754,14 +1755,14 @@ class PopulationResult(_IndividualMixin):
                     "(e.g. concentrations below one); method='gibbs' samples such "
                     "conjugate priors efficiently"
                 )
-        inputs, input_hints = self._input_problems(predictive_p_min, predictive_draws, support_min)
+        inputs, input_hints = self._input_problems(predictive_p_min, n_predictive, support_min)
         _report([(msgs, hints, ConvergenceWarning), (inputs, input_hints, InputWarning)], strict)
         return msgs + inputs
 
     def _input_problems(
         self,
         predictive_p_min: float = 1e-3,
-        predictive_draws: int = 200,
+        n_predictive: int = 200,
         support_min: float | None = None,
     ) -> tuple[list[str], list[str]]:
         """The problems with the inputs, and hints: the part of :meth:`check` that applies
@@ -1777,7 +1778,7 @@ class PopulationResult(_IndividualMixin):
                 )
                 input_hints.append("merge sparse bins, or read their fractions as the prior's")
         if lk is not None and "measured_bin" in lk.meta:
-            ppp = self._predictive_pvalue(lk, predictive_draws)
+            ppp = self._predictive_pvalue(lk, n_predictive)
             if ppp is not None and ppp < predictive_p_min:
                 inputs.append(
                     "the measured counts disagree with the fitted population and the response "
@@ -1852,7 +1853,7 @@ class PopulationResult(_IndividualMixin):
         over these bins and compare the bin masses.
 
         ``build(bins_or_basis)`` returns the likelihoods of the fit's data on what it is
-        given, e.g. ``lambda b: Likelihoods.from_gaussian(mean, sigma, b)``; likelihoods
+        given, e.g. ``lambda b: Likelihoods.from_gaussian(mean, b, sigma)``; likelihoods
         from :meth:`Likelihoods.from_gaussian` rebuild themselves without it. The
         reference is fitted on ``Basis(self.bins, order, resolution)`` with this fit's
         prior (or ``prior``), selection, engine (or ``method``), chains and draws (or

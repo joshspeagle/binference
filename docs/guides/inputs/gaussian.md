@@ -14,7 +14,7 @@ sigma = rng.uniform(0.05, 0.3, size=500)
 z_obs = z_true + sigma * rng.standard_normal(500)
 
 bins = binference.Bins.linear(0.0, 3.0, 30)
-lk = binference.Likelihoods.from_gaussian(z_obs, sigma, bins)
+lk = binference.Likelihoods.from_gaussian(z_obs, bins, sigma)
 print(lk.N, lk.K)
 ```
 

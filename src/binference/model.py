@@ -50,7 +50,7 @@ from .likelihoods import Likelihoods, _scale_columns
 from .priors import Dirichlet, PopulationPrior
 from .priors.base import _TINY, BoundPrior
 from .priors.rates import _gamma_draw
-from .selection import Selection, _logit_density, as_selection
+from .selection import Selection, _as_selection, _logit_density
 from .warnings import InputWarning
 
 #: A raw array warns that it may hold posteriors when every row sums to 1 within this:
@@ -122,7 +122,7 @@ class PopulationModel:
         if selection is None and selection_mode is None:
             sel = likelihoods.selection
         else:
-            sel = as_selection(selection, selection_mode, likelihoods.basis)
+            sel = _as_selection(selection, selection_mode, likelihoods.basis)
         if sel is not None and sel.injections is not None:
             if sel.mode != "on_truth":
                 raise ValueError(
@@ -221,7 +221,7 @@ class PopulationModel:
         """
         return self.selection_spec is not None and self.selection_spec.injections is not None
 
-    def draw_total(
+    def sample_total(
         self, value: np.ndarray, *, rng: np.random.Generator, S: np.ndarray | None = None
     ) -> np.ndarray | None:
         r"""Draws of the total :math:`\Lambda \mid \rho \sim \mathrm{Gamma}(W, S\cdot\rho)`.

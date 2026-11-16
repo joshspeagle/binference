@@ -34,7 +34,7 @@ def dataset(i, injections):
     det = rng.random(N) < SK[k]              # per-bin detection probability: exact selection
     sig = rng.uniform(0.05, 0.2, N)
     y = x + sig * rng.standard_normal(N)
-    lk = binference.Likelihoods.from_gaussian(y[det], sig[det], bins, warn_outside=False)
+    lk = binference.Likelihoods.from_gaussian(y[det], bins, sig[det], warn_outside=False)
     if not injections:
         return lk, exact
     z = rng.uniform(e[0], e[-1], 3000)

@@ -444,7 +444,7 @@ class Response(SetOnce):
         # column sums may exceed one by rounding (Response allows 1e-6)
         return None if np.allclose(eff, 1.0) else Selection(np.minimum(eff, 1.0), "on_measurement")
 
-    def draw(self, n: int, *, rng: RNGLike = None) -> np.ndarray:
+    def sample(self, n: int, *, rng: RNGLike = None) -> np.ndarray:
         """``(n, J, K)`` posterior draws of the matrix given the tallies alone.
 
         Parameters

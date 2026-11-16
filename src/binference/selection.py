@@ -48,7 +48,7 @@ from .density import _log_nonneg
 from .priors.logistic import _rw_differences
 from .warnings import ConvergenceWarning, InputWarning
 
-__all__ = ["SELECTION_MODES", "SELECTION_SCALES", "Selection", "as_selection"]
+__all__ = ["SELECTION_MODES", "SELECTION_SCALES", "Selection"]
 
 #: The values of ``Selection.mode``: how objects are selected.
 SELECTION_MODES = ("on_truth", "on_measurement", "combined")
@@ -226,7 +226,7 @@ class Selection(SetOnce):
         object.__setattr__(sel, "_recovered", injections.recovered)
         return sel
 
-    def draw(self, n: int, *, rng: RNGLike = None) -> np.ndarray:
+    def sample(self, n: int, *, rng: RNGLike = None) -> np.ndarray:
         """``(n, K)`` posterior draws of :math:`S` given the injections alone
         (independent Betas), floored at :data:`S_FLOOR` so that none underflows to zero.
 
@@ -259,7 +259,7 @@ class Selection(SetOnce):
     @classmethod
     def from_function(
         cls,
-        function: Callable[[np.ndarray], Any],
+        func: Callable[[np.ndarray], Any],
         bins: Bins,
         mode: str,
         *,
@@ -269,7 +269,7 @@ class Selection(SetOnce):
     ) -> Selection:
         """A selection given as a function of the true value, averaged over each bin.
 
-        ``function(z)`` returns the detection probability (or exposure) at
+        ``func(z)`` returns the detection probability (or exposure) at
         points ``z`` (shape ``(M,)`` in 1-D, ``(M, ndim)`` on grids, labels for
         categories). Each bin takes its average in the measure coordinate, the
         within-bin shape of the population, by adaptive
@@ -285,10 +285,10 @@ class Selection(SetOnce):
 
         Parameters
         ----------
-        function : callable
+        func : callable
             Detection probability or exposure at points ``z``.
         bins : Bins or Basis
-            Bins over which ``function`` is averaged.
+            Bins over which ``func`` is averaged.
         mode : {"on_measurement", "on_truth"}
             How selection enters the likelihood, as for :class:`Selection`.
         scale : {"probability", "exposure", "relative"}, optional
@@ -303,7 +303,7 @@ class Selection(SetOnce):
         _check_mode(mode)
         _check_values(np.ones(2), scale, "selection")  # the scale, before any quadrature
         basis = as_basis(bins)
-        values = _bin_average(function, basis.grid, tol=tol, max_depth=max_depth)[0]
+        values = _bin_average(func, basis.grid, tol=tol, max_depth=max_depth)[0]
         if basis.is_plain:
             return cls(values, mode, scale=scale)
         return _on_basis(cls(values, mode, scale=scale), basis, basis.grid_masses)
@@ -547,17 +547,17 @@ def _check_mode(mode: str) -> None:
 
 
 def _bin_average(
-    function: Callable,
+    func: Callable,
     bins: Bins,
     factor: Callable | None = None,
     log_weight: Callable | None = None,
     tol: float = 1e-6,
     max_depth: int = 12,
 ) -> np.ndarray:
-    """Weighted bin averages of a non-negative ``function`` (and of ``function * factor``).
+    """Weighted bin averages of a non-negative ``func`` (and of ``func * factor``).
 
-    Returns an array with one row: the average of ``function`` over each bin,
-    and a second row with the average of ``function * factor`` when ``factor``
+    Returns an array with one row: the average of ``func`` over each bin,
+    and a second row with the average of ``func * factor`` when ``factor``
     is given, both from one adaptive quadrature. The weight is uniform in the
     measure coordinate (the within-bin population shape), or ``exp(log_weight(z))``
     per unit ``z`` when given (a population density); a bin where that weight
@@ -565,14 +565,14 @@ def _bin_average(
     """
     if bins.is_categorical:
         labels = np.asarray(bins.labels, dtype=object)
-        f = np.asarray(function(labels), dtype=float).ravel()
+        f = np.asarray(func(labels), dtype=float).ravel()
         return f[None] if factor is None else np.stack([f, f * np.ravel(factor(labels))])
 
     def logs(f, z):
         return _log_nonneg(np.ravel(f(z)), "The values of a selection function")
 
     def logf(z):
-        lf = logs(function, z)
+        lf = logs(func, z)
         rows = [lf] if factor is None else [lf, lf + logs(factor, z)]
         if log_weight is not None:
             lw = np.asarray(log_weight(z), dtype=float).ravel()
@@ -587,7 +587,7 @@ def _bin_average(
         avg = np.exp(out[:-1] - out[-1])  # divide by the bin's weight
     empty = ~np.isfinite(out[-1])
     if empty.any():  # no population in the bin: fall back to the unweighted average
-        avg[:, empty] = _bin_average(function, bins, factor, **quad)[:, empty]
+        avg[:, empty] = _bin_average(func, bins, factor, **quad)[:, empty]
     return avg
 
 
@@ -607,7 +607,7 @@ def _warn_if_steep(values: np.ndarray, bins: Bins) -> None:
         )
 
 
-def as_selection(selection: Any, mode: str | None, basis: Basis) -> Selection | None:
+def _as_selection(selection: Any, mode: str | None, basis: Basis) -> Selection | None:
     """Normalise user input: ``None``, a :class:`Selection`, a callable or an array plus mode.
 
     A raw array is checked for steep changes between neighbouring bins; a

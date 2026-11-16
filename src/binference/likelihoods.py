@@ -42,7 +42,7 @@ from .density import (
 )
 from .measure import Measure
 from .response import Response
-from .selection import Selection, _on_basis, as_selection
+from .selection import Selection, _as_selection, _on_basis
 from .warnings import ApproximationWarning, InputWarning
 
 __all__ = ["Likelihoods"]
@@ -430,7 +430,7 @@ class Likelihoods:
         weights = _check_weights(weights, N, fractional_weights)
         if not basis.is_identity:
             norm, log_scale = _project_values(norm, log_scale, basis.matrix)
-        sel = as_selection(selection, selection_mode, basis)
+        sel = _as_selection(selection, selection_mode, basis)
         self._init_from_parts(norm, log_scale, basis, weights, sel, meta, drop_empty)
 
     # ------------------------------------------------------------- internals
@@ -632,7 +632,7 @@ class Likelihoods:
             Whether the new selection acts on the measurement or on the truth; required
             with an array or callable ``selection``.
         """
-        sel = as_selection(selection, selection_mode, self._basis)
+        sel = _as_selection(selection, selection_mode, self._basis)
         return self._copy(selection=sel)
 
     def on_basis(self, basis: Basis) -> Likelihoods:
@@ -1135,8 +1135,8 @@ class Likelihoods:
     def from_gaussian(
         cls,
         mean: Any,
+        bins: Bins,
         sigma: Any = None,
-        bins: Bins | None = None,
         *,
         cov: Any = None,
         weights: Any = None,
@@ -1166,11 +1166,11 @@ class Likelihoods:
         ----------
         mean : array_like, shape (N,) or (N, ndim)
             Measured values.
-        sigma : float or array_like, shape (N,) or (N, ndim)
-            Measurement uncertainties (strictly positive).
         bins : Bins or Basis
             Grid bins.
             With a :class:`~binference.Basis`, likelihoods of its components.
+        sigma : float or array_like, shape (N,) or (N, ndim)
+            Measurement uncertainties (strictly positive).
         cov : array_like, shape (ndim, ndim) or (N, ndim, ndim), optional
             Full covariance matrices (symmetric positive definite), in place of
             ``sigma``.

@@ -61,7 +61,7 @@ def test_gibbs_runs_long_enough_for_the_target_ess():
 def test_broad_likelihoods_leave_gibbs_and_a_failed_laplace_check_goes_to_nuts(short_nuts):
     lk = _lk(3.0)
     assert _plan(lk) == ["laplace", "nuts"]  # f > 0.98: Gibbs would mix too slowly
-    assert _plan(lk, gibbs_max_missing=0.99999, max_gibbs_draws=10**7)[0] == "gibbs"
+    assert _plan(lk, max_gibbs_missing=0.99999, max_gibbs_draws=10**7)[0] == "gibbs"
     res = binference.infer(lk, P.Dirichlet(0.1), rng=0, n_samples=50, check=False)
     assert res.method == "nuts" and res.info["auto_reason"].endswith(
         "; the Laplace importance check failed"
@@ -75,7 +75,7 @@ def test_the_reason_names_the_rule_that_left_gibbs_out(short_nuts):
     assert res.method == "nuts" and res.info["auto_reason"].startswith(
         "Gibbs would mix too slowly (missing information 0.99"
     )
-    auto = inf.Auto(binference.PopulationModel(lk), gibbs_max_missing=0.9999, max_gibbs_draws=1500)
+    auto = inf.Auto(binference.PopulationModel(lk), max_gibbs_missing=0.9999, max_gibbs_draws=1500)
     assert auto._plan(None)[1][0].startswith("Gibbs would need")
 
 
@@ -88,7 +88,7 @@ def test_laplace_is_kept_when_its_importance_check_passes():
 def test_laplace_kept_without_passing_its_check_is_flagged_approximate():
     # very large inputs, or the only candidate left (df is a Laplace option)
     lk = _lk(1.0, n=1000, K=20)
-    for kw in ({"nnz_limit": 1}, {"df": 4}):
+    for kw in ({"max_nnz": 1}, {"df": 4}):
         # k-hat passes (PolyaTree), but no importance ESS reaches 1e9: auto flags and warns
         with pytest.warns(binference.ApproximationWarning, match="importance ESS") as rec:
             res = binference.infer(lk, P.PolyaTree(), rng=0, target_ess=1e9, **kw)
@@ -98,7 +98,7 @@ def test_laplace_kept_without_passing_its_check_is_flagged_approximate():
         with pytest.warns(binference.ApproximationWarning) as rec:
             res = binference.infer(lk, P.Dirichlet(0.1), rng=0, **kw)
         assert len(rec) == 1 and res.method == "laplace" and res.approximate
-        if "nnz_limit" in kw:
+        if "max_nnz" in kw:
             assert "likelihood entries" in res.info["auto_reason"]
 
 
@@ -113,6 +113,9 @@ def test_engine_options_rule_out_the_engines_that_do_not_take_them(short_nuts):
     assert res.info["auto_reason"] == "the only engine that takes these options"
     with pytest.raises(ValueError, match="None of the engines"):
         binference.infer(lk, df=4, target_accept=0.9)
+    # an option no engine takes, such as a misspelt one, is named as unknown
+    with pytest.raises(ValueError, match=r"No engine takes the options \['nnz_limit'\]"):
+        binference.infer(lk, nnz_limit=1e8)
 
 
 def test_a_hopeless_laplace_trial_stops_after_its_first_thousand_proposals(monkeypatch):
@@ -145,7 +148,7 @@ def test_auto_works_on_basis_likelihoods(short_nuts):
     rng = np.random.default_rng(0)
     z = rng.uniform(0.0, 1.0, 300)
     basis = binference.Basis(bins, order=1, resolution=2)
-    lk = binference.Likelihoods.from_gaussian(z + rng.normal(0, 0.1, 300), 0.1, basis)
+    lk = binference.Likelihoods.from_gaussian(z + rng.normal(0, 0.1, 300), basis, 0.1)
     res = binference.infer(lk, rng=0, n_samples=50, check=False)
     assert res.info["auto_method"] in ("gibbs", "laplace", "nuts")
 
@@ -168,8 +171,8 @@ def test_auto_and_engine_options_are_checked_by_name_when_auto_is_made():
     model = binference.PopulationModel(_lk(0.3))
     for kw, name in (
         ({"target_ess": 0}, "target_ess"),
-        ({"gibbs_max_missing": 1.0}, "gibbs_max_missing"),
-        ({"nnz_limit": -1}, "nnz_limit"),
+        ({"max_gibbs_missing": 1.0}, "max_gibbs_missing"),
+        ({"max_nnz": -1}, "max_nnz"),
         ({"df": 0}, "df"),  # an engine's option, checked by the engine auto makes (#174)
         ({"init": [0.5, 0.5]}, "init"),
     ):
@@ -226,7 +229,7 @@ def test_gibbs_gives_way_when_it_cannot_mix_within_its_draw_limit(short_nuts):
 
 
 def test_gibbs_is_not_tried_when_its_run_would_pass_the_draw_limit():
-    assert _plan(_lk(3.0), gibbs_max_missing=0.9999, max_gibbs_draws=1500)[0] == "laplace"
+    assert _plan(_lk(3.0), max_gibbs_missing=0.9999, max_gibbs_draws=1500)[0] == "laplace"
 
 
 def test_gibbs_as_the_only_candidate_is_kept_and_says_it_did_not_mix():

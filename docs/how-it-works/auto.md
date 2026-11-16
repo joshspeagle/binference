@@ -24,7 +24,7 @@ check. Engine options passed to `infer` rule out the engines that do not take th
      for these joint models. Gibbs refuses a selection smoothed across bins, which is
      not conjugate, so auto then tries Laplace and NUTS.
    - The [missing information](point-estimates.md#missing-information) $f$ at the most
-     probable population is at most `gibbs_max_missing`. Auto computes that population
+     probable population is at most `max_gibbs_missing`. Auto computes that population
      first, with {class}`~binference.engines.MAP`.
 
    In the second case Gibbs runs
@@ -53,7 +53,7 @@ extended like any other, so a run that does not mix gives way all the same. A ru
 stores labels (`store_labels`) is never extended, and keeps the length it was given.
 
 Auto keeps Laplace even when its check fails in two cases. One is likelihoods with more
-than `nnz_limit` stored entries. The other is options that no later engine takes. Such a
+than `max_nnz` stored entries. The other is options that no later engine takes. Such a
 result is flagged {term}`approximate`. The result records the choice in
 `result.info["auto_method"]`, and in `result.info["auto_reason"]` the reasons for it: why a
 rule left Gibbs out, why earlier engines were not kept, and why this one was. Where auto
@@ -95,7 +95,7 @@ for r in cells:
     by.setdefault(r["engine"], []).append(r)
 defaults = inspect.signature(Auto.__init__).parameters
 target = defaults["target_ess"].default
-f_max = defaults["gibbs_max_missing"].default
+f_max = defaults["max_gibbs_missing"].default
 
 
 NAMES = {"randomwalk": "random walk", "dirichlet0.1": "α = 0.1 Dirichlet",
@@ -174,7 +174,7 @@ g("nuts_small_ess", f"{fmt(min(r['ess_per_s'] for r in small))} to "
   f"{fmt(max(r['ess_per_s'] for r in small))}")
 g("nuts_small_slowest", f"{max(r['seconds'] for r in small):.0f}")
 
-# Gibbs against NUTS, either side of gibbs_max_missing
+# Gibbs against NUTS, either side of max_gibbs_missing
 n_of = {(r["scenario"], r["prior"]): r for r in nuts}
 for side, keep in (("low", lambda f: f <= f_max), ("high", lambda f: f > f_max)):
     gs = [r for r in by["gibbs"] if keep(r["missing_information"])]
@@ -234,7 +234,7 @@ What the table shows:
   {glue:md}`nuts_small_ess` ESS per second, and its slowest fit took
   {glue:md}`nuts_small_slowest` s.
 - **Gibbs** beat NUTS in {glue:md}`g_low_wins` of the {glue:md}`g_low_n` combinations
-  with $f$ at most `gibbs_max_missing` (the largest was {glue:md}`g_low_f`). There it
+  with $f$ at most `max_gibbs_missing` (the largest was {glue:md}`g_low_f`). There it
   reached {glue:md}`g_low_g` ESS per second, against {glue:md}`g_low_nuts` for NUTS.
 - Above that threshold (from $f=$ {glue:md}`g_high_f`), Gibbs beat NUTS in only
   {glue:md}`g_high_wins` of {glue:md}`g_high_n` combinations. It reached

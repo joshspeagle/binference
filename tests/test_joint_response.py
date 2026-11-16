@@ -33,7 +33,7 @@ def test_a_tallied_response_has_a_dirichlet_posterior_and_a_fixed_plug_in():
     J = resp.matrix.shape[0]
     np.testing.assert_allclose(a.sum(axis=0), resp.generated + (J + 1) * resp.prior)
     np.testing.assert_allclose(a[:-1], resp.counts + resp.prior)
-    draws = resp.draw(4000, rng=0)
+    draws = resp.sample(4000, rng=0)
     mean = (a / a.sum(axis=0))[:-1]
     sd = np.sqrt(mean * (1 - mean) / (a.sum(axis=0) + 1))
     np.testing.assert_array_less(np.abs(draws.mean(0) - mean), 5 * sd / np.sqrt(4000) + 1e-12)
@@ -101,7 +101,7 @@ def test_per_object_methods_and_the_total_use_each_draws_response():
     )
     np.testing.assert_allclose(res.assignment_probabilities(n_draws=None), expect)
     eff = res.info["response_draws"].sum(axis=-2)  # (chain, draw, K), as the draws
-    total = res.model.draw_total(res._params, rng=_draws_rng(res._params), S=eff)
+    total = res.model.sample_total(res._params, rng=_draws_rng(res._params), S=eff)
     np.testing.assert_allclose(res.total, total.ravel())
     assert "ess_bulk_response" in res.diagnostics  # the efficiencies'
     assert res.sample_assignments(n_draws=5, rng=1).shape == (5, lk.N)

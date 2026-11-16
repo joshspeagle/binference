@@ -114,7 +114,7 @@ log_spaced = binference.Bins(np.geomspace(0.1, 10, 11), measure="linear")
 fig, axes = plt.subplots(2, 1)
 fig.set_figheight(4.6)
 for ax, b in zip(axes, (unequal, log_spaced), strict=True):
-    dens = binference.Likelihoods.from_gaussian([1.0], [0.35], b).toarray()[0]
+    dens = binference.Likelihoods.from_gaussian([1.0], b, [0.35]).toarray()[0]
     mass = dens * b.volumes
     ax.stairs(dens / dens.max(), b.edges[0], color=CORAL, lw=2.2, label="density")
     ax.stairs(mass / mass.max(), b.edges[0], color=INK, lw=1.6, ls=":", label="mass")

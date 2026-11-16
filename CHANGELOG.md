@@ -21,6 +21,19 @@ changes" section sets out.
 
 ### Changed
 
+- **Breaking:** renames, each to the spelling its siblings use:
+  - `Likelihoods.from_gaussian(mean, sigma, bins)` → `(mean, bins, sigma)`, with `bins`
+    required.
+  - `Auto(gibbs_max_missing=, nnz_limit=)` → `max_gibbs_missing=`, `max_nnz=`.
+  - `Selection.from_function(function=)` → `func=`.
+  - `Basis.masses(grid)` and `axis_masses(grid)` → `bins`.
+  - `Selection.draw`, `Response.draw` and `PopulationModel.draw_total` → `sample`,
+    `sample_total`.
+  - `simulate.mock_1d(n_samples=)` → `samples_per_object=`.
+  - `check(predictive_draws=)` → `n_predictive=`.
+  - `simulate.mock_unfolding(n_true=, n_reco=)` → `n_truth=`, `n_measured=`, and its
+    `measurements["reco_counts"]` → `"measured_counts"`.
+  - `selection.as_selection` is now private.
 - **Breaking:** options after a method's primary arguments are keyword-only, so a
   positional call means the same on sibling methods (`check(True)` set `strict` on one
   result type and `kkt_max` on the other). This covers the result and per-object methods
@@ -32,6 +45,8 @@ changes" section sets out.
   `TypeError`; pass it by name.
 - `NUTS` refuses a NaN `n_warmup` or `jitter` and a fractional `n_warmup`, which it
   truncated.
+- `infer` names an option that no engine takes as unknown, rather than suggesting `method=`;
+  `check` refuses an `n_predictive` that is not a positive integer.
 - NUTS uses a dense metric for logistic priors up to 500 dimensions (from 200), and
   starts it from the curvature at every chain's position. With `LogisticGP`'s default
   basis, two chains and one thread each, this cut the time per fit by two to five times

@@ -21,7 +21,7 @@ def dataset(i, n_inj, prior, smooth, fixed):
     det = rng.random(N) < SK[k]
     sig = rng.uniform(0.05, 0.2, N)
     y = x + sig * rng.standard_normal(N)
-    lk = binference.Likelihoods.from_gaussian(y[det], sig[det], binsx, warn_outside=False)
+    lk = binference.Likelihoods.from_gaussian(y[det], binsx, sig[det], warn_outside=False)
     z = rng.uniform(e[0], e[-1], n_inj)
     kz = np.clip(np.searchsorted(e, z) - 1, 0, K - 1)
     found = rng.random(n_inj) < SK[kz]

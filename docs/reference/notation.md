@@ -26,7 +26,7 @@ other indices are declared where they are used. The {doc}`glossary` defines the 
 | $P_{ik}$ | mass of object $i$'s posterior in bin $k$ | the table of `from_table(..., interim=)` | [model](../how-it-works/model.md#likelihoods-versus-posteriors) |
 | $\Pi_k$ | mass of the interim prior in bin $k$ | `Density.masses` | [model](../how-it-works/model.md#likelihoods-versus-posteriors) |
 | $\omega_s$ | importance weight of sample or draw $s$ | `sample_weights=` | [inputs](../guides/inputs/samples.md) |
-| $n_{\rm draw}$ | number of draws or importance weights | `n_samples` (draws an engine makes), `n_draws` (stored draws a method uses), `n_proposals` | [engines](../how-it-works/engines.md#laplace-with-importance-sampling) |
+| $n_{\rm draw}$ | number of draws or importance weights | `n_samples` (draws an engine makes), `n_draws` (stored draws a method uses), `n_predictive`, `n_proposals` | [engines](../how-it-works/engines.md#laplace-with-importance-sampling) |
 
 ## The population
 

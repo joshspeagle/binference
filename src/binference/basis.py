@@ -136,7 +136,7 @@ class Basis:
 
     @property
     def grid_masses(self) -> sp.csr_array:
-        """``masses(grid)``: the components' masses in the quadrature cells (cached)."""
+        """``masses(self.grid)``: the components' masses in the quadrature cells (cached)."""
         if self._grid_masses is None:
             self._grid_masses = self.masses(self.grid)
         return self._grid_masses
@@ -148,44 +148,46 @@ class Basis:
             self._shares = sp.csr_array(self.matrix.T)
         return self._shares
 
-    def axis_masses(self, grid: Bins) -> list[sp.csr_array]:
-        """Per-axis masses of the components' factors in ``grid``'s intervals (no mask).
+    def axis_masses(self, bins: Bins) -> list[sp.csr_array]:
+        """Per-axis masses of the components' factors in the intervals of ``bins`` (no mask).
 
-        On an unmasked grid :meth:`masses` is their Kronecker product, so
+        On unmasked bins :meth:`masses` is their Kronecker product, so
         separable inputs can be projected one axis at a time.
 
         Parameters
         ----------
-        grid : Bins
-            Grid covering the components' range with the same measures.
+        bins : Bins
+            A grid covering the components' range with the same measures: the reporting
+            bins, the components, the quadrature grid or a refinement of them.
         """
         comp = self.components
-        if grid.is_categorical or grid.ndim != comp.ndim or grid.measures != comp.measures:
-            raise ValueError("grid must be a grid with the components' measures.")
+        if bins.is_categorical or bins.ndim != comp.ndim or bins.measures != comp.measures:
+            raise ValueError("bins must be a grid with the components' measures.")
         out = []
-        for u_grid, u_comp in zip(grid.u_edges, comp.u_edges, strict=True):
-            if not np.allclose([u_grid[0], u_grid[-1]], [u_comp[0], u_comp[-1]]):
-                raise ValueError("grid must cover the same range as the basis.")
-            out.append(_axis_masses(u_grid, u_comp, self.order))
+        for u_bins, u_comp in zip(bins.u_edges, comp.u_edges, strict=True):
+            if not np.allclose([u_bins[0], u_bins[-1]], [u_comp[0], u_comp[-1]]):
+                raise ValueError("bins must cover the same range as the basis.")
+            out.append(_axis_masses(u_bins, u_comp, self.order))
         return out
 
-    def masses(self, grid: Bins) -> sp.csr_array:
-        r"""``(grid.K, C)`` sparse masses :math:`A_{qk} = \int_{B_q} \psi_k\,du` of the
-        components in the cells :math:`B_q` of ``grid`` (:math:`A` in the reporting bins).
+    def masses(self, bins: Bins) -> sp.csr_array:
+        r"""``(bins.K, C)`` sparse masses :math:`A_{qk} = \int_{B_q} \psi_k\,du` of the
+        components in the cells :math:`B_q` of ``bins`` (:math:`A` when ``bins`` are the
+        reporting bins).
 
-        ``grid`` must cover the components' range with the same measures (the
+        ``bins`` must cover the components' range with the same measures (the
         reporting bins, the components or any refinement of them). Each column
-        sums to one over the active cells of ``grid``.
+        sums to one over the active cells of ``bins``.
 
         Parameters
         ----------
-        grid : Bins
-            Grid covering the components' range with the same measures.
+        bins : Bins
+            A grid covering the components' range with the same measures.
         """
         M = None
-        for m in self.axis_masses(grid):
+        for m in self.axis_masses(bins):
             M = m if M is None else sp.kron(M, m, format="csr")
-        M = sp.csr_array(M)[grid.cells][:, self.components.cells]
+        M = sp.csr_array(M)[bins.cells][:, self.components.cells]
         tot = np.asarray(M.sum(axis=0)).ravel()  # below one where a hat crosses a mask
         M.data /= tot[M.indices]
         return _shared(M)

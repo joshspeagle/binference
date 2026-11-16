@@ -50,8 +50,8 @@ options.
 - **What it chose.** The choice and its reason are in `result.info["auto_method"]`
   and `result.info["auto_reason"]`. Where auto computed the MAP to choose, the result
   keeps it as `result.best`.
-- **Its thresholds** (`target_ess`, `gibbs_max_missing`, `max_gibbs_draws`,
-  `nnz_limit`) go to `infer` like any other option, e.g.
+- **Its thresholds** (`target_ess`, `max_gibbs_missing`, `max_gibbs_draws`,
+  `max_nnz`) go to `infer` like any other option, e.g.
   `binference.infer(lk, target_ess=1000)`.
 - **Engine options rule out engines** that do not take them. `target_accept` or
   `n_jobs` leave only NUTS, and `n_warmup` leaves Gibbs or NUTS. Options that no

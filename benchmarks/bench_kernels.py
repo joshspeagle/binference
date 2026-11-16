@@ -38,7 +38,7 @@ def bench_kernels(N: int = 20000, K: int = 80, seed: int = 0) -> dict[str, float
     bins = binference.Bins.linear(-1.0, 7.0, K)
     mu = rng.uniform(0.0, 6.0, N)
     sigma = rng.uniform(0.05, 0.2, N) * (1.0 + mu)
-    lk = binference.Likelihoods.from_gaussian(mu + sigma * rng.standard_normal(N), sigma, bins)
+    lk = binference.Likelihoods.from_gaussian(mu + sigma * rng.standard_normal(N), bins, sigma)
     model = PopulationModel(lk)
     L, w = model._L, model._w
     rho = np.full(K, 1.0 / K)
