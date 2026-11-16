@@ -5,7 +5,7 @@ All notable changes to binference are recorded here. The format follows
 [Semantic Versioning](https://semver.org/) as the contributing guide's "Breaking
 changes" section sets out.
 
-## [Unreleased]
+## [0.3.0] - 2026-11-16
 
 ### Added
 
@@ -18,6 +18,13 @@ changes" section sets out.
 - `GeneralizedDirichlet.from_base_measure(concentration, base, order)` sets each stick's
   Beta so that the prior mean is the base measure's bin masses, with the same
   concentration `a + b` on every stick.
+- A `Dirichlet` with one concentration for every bin (a scalar `alpha`, the default, or
+  `Dirichlet.reference()`) raises an `InputWarning` on bins of unequal width in the measure
+  coordinate, where its prior mean is not a flat density, and points to
+  `Dirichlet.from_base_measure`. `GammaRates` with one `shape` for every bin warns there too.
+- `check()` warns when bins with fewer than 20 recovered injections hold more than a tenth
+  of the population, for a selection from injections inferred or `fixed()`, and names the
+  bins that need more injections.
 
 ### Changed
 
@@ -43,16 +50,6 @@ changes" section sets out.
   `LogisticRandomWalk`, `LogisticGP`, `LogisticNormal` after `cov`, and `Bins(mask=)`;
   and `rng` everywhere a user passes it. Passing one of these by position raises a
   `TypeError`; pass it by name.
-- `NUTS` refuses a NaN `n_warmup` or `jitter` and a fractional `n_warmup`, which it
-  truncated.
-- `infer` names an option that no engine takes as unknown, rather than suggesting `method=`;
-  `check` refuses an `n_predictive` that is not a positive integer.
-- NUTS uses a dense metric for logistic priors up to 500 dimensions (from 200), and
-  starts it from the curvature at every chain's position. With `LogisticGP`'s default
-  basis, two chains and one thread each, this cut the time per fit by two to five times
-  on a 16 × 16 grid, about three on 20 × 20 and five on 22 × 22. Above 500 dimensions,
-  `metric="auto"` is diagonal and starts from the identity. The low E-BFMI of `LogisticGP`
-  fits on large grids remains; the engines page documents it.
 - **Breaking:** `LogisticRandomWalk` takes its differences at the bin centres in the
   measure coordinate, in units of their mean spacing, and its unpenalised trends are
   polynomials in that coordinate. On bins of equal width in the measure coordinate
@@ -63,18 +60,24 @@ changes" section sets out.
   narrowest bin fits across the axis, at most four per bin; on bins of equal width this is
   one per bin, as before. To keep 0.2's basis on unequal bins, pass `n_basis` with the
   number of bins on each axis.
-- A `Dirichlet` with one concentration for every bin (a scalar `alpha`, the default, or
-  `Dirichlet.reference()`) raises an `InputWarning` on bins of unequal width in the measure
-  coordinate, where its prior mean is not a flat density, and points to
-  `Dirichlet.from_base_measure`. `GammaRates` with one `shape` for every bin warns there too.
-- `PolyaTree`'s error for a base measure with an empty bin reads as `Dirichlet`'s.
 - **Breaking:** `Selection.from_injections` takes Jeffreys' prior, `prior=(0.5, 0.5)`, on
   each bin's detection probability by default; it was `(1, 1)`. With few recoveries it
   reduced the low bias of derived totals from 12% to 9% in simulations of the injections
   tutorial's setup. Pass `prior=(1, 1)` for the old default.
-- `check()` warns when bins with fewer than 20 recovered injections hold more than a tenth
-  of the population, for a selection from injections inferred or `fixed()`, and names the
-  bins that need more injections.
+- NUTS uses a dense metric for logistic priors up to 500 dimensions (from 200), and
+  starts it from the curvature at every chain's position. With `LogisticGP`'s default
+  basis, two chains and one thread each, this cut the time per fit by two to five times
+  on a 16 × 16 grid, about three on 20 × 20 and five on 22 × 22. Above 500 dimensions,
+  `metric="auto"` is diagonal and starts from the identity. The low E-BFMI of `LogisticGP`
+  fits on large grids remains; the engines page documents it.
+- `PolyaTree`'s error for a base measure with an empty bin reads as `Dirichlet`'s.
+
+### Fixed
+
+- `NUTS` refuses a NaN `n_warmup` or `jitter` and a fractional `n_warmup`, which it
+  truncated.
+- `infer` names an option that no engine takes as unknown, rather than suggesting `method=`;
+  `check` refuses an `n_predictive` that is not a positive integer.
 
 ## [0.2.0] - 2026-11-07
 

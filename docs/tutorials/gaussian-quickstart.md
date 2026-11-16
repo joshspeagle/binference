@@ -167,9 +167,20 @@ broad = mock.measurements["sigma"] > 0.15           # galaxies with large errors
 print(f"median narrowing, galaxies with errors above 0.15: {np.median(ratio[broad]):.2f}")
 ```
 
-The effect is modest: the median ratio is 1.06, so the spread shrinks by about 6%. Here
-is a typical broad galaxy. It is the one closest to the median narrowing whose true
-redshift lies inside the central 68% of its posterior:
+```{code-cell} python
+:tags: [remove-cell]
+
+from myst_nb import glue
+
+med = float(np.median(ratio[broad]))
+glue("narrowing", med, display=False)
+glue("shrink_pct", 100 * (1 - 1 / med), display=False)
+```
+
+The effect is modest: the median ratio is {glue:text}`narrowing:.2f`, so the spread shrinks
+by about {glue:text}`shrink_pct:.0f`%. Here is a typical broad galaxy. It is the one
+closest to the median narrowing whose true redshift lies inside the central 68% of its
+posterior:
 
 ```{code-cell} python
 ---

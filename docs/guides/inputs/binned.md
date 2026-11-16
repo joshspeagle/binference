@@ -63,7 +63,8 @@ open-ended score bins, the columns have no lost share.
 With few events the choice matters. In a test with three classes, Gaussian scores
 $N(\mu_k, 1)$ with $\mu = (0, 1, 2)$, a response tallied into 10 score bins from $n$
 labelled objects per class, and 1000 target objects, nominal 68% intervals for $\rho$
-covered the truth this often (100 simulations, Gibbs; Monte Carlo error about 0.03):
+covered the truth this often (100 simulations, Gibbs; Monte Carlo error about 0.03;
+`notes/review/experiments/c11b_response_coverage.py` in the repository):
 
 | labelled objects per class | fixed response | inferred response |
 |---|---|---|
