@@ -1,0 +1,4 @@
+2d-gp-16       partial  seed 0 s  108.0 ebfmi 0.19 hyper-ess   160 ( 1.48/s) min-ess   311 div   0 centred 0.99
+2d-gp-16       noncent  seed 0 s  147.5 ebfmi 0.97 hyper-ess    29 ( 0.19/s) min-ess   331 div   1 centred -
+2d-gp-16       partial  seed 1 s   77.8 ebfmi 0.21 hyper-ess   104 ( 1.34/s) min-ess   260 div   0 centred 1.00
+2d-gp-16       noncent  seed 1 s  179.4 ebfmi 1.02 hyper-ess    99 ( 0.55/s) min-ess   205 div   3 centred -

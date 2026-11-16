@@ -74,9 +74,9 @@ coordinates.
 **A known limitation:** on large grids, the E-BFMI of partially centred `LogisticGP`
 fits falls below the limit of `check()` ([defaults](../reference/defaults.md#results-and-diagnostics)),
 so `check()` warns. A longer warm-up does not raise it. The non-centred form keeps the
-E-BFMI near one, but on 16 × 16 it mixes the hyperparameters no faster, and elsewhere it
-mixes them slower. The two forms' hyperparameter medians agreed to within 6% on three
-seeds on 16 × 16, with no consistent sign. The figures below are from 3000 objects from
+E-BFMI near one, but it mixes the hyperparameters several times slower. The two forms'
+hyperparameter medians agreed to within 7% on three seeds on 16 × 16, with no consistent
+sign. The figures below are from 3000 objects from
 `mock_2d` on [0, 1]², at noise 0.5 / k, with the default basis, a dense metric, and two
 chains of 300 warm-up iterations and 300 draws each.
 
@@ -84,10 +84,10 @@ chains of 300 warm-up iterations and 300 draws each.
 |---|---|---|---|---|
 | 8 × 8 | 0.53–0.60 | 0.93–0.97 | 6.0–9.6 | 1.3–1.4 |
 | 12 × 12 | 0.36–0.37 | 0.82 | 1.8–1.9 | 0.4–0.8 |
-| 16 × 16 | 0.17–0.26 | 0.75–0.97 | 0.3–0.7 | 0.4–0.5 |
+| 16 × 16 | 0.19–0.21 | 0.97–1.02 | 1.3–1.5 | 0.2–0.6 |
 
 Each range covers two seeds. A warm-up of 1000 iterations left the E-BFMI on 16 × 16 at
-0.13–0.34. On 30 and 60 bins in 1-D, with 3000 objects, partial centring gave 3 to 7
+0.15–0.42. On 30 and 60 bins in 1-D, with 3000 objects, partial centring gave 3 to 7
 times the non-centred hyperparameter ESS per second, at E-BFMI 0.42 to 1.03. With 300
 objects the two forms were about equal. A smaller basis gives an easier fit on a grid,
 as in the [two-dimensional tutorial](../tutorials/two-dimensions.md), but it changes the
