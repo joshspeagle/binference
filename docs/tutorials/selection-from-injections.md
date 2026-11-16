@@ -193,8 +193,8 @@ assert abs(tot["exact selection"].mean() - n_mergers) < 3 * tot["exact selection
 from myst_nb import glue
 from binference.results import INJECTIONS_MIN_RECOVERED
 
-glue("z_plugin", z_tot["plug-in injections"], display=False)
-glue("z_joint", z_tot["joint"], display=False)
+glue("z_plugin", float(z_tot["plug-in injections"]), display=False)
+glue("z_joint", float(z_tot["joint"]), display=False)
 few = recovered[recovered < INJECTIONS_MIN_RECOVERED]
 glue("few_min", int(few.min()), display=False)
 glue("few_max", int(few.max()), display=False)
