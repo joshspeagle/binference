@@ -117,8 +117,9 @@ chooses.
 - **Sparse priors need samplers.** The MAP with $\alpha_k<1$ lies on the boundary of the
   simplex ({doc}`empirical-bayes`).
 - **Exact zeros.** At $\alpha=0.01$, 52% of NumPy's Dirichlet draws on 5 bins and 55% on
-  20 bins contain an exact zero (200,000 draws each, NumPy 2.5). Such a draw can make an object's $L_i\cdot\rho$ vanish. EM
-  cannot move such a bin away from zero
+  20 bins contain an exact zero (200,000 draws each with NumPy 2.5:
+  `(rng.dirichlet(np.full(K, 0.01), 200_000) == 0).any(axis=1).mean()`). Such a draw can
+  make an object's $L_i\cdot\rho$ vanish. EM cannot move such a bin away from zero
   ([empirical Bayes](empirical-bayes.md#pitfalls-known-in-empirical-bayes)).
 - **Bins without data** are not identified; their posterior is their prior. Their
   {term}`data support` shows it ([the population](../guides/results.md#the-population)).

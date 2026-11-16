@@ -172,8 +172,9 @@ print(f"median narrowing, galaxies with errors above 0.15: {np.median(ratio[broa
 
 from myst_nb import glue
 
-glue("narrowing", float(np.median(ratio[broad])), display=False)
-glue("shrink_pct", 100 * (1 - 1 / float(np.median(ratio[broad]))), display=False)
+med = float(np.median(ratio[broad]))
+glue("narrowing", med, display=False)
+glue("shrink_pct", 100 * (1 - 1 / med), display=False)
 ```
 
 The effect is modest: the median ratio is {glue:text}`narrowing:.2f`, so the spread shrinks

@@ -18,6 +18,13 @@ changes" section sets out.
 - `GeneralizedDirichlet.from_base_measure(concentration, base, order)` sets each stick's
   Beta so that the prior mean is the base measure's bin masses, with the same
   concentration `a + b` on every stick.
+- A `Dirichlet` with one concentration for every bin (a scalar `alpha`, the default, or
+  `Dirichlet.reference()`) raises an `InputWarning` on bins of unequal width in the measure
+  coordinate, where its prior mean is not a flat density, and points to
+  `Dirichlet.from_base_measure`. `GammaRates` with one `shape` for every bin warns there too.
+- `check()` warns when bins with fewer than 20 recovered injections hold more than a tenth
+  of the population, for a selection from injections inferred or `fixed()`, and names the
+  bins that need more injections.
 
 ### Changed
 
@@ -63,14 +70,7 @@ changes" section sets out.
   on a 16 × 16 grid, about three on 20 × 20 and five on 22 × 22. Above 500 dimensions,
   `metric="auto"` is diagonal and starts from the identity. The low E-BFMI of `LogisticGP`
   fits on large grids remains; the engines page documents it.
-- A `Dirichlet` with one concentration for every bin (a scalar `alpha`, the default, or
-  `Dirichlet.reference()`) raises an `InputWarning` on bins of unequal width in the measure
-  coordinate, where its prior mean is not a flat density, and points to
-  `Dirichlet.from_base_measure`. `GammaRates` with one `shape` for every bin warns there too.
 - `PolyaTree`'s error for a base measure with an empty bin reads as `Dirichlet`'s.
-- `check()` warns when bins with fewer than 20 recovered injections hold more than a tenth
-  of the population, for a selection from injections inferred or `fixed()`, and names the
-  bins that need more injections.
 
 ### Fixed
 
