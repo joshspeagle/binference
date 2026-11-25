@@ -180,6 +180,41 @@ def test_missing_information_explainer_gibbs_draws_the_binference_posterior(widt
     np.testing.assert_array_less(np.abs(js.mean(axis=0) - ref.mean(axis=0)), tol)
 
 
+@pytest.mark.parametrize(
+    ("mode", "selection_mode", "probability"),
+    [(0, "on_truth", 53 / 205), (1, "on_measurement", 84 / 205)],
+)
+def test_selection_explainer_matches_selection_and_response_likelihoods(
+    mode, selection_mode, probability
+):
+    figure = explainer("v15", mode=mode)
+    bins = binference.Bins(figure["edges"])
+    rho = np.array(figure["rho"])
+    prior = binference.priors.Dirichlet(np.ones(bins.K))
+    selection = binference.Selection(figure["efficiency"], selection_mode)
+    lk = binference.Likelihoods([figure["rawRow"]], bins)
+    model = binference.PopulationModel(lk, prior, selection=selection)
+    np.testing.assert_allclose(figure["probabilityA"], probability, rtol=1e-14)
+    np.testing.assert_allclose(
+        np.exp(model.log_likelihood(rho)), figure["probabilityA"], rtol=1e-14
+    )
+
+    response = binference.Response(
+        figure["response"], bins, binference.Bins.categories(["A", "B"])
+    )
+    binned = binference.Likelihoods.from_binned(response, counts=[1, 0])
+    model = binference.PopulationModel(binned, prior)
+    np.testing.assert_allclose(
+        np.exp(model.log_likelihood(rho)), figure["probabilityA"], rtol=1e-14
+    )
+    np.testing.assert_allclose(response.efficiency, figure["efficiency"], rtol=1e-14)
+    np.testing.assert_allclose(response.efficiency @ rho, figure["normaliser"], rtol=1e-14)
+    np.testing.assert_allclose(1 - response.efficiency, figure["missed"], rtol=1e-14)
+    np.testing.assert_allclose(
+        response.efficiency * rho / figure["normaliser"], figure["selected"], rtol=1e-14
+    )
+
+
 def test_a_control_with_options_is_a_disabled_select_with_its_default_chosen(monkeypatch):
     pytest.importorskip("sphinx")  # the docs job installs it; the test matrix does not
     monkeypatch.syspath_prepend(str(DOCS / "_ext"))

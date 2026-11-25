@@ -146,6 +146,28 @@ axes[1].set_xlabel("true value $z$")
 plt.show()
 ```
 
+### A response on the same three bins
+
+Use the trial population $(1/4,1/2,1/4)$ from the
+{doc}`three-bin tutorial <../tutorials/three-bin-catalogue>`. The true-bin
+efficiencies are $(0.8,0.5,0.25)$ in both modes. The plot shows the full population
+and the distribution among observed objects. Each true bin has three possible
+outcomes, recorded as A, recorded as B, or missed.
+
+```{explainer} v15
+Switch the selection mode and watch the probabilities for a record in A.
+The first row gives the unadjusted likelihood on its probability scale.
+Selection on the truth multiplies this row by the efficiencies. Selection on
+the measurement uses the row as supplied for a recorded A. The observed share
+$S\cdot\rho$ and the distribution of observed true bins stay fixed in this
+example. The three outcome rows sum to one in each true-bin column. Read the
+resulting probability of a record in A among observed objects below the table.
+```
+
+The {doc}`response guide <../guides/inputs/binned>` shows how to supply a measured
+response. Columns of a binference response include the recorded outcomes. Their
+deficit from one is the probability of an unobserved object.
+
 The pitfalls guide describes the
 [two common mistakes](../guides/troubleshooting.md#ignoring-selection-or-modelling-it-twice)
 with the normaliser.
