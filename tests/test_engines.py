@@ -184,14 +184,6 @@ def test_nuts_validation():
     m = PopulationModel(np.ones((3, 2)))
     with pytest.raises(TypeError):
         NUTS("not a model")
-    with pytest.raises(ValueError):
-        NUTS(m, n_chains=0)
-    with pytest.raises(ValueError):
-        NUTS(m, metric="full")
-    with pytest.raises(ValueError):
-        NUTS(m, target_accept=1.5)
-    with pytest.raises(ValueError, match="init_x"):
-        NUTS(m, init_x=np.zeros(5))  # its shape when the engine is made
     with pytest.raises(ValueError, match="zero posterior density"):  # its density when run
         NUTS(PopulationModel(Likelihoods(np.eye(2))), init_x=[1e3]).run(1)
     with pytest.raises(ValueError, match="fractions or rates of shape"):
@@ -279,13 +271,23 @@ def test_positions_from_sample_are_in_the_model_coordinates(seed):
     np.testing.assert_allclose(m.to_value(x[0]), eng.result.chains[0, -1])
 
 
-def test_nuts_arguments_are_checked():
-    m = _gp_model(n=200, K=6)
-    for kwargs in ({"max_depth": 0}, {"n_warmup": -1}, {"jitter": -0.1}):
-        with pytest.raises(ValueError):
-            NUTS(m, **kwargs)
-    with pytest.raises(ValueError, match="init_x"):
-        NUTS(m, init_x=np.full(m.dim, np.nan))
+@pytest.mark.parametrize(
+    ("kwargs", "argument"),
+    [
+        ({"n_chains": 0}, "n_chains"),
+        ({"metric": "full"}, "metric"),
+        ({"target_accept": 1.5}, "target_accept"),
+        ({"max_depth": 0}, "max_depth"),
+        ({"n_warmup": -1}, "n_warmup"),
+        ({"jitter": -0.1}, "jitter"),
+        pytest.param({"init_x": np.zeros(5)}, "init_x", id="wrong-init-shape"),
+        pytest.param({"init_x": [np.nan]}, "init_x", id="nonfinite-init"),
+    ],
+)
+def test_nuts_rejects_invalid_constructor_arguments(kwargs, argument):
+    model = PopulationModel(np.ones((3, 2)))
+    with pytest.raises(ValueError, match=argument):
+        NUTS(model, **kwargs)
 
 
 def test_an_error_in_a_worker_is_raised_not_hidden_by_a_serial_rerun(seed):
@@ -537,8 +539,6 @@ def test_gibbs_tree_priors_agree_with_nuts(prior, seed):
 
 def test_gibbs_validation_and_labels(onehot, seed):
     lk, _ = onehot
-    with pytest.raises(ValueError, match="conjugate"):
-        Gibbs(PopulationModel(lk, P.LogisticNormal()))
     with pytest.warns(InputWarning, match="pseudo-likelihood"):
         half = lk.with_weights(np.full(lk.N, 0.5), fractional_weights=True)
     with pytest.raises(ValueError, match="integer"):

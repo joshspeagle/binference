@@ -68,7 +68,7 @@ def test_infer_methods_and_errors(small_1d):
     )
     assert res.method == res.info["auto_method"] and res.info["auto_reason"]
     em = binference.infer(lk, method="em")
-    assert em.method == "map"
+    assert em.method == "map" and em.info["algorithm"] in ("em", "squarem")
 
 
 def test_infer_reproducible(small_1d):

@@ -7,7 +7,6 @@ import binference
 from binference import (
     Bins,
     Likelihoods,
-    PopulationModel,
     PopulationResult,
     Selection,
 )
@@ -108,7 +107,7 @@ def test_a_reloaded_fit_keeps_a_combined_or_injection_selection(tmp_path, kind):
 
 
 def test_bin_labels_and_label_draws_are_kept_apart_and_round_trip(tmp_path):
-    for labels in (["x", "y", "z"], [0.5, 1.5, 2.5], [1, "b", 3]):
+    for labels in (["x", "y", "z"], [0.5, 1.5, 2.5], [0, 1, 2], [1, "b", 3]):
         bins = Bins.categories(labels)
         L = np.random.default_rng(0).random((10, 3))
         res = Gibbs(binference.PopulationModel(Likelihoods(L, bins)), rng=0, store_labels=True)
@@ -194,13 +193,7 @@ def test_a_prior_that_differs_only_in_the_values_of_an_array_is_not_the_fits(tmp
     assert back.attach(binference.PopulationModel(lk, fit)).best is not None
 
 
-def test_a_saved_result_keeps_integer_labels_and_hyperparameter_draws(tmp_path):
-    lk = Likelihoods(np.random.default_rng(0).random((50, 3)) + 0.1)
-    res = PopulationResult(PopulationModel(lk), np.full((10, 3), 1 / 3), method="x",
-                           labels=np.zeros((10, 50), int))  # fmt: skip
-    res.save(tmp_path / "a.npz")
-    back = PopulationResult.load(tmp_path / "a.npz")
-    assert back.bins == lk.bins  # integer category labels survive
+def test_a_saved_result_keeps_hyperparameter_draws(tmp_path):
     mock = binference.simulate.mock_1d(200, Bins.linear(0, 3, 6), rng=7)
     gp = binference.infer(mock.likelihoods, P.LogisticGP(), method="nuts", rng=1, n_samples=30,
                       n_warmup=60, n_chains=2, check=False)  # fmt: skip

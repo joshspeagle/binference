@@ -243,11 +243,11 @@ def test_fixed_and_as_hyperprior():
     assert f.fixed and f.median() == 2.0
     with pytest.raises(ValueError):
         P.Fixed(-1.0)
-    from binference.priors.hyper import as_hyperprior
-
     assert isinstance(as_hyperprior(3, "scale"), P.Fixed)
-    with pytest.raises(TypeError):
-        as_hyperprior("x", "scale")
+    assert as_hyperprior(np.array(2.0), "scale").value == 2.0
+    for invalid in ("x", True):
+        with pytest.raises(TypeError):
+            as_hyperprior(invalid, "scale")
 
 
 LOGISTIC_PRIORS = [
@@ -352,12 +352,11 @@ def test_logistic_prior_survives_scale_underflow():
 
 
 def test_inverse_gamma_from_quantiles():
-    from scipy import stats
-
-    h = P.InverseGamma.from_quantiles(0.2, 3.0)
-    d = stats.invgamma(h.a, scale=h.b)
-    assert d.cdf(0.2) == pytest.approx(0.01, abs=1e-8)
-    assert d.sf(3.0) == pytest.approx(0.01, abs=1e-8)
+    for lower, upper in ((0.2, 3.0), (1.0, 1e5)):
+        h = P.InverseGamma.from_quantiles(lower, upper)
+        d = stats.invgamma(h.a, scale=h.b)
+        assert d.cdf(lower) == pytest.approx(0.01, abs=1e-8)
+        assert d.sf(upper) == pytest.approx(0.01, abs=1e-8)
     h2 = P.InverseGamma.from_quantiles(1.0, 2.0, tail=0.05)
     assert stats.invgamma(h2.a, scale=h2.b).cdf(1.0) == pytest.approx(0.05, abs=1e-8)
     with pytest.raises(ValueError):
@@ -686,12 +685,6 @@ def test_gp_per_axis_arguments_must_match_the_axes():
     assert [h.value for _, h in b.hypers[1:]] == [1.0, 1.5]
 
 
-def test_hyperpriors_accept_numpy_scalars_but_not_booleans():
-    assert as_hyperprior(np.array(2.0), "scale").value == 2.0
-    with pytest.raises(TypeError):
-        as_hyperprior(True, "scale")
-
-
 @pytest.mark.parametrize(
     ("make", "name"),
     [
@@ -853,10 +846,6 @@ def test_recentring_a_gp_from_centred_coordinates_stays_finite():
 def test_gp_binds_on_log_and_large_grids():
     for bins in (Bins.log(0.01, 10, 20), Bins.linear(0, 1, 3000)):
         P.LogisticGP().bind(bins)
-    h = P.InverseGamma.from_quantiles(1.0, 1e5)
-    d = stats.invgamma(h.a, scale=h.b)
-    assert d.cdf(1.0) == pytest.approx(0.01, abs=1e-8)
-    assert d.sf(1e5) == pytest.approx(0.01, abs=1e-8)
 
 
 def test_logistic_prior_mean_is_a_flat_density():

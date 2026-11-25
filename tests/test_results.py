@@ -208,10 +208,8 @@ def test_check_warns_on_stuck_chains(fitted):
     with pytest.warns(ConvergenceWarning, match="R-hat"):
         msgs = res.check()
     assert msgs
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        with pytest.raises(RuntimeError):
-            res.check(strict=True)
+    with pytest.raises(binference.DiagnosticsError, match="R-hat"):
+        res.check(strict=True)
     assert repr(res).startswith("PopulationResult(method='gibbs'")
 
 
@@ -363,7 +361,6 @@ def test_check_flags_chains_too_short_or_constant_to_diagnose():
     for draws in (short, constant):
         with pytest.warns(binference.ConvergenceWarning, match="R-hat and ESS are undefined"):
             assert len(_external(draws, model).check()) == 1
-    assert PopulationResult(model, short, method="bootstrap").check() == []  # independent
 
 
 @ignore_few_recoveries
@@ -386,13 +383,6 @@ def test_check_reads_the_tail_ess_of_an_inferred_selection_and_keeps_its_own_dra
     before = res.assignment_probabilities(n_draws=None)
     S[:] = 0.5
     np.testing.assert_array_equal(res.assignment_probabilities(n_draws=None), before)
-
-
-def test_a_strict_check_raises_a_diagnostics_error():
-    _, res = fit_with_selection()
-    stuck = np.repeat(np.random.default_rng(0).dirichlet(np.ones(4) * 50, (4, 40)), 10, axis=1)
-    with pytest.raises(binference.DiagnosticsError):
-        _external(stuck, res.model).check(strict=True)
 
 
 def test_summary_mixing_columns_describe_the_quantity_summarised():
@@ -462,10 +452,12 @@ def test_rebin_takes_integral_floats_and_refuses_others():
 
 def test_independent_draws_get_no_chain_diagnostics():
     _, res = fit_with_selection()
+    short = np.random.default_rng(0).dirichlet(np.ones(4), size=(4, 7))
     trend = np.random.default_rng(0).dirichlet(np.ones(4) * 50, size=(1, 200))
     trend[0, :, 0] += np.linspace(0, 0.2, 200)
     trend /= trend.sum(axis=-1, keepdims=True)
-    assert PopulationResult(res.model, trend, method="bootstrap").check() == []
+    for draws in (short, trend):
+        assert PopulationResult(res.model, draws, method="bootstrap").check() == []
 
 
 def test_attach_refuses_a_selection_the_fit_did_not_have():
