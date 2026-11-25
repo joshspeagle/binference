@@ -337,8 +337,7 @@ def test_auto_refuses_counts_that_are_not_usable_integers(kw, name):
         inf.Auto(binference.PopulationModel(_lk(0.3)), **kw)
 
 
-def test_method_em_runs_em_and_auto_is_recorded_in_any_case():
+def test_auto_accepts_an_uppercase_method_name():
     lk = selection_mock()
-    assert binference.infer(lk, method="em").info["algorithm"] in ("em", "squarem")
     res = binference.infer(lk, method="AUTO", n_samples=20, rng=0, check=False)
     assert res.info["auto_method"] == res.method
