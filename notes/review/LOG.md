@@ -555,3 +555,9 @@ Append-only. One entry per working session (or per step within a long session).
 - v0.2.0 published to PyPI. The README example ran from the wheel and 0.3.0 read its saved population samples and total draws exactly.
 - #248 (PR #261): resolved the suspected test overlaps and preserved distinct regression coverage.
 - #225: closed eight deferred issues with reopening criteria. The first beta carries a qp input example (#218) and release work (#239, DECISIONS #151).
+
+## 2026-11-25
+
+- #218 (PR #260) merged. The qp histogram example checks posterior masses and
+  the effect of the interim prior on likelihood ratios.
+- #239: add the Zenodo concept DOI established by the v0.2.0 archive.

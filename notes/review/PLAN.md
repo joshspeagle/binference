@@ -24,7 +24,7 @@ The stages below track the work agreed in #225. Stage 4 follows the earlier stag
 | | #238 | Review of the public API and the policy for breaking changes | done (#256): options keyword-only, policy in `CONTRIBUTING.md`; renames in #257 |
 | | #257 | Renames from the API review (no shims before 1.0) | done (#258) |
 | | #248 | Audit suspected duplicate tests | done (#261) |
-| | #218 | Document and verify qp posterior inputs | #260 |
+| | #218 | Document and verify qp posterior inputs | done (#260) |
 | | #239 | Docs pass and first beta release | beta metadata in review; publication and citation checks pending |
 | | #225 | Reconcile the release tracker | close after #239 and the final evidence audit |
 
