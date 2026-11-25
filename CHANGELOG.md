@@ -5,7 +5,7 @@ All notable changes to binference are recorded here. The format follows
 [Semantic Versioning](https://semver.org/) as the contributing guide's "Breaking
 changes" section sets out.
 
-## [0.3.0] - 2026-11-16
+## [0.3.0] - 2026-11-24
 
 ### Added
 
@@ -28,6 +28,8 @@ changes" section sets out.
 
 ### Changed
 
+- binference enters beta. The compatibility policy in `CONTRIBUTING.md` covers
+  API changes and loading results saved by the previous minor release.
 - **Breaking:** renames, each to the spelling its siblings use:
   - `Likelihoods.from_gaussian(mean, sigma, bins)` → `(mean, bins, sigma)`, with `bins`
     required.

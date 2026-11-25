@@ -59,8 +59,8 @@ To contribute, see [`CONTRIBUTING.md`][contributing].
 
 ## Status and citing
 
-binference is alpha software, and its API may change before 1.0. If you use it, please
-cite it as described on the [citing page][citing].
+Version 0.3.0 is the first beta. The API may change before 1.0. If you use
+binference, please cite it as described on the [citing page][citing].
 
 [citing]: https://joshspeagle.github.io/binference/reference/citing.html
 
