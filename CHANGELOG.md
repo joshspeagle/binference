@@ -9,6 +9,8 @@ changes" section sets out.
 
 ### Added
 
+- The posterior-input guide shows how to turn a `qp` histogram ensemble into bin
+  masses and supply the interim prior used by the photometric-redshift fit.
 - `Likelihoods.from_samples` takes `kind="likelihood"` for samples drawn from a
   likelihood, as `from_table` and `from_density` do.
 - `Likelihoods.from_samples(..., smooth="kde", bandwidth=...)` spreads each sample over
