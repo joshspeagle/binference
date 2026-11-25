@@ -17,3 +17,7 @@ the method papers that apply to your problem:
 - Pareto-smoothed importance sampling: {cite:t}`vehtari2024`.
 
 Their full entries, with DOIs and arXiv identifiers, are in the {doc}`bibliography`.
+
+The [Zenodo concept DOI](https://doi.org/10.5281/zenodo.23752879) identifies
+all archived versions of binference. For a particular release, use the
+version DOI shown on its Zenodo record.

@@ -13,6 +13,10 @@ authors:
     given-names: Joshua S.
 version: 0.3.0
 date-released: 2026-11-24
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.23752879"
+    description: "Zenodo concept DOI for all archived binference versions."
 license: MIT
 repository-code: "https://github.com/joshspeagle/binference"
 keywords:
