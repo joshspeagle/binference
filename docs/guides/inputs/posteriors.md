@@ -37,6 +37,43 @@ A posterior table defaults to masses per bin, `representation="mass"`. binferenc
 if the rows do not sum to one under the representation you declared
 ([warnings](../../reference/warnings.md#inputwarning)).
 
+## Photometric-redshift posteriors from qp
+
+A [`qp` histogram ensemble](https://qp.readthedocs.io/en/stable/user_guide/parameterizations/hist.html)
+holds one redshift PDF per object. Evaluate its CDF at the bin edges and difference
+adjacent values to obtain each bin's posterior mass. This accounts for unequal bin
+widths. Choose edges that cover the posterior support, and compute the interim prior
+masses on those same edges using the prior from the photo-$z$ fit.
+
+Install the optional package with `pip install qp-prob`. This example uses two
+histograms with densities per unit redshift and checks the conversion with two
+choices of interim prior.
+
+```python skip
+import binference
+import numpy as np
+import qp
+
+edges = np.array([0.0, 1.0, 3.0])
+bins = binference.Bins(edges)
+ensemble = qp.hist.create_ensemble(
+    bins=edges, pdfs=np.array([[0.50, 0.25], [0.20, 0.40]])
+)
+posterior_mass = np.diff(ensemble.cdf(edges), axis=-1)
+np.testing.assert_allclose(posterior_mass, [[0.50, 0.50], [0.20, 0.80]], rtol=1e-14)
+
+for prior_mass, expected_ratio in (([0.5, 0.5], [1.0, 0.25]), ([0.25, 0.75], [3.0, 0.75])):
+    qp_likelihoods = binference.Likelihoods.from_table(
+        posterior_mass,
+        bins,
+        interim=prior_mass,
+        representation="mass",
+        interim_representation="mass",
+    )
+    rows = qp_likelihoods.toarray()
+    np.testing.assert_allclose(rows[:, 0] / rows[:, 1], expected_ratio, rtol=1e-14)
+```
+
 ## Describe the interim prior
 
 The interim prior is a {class}`~binference.Density`: a fixed density over the bin
