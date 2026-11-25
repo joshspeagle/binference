@@ -6,11 +6,13 @@ what you are doing.
 
 ## Inferring a population
 
+```{py:module} binference
+```
+
 `infer` fits a population in one call; the estimator wraps the same fit for
 scikit-learn, and the model holds the inputs of a fit for reuse.
 
 ```{eval-rst}
-.. py:module:: binference
 .. currentmodule:: binference
 
 .. autosummary::
@@ -44,10 +46,12 @@ that a fit takes.
 
 ## Priors
 
+```{py:module} binference.priors
+```
+
 Priors on the population fractions or rates; pass one to `infer` as `prior=`.
 
 ```{eval-rst}
-.. py:module:: binference.priors
 .. currentmodule:: binference.priors
 
 .. autosummary::
@@ -97,6 +101,9 @@ A new prior subclasses one of these base classes; `bind` returns its numerical f
 
 ## Selection
 
+```{py:module} binference.selection
+```
+
 Which objects enter the sample, given their true or measured values; pass a
 `Selection` to `infer` as `selection=`.
 
@@ -111,7 +118,6 @@ Which objects enter the sample, given their true or measured values; pass a
 ```
 
 ```{eval-rst}
-.. py:module:: binference.selection
 .. currentmodule:: binference.selection
 
 .. autosummary::
@@ -124,11 +130,13 @@ Which objects enter the sample, given their true or measured values; pass a
 
 ## Engines
 
+```{py:module} binference.engines
+```
+
 `infer(..., method=...)` builds one of these for you; use them directly for fine
 control, generator-style sampling or resuming a run.
 
 ```{eval-rst}
-.. py:module:: binference.engines
 .. currentmodule:: binference.engines
 
 .. autosummary::
@@ -145,11 +153,13 @@ control, generator-style sampling or resuming a run.
    Engine
 ```
 
+```{py:module} binference.inference
+```
+
 `method="auto"`, the default, is an engine that picks one of the others; `METHODS`
 maps each `method=` name to its engine.
 
 ```{eval-rst}
-.. py:module:: binference.inference
 .. currentmodule:: binference.inference
 
 .. autosummary::
@@ -178,13 +188,15 @@ What a fit returns: posterior draws or a point estimate, and their summary table
 
 ## Diagnostics and validation
 
+```{py:module} binference.diagnostics
+```
+
 Checks of a single fit: convergence of draws and importance sampling for
 approximations. The optimality of a point estimate,
 {meth}`~binference.PopulationModel.kkt_gap`, and the missing information,
 {meth}`~binference.PopulationModel.missing_information`, are methods of the model.
 
 ```{eval-rst}
-.. py:module:: binference.diagnostics
 .. currentmodule:: binference.diagnostics
 
 .. autosummary::
@@ -201,11 +213,13 @@ approximations. The optimality of a point estimate,
    importance_ess
 ```
 
+```{py:module} binference.validation
+```
+
 Checks of a method: exact posteriors for small problems, simulation-based calibration
 and coverage.
 
 ```{eval-rst}
-.. py:module:: binference.validation
 .. currentmodule:: binference.validation
 
 .. autosummary::
@@ -222,10 +236,12 @@ and coverage.
 
 ## Simulation
 
+```{py:module} binference.simulate
+```
+
 Mock data sets with a known truth, for trying a method before it meets real data.
 
 ```{eval-rst}
-.. py:module:: binference.simulate
 .. currentmodule:: binference.simulate
 
 .. autosummary::
@@ -244,10 +260,12 @@ Mock data sets with a known truth, for trying a method before it meets real data
 
 ## Plotting
 
+```{py:module} binference.plotting
+```
+
 Figures of a population, its draws, the per-object posteriors and calibration.
 
 ```{eval-rst}
-.. py:module:: binference.plotting
 .. currentmodule:: binference.plotting
 
 .. autosummary::
@@ -264,10 +282,12 @@ Figures of a population, its draws, the per-object posteriors and calibration.
 
 ## Saving and loading
 
+```{py:module} binference.io
+```
+
 Write a result to disk, read it back, or convert it to an xarray `DataTree` for ArviZ.
 
 ```{eval-rst}
-.. py:module:: binference.io
 .. currentmodule:: binference.io
 
 .. autosummary::
@@ -282,10 +302,12 @@ Write a result to disk, read it back, or convert it to an xarray `DataTree` for 
 
 ## Warnings
 
+```{py:module} binference.warnings
+```
+
 The warnings binference emits, and the error a strict convergence check raises.
 
 ```{eval-rst}
-.. py:module:: binference.warnings
 .. currentmodule:: binference.warnings
 
 .. autosummary::

@@ -7,10 +7,11 @@ label. Such a {term}`binned measurement` reaches the true bins through a
 
 ## The response
 
-A {class}`~binference.Response` holds the matrix
-$R_{jk}=p(\text{measured in }j,\ \text{observed}\mid\text{true bin }k)$. Its column
-sums are the {term}`efficiencies <efficiency>` $\epsilon_k\le1$: the probability that an
-object in true bin $k$ is observed at all. A response comes from one of three places:
+A {class}`~binference.Response` holds a matrix with measured bins on rows and true bins
+on columns. Each entry $R_{jk}$ is the probability that an object in true bin $k$
+is recorded in measured bin $j$. Its column sums are the
+{term}`efficiencies <efficiency>` $\epsilon_k\le1$. Each efficiency is the probability
+that an object in true bin $k$ is observed at all. A response comes from one of three places:
 
 - **A known matrix**: `Response(R, truth_bins, measured_bins)`. A *migration* matrix,
   $p(\text{measured }j\mid\text{true }k,\ \text{observed})$, has columns that sum to
@@ -64,7 +65,7 @@ With few events the choice matters. In a test with three classes, Gaussian score
 $N(\mu_k, 1)$ with $\mu = (0, 1, 2)$, a response tallied into 10 score bins from $n$
 labelled objects per class, and 1000 target objects, nominal 68% intervals for $\rho$
 covered the truth this often (100 simulations, Gibbs; Monte Carlo error about 0.03;
-`notes/review/experiments/c11b_response_coverage.py` in the repository):
+[experiment script](https://github.com/joshspeagle/binference/blob/main/notes/review/experiments/c11b_response_coverage.py)):
 
 | labelled objects per class | fixed response | inferred response |
 |---|---|---|
@@ -100,8 +101,9 @@ print(mc.response, lk_score.bins.labels)
 When there are more measured bins than true bins, the data can test the response.
 `result.check()` compares the measured counts with those each posterior draw predicts
 through the response. If the {term}`posterior predictive p-value` is very small, it
-warns ([warnings](../../reference/warnings.md#inputwarning)). For a classifier, that
-means label shift is violated.
+warns ([warnings](../../reference/warnings.md#inputwarning)). For a classifier, a
+small p-value is evidence that the target scores and the response estimated from
+the labelled set are incompatible under the fitted model.
 
 The {doc}`classifier </tutorials/classifier-outputs>` and {doc}`unfolding </tutorials/unfolding>` tutorials run
 both classifier routes and an unfolding.

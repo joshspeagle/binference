@@ -27,9 +27,11 @@ your own analysis.
 [checking guide](../guides/checking.md#diagnostics) lists what it flags, and the
 [defaults](../reference/defaults.md#results-and-diagnostics) hold its thresholds.
 
-These diagnostics cannot tell whether the posterior itself is right: whether the
-likelihoods, the prior and the engine together give calibrated answers. Calibration
-checks that.
+Simulation checks whether the likelihoods, prior and engine produce calibrated
+answers under a specified generator. If the generator shares the fitted model's
+assumptions, the check assesses inference under those assumptions. To assess
+likelihoods for real data, see the
+[model assumptions](model.md#assumptions).
 
 ## Calibration
 

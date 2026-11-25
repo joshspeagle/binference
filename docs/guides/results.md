@@ -70,8 +70,8 @@ To see how much of each bin's fraction the data determine, read its {term}`data 
 ## Individual objects
 
 The model also says something about each object: its {term}`hierarchical posterior`
-over bins, given **its own data and the population**. It is narrower than the object's
-likelihood wherever the population is informative ({term}`shrinkage`).
+over bins, given **its own data and the population**. A concentrated population can
+pull probability toward a smaller range of bins ({term}`shrinkage`).
 
 ```python
 p = result.assignment_probabilities(idx=[0, 1, 2])       # (3, K), rows sum to one

@@ -17,7 +17,7 @@ to a population with its uncertainty. It needs binference with the `plot` extra
 ## Your data
 
 Here a simulation stands in for your data: 2000 galaxies with photometric redshifts
-`z_obs`: distances estimated from each galaxy's colours. Their Gaussian errors `z_err`
+`z_obs`: redshifts estimated from each galaxy's colours. Their Gaussian errors `z_err`
 lie between 0.05 and 0.2. Choose bins that cover the range of the true values: here 15
 bins of width 0.2 on $[0, 3]$. Replace the simulation with your own arrays.
 
@@ -42,7 +42,8 @@ lk
 ## Infer the population
 
 One call infers the {term}`population fractions` $\rho$. The default engine,
-`method="auto"`, chooses an exact sampler and records why.
+`method="auto"`, chooses among Gibbs, importance-corrected Laplace and NUTS.
+It records the choice and why in `result.info`.
 
 ```{code-cell} python
 result = binference.infer(lk, rng=1)
@@ -111,9 +112,9 @@ zbar = result.functional(lambda rho: rho @ bins.centers)
 print(f"mean redshift: {zbar.mean():.3f} ± {zbar.std():.3f}")
 ```
 
-Each galaxy's posterior under the population, its {term}`hierarchical posterior`, is
-narrower than its own likelihood wherever the population is informative. Here is the
-first galaxy's, rounded:
+Each galaxy's {term}`hierarchical posterior` combines its likelihood with the
+population inferred from the catalogue. Here are the first galaxy's probabilities
+over the 15 bins:
 
 ```{code-cell} python
 result.assignment_probabilities()[0].round(2)

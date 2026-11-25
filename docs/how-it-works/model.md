@@ -77,20 +77,22 @@ The {doc}`priors` page describes the choices for $p(\rho)$. The {doc}`point esti
 
 ## The augmented form
 
-Give every object a latent {term}`label` $k_i$, the bin it truly lies in. Let
-$k_i\mid\rho\sim\mathrm{Cat}(\rho)$ and $p(d_i\mid k_i=k)\propto L_{ik}$. The joint
-posterior of the population and the labels is
+Give every object a latent {term}`label`, the bin it truly lies in. If row $i$
+represents $w_i$ objects with identical likelihoods, give each copy $a=1,\dots,w_i$
+its own label $k_{ia}$. Conditional on $\rho$, these labels are independent with
+$k_{ia}\sim\mathrm{Cat}(\rho)$. The joint posterior for integer weights is
 
 $$
-p(\rho,k_1,\dots,k_N\mid D)\propto p(\rho)\prod_i\left(\rho_{k_i}L_{ik_i}\right)^{w_i}.
+p(\rho,\{k_{ia}\}\mid D)\propto p(\rho)
+\prod_{i=1}^N\prod_{a=1}^{w_i}\rho_{k_{ia}}L_{i,k_{ia}}.
 $$
 
-Summing over the labels gives {eq}`eq-P` exactly. The "population" view samples $\rho$
-alone, and the "hierarchical" view samples $\rho$ and the labels together. They are
-**the same model** for $\rho$. They differ only in how efficiently they can be sampled,
-and in whether labels come out jointly.
+Summing over the labels gives $w_i$ copies of $\sum_k\rho_kL_{ik}$ for row $i$,
+recovering {eq}`eq-P`. Gibbs updates the counts of these labels. Non-integer weights
+define a power likelihood in {eq}`eq-P` and have no replicate-label interpretation.
 
-The distribution of a label given the population is exact:
+Given $\rho$, each copy has the same distribution over bins. Write $k_i$ for the
+label of one object represented by row $i$:
 
 $$
 P(k_i=k\mid\rho,D)=r_{ik}(\rho)=\frac{L_{ik}\rho_k}{L_i\cdot\rho}.
@@ -98,15 +100,16 @@ $$ (eq-resp)
 
 These {term}`responsibilities` are object $i$'s posterior over bins when the population
 is $\rho$. The expected counts are their weighted sum, $\hat n_k=\sum_iw_ir_{ik}$.
-Any draw of $\rho$ gives joint draws of the labels afterwards, so every engine's output
-supports them.
+After sampling $\rho$, draw labels from these conditional probabilities to recover
+joint draws. This also works with approximate population draws, with the resulting
+approximation carried through to the labels.
 
 ### Population versus realised sample
 
 The fractions $\rho$ describe the population the objects were drawn from. Their
 posterior includes the noise of having drawn only $N$ objects. The
 {term}`realised histogram <realised sample>`
-$n_k=\sum_iw_i\mathbb 1[k_i=k]$ describes the objects actually observed. With perfect
+$n_k=\sum_i\sum_{a=1}^{w_i}\mathbb 1[k_{ia}=k]$ describes the objects actually observed. With perfect
 measurements $n$ is known exactly, while $\rho$ is still uncertain.
 
 A lensing kernel, for example, depends on the realised redshifts of the lens sample,
@@ -123,8 +126,9 @@ $$
 P(k_i=k\mid D)=\mathbb E_{\rho\mid D}\left[r_{ik}(\rho)\right].
 $$
 
-It is narrower than the object's own likelihood wherever the population is informative:
-this is {term}`shrinkage`. For a new object with likelihood row $L_*$, the posterior
+The population shifts probability toward its well-supported bins. A concentrated
+population can narrow the object's posterior through {term}`shrinkage`. For a new
+object with likelihood row $L_*$, the posterior
 predictive over bins is $\mathbb E[r_*(\rho)]$. Its {term}`log predictive density`,
 $\log\mathbb E[L_*\cdot\rho]$, scores models on held-out data
 (`result.log_predictive`).
@@ -158,7 +162,7 @@ population ([EM is iterated stacking](point-estimates.md#em-is-iterated-stacking
 
 ### Masses versus densities
 
-$L_{ik}$ is an average over the bin, a value per unit volume. Inputs come in two
+$L_{ik}$ is a likelihood averaged over the bin. Inputs come in two
 {term}`representations <representation>`:
 
 - `"density"`: values per unit volume, such as a density evaluated at bin centres;
@@ -167,8 +171,9 @@ $L_{ik}$ is an average over the bin, a value per unit volume. Inputs come in two
 
 binference divides likelihood masses by $v_k$. For posteriors, it converts both the
 posterior and the interim prior to masses before taking their ratio. With equal bins the
-choice changes each row by a constant, which is harmless. With unequal bins the wrong
-choice biases $\rho$ towards wide bins.
+choice changes each row by a constant, which is harmless. On unequal bins, treating
+integrals as averages gives wide bins excess weight in the likelihood rows. Treating
+averages as integrals has the reverse effect.
 
 ## Selection effects
 
@@ -225,9 +230,11 @@ $$
 
 Independent priors $\lambda_k\sim\mathrm{Gamma}(a_k,b_k)$ are conjugate given the labels:
 $\lambda_k\mid n\sim\mathrm{Gamma}(a_k+n_k,\,b_k+S_k)$. Fractions and rates are not
-interchangeable priors. Independent $\mathrm{Gamma}(a_k,b)$ rates imply
-$\rho\sim\mathrm{Dir}(a)$ only when every bin has the same rate parameter $b$ and there
-is no selection.
+interchangeable priors. Independent $\mathrm{Gamma}(a_k,b)$ rates with a shared rate
+parameter $b$ induce a $\mathrm{Dir}(a)$ prior on the normalised fractions. Selection
+enters through the likelihood. Given the labels, unequal $S_k$ give unequal
+posterior rate parameters $b+S_k$, so the fractions then generally have a
+non-Dirichlet posterior.
 
 **Inferred selections and responses.** A selection on the truth measured by
 {term}`injections` can be inferred with the population. The unconstrained coordinates
@@ -271,8 +278,8 @@ show how to check it or what to do when it fails.
 9. **A transferable response.** For {term}`binned measurements <binned measurement>`,
    the response matrix describes the observed objects as well as the events it was
    built from. For classifiers this is {term}`label shift`.
-10. **Integer weights.** Integer weights count identical objects. Non-integer weights
-    define a weighted pseudo-likelihood, whose posterior is not a proper posterior.
+10. **Integer weights.** Integer weights count objects with identical likelihoods.
+    Non-integer weights define a pseudo-posterior based on a power likelihood.
 
 ### Binning bias
 

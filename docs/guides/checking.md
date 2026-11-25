@@ -9,10 +9,9 @@ kernelspec:
 
 # Check a result
 
-Check a result in two stages. First, the diagnostics say whether the engine explored
-the posterior. Second, simulations say whether the posterior is *right*: whether your
-likelihoods, prior and engine together give calibrated answers. binference ships the
-tools for both, the same ones its own test suite uses.
+Check a result in two stages. First, diagnostics assess how well the engine explored
+the posterior. Then simulate catalogues to check calibration under the assumptions of
+your simulator. binference uses these same tools in its own test suite.
 
 ```python
 import numpy as np
@@ -52,11 +51,11 @@ print(problems)
   did not converge.
 
 If the chains disagree or the effective sample sizes are low, run longer. If Gibbs
-mixes slowly, switch to NUTS. A few isolated divergences among thousands of draws are
-usually harmless if R-hat and the effective sample sizes pass. Divergences that persist
-with a higher `target_accept` mark a region the sampler cannot explore, such as a
-[funnel](troubleshooting.md#a-smoothness-scale-near-zero). Change the prior or its
-hyperprior rather than ignore them.
+mixes slowly, switch to NUTS. Investigate divergent transitions even when R-hat and
+ESS pass. Raise `target_accept` and check whether the divergences disappear and the
+quantities you plan to report agree across fits. If divergences persist, inspect
+the model for difficult geometry, such as a
+[funnel](troubleshooting.md#a-smoothness-scale-near-zero).
 
 A low E-BFMI means that NUTS moves slowly through the energy distribution, so it may
 under-explore the tails. A longer warm-up or another prior may help; a higher
@@ -64,10 +63,12 @@ under-explore the tails. A longer warm-up or another prior may help; a higher
 on its tails. `LogisticGP` fits on large grids have a low E-BFMI that a longer warm-up
 does not fix ([engines](../how-it-works/engines.md#partial-centring)).
 
-Problems with the inputs raise an `InputWarning` instead. Three are checked:
+Problems with the inputs raise an `InputWarning`:
 
 - the Monte Carlo noise of likelihoods built from samples ({doc}`inputs/samples`);
 - binned counts that the response does not describe ({doc}`inputs/binned`);
+- bins with few recoveries that hold much of the fitted population
+  ([injection checks](selection.md#few-injections-per-bin));
 - with `check(support_min=...)`, bins whose {term}`data support` is low ({doc}`bins`).
 
 Where it can, a warning ends with a hint. After Gibbs, the hint gives the
