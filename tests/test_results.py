@@ -452,10 +452,11 @@ def test_rebin_takes_integral_floats_and_refuses_others():
 
 def test_independent_draws_get_no_chain_diagnostics():
     _, res = fit_with_selection()
+    short = np.random.default_rng(0).dirichlet(np.ones(4), size=(4, 7))
     trend = np.random.default_rng(0).dirichlet(np.ones(4) * 50, size=(1, 200))
     trend[0, :, 0] += np.linspace(0, 0.2, 200)
     trend /= trend.sum(axis=-1, keepdims=True)
-    for draws in (trend[:, :7], trend):
+    for draws in (short, trend):
         assert PopulationResult(res.model, draws, method="bootstrap").check() == []
 
 
