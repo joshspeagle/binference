@@ -4,6 +4,36 @@ Everything a typical analysis needs is importable from the top-level `binference
 namespace; priors, engines and helpers live in sub-modules. The names are grouped by
 what you are doing.
 
+(result-task-index)=
+## Find a method by task
+
+| Task | Methods | Example |
+|---|---|---|
+| Convert per-object measurements or posteriors | {meth}`~binference.Likelihoods.from_gaussian`, {meth}`~binference.Likelihoods.from_table`, {meth}`~binference.Likelihoods.from_samples`, {meth}`~binference.Likelihoods.from_binned` | {doc}`Input guides </guides/inputs/index>` |
+| Evaluate a proposed population | {meth}`~binference.PopulationModel.log_likelihood`, {meth}`~binference.PopulationModel.responsibilities`, {meth}`~binference.PopulationModel.expected_counts` | {doc}`Three-bin catalogue </tutorials/three-bin-catalogue>` |
+| Summarise the population or propagate its uncertainty | {meth}`~binference.PopulationResult.summary`, {meth}`~binference.PopulationResult.interval`, {meth}`~binference.PopulationResult.functional`, {meth}`~binference.PopulationResult.rebin` | [Population results](../../guides/results.md#the-population) |
+| Recover true bins and values for the observed objects | {meth}`~binference.PopulationResult.assignment_probabilities`, {meth}`~binference.PopulationResult.sample_assignments`, {meth}`~binference.PopulationResult.sample_values`, {meth}`~binference.PopulationResult.realized_counts` | [Individual objects](../../guides/results.md#individual-objects) |
+| Inspect diagnostics or save a fit | {meth}`~binference.PopulationResult.check`, {meth}`~binference.PopulationResult.save`, {meth}`~binference.PopulationResult.load`, {meth}`~binference.PopulationResult.attach` | {doc}`Checking </guides/checking>` and [saving](../../guides/results.md#saving-and-sharing) |
+
+### Shapes of common results
+
+Here $K$ counts true bins, $J$ counts measured bins, and $C$ counts basis
+components. An object axis counts the rows selected by `idx`.
+
+| Result | Shape | Meaning |
+|---|---|---|
+| {attr}`~binference.PopulationResult.samples` | `(n_draws, K)` | Population fractions with chains concatenated. The rows sum to one, including for rate models. |
+| {attr}`~binference.PopulationResult.chains` | `(n_chains, n_per_chain, K)` | The same fractions with the chain axis retained. |
+| {attr}`~binference.PopulationResult.component_draws` | `(n_chains, n_per_chain, C)` | Model parameters before projection to the bins. With the identity basis, $C=K$. |
+| {attr}`~binference.PopulationResult.rates` | `(n_draws, K)` | Expected rates per bin in the model's units. Returns `None` when the total is unavailable. |
+| {meth}`~binference.PopulationResult.assignment_probabilities` | `(n_objects, K)` | Probabilities averaged over population draws. Each object's row sums to one. |
+| {meth}`~binference.PopulationResult.sample_assignments` | `(n_draws, n_objects)` | One integer bin label per object and draw. Use uncompressed rows for object-level draws. |
+| {meth}`~binference.PopulationResult.realized_counts` | `(n_draws, K)` | Draws of the counts of the catalogue's objects in true bins. |
+| {meth}`~binference.PopulationResult.response_draws` | `(n_draws, J, K)` | Rows are measured bins. Each column sums to that true bin's efficiency. Requires a jointly inferred response. |
+
+The {doc}`results guide </guides/results>` explains which quantities retain
+posterior uncertainty and which also account for latent labels in this catalogue.
+
 ## Inferring a population
 
 ```{py:module} binference
@@ -181,9 +211,19 @@ What a fit returns: posterior draws or a point estimate, and their summary table
    :toctree: generated
    :nosignatures:
 
+   Summary
+```
+
+```{eval-rst}
+.. currentmodule:: binference
+
+.. autosummary::
+   :toctree: generated
+   :nosignatures:
+   :template: autosummary/result.rst
+
    PopulationResult
    PointEstimate
-   Summary
 ```
 
 ## Diagnostics and validation
