@@ -25,6 +25,10 @@ result = binference.infer(mock.likelihoods, method="nuts", rng=1)
 
 ## Diagnostics
 
+The [three-bin tutorial](../tutorials/three-bin-catalogue.md#diagnose-a-short-fit)
+works through an undefined R-hat warning. It compares short and long fits against an
+exact enumeration, then tests a response matrix that cannot explain the data.
+
 `binference.infer` checks every NUTS and Gibbs result and warns about any problem, and
 checks the inputs of every fit. Call `result.check()` yourself for the rest of the
 checks on other engines, or to change the limits:

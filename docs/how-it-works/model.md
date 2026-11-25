@@ -133,6 +133,32 @@ predictive over bins is $\mathbb E[r_*(\rho)]$. Its {term}`log predictive densit
 $\log\mathbb E[L_*\cdot\rho]$, scores models on held-out data
 (`result.log_predictive`).
 
+### Three bins by hand
+
+The {doc}`three-bin tutorial <../tutorials/three-bin-catalogue>` uses relative
+likelihood rows $(1,0.5,0.1)$ and $(0.2,0.5,1)$. At $\rho=(1/4,1/2,1/4)$
+the two dot products are $21/40$ and $11/20$. These can have an arbitrary
+scale per object, inherited from the likelihood rows. The responsibilities
+obtained from {eq}`eq-resp` are
+
+$$
+r(\rho)=\begin{pmatrix}
+10/21 & 10/21 & 1/21\\
+1/11 & 5/11 & 5/11
+\end{pmatrix}.
+$$
+
+Add the rows to obtain the expected counts $\hat n$. Dividing componentwise
+by $\rho$ gives the log-likelihood gradient in the original fractions,
+$\hat n_k/\rho_k$. To take a derivative subject to $\sum_k\rho_k=1$, move mass
+from one bin to another. Moving mass from bin 3 to bin 1 gives the directional
+derivative $\hat n_1/\rho_1-\hat n_3/\rho_3=20/77$. The gradient in an engine's
+unconstrained coordinates also uses the prior's transform and its Jacobian.
+
+With a flat Dirichlet prior, dividing $\hat n$ by two instead gives the next
+[EM iterate](point-estimates.md#em-is-iterated-stacking). Gibbs uses each row
+of $r(\rho)$ to sample a label and retains the uncertainty in the counts.
+
 ## Likelihoods versus posteriors
 
 Many codes report posteriors $p_i(z)\propto\ell_i(z)\pi(z)$, computed under an
