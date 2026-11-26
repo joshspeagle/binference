@@ -21,11 +21,12 @@ also informs each object's posterior. The same model applies across
   [Input guide](guides/inputs/binned.md)
 :::
 
-## Fit a redshift distribution
+## Fit a population distribution
 
 ::::{container} home-example
 :::{container} home-example-code
-Start with a measured redshift and its Gaussian error for each galaxy.
+Start with a measured value and its Gaussian error for each object.
+The example simulates those two arrays.
 
 ```python
 import binference as bf
@@ -34,11 +35,11 @@ bins = bf.Bins.linear(0, 3, 15)
 mock = bf.simulate.mock_1d(
     2000, bins, rng=42
 )
-z_obs = mock.measurements["mean"]
-z_err = mock.measurements["sigma"]
+values = mock.measurements["mean"]
+errors = mock.measurements["sigma"]
 
 lk = bf.Likelihoods.from_gaussian(
-    z_obs, bins, z_err
+    values, bins, errors
 )
 result = bf.infer(lk, rng=1)
 print(result.summary())
@@ -49,7 +50,8 @@ print(result.summary())
 :alt: Population posteriors under a Dirichlet prior and a Gaussian-process prior. Each panel compares the inferred density and credible intervals with the true and stacked densities.
 :class: figure-max
 
-The same mock catalogue fitted under a Dirichlet prior and a Gaussian-process prior.
+For example, the simulated values can represent galaxy redshifts. The panels show
+the population fitted under a Dirichlet prior and a Gaussian-process prior.
 ```
 ::::
 
