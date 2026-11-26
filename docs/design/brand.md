@@ -50,9 +50,9 @@ on a loaded font: `lockup-{light,dark}.svg` with the mid cut, for bars and heade
 sizes below).
 
 The site uses two of the files in `static/brand/`: `lockup-dark.svg` in the top bar and the
-footer, and `favicon.svg`. The home page's animated mark is inline SVG in the theme's
-`hero.html`, which `brand.py` also writes. The other files are exports for use outside the
-site.
+footer, and `favicon.svg`. The home page's inline lockup uses the same outlined
+wordmark in `hero.html`, which `brand.py` also writes. The README uses the large
+light and dark lockup exports.
 
 ## Colour
 
@@ -167,9 +167,9 @@ These rules hold for every figure, explainer and diagram on the site.
   (V-n), native controls and a live readout in mono. They are still and complete before
   JavaScript runs, and respect reduced motion.
 - **Pager** with the previous and next pages; **footer** in `bar`.
-- **Home**: the hero is the largest cut with its draws slowly resampling (still under
-  reduced motion), the line "Infer the population, then every object.", and three paths by
-  the reader's data.
+- **Home**: the hero pairs the full mark with the error-bar wordmark. The draws advance
+  every two seconds and cross-fade over half a second. The pause control and reduced
+  motion preference keep the lockup still. Three paths follow the reader's data.
 
 ## Accessibility
 

@@ -211,12 +211,12 @@ def mark_body(cut: str, main: str, dot: str, uid: str, fills: str | None = None)
 #: the home page's mark cross-fades between this many sets of draws of the full cut (seeds
 #: SEED onwards, the first the logo's own), showing each for HERO_STEP seconds and fading over
 #: the last HERO_FADE of them
-HERO_FRAMES, HERO_STEP, HERO_FADE = 6, 4, 1
+HERO_FRAMES, HERO_STEP, HERO_FADE = 6, 2, 0.5
 HERO = DOCS / "_themes" / "binference" / "hero.html"
 
 
 def hero_html() -> str:
-    """The home page's mark, inlined by ``home.html`` (decorative: the page's title names it),
+    """The home page's lockup, inlined by ``home.html`` (decorative: the page's title names it),
     with its cross-fade: each set of draws is visible for ``HERO_STEP - HERO_FADE`` s, then fades
     out as the next fades in. It runs only once ``binference.js`` adds ``moving``."""
     cycle = HERO_FRAMES * HERO_STEP
@@ -231,9 +231,10 @@ def hero_html() -> str:
         f"{mark_fills('full', 'currentColor', SEED + i)}</g>"
         for i in range(HERO_FRAMES)
     )
-    body = mark_body("full", "currentColor", "var(--b-sample)", "hero-counter", fills)
-    svg = f'<svg class="hero-mark" viewBox="0 0 {SIZE} {SIZE}" aria-hidden="true">'
-    return f"{style}{svg}{body}</svg>\n"
+    mark = mark_body("full", "var(--b-brand)", "var(--b-sample)", "hero-counter", fills)
+    width, word = wordmark_body("var(--b-ink)", "var(--b-sample)")
+    svg = f'<svg class="hero-lockup" viewBox="0 0 {_f(width)} {SIZE}" aria-hidden="true">'
+    return f"{style}{svg}{mark}{word}</svg>\n"
 
 
 def _svg(width: float, body: str, label: bool = True) -> str:
@@ -305,15 +306,14 @@ def wordmark():
     return paths, x, font["head"].unitsPerEm, i_x, stem_top
 
 
-def lockup_svg(theme: int, cut: str = "mid") -> str:
-    """The mark (``cut``) beside the wordmark, all outlines, sharing the baseline ``BASE``.
+def wordmark_body(ink: str, dot: str) -> tuple[float, str]:
+    """Draw the wordmark to the right of the mark and return the full lockup width.
 
     The error bar is the design sheet's 24 x 34 box scaled to 0.33 em: it starts 0.06 em
     above the stem and runs 28 box units up, with the dot 10 units up (radius 7), caps 14
     wide and a stroke of 3.2.
     """
     paths, width, em, i_x, stem_top = wordmark()
-    ink, dot = TOKENS["ink"][theme], TOKENS["sample"][theme]
     s = SIZE / MARK_EM / em  # font units to frame units
     u = 0.33 * em / 34  # error-bar box units to font units
     bottom = stem_top + 0.06 * em
@@ -330,8 +330,14 @@ def lockup_svg(theme: int, cut: str = "mid") -> str:
         f'<g transform="translate({_f(SIZE + gap)} {_f(BASE)}) scale({s:.5f} {-s:.5f})">'
         f'<g fill="{ink}">{letters}</g>{bar}</g>'
     )
+    return SIZE + gap + width * s, word
+
+
+def lockup_svg(theme: int, cut: str = "mid") -> str:
+    """Draw the mark and wordmark on their shared baseline."""
+    width, word = wordmark_body(TOKENS["ink"][theme], TOKENS["sample"][theme])
     uid = f"binference-lockup-{cut}-{('light', 'dark')[theme]}"
-    return _svg(SIZE + gap + width * s, mark_body(cut, TOKENS["brand"][theme], dot, uid) + word)
+    return _svg(width, mark_body(cut, TOKENS["brand"][theme], TOKENS["sample"][theme], uid) + word)
 
 
 # --------------------------------------------------------------------------- outputs

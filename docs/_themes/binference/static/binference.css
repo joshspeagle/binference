@@ -370,15 +370,18 @@ main form input[type="submit"] {
   max-width: 1180px; margin: 0 auto; padding: 40px var(--gutter-r) 72px var(--gutter-l);
 }
 .home p { max-width: var(--measure); }
-/* the hero: the full mark, cross-fading between sets of draws once binference.js adds
-   `moving` (the timing is written into hero.html by brand.py); still before JavaScript and
-   under reduced motion */
-.hero { float: right; width: min(36%, 260px); margin: 0 0 24px 40px; }
-.hero-mark { display: block; width: 100%; height: auto; color: var(--b-brand); }
+.home h2 { font: var(--b-type-section); margin: 2rem 0 .6rem; }
+/* The lockup stays still until binference.js enables the cross-fade from hero.html. */
+.hero { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 16px; }
+.hero-lockup { display: block; width: min(100%, 340px); height: auto; color: var(--b-brand); }
+/* The SVG is decorative. Keep the page title available to assistive technology. */
+.home > section > h1 {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+}
 .hero-draws:not(:first-child) { opacity: 0; }
-.hero.paused .hero-draws { animation-play-state: paused; }
+.hero.moving.paused .hero-draws { animation-play-state: paused; }
 .hero button {
-  display: block; min-height: 24px; margin: 8px auto 0; font: var(--b-type-label); color: var(--b-ink-2);
+  min-height: 28px; font: var(--b-type-label); color: var(--b-ink-2);
   background: none; border: 1px solid var(--b-rule); border-radius: var(--b-radius); padding: 2px 8px; cursor: pointer;
 }
 .home :is(.paths, .sections) ul {
@@ -388,6 +391,12 @@ main form input[type="submit"] {
 .home :is(.paths, .sections) li { margin: 0; padding: 14px 16px; background: var(--b-surface); border-top: var(--b-accent-rule) solid var(--b-rule); }
 .home .paths li { border-top-color: var(--b-brand); }
 .home :is(.paths, .sections) li > p { margin: 0; }
+.home-example {
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 24px 40px; align-items: start; margin: 0 0 2rem;
+}
+.home-example-code > p:first-child { margin-top: 0; }
+.home-example figure { margin: 0; }
 .mobilenav { display: none; }
 
 /* ---------------------------------------------------------------- phones and tablets */
@@ -409,6 +418,7 @@ main form input[type="submit"] {
   .mobilenav a { display: block; padding: 10px 0; font-size: 1rem; color: var(--b-ink); }
 }
 @media (max-width: 900px) {
+  .home-example { grid-template-columns: minmax(0, 1fr); }
   :root { --bar-h: 52px; }
   .menubtn { display: grid; }
   .searchbar input { width: 6rem; }
@@ -424,7 +434,8 @@ main form input[type="submit"] {
   .article h1, .home h1 { font: var(--b-type-title-phone); }
 }
 @media (max-width: 520px) {
-  .hero { float: none; width: 140px; margin: 0 0 16px; }
+  .home { padding-top: 24px; }
+  .hero-lockup { width: min(100%, 250px); }
   .brand img { height: 24px; }
   .searchbar { width: 36px; height: 36px; padding: 0; justify-content: center; border: 0; }
   .searchbar input { position: absolute; width: 1px; height: 1px; opacity: 0; }
