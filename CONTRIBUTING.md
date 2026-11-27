@@ -158,11 +158,16 @@ section as notes and the wheel and sdist attached.
 2. Merge the pull request, then tag the merge commit on `main` and push the tag:
 
    ```bash
-   git tag -a vX.Y.Z -m "binference X.Y.Z" && git push origin vX.Y.Z
+   git tag -a vX.Y.Z <merge-sha> -m "binference X.Y.Z"
+   git push origin vX.Y.Z
    ```
 
    Push the tag once CI on the merge commit has passed: a tag pushed earlier fails the
    step "Check the tag against the version, main and CI", which lists what is checked
    before anything is uploaded, and its run can be re-run once CI is green.
-3. In the next pull request, set the version to the next `.dev0` and open a new
+3. Open the Release run for the tag on GitHub Actions. Once it builds the wheel and
+   source distribution, select **Review deployments**, tick `pypi`, and select
+   **Approve and deploy**. Check that both artifacts appear on PyPI and on the
+   GitHub release. Run the README example from a clean PyPI install of the new version.
+4. In the next pull request, set the version to the next `.dev0` and open a new
    *Unreleased* section.

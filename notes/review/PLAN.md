@@ -4,7 +4,7 @@
 
 ## Stages to 0.3.0
 
-Each item is an issue labelled `0.3.0` and a sub-issue of #225. Stages 1 and 2 can run side by side; stage 4 follows the others.
+The stages below track the work agreed in #225. Stage 4 follows the earlier stages.
 
 | Stage | Issue | Item | Status |
 |---|---|---|---|
@@ -23,15 +23,15 @@ Each item is an issue labelled `0.3.0` and a sub-issue of #225. Stages 1 and 2 c
 | 4 Release | #77 | Golden values against mixsqp, REBayes and Empirikos, tried in a cloud session first | done (#255): mixsqp and Empirikos; REBayes's problem through mixsqp |
 | | #238 | Review of the public API and the policy for breaking changes | done (#256): options keyword-only, policy in `CONTRIBUTING.md`; renames in #257 |
 | | #257 | Renames from the API review (no shims before 1.0) | done (#258) |
-| | #239 | Docs pass and the release | in review: docs pass and version; tag waits for Josh |
+| | #248 | Audit suspected duplicate tests | done (#261) |
+| | #218 | Document and verify qp posterior inputs | done (#260) |
+| | #239 | Docs pass and first beta release | beta metadata in review; publication and citation checks pending |
+| | #225 | Reconcile the release tracker | close after #239 and the final evidence audit |
 
-## After 0.3.0
+## Deferred ideas
 
-All labelled `deferred`, in the order they build on each other:
-
-1. #218 field integrations and exports (qp and RAIL first).
-2. #220 outliers, built on #61's joint-block interface: an outlier fraction is the third jointly inferred quantity #61 waits for.
-3. #217 overdispersion, with the hierarchical models of #237.
-4. #215 calibration and #216 the implicit interim prior, which share held-out or labelled inputs.
-5. #219 scale and run control, then the JAX backend of #237.
-6. #236 coordinates and metrics for NUTS, whenever the benchmark matrix shows the need (internal, no API change).
+The scope review closed #61, #215, #216, #217, #219, #220, #236 and #237
+as not planned. The closing comments record the evidence or requirements
+that would justify revisiting each idea. The design specification's
+roadmap preserves the N-D tree, flow, JAX and hierarchical-model proposals.
+Further integrations from #218 can be scoped around a downstream use case.

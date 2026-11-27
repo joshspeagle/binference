@@ -13,6 +13,9 @@ interim prior, often by many standard deviations
 
 ## A table of posteriors
 
+For a calculation you can check by hand, start with the
+{doc}`three-bin catalogue </tutorials/three-bin-catalogue>`.
+
 Pass the posterior masses per bin $P_{ik}$ and the interim prior to `from_table`:
 
 ```python

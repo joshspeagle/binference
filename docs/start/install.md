@@ -4,7 +4,8 @@ binference needs Python 3.13 or later. Its core depends on NumPy (2.1 or later),
 SciPy (1.14.1 or later) and threadpoolctl. threadpoolctl stops parallel chains from
 starting more threads than there are cores.
 
-binference is in alpha. Install it from PyPI, with the plotting extra:
+Version 0.3.0 is the first beta. To install the latest version published on PyPI
+with the plotting extra, run
 
 ```bash
 pip install "binference[plot]"

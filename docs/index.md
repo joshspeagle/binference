@@ -4,51 +4,56 @@ layout: home
 
 # binference
 
-**Infer the population, then every object.**
+**Population inference from noisy measurements.**
 
-Many objects are each measured with noise. For each one you have a likelihood,
-a posterior computed under some prior, posterior samples, counts in measured
-bins with a response, or a classifier's output. binference infers the
-distribution of the population the objects come from, with calibrated
-uncertainty, and the posterior of each object under that population. The same
-problem appears under different names in several fields
-([background](fields/index.md)); binference treats them as one model
-([what binference does](start/what-it-does.md)).
+Use likelihoods, posteriors, samples, binned counts or classifier outputs to
+estimate a population distribution and its uncertainty. The inferred population
+also informs each object's posterior. The same model applies across
+[several fields](fields/index.md).
 
 :::{container} paths
-- **Measurements with errors.** A value and its uncertainty for each object: the
-  [quick start](start/quickstart.md), then [Gaussian measurements](guides/inputs/gaussian.md).
-- **Posteriors or posterior samples.** Each computed under some prior: the
-  [posterior-samples tutorial](tutorials/posterior-samples.md), then
-  [posteriors](guides/inputs/posteriors.md) and [samples](guides/inputs/samples.md).
-- **Counts or classifier outputs.** Counts in measured bins with a response, or scores
-  from a classifier: the [unfolding](tutorials/unfolding.md) and
-  [classifier](tutorials/classifier-outputs.md) tutorials, then
-  [binned measurements and classifiers](guides/inputs/binned.md).
+- **Measurements with errors.** Start with one value and its uncertainty per object.
+  [Quick start](start/quickstart.md) · [Gaussian inputs](guides/inputs/gaussian.md)
+- **Posteriors or samples.** Supply the interim prior used for each object.
+  [Posterior inputs](guides/inputs/posteriors.md) · [Samples tutorial](tutorials/posterior-samples.md)
+- **Counts or classifier outputs.** Use a detector response or a labelled set.
+  [Unfolding](tutorials/unfolding.md) · [Classifiers](tutorials/classifier-outputs.md) ·
+  [Input guide](guides/inputs/binned.md)
 :::
 
-```{image} _static/quickstart.png
----
-alt: >-
-  Population posteriors for a mock catalogue under a flat Dirichlet prior and a
-  Gaussian-process prior
-class: figure-max
----
-```
+## Fit a population distribution
+
+::::{container} home-example
+:::{container} home-example-code
+Start with a measured value and its Gaussian error for each object.
+The example simulates those two arrays.
 
 ```python
-import binference
+import binference as bf
 
-bins = binference.Bins.linear(0.0, 3.0, 15)
+bins = bf.Bins.linear(0, 3, 15)
+mock = bf.simulate.mock_1d(
+    2000, bins, rng=42
+)
+values = mock.measurements["mean"]
+errors = mock.measurements["sigma"]
 
-# a simulated stand-in for your arrays: measured values and their Gaussian errors
-mock = binference.simulate.mock_1d(2000, bins, rng=42)
-z_obs, z_err = mock.measurements["mean"], mock.measurements["sigma"]
-
-lk = binference.Likelihoods.from_gaussian(z_obs, bins, z_err)
-result = binference.infer(lk, rng=1)  # method="auto" chooses the engine
+lk = bf.Likelihoods.from_gaussian(
+    values, bins, errors
+)
+result = bf.infer(lk, rng=1)
 print(result.summary())
 ```
+:::
+
+```{figure} _static/quickstart.png
+:alt: Population posteriors under a Dirichlet prior and a Gaussian-process prior. Each panel compares the inferred density and credible intervals with the true and stacked densities.
+:class: figure-max
+
+For example, the simulated values can represent galaxy redshifts. The panels show
+the population fitted under a Dirichlet prior and a Gaussian-process prior.
+```
+::::
 
 :::{container} sections
 - **[Start](start/what-it-does.md).** What binference does, whether it suits your data, how

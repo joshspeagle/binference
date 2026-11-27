@@ -175,10 +175,11 @@ independent errors; the pitfalls guide shows
 
 The population also informs each object. Let $k_i$ be the bin of object $i$, and $D$
 the data of all objects. Object $i$'s {term}`hierarchical posterior` $P(k_i=k\mid D)$
-is its responsibilities averaged over the posterior of $\rho$. It is narrower than the object's own likelihood wherever the
-population is informative. This is {term}`shrinkage`, and it is strongest when the
-population is narrow compared with the measurement error
-(explainer {ref}`explainer-v5`).
+is its responsibilities averaged over the posterior of $\rho$. The population pulls
+probability toward its well-supported bins. When the population is concentrated
+relative to the measurement error, this {term}`shrinkage` can narrow the posterior
+(explainer {ref}`explainer-v5`). A population with two separated peaks can instead
+give the object a posterior with two peaks.
 
 ```{explainer} v5
 One object measured at 1.9 with error 0.4, on 30 bins, under a population centred at 1.2

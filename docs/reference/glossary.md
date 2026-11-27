@@ -379,9 +379,9 @@ selection mode
   [say how the selection acts](../guides/selection.md#say-how-the-selection-acts).
 
 shrinkage
-  The narrowing of each object's posterior when the inferred population informs it. The
-  {term}`hierarchical posterior` is narrower than the object's own likelihood wherever
-  the population is informative.
+  The shift of probability toward values supported by the population. In the
+  {term}`hierarchical posterior`, a concentrated population can also reduce an
+  object's uncertainty.
 
 simplex
   The set of $K$ non-negative numbers that sum to one. The {term}`population

@@ -91,8 +91,8 @@ Each range covers two seeds. A warm-up of 1000 iterations left the E-BFMI on 16 
 times the non-centred hyperparameter ESS per second, at E-BFMI 0.42 to 1.03. With 300
 objects the two forms were about equal. A smaller basis gives an easier fit on a grid,
 as in the [two-dimensional tutorial](../tutorials/two-dimensions.md), but it changes the
-prior ([the logistic family](priors.md#the-logistic-family)). The scripts are in the
-repository's `notes/review/experiments/222`.
+prior ([the logistic family](priors.md#the-logistic-family)).
+[Experiment scripts](https://github.com/joshspeagle/binference/tree/main/notes/review/experiments/222)
 
 ## Gibbs sampling
 

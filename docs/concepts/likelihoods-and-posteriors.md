@@ -92,6 +92,14 @@ provided $\pi$ is roughly constant within each bin. binference does this divisio
 for you. It has no default interim prior for posteriors or {term}`posterior samples`,
 so you must name the one that was used.
 
+For example, take bins with edges $0, 1, 2, 4$ and interim prior masses
+$(0.2,0.3,0.5)$. A galaxy's posterior masses are $(4,3,1)/8$. Dividing
+by the prior masses and scaling the largest entry to one gives
+$(1,0.5,0.1)$. The last bin is twice as wide, so its posterior density is
+half its posterior mass. Use the integrated masses in this calculation.
+The {doc}`three-bin tutorial <../tutorials/three-bin-catalogue>` follows
+these numbers through a population fit.
+
 ## Posteriors used as likelihoods
 
 Treating posteriors as likelihoods counts the interim prior once per object. The data

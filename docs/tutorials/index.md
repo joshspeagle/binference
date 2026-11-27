@@ -21,6 +21,8 @@ A measured value and its error for each object.
 
 ## Posteriors on a grid
 
+- {doc}`three-bin-catalogue`: two galaxies, an exact posterior check, and a
+  diagnostic workflow that separates sampler trouble from a response mismatch.
 - {doc}`posteriors-on-a-grid`: a table of posteriors computed under an interim prior,
   and masses versus densities.
 
@@ -59,6 +61,7 @@ gaussian-quickstart
 priors-and-smoothness
 two-dimensions
 empirical-bayes
+three-bin-catalogue
 posteriors-on-a-grid
 posterior-samples
 classifier-outputs

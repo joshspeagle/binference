@@ -613,6 +613,9 @@ The likelihood and its gradient are two matrix–vector products with no $N\time
 
 ## 12. Roadmap beyond v0.1
 
+The [v0.3.0 roadmap review](https://github.com/joshspeagle/binference/issues/237)
+recorded what would justify revisiting flows, JAX, hierarchical models and N-D trees.
+
 1. **Continuous populations (`binference.flows`, optional JAX extra built on flowjax).** The census says to keep the exact grid likelihood whenever a grid exists:
    - Smooth population maps $\theta\mapsto\rho(\theta)$ (splines, monotone flows on bin masses, small MLPs) are fitted inside the exact sum and sampled with HMC for honest uncertainty.
    - True continuous flows are reserved for dimension ≥ 3, or for inputs given as analytic likelihoods or posterior samples. Objectives:
@@ -621,12 +624,14 @@ The likelihood and its gradient are two matrix–vector products with no $N\time
      - stochastic EM;
      - joint hierarchical sampling.
    - Uncertainty comes from ensembles, bootstrap or HMC over small flows, all judged by SBC against the Dirichlet reference. Meta's `flow_matching` package is CC BY-NC licensed, so it is avoided.
+   - Revisit with an input and population model that needs a continuous density beyond the existing bases.
 2. **Sample-variance (overdispersion) models:** 3sDir-like inflation, or $\rho_\text{sample}\sim\mathrm{Dir}(c\,\rho_\text{pop})$.
-3. **Speed:** a JAX/GPU backend for the likelihood kernels and NUTS, and minibatch or stochastic methods for very large N.
+3. **Speed:** a JAX/GPU backend for the likelihood kernels and NUTS, and minibatch or stochastic methods for very large N. Revisit with a measured memory or compute bottleneck.
 4. **Selection:** uncertain selection functions, and selection on observed data with per-object terms.
 5. **Model comparison:** evidences via nested-sampling integrations, and cross-validation utilities for choosing binnings and priors.
 6. **Interoperability:** qp, SACC, CosmoSIS n(z)-realisation exports, a RAIL summariser wrapper, and a QuaPy-compatible quantifier wrapper.
-7. **Covariate-dependent and multi-population models:** e.g. tomographic bins sharing structure.
+7. **Covariate-dependent and multi-population models:** e.g. tomographic bins sharing structure. Revisit hierarchical field models with replicated fields or an external simulation covariance and a defined field-level estimand.
+8. **N-D tree priors:** revisit a multiscale Dirichlet tree with an application and a partition rule that defines branch masses on unequal bins.
 
 ---
 

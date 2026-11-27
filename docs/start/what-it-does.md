@@ -19,8 +19,8 @@ true value is known exactly. binference answers two questions from such data:
   {term}`population fractions` $\rho$, the share of the population in each {term}`bin`,
   with their full uncertainty.
 - What is each object's true value, given the inferred population? binference gives
-  each object's {term}`hierarchical posterior`, which is narrower than its own
-  likelihood wherever the population is informative.
+  each object's {term}`hierarchical posterior`, which combines its likelihood with
+  the inferred population.
 
 ## The problem in pictures
 

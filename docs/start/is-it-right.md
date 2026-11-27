@@ -18,7 +18,7 @@ tutorials that use it.
 | likelihoods or log-likelihoods on the bins | `Likelihoods.from_table` | [guide](../guides/inputs/tables.md#conventions), {doc}`../tutorials/mixed-stocks` |
 | a likelihood function or a SciPy distribution | `Likelihoods.from_density` | [guide](../guides/inputs/functions.md) |
 | a posterior on the bins, and the prior it was computed under | `Likelihoods.from_table` | [guide](../guides/inputs/posteriors.md), {doc}`../tutorials/posteriors-on-a-grid` |
-| posterior samples, and the prior they were drawn under | `Likelihoods.from_samples` | [guide](../guides/inputs/samples.md), {doc}`../tutorials/posteriors-on-a-grid` |
+| posterior samples, and the prior they were drawn under | `Likelihoods.from_samples` | [guide](../guides/inputs/samples.md), {doc}`../tutorials/posterior-samples` |
 | the bin it was measured in, and the detector's {term}`response matrix` | `Likelihoods.from_binned` | [guide](../guides/inputs/binned.md), {doc}`../tutorials/unfolding` |
 | a classifier's probabilities, and the class prevalence it was trained on | `Likelihoods.from_table` | [guide](../guides/inputs/binned.md), {doc}`../tutorials/classifier-outputs` |
 | a classifier's scores, and a labelled validation set | `Likelihoods.from_binned` with `Response.from_labelled` | [guide](../guides/inputs/binned.md), {doc}`../tutorials/classifier-outputs`, {doc}`../tutorials/mixed-stocks` |

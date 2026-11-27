@@ -549,3 +549,15 @@ Append-only. One entry per working session (or per step within a long session).
 - #257: Josh approved the review's renames and ruled out shims while the package is alpha; they land directly (DECISIONS #149), and the policy now starts the `FutureWarning` period at 1.0.
 - #257 (PR #258) merged.
 - #239: docs pass done (DECISIONS #150); version 0.3.0 set. The tag that publishes to PyPI waits for Josh.
+
+## 2026-11-24
+
+- v0.2.0 published to PyPI. The README example ran from the wheel and 0.3.0 read its saved population samples and total draws exactly.
+- #248 (PR #261): resolved the suspected test overlaps and preserved distinct regression coverage.
+- #225: closed eight deferred issues with reopening criteria. The first beta carries a qp input example (#218) and release work (#239, DECISIONS #151).
+
+## 2026-11-25
+
+- #218 (PR #260) merged. The qp histogram example checks posterior masses and
+  the effect of the interim prior on likelihood ratios.
+- #239: add the Zenodo concept DOI established by the v0.2.0 archive.

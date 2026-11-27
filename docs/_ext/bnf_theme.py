@@ -5,9 +5,14 @@
 * Pages with two or more sections get the "On this page" outline.
 * A page whose front matter says ``layout: home`` uses ``home.html``.
 * ``{plain-words}`` is the "In plain words" note of concept pages (at most one per page).
+* Source pages link back to the anchors recorded by the Python domain.
 """
 
 from __future__ import annotations
+
+import re
+from collections import defaultdict
+from html import escape
 
 from docutils import nodes
 from docutils.parsers.rst.directives.admonitions import BaseAdmonition
@@ -15,6 +20,11 @@ from sphinx import addnodes
 from sphinx.util import logging
 
 logger = logging.getLogger(__name__)
+
+_VIEWCODE_BACKLINK = re.compile(
+    r'(<div class="viewcode-block" id="([^"]+)">\s*<a class="viewcode-back" href=")'
+    r'([^"#]+)#([^"]+)"'
+)
 
 
 class PlainWords(BaseAdmonition):
@@ -58,6 +68,34 @@ def _level(html: str) -> str:
     return html.replace('<div role="list" class="citation-list">', '<div class="citation-list">')
 
 
+def _source_backlinks(app, pagename: str, body: str) -> str:
+    """Resolve each viewcode backlink against its destination's Python anchors."""
+    anchors_by_uri: dict[str, set[str]] = defaultdict(set)
+    for _, _, _, docname, anchor, _ in app.env.get_domain("py").get_objects():
+        if anchor:
+            uri = app.builder.get_relative_uri(pagename, docname)
+            anchors_by_uri[uri].add(anchor)
+
+    def resolve(match: re.Match[str]) -> str:
+        prefix, source_name, uri, fragment = match.groups()
+        anchors = anchors_by_uri[uri]
+        if fragment in anchors:
+            return match[0]
+        # viewcode uses one documented module prefix per source page. Re-exports
+        # can share that source page with objects documented under another prefix.
+        suffix = f".{source_name}"
+        candidates = [anchor for anchor in anchors if anchor.endswith(suffix)]
+        if len(candidates) == 1:
+            return f'{prefix}{uri}#{escape(candidates[0])}"'
+        logger.warning("cannot resolve source backlink %s#%s on %s", uri, fragment, pagename)
+        return match[0]
+
+    rewritten, count = _VIEWCODE_BACKLINK.subn(resolve, body)
+    if count != body.count('class="viewcode-back"'):
+        logger.warning("cannot read all source backlinks on %s: viewcode markup changed", pagename)
+    return rewritten
+
+
 def _page_context(app, pagename, templatename, context, doctree):
     sections = context["bnf_sections"] = app.bnf_sections
     parents, top = app.builder.relations, pagename
@@ -71,7 +109,10 @@ def _page_context(app, pagename, templatename, context, doctree):
     context["bnf_outline"] = sections_here is not None and len(sections_here) > 1
     # Sphinx marks toctree captions as headings without a level, in the sidebar and in pages
     if "body" in context:
-        context["body"] = _level(context["body"])
+        body = _level(context["body"])
+        context["body"] = (
+            _source_backlinks(app, pagename, body) if pagename.startswith("_modules/") else body
+        )
     if "toctree" in context:
         toctree = context["toctree"]
         context["toctree"] = lambda **kw: _level(toctree(**kw))

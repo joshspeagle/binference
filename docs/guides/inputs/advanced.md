@@ -117,7 +117,7 @@ identical rows into weighted rows. Inference on the population is unchanged, and
 be much faster for discrete data such as binned counts.
 
 Non-integer weights need `fractional_weights=True`. They define a weighted
-pseudo-likelihood, whose posterior is not a proper posterior, and binference warns.
+pseudo-likelihood, so binference warns that the result is a pseudo-posterior.
 
 ```python
 counts = np.repeat(np.eye(4), 50, axis=0)       # 200 objects, 4 distinct rows
